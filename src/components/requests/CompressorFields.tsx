@@ -44,7 +44,7 @@ export const CompressorFields = ({ field, control, errors }: CompressorFieldsPro
     }
   }
 
-  const removeCompressor = (index: number) => {
+  const removeCompressor = (_index: number) => {
     if (compressorCount > minItems) {
       setCompressorCount(compressorCount - 1)
     }

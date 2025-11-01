@@ -23,7 +23,7 @@ const fieldSchemaSchema = z.object({
     .string()
     .min(1, 'Nome campo obbligatorio')
     .regex(/^[a-z_]+$/, 'Solo lettere minuscole e underscore'),
-  type: z.enum(['text', 'textarea', 'boolean', 'select', 'multiselect', 'file', 'date', 'autocomplete']),
+  type: z.enum(['text', 'textarea', 'boolean', 'select', 'multiselect', 'file', 'date', 'autocomplete', 'number', 'datetime-local', 'repeatable_group']),
   label: z.string().min(1, 'Etichetta obbligatoria'),
   required: z.boolean(),
   hidden: z.boolean().optional(),
@@ -31,6 +31,17 @@ const fieldSchemaSchema = z.object({
   dataSource: z.string().optional(),
   displayField: z.string().optional(),
   valueField: z.string().optional(),
+  min: z.union([z.number(), z.string()]).optional(),
+  max: z.union([z.number(), z.string()]).optional(),
+  step: z.number().optional(),
+  maxLength: z.number().optional(),
+  placeholder: z.string().optional(),
+  accept: z.string().optional(),
+  maxFiles: z.number().optional(),
+  maxFileSize: z.number().optional(),
+  groupFields: z.lazy(() => z.array(fieldSchemaSchema)).optional(),
+  minItems: z.number().optional(),
+  maxItems: z.number().optional(),
 })
 
 const requestTypeSchema = z.object({
