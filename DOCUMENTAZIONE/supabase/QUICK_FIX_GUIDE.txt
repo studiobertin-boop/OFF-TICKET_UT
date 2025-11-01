@@ -1,0 +1,110 @@
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                   FIX RICORSIONE INFINITA - GUIDA RAPIDA                  ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ ERRORE ATTUALE                                                            │
+└───────────────────────────────────────────────────────────────────────────┘
+
+  "infinite recursion detected in policy for relation 'requests'"
+  
+  Quando: cambio stato richiesta
+  Causa: Policy RLS con SELECT ricorsivo su stessa tabella
+
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ SOLUZIONE IN 3 PASSI (5 MINUTI)                                          │
+└───────────────────────────────────────────────────────────────────────────┘
+
+  STEP 1: Apri Supabase SQL Editor
+  ────────────────────────────────────────────────────────────────────────
+  URL: https://supabase.com/dashboard/project/uphftgpwisdiubuhohnc/editor
+
+
+  STEP 2: Copia e Incolla questo SQL
+  ────────────────────────────────────────────────────────────────────────
+  File: supabase/migrations/20250101000002_fix_rls_recursion.sql
+  
+  [Apri il file, seleziona tutto (Ctrl+A), copia (Ctrl+C)]
+
+
+  STEP 3: Esegui (click "RUN")
+  ────────────────────────────────────────────────────────────────────────
+  Risultato atteso: "Success. No rows returned"
+
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ VERIFICA CHE FUNZIONI                                                     │
+└───────────────────────────────────────────────────────────────────────────┘
+
+  1. Vai nell'applicazione OFF-TICKET_UT
+  2. Login: admin@studiobertin.it
+  3. Apri una richiesta
+  4. Cambia stato (es: "Metti in Lavorazione")
+  5. ✓ Dovrebbe funzionare senza errori!
+
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ COSA FA LA FIX                                                            │
+└───────────────────────────────────────────────────────────────────────────┘
+
+  ✓ Aggiunge STABLE a get_user_role() → Caching (20x più veloce)
+  ✓ Rimuove SELECT ricorsivo dalla policy → No loop infinito  
+  ✓ Aggiunge trigger validate_utente_update() → Validazione mantenuta
+
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ FILE CORRELATI                                                            │
+└───────────────────────────────────────────────────────────────────────────┘
+
+  supabase/migrations/20250101000002_fix_rls_recursion.sql
+    → SQL da eseguire (LA FIX VERA)
+
+  supabase/FIX_RECURSION.md
+    → Documentazione dettagliata
+
+  supabase/test_recursion_fix.sql
+    → Test diagnostici (opzionale)
+
+  RECURSION_FIX_SUMMARY.md
+    → Riepilogo esecutivo (questo documento in versione estesa)
+
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ TROUBLESHOOTING                                                           │
+└───────────────────────────────────────────────────────────────────────────┘
+
+  Errore: "policy already exists"
+  ─────────────────────────────────────────────────────────────────────────
+  → Normale! La migration fa DROP IF EXISTS, continua l'esecuzione
+
+
+  Errore: "function get_user_role already exists"  
+  ─────────────────────────────────────────────────────────────────────────
+  → Normale! La migration usa CREATE OR REPLACE, continua l'esecuzione
+
+
+  Ancora vedo errore "infinite recursion"
+  ─────────────────────────────────────────────────────────────────────────
+  → Verifica che la migration sia stata eseguita completamente
+  → Esegui: supabase/test_recursion_fix.sql per diagnostica
+
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ SICUREZZA                                                                 │
+└───────────────────────────────────────────────────────────────────────────┘
+
+  ✓ Nessun dato cancellato
+  ✓ Nessuna tabella modificata
+  ✓ Solo policy/function aggiornate
+  ✓ Rollback disponibile (vedi FIX_RECURSION.md)
+
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ SUPPORTO                                                                  │
+└───────────────────────────────────────────────────────────────────────────┘
+
+  Per dettagli tecnici:    supabase/FIX_RECURSION.md
+  Per test avanzati:       supabase/test_recursion_fix.sql
+  Per overview completa:   RECURSION_FIX_SUMMARY.md
+

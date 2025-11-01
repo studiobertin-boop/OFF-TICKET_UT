@@ -1,0 +1,42 @@
+Piano di Sviluppo - Sistema Ticketing Ufficio Tecnico
+SPRINT 1: Fondamenta (Setup + Auth + Database Base)
+Inizializzazione progetto (npm, package.json, dipendenze)
+Configurazione TypeScript, Vite, ESLint, Prettier
+Setup Supabase locale + configurazione credenziali
+Creazione struttura cartelle (src/, supabase/, tests/)
+Migrazione database: tabelle users, request_types, requests, request_history, attachments, notifications
+RLS policies base per Admin/Tecnico/Utente
+Funzione validate_status_transition() con logica per workflow standard + DM329 custom
+Setup autenticazione Supabase Auth
+Tema MUI con Dark/Light mode toggle
+Router base + layout principale
+Pagina Login funzionante
+SPRINT 2: Form Dinamici + Prima Richiesta
+Sistema form dinamici da JSONB schema
+Validazione Zod generata dinamicamente
+Seed data: tipi richiesta "DM329" (7 stati custom) + 2 tipi standard
+Pagina creazione richiesta con form dinamico
+Lista richieste con filtri base
+Dettaglio richiesta con visualizzazione campi custom
+SPRINT 3: Workflow Stati + Assegnazioni
+State machine completa (8 stati standard + 7 stati DM329)
+Transizioni controllate per Tecnico/Utente
+Admin: accesso libero a tutti gli stati
+Assegnazione richieste ai tecnici
+Storico cambi stato (request_history)
+UI pulsanti transizione stati
+SPRINT 4: Dashboard + Analytics
+Dashboard con MUI X Charts (pie/bar/line)
+Metriche aggregate (richieste per stato/tipo/tecnico)
+Filtri data/tipo/assegnatario
+Dashboard personale per Tecnico
+Dashboard globale per Admin
+SPRINT 5: Notifiche + Allegati + Deploy
+Notifiche real-time (Supabase Realtime)
+Edge Function per email (Resend)
+Upload allegati drag-drop (max 10MB)
+Storage bucket Supabase
+Preview PDF/immagini
+Configurazione Vercel + deployment
+Testing critico con Vitest
+Approccio: Incrementale - approvazione dopo ogni sprint prima di procedere

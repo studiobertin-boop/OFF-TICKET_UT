@@ -1,0 +1,121 @@
+RICORSIONE INFINITA RLS - SPIEGAZIONE VISUALE
+==============================================
+
+SCENARIO: Admin cambia stato richiesta da "APERTA" a "IN_LAVORAZIONE"
+
+
+PRIMA DEL FIX (CON ERRORE)
+==========================
+
+1. Frontend esegue:
+   UPDATE requests SET status = 'IN_LAVORAZIONE' WHERE id = 'xxx'
+
+2. PostgreSQL valuta TUTTE le policy RLS:
+   - Policy: "Admin can update all requests" -> OK
+   - Policy: "Tecnico can update assigned" -> OK
+   - Policy: "Utente can update own requests" -> PROBLEMA!
+
+3. Policy "Utente can update own requests" esegue:
+   WITH CHECK (
+     assigned_to = (SELECT assigned_to FROM requests WHERE id = requests.id)
+   )
+   ^^^^^^^^^^ QUESTO SELECT CAUSA RICORSIONE!
+
+4. Il SELECT innesca di nuovo la validazione policy:
+   SELECT assigned_to FROM requests
+     -> Valuta tutte le policy di nuovo
+       -> Policy "Utente" fa SELECT
+         -> Valuta tutte le policy di nuovo
+           -> Policy "Utente" fa SELECT
+             -> LOOP INFINITO
+
+5. PostgreSQL rileva loop e solleva errore:
+   ERROR: infinite recursion detected in policy for relation 'requests'
+
+
+DOPO IL FIX (FUNZIONA!)
+=======================
+
+1. Frontend esegue:
+   UPDATE requests SET status = 'IN_LAVORAZIONE' WHERE id = 'xxx'
+
+2. Trigger BEFORE UPDATE esegue per primo:
+   validate_utente_update()
+     IF user.role = 'utente' AND NEW.assigned_to != OLD.assigned_to
+     THEN RAISE EXCEPTION
+     ELSE RETURN NEW
+   
+   Usa OLD.assigned_to (no SELECT, no ricorsione!)
+
+3. PostgreSQL valuta policy RLS:
+   - Policy: "Admin can update all requests" -> OK
+   - Policy: "Tecnico can update assigned" -> OK
+   - Policy: "Utente can update own requests" -> OK
+     WITH CHECK (created_by = auth.uid())
+     ^^^^^^^^^^ NO SELECT! Nessuna ricorsione!
+
+4. get_user_role() eseguita con STABLE:
+   Prima chiamata: SELECT role FROM users -> 'admin' (cachato)
+   Seconda chiamata: get_user_role() -> 'admin' (dalla cache, no query!)
+   Terza chiamata: get_user_role() -> 'admin' (dalla cache, no query!)
+
+5. UPDATE completato con successo:
+   - Status aggiornato a 'IN_LAVORAZIONE'
+   - Nessuna ricorsione
+   - Performance ottimizzata
+
+
+PERFORMANCE IMPROVEMENT
+=======================
+
+PRIMA:
+  get_user_role() chiamata 20+ volte per UPDATE
+  -> 20+ query al database "SELECT role FROM users"
+  -> Ricorsione infinita se policy fa SELECT su stessa tabella
+
+DOPO:
+  get_user_role() chiamata 20+ volte, ma con STABLE:
+  -> 1 query al database "SELECT role FROM users"
+  -> 19+ letture da cache (in-memory, istantanee)
+  -> Nessuna ricorsione (trigger usa OLD invece di SELECT)
+
+Risultato: 20x piu veloce + no ricorsione!
+
+
+CODICE MODIFICATO
+=================
+
+File: migrations/20250101000002_fix_rls_recursion.sql
+
+MODIFICA 1: Aggiungi STABLE a get_user_role()
+----------------------------------------------
+CREATE OR REPLACE FUNCTION get_user_role()
+RETURNS user_role AS $$
+  SELECT role FROM users WHERE id = auth.uid();
+$$ LANGUAGE sql STABLE SECURITY DEFINER;
+
+
+MODIFICA 2: Semplifica policy (rimuovi SELECT ricorsivo)
+---------------------------------------------------------
+DROP POLICY IF EXISTS "Utente can update own requests" ON requests;
+
+CREATE POLICY "Utente can update own requests"
+  ON requests FOR UPDATE
+  USING (created_by = auth.uid())
+  WITH CHECK (created_by = auth.uid());
+
+
+MODIFICA 3: Trigger per validare assigned_to
+---------------------------------------------
+CREATE TRIGGER validate_utente_request_update
+  BEFORE UPDATE ON requests
+  FOR EACH ROW
+  EXECUTE FUNCTION validate_utente_update();
+
+
+PROSSIMI PASSI
+==============
+1. Esegui: migrations/20250101000002_fix_rls_recursion.sql
+2. Testa: Cambia stato richiesta nell'app
+3. Verifica: Nessun errore "infinite recursion"
+

@@ -1,0 +1,191 @@
+import { supabase, ensureValidSession } from '../supabase'
+import { Request, RequestStatus, DM329Status } from '@/types'
+
+export interface CreateRequestInput {
+  request_type_id: string
+  title: string
+  custom_fields: Record<string, any>
+  customer_id?: string
+}
+
+export interface UpdateRequestInput {
+  title?: string
+  status?: RequestStatus | DM329Status
+  assigned_to?: string | null
+  custom_fields?: Record<string, any>
+  customer_id?: string | null
+}
+
+export interface RequestFilters {
+  status?: string
+  request_type_id?: string
+  assigned_to?: string
+  created_by?: string
+}
+
+export const requestsApi = {
+  // Get all requests (with filters and relations)
+  getAll: async (filters?: RequestFilters): Promise<Request[]> => {
+    let query = supabase
+      .from('requests')
+      .select(`
+        *,
+        request_type:request_types(*),
+        assigned_user:users!requests_assigned_to_fkey(id, email, full_name, role),
+        creator:users!requests_created_by_fkey(id, email, full_name, role),
+        customer:customers(*)
+      `)
+      .order('created_at', { ascending: false })
+
+    if (filters?.status) {
+      query = query.eq('status', filters.status)
+    }
+    if (filters?.request_type_id) {
+      query = query.eq('request_type_id', filters.request_type_id)
+    }
+    if (filters?.assigned_to) {
+      query = query.eq('assigned_to', filters.assigned_to)
+    }
+    if (filters?.created_by) {
+      query = query.eq('created_by', filters.created_by)
+    }
+
+    const { data, error } = await query
+
+    if (error) throw error
+    return data || []
+  },
+
+  // Get single request by ID
+  getById: async (id: string): Promise<Request> => {
+    const { data, error} = await supabase
+      .from('requests')
+      .select(`
+        *,
+        request_type:request_types(*),
+        assigned_user:users!requests_assigned_to_fkey(id, email, full_name, role),
+        creator:users!requests_created_by_fkey(id, email, full_name, role),
+        customer:customers(*)
+      `)
+      .eq('id', id)
+      .single()
+
+    if (error) throw error
+    return data
+  },
+
+  // Create new request
+  create: async (input: CreateRequestInput): Promise<Request> => {
+    // Ensure session is valid before proceeding
+    const sessionValid = await ensureValidSession()
+    if (!sessionValid) {
+      throw new Error('Sessione non valida. Per favore, effettua nuovamente il login.')
+    }
+
+    const { data: session } = await supabase.auth.getSession()
+    if (!session.session) {
+      throw new Error('Non autenticato')
+    }
+
+    const { data, error } = await supabase
+      .from('requests')
+      .insert({
+        ...input,
+        created_by: session.session.user.id,
+        status: 'APERTA', // Default status for standard requests
+      })
+      .select(`
+        *,
+        request_type:request_types(*),
+        creator:users!requests_created_by_fkey(id, email, full_name, role),
+        customer:customers(*)
+      `)
+      .single()
+
+    if (error) {
+      // Provide more detailed error messages
+      if (error.code === '42501') {
+        throw new Error('Permessi insufficienti per creare questa richiesta.')
+      }
+      if (error.message?.includes('JWT')) {
+        throw new Error('Sessione scaduta. Ricarica la pagina ed effettua nuovamente il login.')
+      }
+      throw error
+    }
+    return data
+  },
+
+  // Update request
+  update: async (id: string, updates: UpdateRequestInput): Promise<Request> => {
+    // Ensure session is valid before proceeding
+    const sessionValid = await ensureValidSession()
+    if (!sessionValid) {
+      throw new Error('Sessione non valida. Per favore, effettua nuovamente il login.')
+    }
+
+    const { data, error } = await supabase
+      .from('requests')
+      .update(updates)
+      .eq('id', id)
+      .select(`
+        *,
+        request_type:request_types(*),
+        assigned_user:users!requests_assigned_to_fkey(id, email, full_name, role),
+        creator:users!requests_created_by_fkey(id, email, full_name, role),
+        customer:customers(*)
+      `)
+      .single()
+
+    if (error) {
+      // Provide more detailed error messages
+      if (error.code === 'PGRST116') {
+        throw new Error('Richiesta non trovata')
+      }
+      if (error.code === '42501') {
+        throw new Error('Permessi insufficienti per aggiornare questa richiesta.')
+      }
+      if (error.message?.includes('JWT')) {
+        throw new Error('Sessione scaduta. Ricarica la pagina ed effettua nuovamente il login.')
+      }
+      throw error
+    }
+    return data
+  },
+
+  // Delete request (admin only)
+  delete: async (id: string): Promise<void> => {
+    // Ensure session is valid before proceeding
+    const sessionValid = await ensureValidSession()
+    if (!sessionValid) {
+      throw new Error('Sessione non valida. Per favore, effettua nuovamente il login.')
+    }
+
+    const { error } = await supabase.from('requests').delete().eq('id', id)
+
+    if (error) {
+      if (error.code === '42501') {
+        throw new Error('Permessi insufficienti. Solo gli amministratori possono eliminare richieste.')
+      }
+      if (error.message?.includes('JWT')) {
+        throw new Error('Sessione scaduta. Ricarica la pagina ed effettua nuovamente il login.')
+      }
+      throw error
+    }
+  },
+
+  // Assign request to tecnico
+  assign: async (requestId: string, tecnicoId: string): Promise<Request> => {
+    return requestsApi.update(requestId, {
+      assigned_to: tecnicoId,
+      status: 'ASSEGNATA',
+    })
+  },
+
+  // Update status with validation
+  updateStatus: async (
+    requestId: string,
+    newStatus: RequestStatus | DM329Status
+  ): Promise<Request> => {
+    return requestsApi.update(requestId, { status: newStatus })
+  },
+}
