@@ -27,12 +27,17 @@ import {
 } from '@mui/icons-material'
 import { Request, DM329Status } from '@/types'
 import { getStatusColor, getStatusLabel } from '@/utils/workflow'
+import { BlockIndicator } from './BlockIndicator'
 import { useUpdateRequest } from '@/hooks/useRequests'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
 
 interface DM329TableViewProps {
   requests: Request[]
+  selectedRequests?: Set<string>
+  onSelectRequest?: (id: string) => void
+  onSelectAll?: (selected: boolean) => void
+  selectionEnabled?: boolean
 }
 
 type OrderDirection = 'asc' | 'desc'
@@ -48,7 +53,13 @@ const DM329_STATUSES: DM329Status[] = [
   '7-CHIUSA',
 ]
 
-export const DM329TableView = ({ requests }: DM329TableViewProps) => {
+export const DM329TableView = ({
+  requests,
+  selectedRequests = new Set(),
+  onSelectRequest,
+  onSelectAll,
+  selectionEnabled = false,
+}: DM329TableViewProps) => {
   const navigate = useNavigate()
   const updateRequestMutation = useUpdateRequest()
   const [orderBy, setOrderBy] = useState<OrderBy>('updated_at')
@@ -128,6 +139,11 @@ export const DM329TableView = ({ requests }: DM329TableViewProps) => {
 
     // Applica ordinamento
     filtered.sort((a, b) => {
+      // ALWAYS show blocked requests first
+      if (a.is_blocked && !b.is_blocked) return -1
+      if (!a.is_blocked && b.is_blocked) return 1
+
+      // Then sort by selected column
       let aValue: any
       let bValue: any
 
@@ -227,6 +243,38 @@ export const DM329TableView = ({ requests }: DM329TableViewProps) => {
     setNoteValue('')
   }
 
+  // Check if all filteredAndSortedRequests are selected
+  const allSelected = selectionEnabled &&
+    filteredAndSortedRequests.length > 0 &&
+    filteredAndSortedRequests.every(req => selectedRequests.has(req.id))
+
+  const someSelected = selectionEnabled &&
+    selectedRequests.size > 0 &&
+    filteredAndSortedRequests.some(req => selectedRequests.has(req.id)) &&
+    !allSelected
+
+  const handleSelectAll = () => {
+    if (onSelectAll) {
+      onSelectAll(!allSelected)
+    }
+  }
+
+  const handleRowClick = (requestId: string, event: React.MouseEvent) => {
+    // If selection is enabled and clicking on checkbox column, don't navigate
+    if (selectionEnabled && (event.target as HTMLElement).closest('.MuiCheckbox-root')) {
+      event.stopPropagation()
+      if (onSelectRequest) {
+        onSelectRequest(requestId)
+      }
+      return
+    }
+
+    // Otherwise navigate to request detail
+    if (!selectionEnabled || !(event.target as HTMLElement).closest('.MuiCheckbox-root')) {
+      navigate(`/requests/${requestId}`)
+    }
+  }
+
   return (
     <Box>
       {hasActiveFilters && (
@@ -255,6 +303,20 @@ export const DM329TableView = ({ requests }: DM329TableViewProps) => {
         <Table size="small" sx={{ minWidth: 900 }}>
           <TableHead>
             <TableRow>
+              {/* Selection checkbox column */}
+              {selectionEnabled && (
+                <TableCell sx={{ width: 50, padding: 1 }}>
+                  <Checkbox
+                    indeterminate={someSelected}
+                    checked={allSelected}
+                    onChange={handleSelectAll}
+                  />
+                </TableCell>
+              )}
+
+              {/* Block indicator column */}
+              <TableCell sx={{ width: 50, padding: 1 }} />
+
               {/* Data ultimo cambio stato */}
               <TableCell sx={{ minWidth: 150 }}>
                 <TableSortLabel
@@ -411,15 +473,39 @@ export const DM329TableView = ({ requests }: DM329TableViewProps) => {
               <TableRow
                 key={request.id}
                 hover
-                sx={{ '&:hover': { backgroundColor: 'action.hover' } }}
+                onClick={(e) => handleRowClick(request.id, e)}
+                sx={{
+                  cursor: 'pointer',
+                  '&:hover': { backgroundColor: 'action.hover' },
+                  // Highlight blocked requests
+                  ...(request.is_blocked && {
+                    backgroundColor: 'warning.lighter',
+                    '&:hover': { backgroundColor: 'warning.light' },
+                  }),
+                  // Highlight selected requests
+                  ...(selectionEnabled && selectedRequests.has(request.id) && {
+                    backgroundColor: 'primary.light',
+                    '&:hover': { backgroundColor: 'primary.main' },
+                  }),
+                }}
               >
+                {/* Selection checkbox */}
+                {selectionEnabled && (
+                  <TableCell sx={{ padding: 1 }} onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={selectedRequests.has(request.id)}
+                      onChange={() => onSelectRequest && onSelectRequest(request.id)}
+                    />
+                  </TableCell>
+                )}
+
+                <TableCell sx={{ padding: 1 }}>
+                  {request.is_blocked && <BlockIndicator isBlocked={true} />}
+                </TableCell>
                 <TableCell>
                   {format(new Date(request.updated_at), 'dd/MM/yyyy HH:mm', { locale: it })}
                 </TableCell>
-                <TableCell
-                  onClick={() => navigate(`/requests/${request.id}`)}
-                  sx={{ cursor: 'pointer' }}
-                >
+                <TableCell>
                   {(() => {
                     const cliente = request.custom_fields?.cliente
                     if (typeof cliente === 'string') return cliente
@@ -508,7 +594,7 @@ export const DM329TableView = ({ requests }: DM329TableViewProps) => {
 
             {filteredAndSortedRequests.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
+                <TableCell colSpan={selectionEnabled ? 7 : 6} align="center" sx={{ py: 3 }}>
                   Nessuna richiesta DM329 trovata
                 </TableCell>
               </TableRow>

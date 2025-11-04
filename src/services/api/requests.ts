@@ -21,6 +21,7 @@ export interface RequestFilters {
   request_type_id?: string
   assigned_to?: string
   created_by?: string
+  is_hidden?: boolean
 }
 
 export const requestsApi = {
@@ -48,6 +49,12 @@ export const requestsApi = {
     }
     if (filters?.created_by) {
       query = query.eq('created_by', filters.created_by)
+    }
+    if (filters?.is_hidden !== undefined) {
+      query = query.eq('is_hidden', filters.is_hidden)
+    } else {
+      // Default: show only visible requests (not hidden)
+      query = query.eq('is_hidden', false)
     }
 
     const { data, error } = await query
@@ -187,5 +194,127 @@ export const requestsApi = {
     newStatus: RequestStatus | DM329Status
   ): Promise<Request> => {
     return requestsApi.update(requestId, { status: newStatus })
+  },
+
+  // Hide request (soft delete, admin only)
+  hide: async (id: string): Promise<void> => {
+    const sessionValid = await ensureValidSession()
+    if (!sessionValid) {
+      throw new Error('Sessione non valida. Per favore, effettua nuovamente il login.')
+    }
+
+    const { error } = await supabase
+      .from('requests')
+      .update({ is_hidden: true })
+      .eq('id', id)
+
+    if (error) {
+      if (error.code === '42501') {
+        throw new Error('Permessi insufficienti. Solo gli amministratori possono nascondere richieste.')
+      }
+      throw error
+    }
+  },
+
+  // Unhide request (restore from hidden, admin only)
+  unhide: async (id: string): Promise<void> => {
+    const sessionValid = await ensureValidSession()
+    if (!sessionValid) {
+      throw new Error('Sessione non valida. Per favore, effettua nuovamente il login.')
+    }
+
+    const { error } = await supabase
+      .from('requests')
+      .update({ is_hidden: false })
+      .eq('id', id)
+
+    if (error) {
+      if (error.code === '42501') {
+        throw new Error('Permessi insufficienti. Solo gli amministratori possono ripristinare richieste.')
+      }
+      throw error
+    }
+  },
+
+  // Bulk hide requests (admin only)
+  bulkHide: async (ids: string[]): Promise<void> => {
+    const sessionValid = await ensureValidSession()
+    if (!sessionValid) {
+      throw new Error('Sessione non valida. Per favore, effettua nuovamente il login.')
+    }
+
+    const { error } = await supabase
+      .from('requests')
+      .update({ is_hidden: true })
+      .in('id', ids)
+
+    if (error) {
+      if (error.code === '42501') {
+        throw new Error('Permessi insufficienti. Solo gli amministratori possono nascondere richieste.')
+      }
+      throw error
+    }
+  },
+
+  // Bulk unhide requests (admin only)
+  bulkUnhide: async (ids: string[]): Promise<void> => {
+    const sessionValid = await ensureValidSession()
+    if (!sessionValid) {
+      throw new Error('Sessione non valida. Per favore, effettua nuovamente il login.')
+    }
+
+    const { error } = await supabase
+      .from('requests')
+      .update({ is_hidden: false })
+      .in('id', ids)
+
+    if (error) {
+      if (error.code === '42501') {
+        throw new Error('Permessi insufficienti. Solo gli amministratori possono ripristinare richieste.')
+      }
+      throw error
+    }
+  },
+
+  // Bulk delete requests (admin only) - also deletes attachments from storage
+  bulkDelete: async (ids: string[]): Promise<void> => {
+    const sessionValid = await ensureValidSession()
+    if (!sessionValid) {
+      throw new Error('Sessione non valida. Per favore, effettua nuovamente il login.')
+    }
+
+    // First, get all attachments for these requests
+    const { data: attachments, error: fetchError } = await supabase
+      .from('attachments')
+      .select('file_path')
+      .in('request_id', ids)
+
+    if (fetchError) throw fetchError
+
+    // Delete attachments from storage if any exist
+    if (attachments && attachments.length > 0) {
+      const filePaths = attachments.map(a => a.file_path)
+      const { error: storageError } = await supabase.storage
+        .from('request-attachments')
+        .remove(filePaths)
+
+      if (storageError) {
+        console.error('Error deleting attachments from storage:', storageError)
+        // Continue with request deletion even if storage deletion fails
+      }
+    }
+
+    // Delete requests (cascade will delete attachments records, history, etc.)
+    const { error } = await supabase
+      .from('requests')
+      .delete()
+      .in('id', ids)
+
+    if (error) {
+      if (error.code === '42501') {
+        throw new Error('Permessi insufficienti. Solo gli amministratori possono eliminare richieste.')
+      }
+      throw error
+    }
   },
 }

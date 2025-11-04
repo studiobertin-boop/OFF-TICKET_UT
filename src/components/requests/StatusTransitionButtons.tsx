@@ -27,6 +27,7 @@ interface StatusTransitionButtonsProps {
   currentStatus: RequestStatus | DM329Status
   requestTypeName: string
   assignedTo?: string | null
+  isBlocked?: boolean
   onStatusChanged: () => void
 }
 
@@ -35,6 +36,7 @@ export const StatusTransitionButtons = ({
   currentStatus,
   requestTypeName,
   assignedTo,
+  isBlocked = false,
   onStatusChanged,
 }: StatusTransitionButtonsProps) => {
   const { user } = useAuth()
@@ -48,6 +50,9 @@ export const StatusTransitionButtons = ({
     return null
   }
 
+  // Non-admin users cannot change status when request is blocked
+  const isDisabledDueToBlock = isBlocked && user.role !== 'admin'
+
   const allowedStatuses = getAllowedNextStatuses(
     currentStatus,
     requestTypeName,
@@ -59,6 +64,14 @@ export const StatusTransitionButtons = ({
     }
     return true
   })
+
+  if (isDisabledDueToBlock) {
+    return (
+      <Alert severity="warning" sx={{ mt: 2 }}>
+        Impossibile cambiare stato: la richiesta è bloccata. Risolvi il blocco prima di procedere.
+      </Alert>
+    )
+  }
 
   if (allowedStatuses.length === 0) {
     return (

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Box,
@@ -27,41 +27,176 @@ import {
 import { Layout } from '@/components/common/Layout'
 import { useRequests } from '@/hooks/useRequests'
 import { useRequestTypes } from '@/hooks/useRequestTypes'
+import { useAuth } from '@/hooks/useAuth'
 import { getStatusColor, getStatusLabel } from '@/utils/workflow'
 import { RequestsTableView } from '@/components/requests/RequestsTableView'
 import { DM329TableView } from '@/components/requests/DM329TableView'
+import { HiddenRequestsView } from '@/components/requests/HiddenRequestsView'
+import { BulkActionsBar } from '@/components/requests/BulkActionsBar'
+import { BulkDeleteConfirmDialog } from '@/components/requests/BulkDeleteConfirmDialog'
+import { deletionArchivesApi } from '@/services/api/deletionArchives'
+import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'react-hot-toast'
 
 type ViewMode = 'grid' | 'table'
 
 export const Requests = () => {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const { user } = useAuth()
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [viewMode, setViewMode] = useState<ViewMode>('table') // Default: vista tabellare
-  const [activeTab, setActiveTab] = useState(0) // 0 = Tutte, 1 = DM329
+  // Se è userdm329, parte dal tab DM329 (tab 1), altrimenti dal tab Generali (tab 0)
+  // Tab: 0 = Generali, 1 = DM329, 2 = Nascoste Generali (admin), 3 = Nascoste DM329 (admin)
+  const [activeTab, setActiveTab] = useState(user?.role === 'userdm329' ? 1 : 0)
+
+  // Selection state
+  const [selectedRequests, setSelectedRequests] = useState<Set<string>>(new Set())
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false)
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false)
 
   const { data: requestTypes = [], isLoading: loadingTypes } = useRequestTypes()
+
+  // Fetch visible requests
   const {
-    data: requests = [],
+    data: visibleRequests = [],
     isLoading,
     error,
   } = useRequests({
     status: statusFilter || undefined,
     request_type_id: typeFilter || undefined,
+    is_hidden: false,
   })
+
+  // Fetch hidden requests (only for admin)
+  const hiddenRequestsQuery = useRequests(
+    user?.role === 'admin'
+      ? {
+          is_hidden: true,
+        }
+      : { is_hidden: true } // Mantieni il filtro anche se non admin, la RLS gestirà i permessi
+  )
+
+  const hiddenRequests = hiddenRequestsQuery.data || []
 
   // Trova l'ID del tipo DM329
   const dm329Type = requestTypes.find(t => t.name === 'DM329')
 
-  // Separa le richieste DM329 dalle altre
+  // Separa le richieste visibili DM329 dalle altre
   const { dm329Requests, otherRequests } = useMemo(() => {
-    const dm329 = requests.filter(r => r.request_type_id === dm329Type?.id)
-    const other = requests.filter(r => r.request_type_id !== dm329Type?.id)
+    const dm329 = visibleRequests.filter(r => r.request_type_id === dm329Type?.id)
+    const other = visibleRequests.filter(r => r.request_type_id !== dm329Type?.id)
     return { dm329Requests: dm329, otherRequests: other }
-  }, [requests, dm329Type])
+  }, [visibleRequests, dm329Type])
+
+  // Separa le richieste nascoste DM329 dalle altre
+  const { hiddenDM329Requests, hiddenOtherRequests } = useMemo(() => {
+    const dm329 = hiddenRequests.filter(r => r.request_type_id === dm329Type?.id)
+    const other = hiddenRequests.filter(r => r.request_type_id !== dm329Type?.id)
+    return { hiddenDM329Requests: dm329, hiddenOtherRequests: other }
+  }, [hiddenRequests, dm329Type])
+
+  // Solo userdm329 non può vedere il tab generale
+  const canViewGeneralTab = user?.role !== 'userdm329'
+
+  // Forza la vista tabella quando si accede ai tab delle richieste nascoste
+  useEffect(() => {
+    if (activeTab >= 2 && viewMode !== 'table') {
+      setViewMode('table')
+    }
+  }, [activeTab, viewMode])
 
   // Richieste da visualizzare in base al tab attivo
-  const displayRequests = activeTab === 0 ? otherRequests : dm329Requests
+  // Se è userdm329, mostra sempre DM329, altrimenti usa activeTab
+  const displayRequests = useMemo(() => {
+    if (!canViewGeneralTab) return dm329Requests
+
+    switch (activeTab) {
+      case 0: return otherRequests
+      case 1: return dm329Requests
+      case 2: return hiddenOtherRequests
+      case 3: return hiddenDM329Requests
+      default: return otherRequests
+    }
+  }, [canViewGeneralTab, activeTab, otherRequests, dm329Requests, hiddenOtherRequests, hiddenDM329Requests])
+
+  // Clear selection when changing tabs
+  useEffect(() => {
+    setSelectedRequests(new Set())
+  }, [activeTab])
+
+  // Selection handlers
+  const handleSelectRequest = (id: string) => {
+    setSelectedRequests(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(id)) {
+        newSet.delete(id)
+      } else {
+        newSet.add(id)
+      }
+      return newSet
+    })
+  }
+
+  const handleSelectAll = (selected: boolean) => {
+    if (selected) {
+      // Select all COMPLETATA or 7-CHIUSA requests in current view
+      const completedRequests = displayRequests
+        .filter(r => r.status === 'COMPLETATA' || r.status === '7-CHIUSA')
+        .map(r => r.id)
+      setSelectedRequests(new Set(completedRequests))
+    } else {
+      setSelectedRequests(new Set())
+    }
+  }
+
+  const handleClearSelection = () => {
+    setSelectedRequests(new Set())
+  }
+
+  // Bulk delete handlers
+  const handleBulkDelete = () => {
+    setBulkDeleteDialogOpen(true)
+  }
+
+  const handleConfirmBulkDelete = async () => {
+    try {
+      setIsBulkDeleting(true)
+      const requestIds = Array.from(selectedRequests)
+
+      // Call API to delete with archive generation
+      await deletionArchivesApi.bulkDeleteWithArchive(requestIds)
+
+      // Refetch requests
+      await queryClient.invalidateQueries({ queryKey: ['requests'] })
+
+      toast.success(`${requestIds.length} richieste eliminate con successo. PDF archivio generato.`)
+      setSelectedRequests(new Set())
+      setBulkDeleteDialogOpen(false)
+    } catch (error: any) {
+      console.error('Errore eliminazione massiva:', error)
+      toast.error(error.message || 'Errore durante l\'eliminazione massiva')
+    } finally {
+      setIsBulkDeleting(false)
+    }
+  }
+
+  // Get selected requests objects for dialog
+  const selectedRequestsObjects = useMemo(() => {
+    return displayRequests.filter(r => selectedRequests.has(r.id))
+  }, [displayRequests, selectedRequests])
+
+  // Check if selected requests contain completed/closed ones (for showing bulk delete button)
+  const hasCompletedRequests = useMemo(() => {
+    return selectedRequestsObjects.some(r => r.status === 'COMPLETATA' || r.status === '7-CHIUSA')
+  }, [selectedRequestsObjects])
+
+  // Only admin can use bulk delete
+  const canBulkDelete = user?.role === 'admin'
+
+  // Enable selection only for admin in table view on visible requests tabs (not hidden)
+  const selectionEnabled = canBulkDelete && viewMode === 'table' && activeTab < 2
 
   if (isLoading || loadingTypes) {
     return (
@@ -87,11 +222,13 @@ export const Requests = () => {
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Typography variant="h4">Richieste</Typography>
           <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+            {/* Disabilita il toggle vista quando si visualizzano richieste nascoste */}
             <ToggleButtonGroup
               value={viewMode}
               exclusive
               onChange={(_, newMode) => newMode && setViewMode(newMode)}
               size="small"
+              disabled={activeTab >= 2}
             >
               <ToggleButton value="grid">
                 <GridViewIcon />
@@ -111,12 +248,23 @@ export const Requests = () => {
         </Box>
 
         {/* Tabs per separare richieste generali e DM329 */}
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-          <Tabs value={activeTab} onChange={(_, newValue) => setActiveTab(newValue)}>
-            <Tab label={`Richieste Generali (${otherRequests.length})`} />
-            <Tab label={`Richieste DM329 (${dm329Requests.length})`} />
-          </Tabs>
-        </Box>
+        {canViewGeneralTab ? (
+          <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+            <Tabs
+              value={activeTab}
+              onChange={(_, newValue) => setActiveTab(newValue)}
+            >
+              <Tab label={`Richieste Generali (${otherRequests.length})`} />
+              <Tab label={`Richieste DM329 (${dm329Requests.length})`} />
+              {user?.role === 'admin' && <Tab label={`Nascoste Generali (${hiddenOtherRequests.length})`} />}
+              {user?.role === 'admin' && <Tab label={`Nascoste DM329 (${hiddenDM329Requests.length})`} />}
+            </Tabs>
+          </Box>
+        ) : (
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="h6">Richieste DM329 ({dm329Requests.length})</Typography>
+          </Box>
+        )}
 
         {/* Filters - solo per visualizzazione griglia */}
         {viewMode === 'grid' && (
@@ -157,16 +305,66 @@ export const Requests = () => {
           </Grid>
         )}
 
+        {/* Bulk Actions Bar */}
+        {selectionEnabled && (
+          <BulkActionsBar
+            selectedCount={selectedRequests.size}
+            onBulkDelete={handleBulkDelete}
+            onClearSelection={handleClearSelection}
+            hasCompletedRequests={hasCompletedRequests}
+          />
+        )}
+
         {/* Visualizzazione Tabella */}
         {viewMode === 'table' && (
           <>
-            {activeTab === 0 ? (
-              <RequestsTableView requests={otherRequests} />
+            {canViewGeneralTab ? (
+              <>
+                {activeTab === 0 && (
+                  <RequestsTableView
+                    requests={otherRequests}
+                    selectedRequests={selectedRequests}
+                    onSelectRequest={handleSelectRequest}
+                    onSelectAll={handleSelectAll}
+                    selectionEnabled={selectionEnabled}
+                  />
+                )}
+                {activeTab === 1 && (
+                  <DM329TableView
+                    requests={dm329Requests}
+                    selectedRequests={selectedRequests}
+                    onSelectRequest={handleSelectRequest}
+                    onSelectAll={handleSelectAll}
+                    selectionEnabled={selectionEnabled}
+                  />
+                )}
+                {activeTab === 2 && user?.role === 'admin' && (
+                  <HiddenRequestsView requests={hiddenOtherRequests} requestType="general" />
+                )}
+                {activeTab === 3 && user?.role === 'admin' && (
+                  <HiddenRequestsView requests={hiddenDM329Requests} requestType="dm329" />
+                )}
+              </>
             ) : (
-              <DM329TableView requests={dm329Requests} />
+              <DM329TableView
+                requests={dm329Requests}
+                selectedRequests={selectedRequests}
+                onSelectRequest={handleSelectRequest}
+                onSelectAll={handleSelectAll}
+                selectionEnabled={selectionEnabled}
+              />
             )}
           </>
         )}
+
+        {/* Bulk Delete Confirm Dialog */}
+        <BulkDeleteConfirmDialog
+          open={bulkDeleteDialogOpen}
+          requests={selectedRequestsObjects}
+          onConfirm={handleConfirmBulkDelete}
+          onCancel={() => setBulkDeleteDialogOpen(false)}
+          isLoading={isBulkDeleting}
+        />
 
         {/* Visualizzazione Griglia */}
         {viewMode === 'grid' && (

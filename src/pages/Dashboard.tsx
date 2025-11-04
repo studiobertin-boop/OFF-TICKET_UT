@@ -56,7 +56,7 @@ export const Dashboard = () => {
     return <Navigate to="/requests" replace />;
   }
 
-  // Se è userdm329, forza il tab DM329 e nascondi il tab generale
+  // Solo userdm329 non può vedere il tab generale, admin e tecnici vedono tutto
   const canViewGeneralDashboard = user?.role !== 'userdm329';
 
   // Filtro per tecnico (vede solo assegnate + create)

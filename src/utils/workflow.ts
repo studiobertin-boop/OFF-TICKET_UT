@@ -69,13 +69,27 @@ export function getAllowedNextStatuses(
     return ALL_STANDARD_STATUSES
   }
 
-  // DM329 workflow
-  if (requestTypeName === 'DM329') {
-    return DM329_WORKFLOW[currentStatus as DM329Status] || []
+  // Utente CANNOT change status at all
+  if (userRole === 'utente') {
+    return []
   }
 
-  // Standard workflow
-  return STANDARD_WORKFLOW[currentStatus as RequestStatus] || []
+  // DM329 workflow (only userdm329 can modify)
+  if (requestTypeName === 'DM329') {
+    if (userRole === 'userdm329') {
+      return DM329_WORKFLOW[currentStatus as DM329Status] || []
+    }
+    // Tecnico cannot modify DM329
+    return []
+  }
+
+  // Standard workflow (only tecnico can modify)
+  if (userRole === 'tecnico') {
+    return STANDARD_WORKFLOW[currentStatus as RequestStatus] || []
+  }
+
+  // userdm329 cannot modify standard requests
+  return []
 }
 
 /**

@@ -22,6 +22,7 @@ import {
   Category as CategoryIcon,
   People as PeopleIcon,
   Business as BusinessIcon,
+  Archive as ArchiveIcon,
 } from '@mui/icons-material'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -125,6 +126,12 @@ export const Layout = ({ children }: LayoutProps) => {
                       <BusinessIcon fontSize="small" />
                     </ListItemIcon>
                     <ListItemText>Gestione Clienti</ListItemText>
+                  </MenuItem>
+                  <MenuItem onClick={() => handleAdminNavigate('/admin/deletion-archives')}>
+                    <ListItemIcon>
+                      <ArchiveIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText>Archivio Eliminazioni</ListItemText>
                   </MenuItem>
                 </Menu>
               </>

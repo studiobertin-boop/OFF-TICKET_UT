@@ -90,6 +90,8 @@ export interface Request {
   customer_id?: string | null
   customer?: Customer
   custom_fields: Record<string, any>
+  is_hidden: boolean
+  is_blocked?: boolean
   created_at: string
   updated_at: string
 }
@@ -103,6 +105,22 @@ export interface RequestHistory {
   changed_by_user?: User
   notes?: string | null
   created_at: string
+}
+
+export interface RequestBlock {
+  id: string
+  request_id: string
+  blocked_by: string
+  blocked_by_user?: User
+  blocked_at: string
+  unblocked_by?: string | null
+  unblocked_by_user?: User | null
+  unblocked_at?: string | null
+  reason: string
+  resolution_notes?: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
 }
 
 export interface Attachment {
@@ -129,4 +147,15 @@ export interface Notification {
 export interface StatusTransitionResult {
   valid: boolean
   message: string
+}
+
+export interface DeletionArchive {
+  id: string
+  file_name: string
+  file_path: string
+  file_size?: number
+  deleted_count: number
+  deleted_by: string
+  deleted_by_user?: User
+  created_at: string
 }

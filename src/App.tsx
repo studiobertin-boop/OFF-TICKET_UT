@@ -8,6 +8,7 @@ import { Dashboard } from '@/pages/Dashboard'
 import { Requests } from '@/pages/Requests'
 import { RequestDetail } from '@/pages/RequestDetail'
 import { NewRequest } from '@/pages/NewRequest'
+import { DeletionArchives } from '@/pages/DeletionArchives'
 import AdminRequestTypes from '@/pages/admin/AdminRequestTypes'
 import AdminUsers from '@/pages/admin/AdminUsers'
 import CustomersManagement from '@/pages/admin/CustomersManagement'
@@ -90,6 +91,14 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={['admin']}>
                     <CustomersManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/deletion-archives"
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <DeletionArchives />
                   </ProtectedRoute>
                 }
               />

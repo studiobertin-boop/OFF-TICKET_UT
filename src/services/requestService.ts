@@ -1,5 +1,5 @@
 import { supabase, ensureValidSession } from './supabase'
-import { RequestHistory, StatusTransitionResult, UserRole } from '@/types'
+import { RequestHistory, RequestBlock, StatusTransitionResult, UserRole } from '@/types'
 
 /**
  * Update request status with validation and history tracking
@@ -277,5 +277,223 @@ export async function getTechnicians() {
   } catch (error) {
     console.error('Unexpected error:', error)
     return []
+  }
+}
+
+// =====================================================
+// REQUEST BLOCKS API
+// =====================================================
+
+/**
+ * Get all blocks for a request (active and resolved)
+ */
+export async function getRequestBlocks(requestId: string): Promise<RequestBlock[]> {
+  try {
+    const { data, error } = await supabase
+      .from('request_blocks')
+      .select(`
+        *,
+        blocked_by_user:users!blocked_by(id, full_name, email),
+        unblocked_by_user:users!unblocked_by(id, full_name, email)
+      `)
+      .eq('request_id', requestId)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Request blocks fetch error:', error)
+      return []
+    }
+
+    return data || []
+  } catch (error) {
+    console.error('Unexpected error fetching blocks:', error)
+    return []
+  }
+}
+
+/**
+ * Get active block for a request (if any)
+ */
+export async function getActiveBlock(requestId: string): Promise<RequestBlock | null> {
+  try {
+    const { data, error } = await supabase
+      .from('request_blocks')
+      .select(`
+        *,
+        blocked_by_user:users!blocked_by(id, full_name, email),
+        unblocked_by_user:users!unblocked_by(id, full_name, email)
+      `)
+      .eq('request_id', requestId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // No active block found
+        return null
+      }
+      console.error('Active block fetch error:', error)
+      return null
+    }
+
+    return data
+  } catch (error) {
+    console.error('Unexpected error fetching active block:', error)
+    return null
+  }
+}
+
+/**
+ * Block a request with a reason
+ */
+export async function blockRequest(
+  requestId: string,
+  blockedBy: string,
+  reason: string
+): Promise<{ success: boolean; message: string; block?: RequestBlock }> {
+  try {
+    // Ensure session is valid before proceeding
+    const sessionValid = await ensureValidSession()
+    if (!sessionValid) {
+      return {
+        success: false,
+        message: 'Sessione non valida. Per favore, effettua nuovamente il login.',
+      }
+    }
+
+    // Check if request is already blocked
+    const activeBlock = await getActiveBlock(requestId)
+    if (activeBlock) {
+      return {
+        success: false,
+        message: 'La richiesta è già bloccata. Risolvi il blocco esistente prima di crearne uno nuovo.',
+      }
+    }
+
+    // Create block
+    const { data, error } = await supabase
+      .from('request_blocks')
+      .insert({
+        request_id: requestId,
+        blocked_by: blockedBy,
+        reason: reason,
+        is_active: true,
+      })
+      .select(`
+        *,
+        blocked_by_user:users!blocked_by(id, full_name, email)
+      `)
+      .single()
+
+    if (error) {
+      console.error('Block creation error:', error)
+      if (error.code === '42501') {
+        return {
+          success: false,
+          message: 'Permessi insufficienti per bloccare questa richiesta.',
+        }
+      }
+      if (error.message?.includes('JWT')) {
+        return {
+          success: false,
+          message: 'Sessione scaduta. Ricarica la pagina ed effettua nuovamente il login.',
+        }
+      }
+      return {
+        success: false,
+        message: `Errore durante il blocco della richiesta: ${error.message}`,
+      }
+    }
+
+    return {
+      success: true,
+      message: 'Richiesta bloccata con successo. L\'autore riceverà una notifica.',
+      block: data,
+    }
+  } catch (error) {
+    console.error('Unexpected error blocking request:', error)
+    return { success: false, message: 'Errore imprevisto durante il blocco' }
+  }
+}
+
+/**
+ * Unblock (resolve) a request block
+ */
+export async function unblockRequest(
+  blockId: string,
+  unblockedBy: string,
+  resolutionNotes?: string
+): Promise<{ success: boolean; message: string; block?: RequestBlock }> {
+  try {
+    // Ensure session is valid before proceeding
+    const sessionValid = await ensureValidSession()
+    if (!sessionValid) {
+      return {
+        success: false,
+        message: 'Sessione non valida. Per favore, effettua nuovamente il login.',
+      }
+    }
+
+    // Update block to resolved
+    const { data, error } = await supabase
+      .from('request_blocks')
+      .update({
+        is_active: false,
+        unblocked_by: unblockedBy,
+        unblocked_at: new Date().toISOString(),
+        resolution_notes: resolutionNotes || null,
+      })
+      .eq('id', blockId)
+      .eq('is_active', true) // Only unblock if it's currently active
+      .select(`
+        *,
+        blocked_by_user:users!blocked_by(id, full_name, email),
+        unblocked_by_user:users!unblocked_by(id, full_name, email)
+      `)
+      .single()
+
+    if (error) {
+      console.error('Unblock error:', error)
+      if (error.code === 'PGRST116') {
+        return {
+          success: false,
+          message: 'Blocco non trovato o già risolto.',
+        }
+      }
+      if (error.code === '42501') {
+        return {
+          success: false,
+          message: 'Permessi insufficienti per sbloccare questa richiesta.',
+        }
+      }
+      if (error.message?.includes('JWT')) {
+        return {
+          success: false,
+          message: 'Sessione scaduta. Ricarica la pagina ed effettua nuovamente il login.',
+        }
+      }
+      return {
+        success: false,
+        message: `Errore durante lo sblocco della richiesta: ${error.message}`,
+      }
+    }
+
+    if (!data) {
+      return {
+        success: false,
+        message: 'Blocco non trovato o già risolto.',
+      }
+    }
+
+    return {
+      success: true,
+      message: 'Blocco risolto con successo. Il tecnico riceverà una notifica.',
+      block: data,
+    }
+  } catch (error) {
+    console.error('Unexpected error unblocking request:', error)
+    return { success: false, message: 'Errore imprevisto durante lo sblocco' }
   }
 }

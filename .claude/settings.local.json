@@ -36,7 +36,18 @@
       "Bash(git config:*)",
       "Bash(if exist nul del nul)",
       "Bash(if exist verify-fix.js del verify-fix.js)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(vercel --version:*)",
+      "Bash(vercel whoami:*)",
+      "Bash(vercel:*)",
+      "Bash(git tag:*)",
+      "Bash(echo:*)",
+      "Bash(Remove-Item \"c:\\Users\\User14\\OneDrive - Studio Bertin\\STUDIOBERTIN\\SVILUPPO\\OFF-TICKET_UT\\supabase\\migrations\\20251104000000_add_deletion_archive.sql\" -Force)",
+      "Bash(del \"c:\\Users\\User14\\OneDrive - Studio Bertin\\STUDIOBERTIN\\SVILUPPO\\OFF-TICKET_UT\\supabase\\migrations\\20251104000000_add_deletion_archive.sql\")"
     ],
     "deny": [],
     "ask": []

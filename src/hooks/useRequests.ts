@@ -81,3 +81,58 @@ export const useUpdateRequestStatus = () => {
     },
   })
 }
+
+export const useHideRequest = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: requestsApi.hide,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: REQUESTS_QUERY_KEY })
+    },
+  })
+}
+
+export const useUnhideRequest = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: requestsApi.unhide,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: REQUESTS_QUERY_KEY })
+    },
+  })
+}
+
+export const useBulkHideRequests = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: requestsApi.bulkHide,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: REQUESTS_QUERY_KEY })
+    },
+  })
+}
+
+export const useBulkUnhideRequests = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: requestsApi.bulkUnhide,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: REQUESTS_QUERY_KEY })
+    },
+  })
+}
+
+export const useBulkDeleteRequests = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: requestsApi.bulkDelete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: REQUESTS_QUERY_KEY })
+    },
+  })
+}
