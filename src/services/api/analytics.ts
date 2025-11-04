@@ -103,9 +103,7 @@ export const generalAnalyticsApi = {
     const openRequests = data?.filter(r => r.status === 'APERTA').length || 0;
     const inProgressRequests = data?.filter(r =>
       r.status === 'ASSEGNATA' ||
-      r.status === 'IN_LAVORAZIONE' ||
-      r.status === 'INFO_NECESSARIE' ||
-      r.status === 'INFO_TRASMESSE'
+      r.status === 'IN_LAVORAZIONE'
     ).length || 0;
     const completedRequests = data?.filter(r => r.status === 'COMPLETATA').length || 0;
 
@@ -488,8 +486,6 @@ function getStatusLabel(status: RequestStatus): string {
     APERTA: 'Aperta',
     ASSEGNATA: 'Assegnata',
     IN_LAVORAZIONE: 'In Lavorazione',
-    INFO_NECESSARIE: 'Info Necessarie',
-    INFO_TRASMESSE: 'Info Trasmesse',
     COMPLETATA: 'Completata',
     SOSPESA: 'Sospesa',
     ABORTITA: 'Abortita',

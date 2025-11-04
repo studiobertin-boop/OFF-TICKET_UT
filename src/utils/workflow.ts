@@ -8,9 +8,7 @@ import { RequestStatus, DM329Status, UserRole } from '@/types'
 export const STANDARD_WORKFLOW: Record<RequestStatus, RequestStatus[]> = {
   APERTA: ['ASSEGNATA', 'ABORTITA'],
   ASSEGNATA: ['IN_LAVORAZIONE', 'APERTA'],
-  IN_LAVORAZIONE: ['INFO_NECESSARIE', 'COMPLETATA', 'SOSPESA'],
-  INFO_NECESSARIE: ['INFO_TRASMESSE', 'IN_LAVORAZIONE'],
-  INFO_TRASMESSE: ['IN_LAVORAZIONE', 'INFO_NECESSARIE'],
+  IN_LAVORAZIONE: ['COMPLETATA', 'SOSPESA'],
   COMPLETATA: [], // Only admin can reopen
   SOSPESA: ['IN_LAVORAZIONE', 'ABORTITA'],
   ABORTITA: [], // Only admin can reopen
@@ -36,8 +34,6 @@ export const ALL_STANDARD_STATUSES: RequestStatus[] = [
   'APERTA',
   'ASSEGNATA',
   'IN_LAVORAZIONE',
-  'INFO_NECESSARIE',
-  'INFO_TRASMESSE',
   'COMPLETATA',
   'SOSPESA',
   'ABORTITA',
@@ -127,8 +123,6 @@ export function getStatusColor(
     APERTA: 'info',
     ASSEGNATA: 'primary',
     IN_LAVORAZIONE: 'warning',
-    INFO_NECESSARIE: 'warning',
-    INFO_TRASMESSE: 'info',
     COMPLETATA: 'success',
     SOSPESA: 'default',
     ABORTITA: 'error',
@@ -164,8 +158,6 @@ export const STANDARD_STATUS_LABELS: Record<RequestStatus, string> = {
   APERTA: 'Aperta',
   ASSEGNATA: 'Assegnata',
   IN_LAVORAZIONE: 'In Lavorazione',
-  INFO_NECESSARIE: 'Info Necessarie',
-  INFO_TRASMESSE: 'Info Trasmesse',
   COMPLETATA: 'Completata',
   SOSPESA: 'Sospesa',
   ABORTITA: 'Abortita',

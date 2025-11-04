@@ -50,7 +50,7 @@ const roleLabels: Record<UserRole, string> = {
 const roleDescriptions: Record<UserRole, string> = {
   admin: 'Può fare e vedere tutto',
   tecnico: 'Può vedere tutto, può modificare solo le pratiche assegnate',
-  utente: 'Può vedere solo le pratiche assegnate, può modificare quando INFO_NECESSARIE',
+  utente: 'Può vedere solo le pratiche assegnate',
   userdm329: 'Può vedere solo dashboard DM329, vedere e modificare tutte le richieste DM329',
 }
 

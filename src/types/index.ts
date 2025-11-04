@@ -5,8 +5,6 @@ export type RequestStatus =
   | 'APERTA'
   | 'ASSEGNATA'
   | 'IN_LAVORAZIONE'
-  | 'INFO_NECESSARIE'
-  | 'INFO_TRASMESSE'
   | 'COMPLETATA'
   | 'SOSPESA'
   | 'ABORTITA'

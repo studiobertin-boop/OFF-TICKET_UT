@@ -13,7 +13,6 @@ import {
 import {
   ArrowForward as ArrowForwardIcon,
   CheckCircle as CheckCircleIcon,
-  Info as InfoIcon,
   Circle as CircleIcon,
 } from '@mui/icons-material'
 import { RequestHistory } from '@/types'
@@ -42,9 +41,6 @@ export const RequestHistoryTimeline = ({ requestId }: RequestHistoryTimelineProp
   const getIcon = (statusTo: string) => {
     if (statusTo === 'COMPLETATA' || statusTo === '7-CHIUSA') {
       return <CheckCircleIcon color="success" />
-    }
-    if (statusTo === 'INFO_NECESSARIE' || statusTo === 'INFO_TRASMESSE') {
-      return <InfoIcon color="info" />
     }
     return <CircleIcon color="action" />
   }

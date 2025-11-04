@@ -13,7 +13,6 @@ import {
 import {
   PlayArrow as PlayArrowIcon,
   Check as CheckIcon,
-  Info as InfoIcon,
 } from '@mui/icons-material'
 import { RequestStatus, DM329Status, UserRole } from '@/types'
 import { getAllowedNextStatuses, getStatusLabel } from '@/utils/workflow'
@@ -122,9 +121,6 @@ export const StatusTransitionButtons = ({
   const getButtonIcon = (status: string) => {
     if (status === 'COMPLETATA' || status === '7-CHIUSA') {
       return <CheckIcon />
-    }
-    if (status === 'INFO_NECESSARIE' || status === 'INFO_TRASMESSE') {
-      return <InfoIcon />
     }
     return <PlayArrowIcon />
   }

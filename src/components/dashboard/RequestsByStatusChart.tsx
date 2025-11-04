@@ -71,8 +71,6 @@ function getStatusColorHex(status: string): string {
     APERTA: '#2196f3',
     ASSEGNATA: '#ff9800',
     IN_LAVORAZIONE: '#9c27b0',
-    INFO_NECESSARIE: '#f44336',
-    INFO_TRASMESSE: '#03a9f4',
     COMPLETATA: '#4caf50',
     SOSPESA: '#9e9e9e',
     ABORTITA: '#f44336',
