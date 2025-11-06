@@ -50,7 +50,8 @@
       "Bash(del \"c:\\Users\\User14\\OneDrive - Studio Bertin\\STUDIOBERTIN\\SVILUPPO\\OFF-TICKET_UT\\supabase\\migrations\\20251104000000_add_deletion_archive.sql\")",
       "Bash(git log:*)",
       "Bash(timeout 5 bash:*)",
-      "Bash(psql:*)"
+      "Bash(psql:*)",
+      "Bash(if not exist \"supabase\\functions\\send-notification-email\" mkdir \"supabase\\functions\\send-notification-email\")"
     ],
     "deny": [],
     "ask": []

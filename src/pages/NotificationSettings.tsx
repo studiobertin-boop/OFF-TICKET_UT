@@ -18,9 +18,12 @@ import {
 import {
   ExpandMore as ExpandMoreIcon,
   Save as SaveIcon,
+  Email as EmailIcon,
 } from '@mui/icons-material'
 import { Layout } from '../components/common/Layout'
 import { useNotificationPreferences } from '../hooks/useNotifications'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../hooks/useAuth'
 import type { RequestStatus, DM329Status } from '../types'
 
 // Tutte le possibili transizioni di stato
@@ -55,11 +58,14 @@ const DM329_STATUS_TRANSITIONS: Array<{
 export default function NotificationSettings() {
   const { preferences, updatePreferences, updateStatusTransition, isUpdating, isLoading } =
     useNotificationPreferences()
+  const { user } = useAuth()
 
   const [inApp, setInApp] = useState(true)
   const [email, setEmail] = useState(false)
   const [statusTransitions, setStatusTransitions] = useState<Record<string, boolean>>({})
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [testEmailLoading, setTestEmailLoading] = useState(false)
+  const [testEmailResult, setTestEmailResult] = useState<{ success: boolean; message: string } | null>(null)
 
   // Carica preferenze iniziali
   useEffect(() => {
@@ -104,6 +110,34 @@ export default function NotificationSettings() {
     return statusTransitions[key] || false
   }
 
+  const handleTestEmail = async () => {
+    setTestEmailLoading(true)
+    setTestEmailResult(null)
+
+    try {
+      const { data, error } = await supabase.functions.invoke('test-notification-email')
+
+      if (error) {
+        setTestEmailResult({
+          success: false,
+          message: `Errore: ${error.message}`,
+        })
+      } else {
+        setTestEmailResult({
+          success: true,
+          message: data.message || 'Email di test inviata con successo!',
+        })
+      }
+    } catch (err) {
+      setTestEmailResult({
+        success: false,
+        message: `Errore imprevisto: ${err instanceof Error ? err.message : 'Unknown error'}`,
+      })
+    } finally {
+      setTestEmailLoading(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <Layout>
@@ -141,10 +175,9 @@ export default function NotificationSettings() {
               <Switch
                 checked={email}
                 onChange={(e) => setEmail(e.target.checked)}
-                disabled
               />
             }
-            label="Notifiche via email (disponibile a breve)"
+            label="Notifiche via email"
           />
         </FormGroup>
 
@@ -165,6 +198,33 @@ export default function NotificationSettings() {
           </Alert>
         )}
       </Paper>
+
+      {user?.role === 'admin' && (
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            Test Email (Solo Admin)
+          </Typography>
+          <Typography variant="body2" color="text.secondary" paragraph>
+            Invia una email di test al tuo indirizzo per verificare la configurazione del sistema
+          </Typography>
+
+          <Button
+            variant="outlined"
+            startIcon={<EmailIcon />}
+            onClick={handleTestEmail}
+            disabled={testEmailLoading}
+            color="info"
+          >
+            {testEmailLoading ? 'Invio in corso...' : 'Invia Email di Test'}
+          </Button>
+
+          {testEmailResult && (
+            <Alert severity={testEmailResult.success ? 'success' : 'error'} sx={{ mt: 2 }}>
+              {testEmailResult.message}
+            </Alert>
+          )}
+        </Paper>
+      )}
 
       <Paper sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" gutterBottom>
