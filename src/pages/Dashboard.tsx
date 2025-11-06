@@ -20,22 +20,24 @@ import {
   useGeneralOverview,
   useGeneralByStatus,
   useGeneralByType,
-  useGeneralByTecnico,
+  useGeneralByRequester,
   useGeneralTrend,
+  useGeneralCompletionTimeTrend,
   useDM329Overview,
   useDM329ByStatus,
-  useDM329ByTecnico,
   useDM329Trend,
-  useDM329TopClients,
+  useDM329CompletionTimeTrend,
+  useDM329TransitionTimes,
 } from '@/hooks/useAnalytics';
 
 // Components
-import { DashboardMetrics } from '@/components/dashboard/DashboardMetrics';
+import { StatusTiles } from '@/components/dashboard/StatusTiles';
 import { RequestsByStatusChart } from '@/components/dashboard/RequestsByStatusChart';
 import { RequestsByTypeChart } from '@/components/dashboard/RequestsByTypeChart';
 import { RequestsByTecnicoChart } from '@/components/dashboard/RequestsByTecnicoChart';
 import { TrendChart } from '@/components/dashboard/TrendChart';
-import { DM329TopClientsChart } from '@/components/dashboard/DM329TopClientsChart';
+import { AvgTimeChart } from '@/components/dashboard/AvgTimeChart';
+import { DM329TransitionChart } from '@/components/dashboard/DM329TransitionChart';
 import { GeneralDashboardFilters } from '@/components/dashboard/GeneralDashboardFilters';
 import { DM329DashboardFilters } from '@/components/dashboard/DM329DashboardFilters';
 
@@ -74,15 +76,16 @@ export const Dashboard = () => {
   const generalOverview = useGeneralOverview(userFilters);
   const generalByStatus = useGeneralByStatus(userFilters);
   const generalByType = useGeneralByType(userFilters);
-  const generalByTecnico = useGeneralByTecnico(userFilters);
+  const generalByRequester = useGeneralByRequester(userFilters);
   const generalTrend = useGeneralTrend(trendRange, userFilters);
+  const generalCompletionTimeTrend = useGeneralCompletionTimeTrend(trendRange, userFilters);
 
   // ========== QUERIES DM329 ==========
   const dm329Overview = useDM329Overview(dm329UserFilters);
   const dm329ByStatus = useDM329ByStatus(dm329UserFilters);
-  const dm329ByTecnico = useDM329ByTecnico(dm329UserFilters);
   const dm329Trend = useDM329Trend(trendRange, dm329UserFilters);
-  const dm329TopClients = useDM329TopClients(dm329UserFilters);
+  const dm329CompletionTimeTrend = useDM329CompletionTimeTrend(trendRange, dm329UserFilters);
+  const dm329TransitionTimes = useDM329TransitionTimes(dm329UserFilters);
 
   return (
     <Layout>
@@ -121,26 +124,48 @@ export const Dashboard = () => {
         {/* ========== TAB 0: DASHBOARD GENERALE ========== */}
         {activeTab === 0 && canViewGeneralDashboard && (
           <Box sx={{ mt: 3 }}>
-            {/* Filtri */}
-            <GeneralDashboardFilters onFilterChange={setGeneralFilters} />
-
-            {/* Metriche Overview */}
-            <Box sx={{ mt: 3 }}>
-              <DashboardMetrics
-                metrics={generalOverview.data}
+            {/* Tiles Stati */}
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+                Richieste per Stato
+              </Typography>
+              <StatusTiles
+                tiles={[
+                  {
+                    label: 'Aperte',
+                    count: generalOverview.data?.openRequests || 0,
+                    color: '#2196f3',
+                  },
+                  {
+                    label: 'In Lavorazione',
+                    count: generalOverview.data?.inProgressRequests || 0,
+                    color: '#ff9800',
+                  },
+                  {
+                    label: 'Completate',
+                    count: generalOverview.data?.completedRequests || 0,
+                    color: '#4caf50',
+                  },
+                  {
+                    label: 'Bloccate',
+                    count: generalOverview.data?.blockedRequests || 0,
+                    color: '#f44336',
+                  },
+                  {
+                    label: 'Attive',
+                    count: generalOverview.data?.activeRequests || 0,
+                    color: '#9c27b0',
+                  },
+                ]}
                 isLoading={generalOverview.isLoading}
               />
             </Box>
 
+            {/* Filtri */}
+            <GeneralDashboardFilters onFilterChange={setGeneralFilters} />
+
             {/* Charts */}
             <Grid container spacing={3} sx={{ mt: 1 }}>
-              <Grid item xs={12} md={6}>
-                <RequestsByStatusChart
-                  data={generalByStatus.data}
-                  isLoading={generalByStatus.isLoading}
-                  title="Richieste Generali per Stato"
-                />
-              </Grid>
               <Grid item xs={12} md={6}>
                 <RequestsByTypeChart
                   data={generalByType.data}
@@ -148,10 +173,17 @@ export const Dashboard = () => {
                 />
               </Grid>
               <Grid item xs={12} md={6}>
+                <RequestsByStatusChart
+                  data={generalByStatus.data}
+                  isLoading={generalByStatus.isLoading}
+                  title="Richieste per Stato"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
                 <RequestsByTecnicoChart
-                  data={generalByTecnico.data}
-                  isLoading={generalByTecnico.isLoading}
-                  title="Richieste Generali per Tecnico"
+                  data={generalByRequester.data}
+                  isLoading={generalByRequester.isLoading}
+                  title="Richieste per Richiedente"
                 />
               </Grid>
               <Grid item xs={12} md={6}>
@@ -163,6 +195,7 @@ export const Dashboard = () => {
                       label="Periodo"
                       onChange={e => setTrendRange(e.target.value as any)}
                     >
+                      <MenuItem value="day">Giorno</MenuItem>
                       <MenuItem value="week">Settimana</MenuItem>
                       <MenuItem value="month">Mese</MenuItem>
                       <MenuItem value="year">Anno</MenuItem>
@@ -171,7 +204,30 @@ export const Dashboard = () => {
                   <TrendChart
                     data={generalTrend.data}
                     isLoading={generalTrend.isLoading}
-                    title="Trend Richieste Generali"
+                    title="Storico Nuove Richieste"
+                    range={trendRange}
+                  />
+                </Box>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Box>
+                  <FormControl size="small" sx={{ mb: 2, minWidth: 150 }}>
+                    <InputLabel>Periodo</InputLabel>
+                    <Select
+                      value={trendRange}
+                      label="Periodo"
+                      onChange={e => setTrendRange(e.target.value as any)}
+                    >
+                      <MenuItem value="day">Giorno</MenuItem>
+                      <MenuItem value="week">Settimana</MenuItem>
+                      <MenuItem value="month">Mese</MenuItem>
+                      <MenuItem value="year">Anno</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <AvgTimeChart
+                    data={generalCompletionTimeTrend.data}
+                    isLoading={generalCompletionTimeTrend.isLoading}
+                    title="Tempo Medio Completamento (al netto blocchi)"
                     range={trendRange}
                   />
                 </Box>
@@ -183,20 +239,64 @@ export const Dashboard = () => {
         {/* ========== TAB 1: DASHBOARD DM329 ========== */}
         {activeTab === 1 && (
           <Box sx={{ mt: 3 }}>
-            <Alert severity="warning" sx={{ mb: 3 }}>
+            <Alert severity="info" sx={{ mb: 3 }}>
               <strong>Dashboard DM329</strong> - Visualizzazione separata per richieste DM329
             </Alert>
 
-            {/* Filtri DM329 */}
-            <DM329DashboardFilters onFilterChange={setDM329Filters} />
-
-            {/* Metriche Overview DM329 */}
-            <Box sx={{ mt: 3 }}>
-              <DashboardMetrics
-                metrics={dm329Overview.data}
+            {/* Tiles Stati DM329 */}
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+                Richieste DM329 per Stato
+              </Typography>
+              <StatusTiles
+                tiles={[
+                  {
+                    label: '1 - Incarico Ricevuto',
+                    count: dm329Overview.data?.status1 || 0,
+                    color: '#2196f3',
+                  },
+                  {
+                    label: '2 - Scheda Dati Pronta',
+                    count: dm329Overview.data?.status2 || 0,
+                    color: '#9c27b0',
+                  },
+                  {
+                    label: '3 - Mail Cliente Inviata',
+                    count: dm329Overview.data?.status3 || 0,
+                    color: '#9c27b0',
+                  },
+                  {
+                    label: '4 - Documenti Pronti',
+                    count: dm329Overview.data?.status4 || 0,
+                    color: '#ff9800',
+                  },
+                  {
+                    label: '5 - Attesa Firma',
+                    count: dm329Overview.data?.status5 || 0,
+                    color: '#ff9800',
+                  },
+                  {
+                    label: '6 - Pronta per CIVA',
+                    count: dm329Overview.data?.status6 || 0,
+                    color: '#4caf50',
+                  },
+                  {
+                    label: '7 - Chiusa',
+                    count: dm329Overview.data?.status7 || 0,
+                    color: '#4caf50',
+                  },
+                  {
+                    label: 'Totali Attive',
+                    count: dm329Overview.data?.totalActive || 0,
+                    color: '#673ab7',
+                  },
+                ]}
                 isLoading={dm329Overview.isLoading}
               />
             </Box>
+
+            {/* Filtri DM329 */}
+            <DM329DashboardFilters onFilterChange={setDM329Filters} />
 
             {/* Charts DM329 */}
             <Grid container spacing={3} sx={{ mt: 1 }}>
@@ -208,17 +308,27 @@ export const Dashboard = () => {
                 />
               </Grid>
               <Grid item xs={12} md={6}>
-                <DM329TopClientsChart
-                  data={dm329TopClients.data}
-                  isLoading={dm329TopClients.isLoading}
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <RequestsByTecnicoChart
-                  data={dm329ByTecnico.data}
-                  isLoading={dm329ByTecnico.isLoading}
-                  title="Richieste DM329 per Tecnico"
-                />
+                <Box>
+                  <FormControl size="small" sx={{ mb: 2, minWidth: 150 }}>
+                    <InputLabel>Periodo</InputLabel>
+                    <Select
+                      value={trendRange}
+                      label="Periodo"
+                      onChange={e => setTrendRange(e.target.value as any)}
+                    >
+                      <MenuItem value="day">Giorno</MenuItem>
+                      <MenuItem value="week">Settimana</MenuItem>
+                      <MenuItem value="month">Mese</MenuItem>
+                      <MenuItem value="year">Anno</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <TrendChart
+                    data={dm329Trend.data}
+                    isLoading={dm329Trend.isLoading}
+                    title="Storico Richieste DM329"
+                    range={trendRange}
+                  />
+                </Box>
               </Grid>
               <Grid item xs={12} md={6}>
                 <Box>
@@ -229,18 +339,26 @@ export const Dashboard = () => {
                       label="Periodo"
                       onChange={e => setTrendRange(e.target.value as any)}
                     >
+                      <MenuItem value="day">Giorno</MenuItem>
                       <MenuItem value="week">Settimana</MenuItem>
                       <MenuItem value="month">Mese</MenuItem>
                       <MenuItem value="year">Anno</MenuItem>
                     </Select>
                   </FormControl>
-                  <TrendChart
-                    data={dm329Trend.data}
-                    isLoading={dm329Trend.isLoading}
-                    title="Trend Richieste DM329"
+                  <AvgTimeChart
+                    data={dm329CompletionTimeTrend.data}
+                    isLoading={dm329CompletionTimeTrend.isLoading}
+                    title="Tempo Medio Apertura-Chiusura"
                     range={trendRange}
                   />
                 </Box>
+              </Grid>
+              <Grid item xs={12}>
+                <DM329TransitionChart
+                  data={dm329TransitionTimes.data}
+                  isLoading={dm329TransitionTimes.isLoading}
+                  title="Tempi Medi Transizioni tra Stati"
+                />
               </Grid>
             </Grid>
           </Box>

@@ -19,15 +19,24 @@ import {
   FormControl,
   ListItemText,
   OutlinedInput,
+  Button,
 } from '@mui/material'
 import {
   Clear as ClearIcon,
+  Print as PrintIcon,
 } from '@mui/icons-material'
 import { Request, RequestStatus } from '@/types'
 import { getStatusColor, getStatusLabel } from '@/utils/workflow'
 import { BlockIndicator } from './BlockIndicator'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
+import {
+  generatePrintHTML,
+  printHTML,
+  formatClienteField,
+  formatDateField,
+  createFilterDescription,
+} from '@/utils/print'
 
 interface RequestsTableViewProps {
   requests: Request[]
@@ -35,6 +44,7 @@ interface RequestsTableViewProps {
   onSelectRequest?: (id: string) => void
   onSelectAll?: (selected: boolean) => void
   selectionEnabled?: boolean
+  showPrintButton?: boolean
 }
 
 type OrderDirection = 'asc' | 'desc'
@@ -45,7 +55,7 @@ const GENERAL_STATUSES: RequestStatus[] = [
   'ASSEGNATA',
   'IN_LAVORAZIONE',
   'COMPLETATA',
-  'SOSPESA',
+  'BLOCCATA',
   'ABORTITA',
 ]
 
@@ -55,6 +65,7 @@ export const RequestsTableView = ({
   onSelectRequest,
   onSelectAll,
   selectionEnabled = false,
+  showPrintButton = true,
 }: RequestsTableViewProps) => {
   const navigate = useNavigate()
   const [orderBy, setOrderBy] = useState<OrderBy>('updated_at')
@@ -241,8 +252,65 @@ export const RequestsTableView = ({
     }
   }
 
+  const handlePrint = () => {
+    const filterDescriptions = createFilterDescription({
+      tipoFilter,
+      clienteFilter,
+      statoFilter,
+      creatorFilter,
+    })
+
+    const html = generatePrintHTML({
+      title: 'Richieste Generali',
+      columns: [
+        {
+          header: 'Data Ultimo Cambio',
+          getValue: (req) => formatDateField(req.updated_at),
+        },
+        {
+          header: 'Tipo',
+          getValue: (req) => req.request_type?.name || 'N/A',
+        },
+        {
+          header: 'Cliente',
+          getValue: (req) => formatClienteField(req),
+        },
+        {
+          header: 'Stato',
+          getValue: (req) => getStatusLabel(req.status),
+        },
+        {
+          header: 'Creata da',
+          getValue: (req) => req.creator?.full_name || 'N/A',
+        },
+      ],
+      data: filteredAndSortedRequests,
+      metadata: {
+        totalRecords: requests.length,
+        filteredRecords: filteredAndSortedRequests.length,
+        filters: filterDescriptions,
+      },
+    })
+
+    printHTML(html)
+  }
+
   return (
     <Box>
+      {/* Print button */}
+      {showPrintButton && (
+        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
+          <Button
+            variant="outlined"
+            startIcon={<PrintIcon />}
+            onClick={handlePrint}
+            size="small"
+          >
+            Stampa
+          </Button>
+        </Box>
+      )}
+
       {hasActiveFilters && (
         <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>

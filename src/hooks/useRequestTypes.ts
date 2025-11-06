@@ -3,11 +3,19 @@ import { requestTypesApi } from '@/services/api/requestTypes'
 import { RequestType } from '@/types'
 
 export const REQUEST_TYPES_QUERY_KEY = ['request-types']
+export const ALL_REQUEST_TYPES_QUERY_KEY = ['request-types', 'all']
 
 export const useRequestTypes = () => {
   return useQuery({
     queryKey: REQUEST_TYPES_QUERY_KEY,
     queryFn: requestTypesApi.getAll,
+  })
+}
+
+export const useAllRequestTypes = () => {
+  return useQuery({
+    queryKey: ALL_REQUEST_TYPES_QUERY_KEY,
+    queryFn: requestTypesApi.getAllForAdmin,
   })
 }
 
@@ -26,6 +34,7 @@ export const useCreateRequestType = () => {
     mutationFn: requestTypesApi.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: REQUEST_TYPES_QUERY_KEY })
+      queryClient.invalidateQueries({ queryKey: ALL_REQUEST_TYPES_QUERY_KEY })
     },
   })
 }
@@ -38,6 +47,7 @@ export const useUpdateRequestType = () => {
       requestTypesApi.update(id, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: REQUEST_TYPES_QUERY_KEY })
+      queryClient.invalidateQueries({ queryKey: ALL_REQUEST_TYPES_QUERY_KEY })
     },
   })
 }
@@ -49,6 +59,7 @@ export const useDeactivateRequestType = () => {
     mutationFn: requestTypesApi.deactivate,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: REQUEST_TYPES_QUERY_KEY })
+      queryClient.invalidateQueries({ queryKey: ALL_REQUEST_TYPES_QUERY_KEY })
     },
   })
 }

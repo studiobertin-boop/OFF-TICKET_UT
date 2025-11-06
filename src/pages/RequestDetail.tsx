@@ -11,6 +11,8 @@ import {
   Alert,
   Button,
   Divider,
+  TextField,
+  IconButton,
 } from '@mui/material'
 import {
   ArrowBack as ArrowBackIcon,
@@ -18,9 +20,12 @@ import {
   Delete as DeleteIcon,
   Block as BlockIcon,
   CheckCircle as CheckCircleIcon,
+  Edit as EditIcon,
+  Save as SaveIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material'
 import { Layout } from '@/components/common/Layout'
-import { useRequest, useHideRequest, useDeleteRequest } from '@/hooks/useRequests'
+import { useRequest, useHideRequest, useDeleteRequest, useUpdateRequest } from '@/hooks/useRequests'
 import { useAuth } from '@/hooks/useAuth'
 import { StatusTransitionButtons } from '@/components/requests/StatusTransitionButtons'
 import { AssignmentSection } from '@/components/requests/AssignmentSection'
@@ -42,11 +47,14 @@ export const RequestDetail = () => {
   const { data: activeBlock } = useActiveBlock(id)
   const hideRequest = useHideRequest()
   const deleteRequest = useDeleteRequest()
+  const updateRequest = useUpdateRequest()
 
   const [hideDialogOpen, setHideDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [blockDialogOpen, setBlockDialogOpen] = useState(false)
   const [unblockDialogOpen, setUnblockDialogOpen] = useState(false)
+  const [isEditingNote, setIsEditingNote] = useState(false)
+  const [noteValue, setNoteValue] = useState('')
 
   const handleHide = async () => {
     try {
@@ -66,6 +74,35 @@ export const RequestDetail = () => {
     } catch (error) {
       console.error('Error deleting request:', error)
     }
+  }
+
+  const handleEditNote = () => {
+    setNoteValue((request?.custom_fields?.note as string) || '')
+    setIsEditingNote(true)
+  }
+
+  const handleSaveNote = async () => {
+    if (!request) return
+    try {
+      await updateRequest.mutateAsync({
+        id: request.id,
+        updates: {
+          custom_fields: {
+            ...request.custom_fields,
+            note: noteValue,
+          },
+        },
+      })
+      setIsEditingNote(false)
+      refetch()
+    } catch (error) {
+      console.error('Error updating note:', error)
+    }
+  }
+
+  const handleCancelNote = () => {
+    setIsEditingNote(false)
+    setNoteValue('')
   }
 
   if (isLoading) {
@@ -103,6 +140,13 @@ export const RequestDetail = () => {
     (user?.role === 'tecnico' && !isDM329) ||
     (user?.role === 'userdm329' && isDM329) ||
     (user?.role === 'utente' && !isDM329)
+
+  // Determine if user can edit notes
+  // Admin: always
+  // Userdm329: only on DM329 requests
+  const canEditNote =
+    user?.role === 'admin' ||
+    (user?.role === 'userdm329' && isDM329)
 
   return (
     <Layout>
@@ -236,7 +280,9 @@ export const RequestDetail = () => {
             </Typography>
 
             <Grid container spacing={2}>
-              {Object.entries(request.custom_fields).map(([key, value]) => {
+              {Object.entries(request.custom_fields)
+                .filter(([key]) => key !== 'note') // Escludi note dal loop, verrà visualizzato separatamente
+                .map(([key, value]) => {
                 // Determina come visualizzare il valore
                 let displayValue: string
 
@@ -278,6 +324,58 @@ export const RequestDetail = () => {
             </Grid>
           </CardContent>
         </Card>
+
+        {/* Notes Section - Only for DM329 requests */}
+        {isDM329 && (
+          <Card sx={{ mt: 3 }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6">Note</Typography>
+                {canEditNote && !isEditingNote && (
+                  <IconButton size="small" onClick={handleEditNote} color="primary">
+                    <EditIcon />
+                  </IconButton>
+                )}
+              </Box>
+
+              {isEditingNote ? (
+                <Box>
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={4}
+                    value={noteValue}
+                    onChange={(e) => setNoteValue(e.target.value)}
+                    placeholder="Aggiungi note..."
+                    variant="outlined"
+                  />
+                  <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                    <Button
+                      variant="contained"
+                      startIcon={<SaveIcon />}
+                      onClick={handleSaveNote}
+                      disabled={updateRequest.isPending}
+                    >
+                      Salva
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      startIcon={<CloseIcon />}
+                      onClick={handleCancelNote}
+                      disabled={updateRequest.isPending}
+                    >
+                      Annulla
+                    </Button>
+                  </Box>
+                </Box>
+              ) : (
+                <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+                  {(request.custom_fields?.note as string) || <em>Nessuna nota disponibile</em>}
+                </Typography>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Status Transition Buttons */}
         <Card sx={{ mt: 3 }}>

@@ -11,8 +11,13 @@ import {
   Stack,
 } from '@mui/material'
 import {
+  FiberNew as FiberNewIcon,
+  AssignmentInd as AssignmentIndIcon,
+  Construction as ConstructionIcon,
+  CheckCircle as CheckCircleIcon,
+  PauseCircle as PauseCircleIcon,
+  Cancel as CancelIcon,
   PlayArrow as PlayArrowIcon,
-  Check as CheckIcon,
 } from '@mui/icons-material'
 import { RequestStatus, DM329Status, UserRole } from '@/types'
 import { getAllowedNextStatuses, getStatusLabel } from '@/utils/workflow'
@@ -112,6 +117,8 @@ export const StatusTransitionButtons = ({
       handleCloseDialog()
       // Invalida tutte le query delle richieste per aggiornare sia la lista che il dettaglio
       queryClient.invalidateQueries({ queryKey: REQUESTS_QUERY_KEY })
+      // Invalida anche lo storico della richiesta
+      queryClient.invalidateQueries({ queryKey: ['request-history', requestId] })
       onStatusChanged()
     } else {
       setError(result.message)
@@ -119,10 +126,33 @@ export const StatusTransitionButtons = ({
   }
 
   const getButtonIcon = (status: string) => {
-    if (status === 'COMPLETATA' || status === '7-CHIUSA') {
-      return <CheckIcon />
+    // DM329 statuses - keep play arrow for progression
+    if (status.startsWith('1-') || status.startsWith('2-') ||
+        status.startsWith('3-') || status.startsWith('4-') ||
+        status.startsWith('5-') || status.startsWith('6-')) {
+      return <PlayArrowIcon />
     }
-    return <PlayArrowIcon />
+    if (status === '7-CHIUSA') {
+      return <CheckCircleIcon />
+    }
+
+    // Standard workflow statuses
+    switch (status) {
+      case 'APERTA':
+        return <FiberNewIcon />
+      case 'ASSEGNATA':
+        return <AssignmentIndIcon />
+      case 'IN_LAVORAZIONE':
+        return <ConstructionIcon />
+      case 'COMPLETATA':
+        return <CheckCircleIcon />
+      case 'SOSPESA':
+        return <PauseCircleIcon />
+      case 'ABORTITA':
+        return <CancelIcon />
+      default:
+        return <PlayArrowIcon />
+    }
   }
 
   return (

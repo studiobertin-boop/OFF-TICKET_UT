@@ -8,9 +8,9 @@ import { RequestStatus, DM329Status, UserRole } from '@/types'
 export const STANDARD_WORKFLOW: Record<RequestStatus, RequestStatus[]> = {
   APERTA: ['ASSEGNATA', 'ABORTITA'],
   ASSEGNATA: ['IN_LAVORAZIONE', 'APERTA'],
-  IN_LAVORAZIONE: ['COMPLETATA', 'SOSPESA'],
+  IN_LAVORAZIONE: ['COMPLETATA', 'BLOCCATA'],
   COMPLETATA: [], // Only admin can reopen
-  SOSPESA: ['IN_LAVORAZIONE', 'ABORTITA'],
+  BLOCCATA: ['IN_LAVORAZIONE', 'ABORTITA'],
   ABORTITA: [], // Only admin can reopen
 }
 
@@ -35,7 +35,7 @@ export const ALL_STANDARD_STATUSES: RequestStatus[] = [
   'ASSEGNATA',
   'IN_LAVORAZIONE',
   'COMPLETATA',
-  'SOSPESA',
+  'BLOCCATA',
   'ABORTITA',
 ]
 
@@ -70,10 +70,11 @@ export function getAllowedNextStatuses(
     return []
   }
 
-  // DM329 workflow (only userdm329 can modify)
+  // DM329 workflow (userdm329 and admin can modify)
   if (requestTypeName === 'DM329') {
     if (userRole === 'userdm329') {
-      return DM329_WORKFLOW[currentStatus as DM329Status] || []
+      // userdm329 has full access to all DM329 statuses (like admin)
+      return ALL_DM329_STATUSES
     }
     // Tecnico cannot modify DM329
     return []
@@ -124,7 +125,7 @@ export function getStatusColor(
     ASSEGNATA: 'primary',
     IN_LAVORAZIONE: 'warning',
     COMPLETATA: 'success',
-    SOSPESA: 'default',
+    BLOCCATA: 'error',
     ABORTITA: 'error',
     // DM329 workflow
     '1-INCARICO_RICEVUTO': 'info',
@@ -142,13 +143,13 @@ export function getStatusColor(
  * Get human-readable status labels for DM329
  */
 export const DM329_STATUS_LABELS: Record<DM329Status, string> = {
-  '1-INCARICO_RICEVUTO': 'Incarico Ricevuto',
-  '2-SCHEDA_DATI_PRONTA': 'Scheda Dati Pronta',
-  '3-MAIL_CLIENTE_INVIATA': 'Mail Cliente Inviata',
-  '4-DOCUMENTI_PRONTI': 'Documenti Pronti',
-  '5-ATTESA_FIRMA': 'Attesa Firma',
-  '6-PRONTA_PER_CIVA': 'Pronta per CIVA',
-  '7-CHIUSA': 'Chiusa',
+  '1-INCARICO_RICEVUTO': '1 - Incarico ricevuto',
+  '2-SCHEDA_DATI_PRONTA': '2 - Scheda dati pronta',
+  '3-MAIL_CLIENTE_INVIATA': '3 - Mail cliente inviata',
+  '4-DOCUMENTI_PRONTI': '4 - Documenti pronti',
+  '5-ATTESA_FIRMA': '5 - Attesa firma',
+  '6-PRONTA_PER_CIVA': '6 - Pronta per CIVA',
+  '7-CHIUSA': '7 - Chiusa',
 }
 
 /**
@@ -159,7 +160,7 @@ export const STANDARD_STATUS_LABELS: Record<RequestStatus, string> = {
   ASSEGNATA: 'Assegnata',
   IN_LAVORAZIONE: 'In Lavorazione',
   COMPLETATA: 'Completata',
-  SOSPESA: 'Sospesa',
+  BLOCCATA: 'Bloccata',
   ABORTITA: 'Abortita',
 }
 

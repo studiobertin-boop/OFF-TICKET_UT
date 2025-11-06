@@ -18,9 +18,10 @@ import {
 import {
   Download as DownloadIcon,
   Description as PdfIcon,
+  Delete as DeleteIcon,
 } from '@mui/icons-material'
 import { Layout } from '@/components/common/Layout'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { deletionArchivesApi } from '@/services/api/deletionArchives'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
@@ -28,10 +29,23 @@ import { toast } from 'react-hot-toast'
 
 export const DeletionArchives = () => {
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const queryClient = useQueryClient()
 
   const { data: archives = [], isLoading, error } = useQuery({
     queryKey: ['deletion-archives'],
     queryFn: () => deletionArchivesApi.getAll(),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (archiveId: string) => deletionArchivesApi.delete(archiveId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['deletion-archives'] })
+      toast.success('Archivio eliminato con successo')
+    },
+    onError: (error: any) => {
+      console.error('Errore eliminazione archivio:', error)
+      toast.error(error.message || 'Errore durante l\'eliminazione dell\'archivio')
+    },
   })
 
   const handleDownload = async (archiveId: string, fileName: string, filePath: string) => {
@@ -57,6 +71,12 @@ export const DeletionArchives = () => {
       toast.error(error.message || 'Errore durante il download del PDF')
     } finally {
       setDownloadingId(null)
+    }
+  }
+
+  const handleDelete = (archiveId: string, fileName: string) => {
+    if (window.confirm(`Sei sicuro di voler eliminare l'archivio "${fileName}"? Questa azione è irreversibile.`)) {
+      deleteMutation.mutate(archiveId)
     }
   }
 
@@ -153,13 +173,22 @@ export const DeletionArchives = () => {
                           onClick={() =>
                             handleDownload(archive.id, archive.file_name, archive.file_path)
                           }
-                          disabled={downloadingId === archive.id}
+                          disabled={downloadingId === archive.id || deleteMutation.isPending}
                         >
                           {downloadingId === archive.id ? (
                             <CircularProgress size={24} />
                           ) : (
                             <DownloadIcon />
                           )}
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Elimina archivio">
+                        <IconButton
+                          color="error"
+                          onClick={() => handleDelete(archive.id, archive.file_name)}
+                          disabled={downloadingId === archive.id || deleteMutation.isPending}
+                        >
+                          <DeleteIcon />
                         </IconButton>
                       </Tooltip>
                     </TableCell>

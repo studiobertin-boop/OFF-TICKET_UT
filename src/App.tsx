@@ -9,6 +9,7 @@ import { Requests } from '@/pages/Requests'
 import { RequestDetail } from '@/pages/RequestDetail'
 import { NewRequest } from '@/pages/NewRequest'
 import { DeletionArchives } from '@/pages/DeletionArchives'
+import NotificationSettings from '@/pages/NotificationSettings'
 import AdminRequestTypes from '@/pages/admin/AdminRequestTypes'
 import AdminUsers from '@/pages/admin/AdminUsers'
 import CustomersManagement from '@/pages/admin/CustomersManagement'
@@ -41,7 +42,7 @@ function App() {
               <Route
                 path="/dashboard"
                 element={
-                  <ProtectedRoute>
+                  <ProtectedRoute allowedRoles={['admin']}>
                     <Dashboard />
                   </ProtectedRoute>
                 }
@@ -67,6 +68,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <RequestDetail />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/notification-settings"
+                element={
+                  <ProtectedRoute>
+                    <NotificationSettings />
                   </ProtectedRoute>
                 }
               />

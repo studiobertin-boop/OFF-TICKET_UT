@@ -11,6 +11,7 @@ import {
   Container,
   ListItemIcon,
   ListItemText,
+  Badge,
 } from '@mui/material'
 import {
   Brightness4 as DarkIcon,
@@ -23,11 +24,15 @@ import {
   People as PeopleIcon,
   Business as BusinessIcon,
   Archive as ArchiveIcon,
+  Notifications as NotificationsIcon,
 } from '@mui/icons-material'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useThemeMode } from '@/theme'
 import { useAuth } from '@/hooks/useAuth'
+import { useNotifications } from '@/hooks/useNotifications'
+import { Logo } from './Logo'
+import NotificationDrawer from './NotificationDrawer'
 
 interface LayoutProps {
   children: ReactNode
@@ -36,9 +41,11 @@ interface LayoutProps {
 export const Layout = ({ children }: LayoutProps) => {
   const { mode, toggleTheme } = useThemeMode()
   const { user, signOut } = useAuth()
+  const { unreadCount } = useNotifications()
   const navigate = useNavigate()
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const [adminMenuAnchor, setAdminMenuAnchor] = useState<null | HTMLElement>(null)
+  const [notificationDrawerOpen, setNotificationDrawerOpen] = useState(false)
 
   const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget)
@@ -71,6 +78,7 @@ export const Layout = ({ children }: LayoutProps) => {
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <AppBar position="static">
         <Toolbar>
+          <Logo height={40} onClick={() => navigate('/')} />
           <Typography
             variant="h6"
             component="div"
@@ -88,13 +96,16 @@ export const Layout = ({ children }: LayoutProps) => {
             >
               Richieste
             </Button>
-            <Button
-              color="inherit"
-              startIcon={<DashboardIcon />}
-              onClick={() => navigate('/dashboard')}
-            >
-              Dashboard
-            </Button>
+            {/* Dashboard solo per admin */}
+            {user?.role === 'admin' && (
+              <Button
+                color="inherit"
+                startIcon={<DashboardIcon />}
+                onClick={() => navigate('/dashboard')}
+              >
+                Dashboard
+              </Button>
+            )}
             {user?.role === 'admin' && (
               <>
                 <Button
@@ -143,6 +154,18 @@ export const Layout = ({ children }: LayoutProps) => {
           </IconButton>
 
           {user && (
+            <IconButton
+              sx={{ mr: 1 }}
+              onClick={() => setNotificationDrawerOpen(true)}
+              color="inherit"
+            >
+              <Badge badgeContent={unreadCount} color="error">
+                <NotificationsIcon />
+              </Badge>
+            </IconButton>
+          )}
+
+          {user && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Typography variant="body2">
                 {user.full_name} ({user.role})
@@ -172,7 +195,17 @@ export const Layout = ({ children }: LayoutProps) => {
                 open={Boolean(anchorEl)}
                 onClose={handleClose}
               >
-                <MenuItem onClick={handleClose}>Profilo</MenuItem>
+                <MenuItem
+                  onClick={() => {
+                    navigate('/notification-settings')
+                    handleClose()
+                  }}
+                >
+                  <ListItemIcon>
+                    <NotificationsIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText>Impostazioni Notifiche</ListItemText>
+                </MenuItem>
                 <MenuItem onClick={handleLogout}>Logout</MenuItem>
               </Menu>
             </Box>
@@ -199,6 +232,11 @@ export const Layout = ({ children }: LayoutProps) => {
           </Typography>
         </Container>
       </Box>
+
+      <NotificationDrawer
+        open={notificationDrawerOpen}
+        onClose={() => setNotificationDrawerOpen(false)}
+      />
     </Box>
   )
 }

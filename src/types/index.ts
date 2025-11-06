@@ -6,7 +6,7 @@ export type RequestStatus =
   | 'ASSEGNATA'
   | 'IN_LAVORAZIONE'
   | 'COMPLETATA'
-  | 'SOSPESA'
+  | 'BLOCCATA'
   | 'ABORTITA'
 
 export type DM329Status =
@@ -131,6 +131,12 @@ export interface Attachment {
   created_at: string
 }
 
+export type NotificationEventType =
+  | 'request_created'
+  | 'request_suspended'
+  | 'request_unsuspended'
+  | 'status_change'
+
 export interface Notification {
   id: string
   user_id: string
@@ -138,8 +144,22 @@ export interface Notification {
   request?: Request
   type: string
   message: string
+  status_from?: string | null
+  status_to?: string | null
+  event_type: NotificationEventType
+  metadata?: Record<string, any>
   read: boolean
   created_at: string
+}
+
+export interface UserNotificationPreferences {
+  id: string
+  user_id: string
+  in_app: boolean
+  email: boolean
+  status_transitions: Record<string, boolean> // "STATUS_FROM_STATUS_TO": boolean
+  created_at: string
+  updated_at: string
 }
 
 export interface StatusTransitionResult {

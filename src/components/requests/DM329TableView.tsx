@@ -19,18 +19,27 @@ import {
   FormControl,
   ListItemText,
   OutlinedInput,
+  Button,
 } from '@mui/material'
 import {
   Clear as ClearIcon,
   CheckBox as CheckBoxIcon,
   CheckBoxOutlineBlank as CheckBoxOutlineBlankIcon,
+  Print as PrintIcon,
 } from '@mui/icons-material'
 import { Request, DM329Status } from '@/types'
 import { getStatusColor, getStatusLabel } from '@/utils/workflow'
 import { BlockIndicator } from './BlockIndicator'
-import { useUpdateRequest } from '@/hooks/useRequests'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
+import {
+  generatePrintHTML,
+  printHTML,
+  formatClienteField,
+  formatDateField,
+  formatBooleanField,
+  createFilterDescription,
+} from '@/utils/print'
 
 interface DM329TableViewProps {
   requests: Request[]
@@ -38,6 +47,7 @@ interface DM329TableViewProps {
   onSelectRequest?: (id: string) => void
   onSelectAll?: (selected: boolean) => void
   selectionEnabled?: boolean
+  showPrintButton?: boolean
 }
 
 type OrderDirection = 'asc' | 'desc'
@@ -59,13 +69,11 @@ export const DM329TableView = ({
   onSelectRequest,
   onSelectAll,
   selectionEnabled = false,
+  showPrintButton = true,
 }: DM329TableViewProps) => {
   const navigate = useNavigate()
-  const updateRequestMutation = useUpdateRequest()
   const [orderBy, setOrderBy] = useState<OrderBy>('updated_at')
   const [order, setOrder] = useState<OrderDirection>('desc')
-  const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
-  const [noteValue, setNoteValue] = useState<string>('')
 
   // Filtri per colonna
   const [clienteFilter, setClienteFilter] = useState<string[]>([])
@@ -204,45 +212,6 @@ export const DM329TableView = ({
 
   const hasActiveFilters = clienteFilter.length > 0 || statoFilter.length > 0 || noCivaFilter !== 'all' || noteFilter
 
-  const handleStatusChange = async (requestId: string, newStatus: DM329Status) => {
-    try {
-      await updateRequestMutation.mutateAsync({
-        id: requestId,
-        updates: { status: newStatus },
-      })
-    } catch (error) {
-      console.error('Errore aggiornamento stato:', error)
-    }
-  }
-
-  const handleNoteEdit = (requestId: string, currentNote: string) => {
-    setEditingNoteId(requestId)
-    setNoteValue(currentNote || '')
-  }
-
-  const handleNoteSave = async (requestId: string, request: Request) => {
-    try {
-      await updateRequestMutation.mutateAsync({
-        id: requestId,
-        updates: {
-          custom_fields: {
-            ...request.custom_fields,
-            note: noteValue,
-          },
-        },
-      })
-      setEditingNoteId(null)
-      setNoteValue('')
-    } catch (error) {
-      console.error('Errore aggiornamento note:', error)
-    }
-  }
-
-  const handleNoteCancel = () => {
-    setEditingNoteId(null)
-    setNoteValue('')
-  }
-
   // Check if all filteredAndSortedRequests are selected
   const allSelected = selectionEnabled &&
     filteredAndSortedRequests.length > 0 &&
@@ -275,8 +244,66 @@ export const DM329TableView = ({
     }
   }
 
+  const handlePrint = () => {
+    const filterDescriptions = createFilterDescription({
+      clienteFilter,
+      statoFilter,
+      noCivaFilter,
+      noteFilter,
+    })
+
+    const html = generatePrintHTML({
+      title: 'Richieste DM329',
+      columns: [
+        {
+          header: 'Data Ultimo Cambio',
+          getValue: (req) => formatDateField(req.updated_at),
+        },
+        {
+          header: 'Cliente',
+          getValue: (req) => formatClienteField(req),
+        },
+        {
+          header: 'Stato',
+          getValue: (req) => getStatusLabel(req.status),
+        },
+        {
+          header: 'No CIVA',
+          getValue: (req) => formatBooleanField(req.custom_fields?.no_civa as boolean),
+          align: 'center',
+        },
+        {
+          header: 'Note',
+          getValue: (req) => (req.custom_fields?.note as string) || '-',
+        },
+      ],
+      data: filteredAndSortedRequests,
+      metadata: {
+        totalRecords: requests.length,
+        filteredRecords: filteredAndSortedRequests.length,
+        filters: filterDescriptions,
+      },
+    })
+
+    printHTML(html)
+  }
+
   return (
     <Box>
+      {/* Print button */}
+      {showPrintButton && (
+        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
+          <Button
+            variant="outlined"
+            startIcon={<PrintIcon />}
+            onClick={handlePrint}
+            size="small"
+          >
+            Stampa
+          </Button>
+        </Box>
+      )}
+
       {hasActiveFilters && (
         <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
@@ -515,24 +542,12 @@ export const DM329TableView = ({
                     return '-'
                   })()}
                 </TableCell>
-                <TableCell onClick={(e) => e.stopPropagation()}>
-                  <FormControl size="small" fullWidth>
-                    <Select
-                      value={request.status}
-                      onChange={(e) => handleStatusChange(request.id, e.target.value as DM329Status)}
-                      disabled={updateRequestMutation.isPending}
-                    >
-                      {DM329_STATUSES.map((status) => (
-                        <MenuItem key={status} value={status}>
-                          <Chip
-                            label={getStatusLabel(status)}
-                            color={getStatusColor(status)}
-                            size="small"
-                          />
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
+                <TableCell>
+                  <Chip
+                    label={getStatusLabel(request.status)}
+                    color={getStatusColor(request.status)}
+                    size="small"
+                  />
                 </TableCell>
                 <TableCell sx={{ textAlign: 'center' }}>
                   {request.custom_fields?.no_civa ? (
@@ -541,53 +556,17 @@ export const DM329TableView = ({
                     <CheckBoxOutlineBlankIcon color="disabled" />
                   )}
                 </TableCell>
-                <TableCell onClick={(e) => e.stopPropagation()}>
-                  {editingNoteId === request.id ? (
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <TextField
-                        size="small"
-                        multiline
-                        rows={2}
-                        value={noteValue}
-                        onChange={(e) => setNoteValue(e.target.value)}
-                        fullWidth
-                        autoFocus
-                      />
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                        <IconButton
-                          size="small"
-                          color="primary"
-                          onClick={() => handleNoteSave(request.id, request)}
-                          disabled={updateRequestMutation.isPending}
-                        >
-                          ✓
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={handleNoteCancel}
-                        >
-                          ✕
-                        </IconButton>
-                      </Box>
-                    </Box>
-                  ) : (
-                    <Box
-                      onClick={() => handleNoteEdit(request.id, request.custom_fields?.note as string)}
-                      sx={{
-                        cursor: 'pointer',
-                        maxWidth: 300,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        '&:hover': {
-                          textDecoration: 'underline',
-                        },
-                      }}
-                    >
-                      {(request.custom_fields?.note as string) || <em>Clicca per aggiungere note...</em>}
-                    </Box>
-                  )}
+                <TableCell>
+                  <Box
+                    sx={{
+                      maxWidth: 300,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {(request.custom_fields?.note as string) || '-'}
+                  </Box>
                 </TableCell>
               </TableRow>
             ))}

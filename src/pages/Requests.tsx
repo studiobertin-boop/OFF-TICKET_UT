@@ -67,6 +67,8 @@ export const Requests = () => {
     status: statusFilter || undefined,
     request_type_id: typeFilter || undefined,
     is_hidden: false,
+    // Tecnici vedono solo le richieste assegnate a loro
+    assigned_to: user?.role === 'tecnico' ? user.id : undefined,
   })
 
   // Fetch hidden requests (only for admin)
@@ -82,6 +84,16 @@ export const Requests = () => {
 
   // Trova l'ID del tipo DM329
   const dm329Type = requestTypes.find(t => t.name === 'DM329')
+
+  // Handler per il pulsante Nuova Richiesta
+  const handleNewRequest = () => {
+    // Se è userdm329, va direttamente al form DM329
+    if (user?.role === 'userdm329' && dm329Type) {
+      navigate(`/requests/new?type=${dm329Type.id}`)
+    } else {
+      navigate('/requests/new')
+    }
+  }
 
   // Separa le richieste visibili DM329 dalle altre
   const { dm329Requests, otherRequests } = useMemo(() => {
@@ -99,6 +111,8 @@ export const Requests = () => {
 
   // Solo userdm329 non può vedere il tab generale
   const canViewGeneralTab = user?.role !== 'userdm329'
+  // Solo admin e userdm329 possono vedere il tab DM329
+  const canViewDM329Tab = user?.role === 'admin' || user?.role === 'userdm329'
 
   // Forza la vista tabella quando si accede ai tab delle richieste nascoste
   useEffect(() => {
@@ -112,6 +126,19 @@ export const Requests = () => {
   const displayRequests = useMemo(() => {
     if (!canViewGeneralTab) return dm329Requests
 
+    // Gestione indici tab in base ai ruoli:
+    // user/tecnico: tab 0 = Generali, tab 1 = Nascoste Generali (solo admin)
+    // admin: tab 0 = Generali, tab 1 = DM329, tab 2 = Nascoste Generali, tab 3 = Nascoste DM329
+    if (!canViewDM329Tab) {
+      // user/tecnico vedono solo tab Generali
+      switch (activeTab) {
+        case 0: return otherRequests
+        case 1: return hiddenOtherRequests // Non dovrebbe mai arrivare qui
+        default: return otherRequests
+      }
+    }
+
+    // admin vede tutti i tab
     switch (activeTab) {
       case 0: return otherRequests
       case 1: return dm329Requests
@@ -119,7 +146,7 @@ export const Requests = () => {
       case 3: return hiddenDM329Requests
       default: return otherRequests
     }
-  }, [canViewGeneralTab, activeTab, otherRequests, dm329Requests, hiddenOtherRequests, hiddenDM329Requests])
+  }, [canViewGeneralTab, canViewDM329Tab, activeTab, otherRequests, dm329Requests, hiddenOtherRequests, hiddenDM329Requests])
 
   // Clear selection when changing tabs
   useEffect(() => {
@@ -240,7 +267,7 @@ export const Requests = () => {
             <Button
               variant="contained"
               startIcon={<AddIcon />}
-              onClick={() => navigate('/requests/new')}
+              onClick={handleNewRequest}
             >
               Nuova Richiesta
             </Button>
@@ -255,7 +282,7 @@ export const Requests = () => {
               onChange={(_, newValue) => setActiveTab(newValue)}
             >
               <Tab label={`Richieste Generali (${otherRequests.length})`} />
-              <Tab label={`Richieste DM329 (${dm329Requests.length})`} />
+              {canViewDM329Tab && <Tab label={`Richieste DM329 (${dm329Requests.length})`} />}
               {user?.role === 'admin' && <Tab label={`Nascoste Generali (${hiddenOtherRequests.length})`} />}
               {user?.role === 'admin' && <Tab label={`Nascoste DM329 (${hiddenDM329Requests.length})`} />}
             </Tabs>
@@ -329,7 +356,7 @@ export const Requests = () => {
                     selectionEnabled={selectionEnabled}
                   />
                 )}
-                {activeTab === 1 && (
+                {activeTab === 1 && canViewDM329Tab && (
                   <DM329TableView
                     requests={dm329Requests}
                     selectedRequests={selectedRequests}

@@ -14,6 +14,17 @@ export const requestTypesApi = {
     return data || []
   },
 
+  // Admin only: Get ALL request types (active and inactive)
+  getAllForAdmin: async (): Promise<RequestType[]> => {
+    const { data, error } = await supabase
+      .from('request_types')
+      .select('*')
+      .order('name')
+
+    if (error) throw error
+    return data || []
+  },
+
   // Get single request type by ID
   getById: async (id: string): Promise<RequestType> => {
     const { data, error } = await supabase

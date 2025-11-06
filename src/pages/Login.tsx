@@ -11,6 +11,7 @@ import {
   Container,
 } from '@mui/material'
 import { useAuth } from '@/hooks/useAuth'
+import { Logo } from '@/components/common/Logo'
 
 export const Login = () => {
   const [email, setEmail] = useState('')
@@ -47,6 +48,9 @@ export const Login = () => {
       >
         <Card sx={{ width: '100%', maxWidth: 400 }}>
           <CardContent sx={{ p: 4 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+              <Logo height={60} />
+            </Box>
             <Typography variant="h4" component="h1" gutterBottom align="center">
               Sistema Ticketing UT
             </Typography>

@@ -8,6 +8,7 @@ export interface GeneralAnalyticsFilters {
   status?: RequestStatus;
   requestTypeId?: string;
   assignedTo?: string;
+  createdBy?: string; // Filtro per richiedente
   userId?: string; // Per filtro tecnico (solo assegnate)
 }
 
@@ -48,6 +49,35 @@ export interface OverviewMetrics {
   openRequests: number;
   inProgressRequests: number;
   completedRequests: number;
+  blockedRequests?: number;
+  activeRequests?: number;
+}
+
+export interface DM329OverviewMetrics {
+  status1: number; // INCARICO_RICEVUTO
+  status2: number; // SCHEDA_DATI_PRONTA
+  status3: number; // MAIL_CLIENTE_INVIATA
+  status4: number; // DOCUMENTI_PRONTI
+  status5: number; // ATTESA_FIRMA
+  status6: number; // PRONTA_PER_CIVA
+  status7: number; // CHIUSA
+  totalActive: number;
+}
+
+export interface AvgTimeMetric {
+  avg_hours: number;
+}
+
+export interface TimeSeriesPoint {
+  period: string;
+  avg_hours: number;
+  request_count: number;
+}
+
+export interface DM329TransitionTime {
+  transition_name: string;
+  avg_hours: number;
+  request_count: number;
 }
 
 export interface ClientMetric {
@@ -90,6 +120,11 @@ export const generalAnalyticsApi = {
       query = query.eq('assigned_to', filters.assignedTo);
     }
 
+    // Filtro richiedente
+    if (filters.createdBy) {
+      query = query.eq('created_by', filters.createdBy);
+    }
+
     // Filtro per tecnico (solo assegnate + create da lui)
     if (filters.userId) {
       query = query.or(`assigned_to.eq.${filters.userId},created_by.eq.${filters.userId}`);
@@ -101,17 +136,33 @@ export const generalAnalyticsApi = {
 
     const totalRequests = count || 0;
     const openRequests = data?.filter(r => r.status === 'APERTA').length || 0;
-    const inProgressRequests = data?.filter(r =>
-      r.status === 'ASSEGNATA' ||
-      r.status === 'IN_LAVORAZIONE'
-    ).length || 0;
-    const completedRequests = data?.filter(r => r.status === 'COMPLETATA').length || 0;
+    const inProgressRequests = data?.filter(r => r.status === 'IN_LAVORAZIONE').length || 0;
+    const blockedRequests = data?.filter(r => r.status === 'BLOCCATA').length || 0;
+    const activeRequests = openRequests + inProgressRequests + blockedRequests;
+
+    // Get completed count from request_completions (includes deleted)
+    let completedQuery = supabase
+      .from('request_completions')
+      .select('*', { count: 'exact', head: true })
+      .neq('request_type_name', 'DM329')
+      .eq('status', 'COMPLETATA');
+
+    if (filters.dateFrom) {
+      completedQuery = completedQuery.gte('completed_at', filters.dateFrom);
+    }
+    if (filters.dateTo) {
+      completedQuery = completedQuery.lte('completed_at', filters.dateTo);
+    }
+
+    const { count: completedCount } = await completedQuery;
 
     return {
       totalRequests,
       openRequests,
       inProgressRequests,
-      completedRequests,
+      completedRequests: completedCount || 0,
+      blockedRequests,
+      activeRequests,
     };
   },
 
@@ -132,6 +183,7 @@ export const generalAnalyticsApi = {
     if (filters.dateTo) query = query.lte('created_at', filters.dateTo);
     if (filters.requestTypeId) query = query.eq('request_type_id', filters.requestTypeId);
     if (filters.assignedTo) query = query.eq('assigned_to', filters.assignedTo);
+    if (filters.createdBy) query = query.eq('created_by', filters.createdBy);
     if (filters.userId) {
       query = query.or(`assigned_to.eq.${filters.userId},created_by.eq.${filters.userId}`);
     }
@@ -170,6 +222,7 @@ export const generalAnalyticsApi = {
     if (filters.dateTo) query = query.lte('created_at', filters.dateTo);
     if (filters.status) query = query.eq('status', filters.status);
     if (filters.assignedTo) query = query.eq('assigned_to', filters.assignedTo);
+    if (filters.createdBy) query = query.eq('created_by', filters.createdBy);
     if (filters.userId) {
       query = query.or(`assigned_to.eq.${filters.userId},created_by.eq.${filters.userId}`);
     }
@@ -255,6 +308,7 @@ export const generalAnalyticsApi = {
     if (filters.status) query = query.eq('status', filters.status);
     if (filters.requestTypeId) query = query.eq('request_type_id', filters.requestTypeId);
     if (filters.assignedTo) query = query.eq('assigned_to', filters.assignedTo);
+    if (filters.createdBy) query = query.eq('created_by', filters.createdBy);
     if (filters.userId) {
       query = query.or(`assigned_to.eq.${filters.userId},created_by.eq.${filters.userId}`);
     }
@@ -290,6 +344,85 @@ export const generalAnalyticsApi = {
       .map(([date, count]) => ({ date, count }))
       .sort((a, b) => a.date.localeCompare(b.date));
   },
+
+  /**
+   * Distribuzione richieste per richiedente
+   * ESCLUDE DM329
+   */
+  async getByRequester(filters: GeneralAnalyticsFilters = {}): Promise<TecnicoMetric[]> {
+    let query = supabase
+      .from('requests')
+      .select('created_by, creator:users!requests_created_by_fkey(id, full_name), request_type:request_types!inner(name)');
+
+    // ESCLUDI DM329
+    query = query.neq('request_type.name', 'DM329');
+
+    // Filtri
+    if (filters.dateFrom) query = query.gte('created_at', filters.dateFrom);
+    if (filters.dateTo) query = query.lte('created_at', filters.dateTo);
+    if (filters.status) query = query.eq('status', filters.status);
+    if (filters.requestTypeId) query = query.eq('request_type_id', filters.requestTypeId);
+    if (filters.assignedTo) query = query.eq('assigned_to', filters.assignedTo);
+    if (filters.createdBy) query = query.eq('created_by', filters.createdBy);
+    if (filters.userId) {
+      query = query.or(`assigned_to.eq.${filters.userId},created_by.eq.${filters.userId}`);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    // Aggregazione
+    const requesterCounts = new Map<string, { name: string; count: number }>();
+    data?.forEach(req => {
+      const requesterId = req.created_by;
+      const requesterName = (req.creator as any)?.full_name || 'Unknown';
+      const current = requesterCounts.get(requesterId) || { name: requesterName, count: 0 };
+      requesterCounts.set(requesterId, { ...current, count: current.count + 1 });
+    });
+
+    return Array.from(requesterCounts.entries()).map(([tecnico_id, { name, count }]) => ({
+      tecnico_id,
+      tecnico_name: name,
+      count,
+    }));
+  },
+
+  /**
+   * Tempo medio di completamento (apertura -> chiusura)
+   * AL NETTO del tempo in blocco
+   */
+  async getAvgCompletionTime(filters: GeneralAnalyticsFilters = {}): Promise<AvgTimeMetric> {
+    const { data, error } = await supabase.rpc('calculate_avg_completion_time', {
+      p_request_type_name: null, // Exclude DM329 handled in function
+      p_date_from: filters.dateFrom || null,
+      p_date_to: filters.dateTo || null,
+      p_exclude_blocked_time: true,
+    });
+
+    if (error) throw error;
+
+    return { avg_hours: data || 0 };
+  },
+
+  /**
+   * Trend tempo medio di completamento nel tempo
+   */
+  async getCompletionTimeTrend(
+    range: 'day' | 'week' | 'month' | 'year',
+    filters: GeneralAnalyticsFilters = {}
+  ): Promise<TimeSeriesPoint[]> {
+    const { data, error } = await supabase.rpc('get_completion_time_trend', {
+      p_request_type_name: null,
+      p_date_from: filters.dateFrom || null,
+      p_date_to: filters.dateTo || null,
+      p_interval: range,
+      p_exclude_blocked_time: true,
+    });
+
+    if (error) throw error;
+
+    return data || [];
+  },
 };
 
 // ============================================
@@ -298,10 +431,10 @@ export const generalAnalyticsApi = {
 
 export const dm329AnalyticsApi = {
   /**
-   * Metriche overview DM329
+   * Metriche overview DM329 dettagliate per stato
    * SOLO richieste DM329
    */
-  async getOverview(filters: DM329AnalyticsFilters = {}): Promise<OverviewMetrics> {
+  async getOverview(filters: DM329AnalyticsFilters = {}): Promise<DM329OverviewMetrics> {
     let query = supabase
       .from('requests')
       .select('status, request_type:request_types!inner(name)', { count: 'exact' })
@@ -314,21 +447,43 @@ export const dm329AnalyticsApi = {
       query = query.or(`assigned_to.eq.${filters.userId},created_by.eq.${filters.userId}`);
     }
 
-    const { data, count, error } = await query;
+    const { data, error } = await query;
     if (error) throw error;
 
-    const totalRequests = count || 0;
-    const openRequests = data?.filter(r => r.status === '1-INCARICO_RICEVUTO').length || 0;
-    const inProgressRequests = data?.filter(r =>
-      ['2-SCHEDA_DATI_PRONTA', '3-MAIL_CLIENTE_INVIATA', '4-DOCUMENTI_PRONTI', '5-ATTESA_FIRMA'].includes(r.status)
-    ).length || 0;
-    const completedRequests = data?.filter(r => r.status === '7-CHIUSA').length || 0;
+    const status1 = data?.filter(r => r.status === '1-INCARICO_RICEVUTO').length || 0;
+    const status2 = data?.filter(r => r.status === '2-SCHEDA_DATI_PRONTA').length || 0;
+    const status3 = data?.filter(r => r.status === '3-MAIL_CLIENTE_INVIATA').length || 0;
+    const status4 = data?.filter(r => r.status === '4-DOCUMENTI_PRONTI').length || 0;
+    const status5 = data?.filter(r => r.status === '5-ATTESA_FIRMA').length || 0;
+    const status6 = data?.filter(r => r.status === '6-PRONTA_PER_CIVA').length || 0;
+
+    // Get closed count from request_completions (includes deleted)
+    let closedQuery = supabase
+      .from('request_completions')
+      .select('*', { count: 'exact', head: true })
+      .eq('request_type_name', 'DM329')
+      .eq('status', '7-CHIUSA');
+
+    if (filters.dateFrom) {
+      closedQuery = closedQuery.gte('completed_at', filters.dateFrom);
+    }
+    if (filters.dateTo) {
+      closedQuery = closedQuery.lte('completed_at', filters.dateTo);
+    }
+
+    const { count: status7 } = await closedQuery;
+
+    const totalActive = status1 + status2 + status3 + status4 + status5 + status6;
 
     return {
-      totalRequests,
-      openRequests,
-      inProgressRequests,
-      completedRequests,
+      status1,
+      status2,
+      status3,
+      status4,
+      status5,
+      status6,
+      status7: status7 || 0,
+      totalActive,
     };
   },
 
@@ -475,6 +630,56 @@ export const dm329AnalyticsApi = {
       .sort((a, b) => b.count - a.count) // Ordina decrescente
       .slice(0, 10); // Top 10
   },
+
+  /**
+   * Tempo medio apertura -> chiusura per DM329
+   */
+  async getAvgCompletionTime(filters: DM329AnalyticsFilters = {}): Promise<AvgTimeMetric> {
+    const { data, error } = await supabase.rpc('calculate_avg_completion_time', {
+      p_request_type_name: 'DM329',
+      p_date_from: filters.dateFrom || null,
+      p_date_to: filters.dateTo || null,
+      p_exclude_blocked_time: false, // DM329 non ha blocchi
+    });
+
+    if (error) throw error;
+
+    return { avg_hours: data || 0 };
+  },
+
+  /**
+   * Trend tempo medio di completamento DM329 nel tempo
+   */
+  async getCompletionTimeTrend(
+    range: 'day' | 'week' | 'month' | 'year',
+    filters: DM329AnalyticsFilters = {}
+  ): Promise<TimeSeriesPoint[]> {
+    const { data, error } = await supabase.rpc('get_completion_time_trend', {
+      p_request_type_name: 'DM329',
+      p_date_from: filters.dateFrom || null,
+      p_date_to: filters.dateTo || null,
+      p_interval: range,
+      p_exclude_blocked_time: false,
+    });
+
+    if (error) throw error;
+
+    return data || [];
+  },
+
+  /**
+   * Tempi medi tra i vari stati DM329
+   */
+  async getTransitionTimes(filters: DM329AnalyticsFilters = {}): Promise<DM329TransitionTime[]> {
+    const { data, error } = await supabase.rpc('get_dm329_transition_times', {
+      p_date_from: filters.dateFrom || null,
+      p_date_to: filters.dateTo || null,
+    });
+
+    if (error) throw error;
+
+    return data || [];
+  },
 };
 
 // ============================================
@@ -487,7 +692,7 @@ function getStatusLabel(status: RequestStatus): string {
     ASSEGNATA: 'Assegnata',
     IN_LAVORAZIONE: 'In Lavorazione',
     COMPLETATA: 'Completata',
-    SOSPESA: 'Sospesa',
+    BLOCCATA: 'Bloccata',
     ABORTITA: 'Abortita',
   };
   return labels[status] || status;

@@ -25,7 +25,7 @@ import {
 import { Layout } from '../../components/common/Layout'
 import RequestTypeDialog from '../../components/admin/RequestTypeDialog'
 import {
-  useRequestTypes,
+  useAllRequestTypes,
   useCreateRequestType,
   useUpdateRequestType,
 } from '../../hooks/useRequestTypes'
@@ -35,7 +35,7 @@ export default function AdminRequestTypes() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedRequestType, setSelectedRequestType] = useState<RequestType | null>(null)
 
-  const { data: requestTypes, isLoading, error } = useRequestTypes()
+  const { data: requestTypes, isLoading, error } = useAllRequestTypes()
   const createMutation = useCreateRequestType()
   const updateMutation = useUpdateRequestType()
 

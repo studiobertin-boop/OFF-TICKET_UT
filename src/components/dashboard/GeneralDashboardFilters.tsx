@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -10,8 +10,9 @@ import {
 } from '@mui/material';
 import { FilterList as FilterIcon } from '@mui/icons-material';
 import { useRequestTypes } from '../../hooks/useRequestTypes';
+import { supabase } from '../../services/supabase';
 import type { GeneralAnalyticsFilters } from '../../services/api/analytics';
-import type { RequestStatus } from '../../types';
+import type { RequestStatus, User } from '../../types';
 
 interface GeneralDashboardFiltersProps {
   onFilterChange: (filters: GeneralAnalyticsFilters) => void;
@@ -23,7 +24,7 @@ const REQUEST_STATUSES: RequestStatus[] = [
   'ASSEGNATA',
   'IN_LAVORAZIONE',
   'COMPLETATA',
-  'SOSPESA',
+  'BLOCCATA',
   'ABORTITA',
 ];
 
@@ -31,11 +32,26 @@ export function GeneralDashboardFilters({
   onFilterChange,
 }: GeneralDashboardFiltersProps) {
   const { data: requestTypes } = useRequestTypes();
+  const [users, setUsers] = useState<User[]>([]);
 
   // Filtra solo tipi NON DM329
   const generalTypes = requestTypes?.filter(type => type.name !== 'DM329') || [];
 
   const [filters, setFilters] = useState<GeneralAnalyticsFilters>({});
+
+  // Fetch users for requester filter
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, full_name, email, role, is_suspended, created_at, updated_at')
+        .order('full_name');
+      if (!error && data) {
+        setUsers(data as User[]);
+      }
+    };
+    fetchUsers();
+  }, []);
 
   const handleChange = (field: keyof GeneralAnalyticsFilters, value: string) => {
     const newFilters = {
@@ -120,6 +136,23 @@ export function GeneralDashboardFilters({
               ))}
             </TextField>
           </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <TextField
+              fullWidth
+              select
+              label="Richiesta da"
+              value={filters.createdBy || ''}
+              onChange={e => handleChange('createdBy', e.target.value)}
+              size="small"
+            >
+              <MenuItem value="">Tutti</MenuItem>
+              {users.map(user => (
+                <MenuItem key={user.id} value={user.id}>
+                  {user.full_name || user.email}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Grid>
           <Grid item xs={12}>
             <Box display="flex" gap={1} justifyContent="flex-end">
               <Button variant="outlined" onClick={handleReset}>
@@ -142,7 +175,7 @@ function getStatusLabel(status: RequestStatus): string {
     ASSEGNATA: 'Assegnata',
     IN_LAVORAZIONE: 'In Lavorazione',
     COMPLETATA: 'Completata',
-    SOSPESA: 'Sospesa',
+    BLOCCATA: 'Bloccata',
     ABORTITA: 'Abortita',
   };
   return labels[status] || status;

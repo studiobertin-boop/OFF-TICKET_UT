@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
@@ -24,9 +24,13 @@ import { generateZodSchemaWithValidations, getDefaultValues } from '@/utils/form
 
 export const NewRequest = () => {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [selectedTypeId, setSelectedTypeId] = useState<string>('')
   const { data: requestTypes = [], isLoading: loadingTypes } = useRequestTypes()
   const createRequest = useCreateRequest()
+
+  // Determina se il tipo è stato pre-impostato dalla URL (utenti DM329)
+  const typePreselected = !!searchParams.get('type')
 
   const selectedType = requestTypes.find(t => t.id === selectedTypeId)
 
@@ -42,6 +46,19 @@ export const NewRequest = () => {
     resolver: selectedType ? zodResolver(generateZodSchemaWithValidations(visibleFields, selectedType.name)) : undefined,
     defaultValues: selectedType ? getDefaultValues(visibleFields) : {},
   })
+
+  // Pre-seleziona il tipo se viene passato nella query string
+  useEffect(() => {
+    const typeFromUrl = searchParams.get('type')
+    if (typeFromUrl && requestTypes.length > 0 && !selectedTypeId) {
+      const typeExists = requestTypes.find(t => t.id === typeFromUrl)
+      if (typeExists) {
+        setSelectedTypeId(typeFromUrl)
+        const visible = typeExists.fields_schema.filter(field => !field.hidden)
+        reset(getDefaultValues(visible))
+      }
+    }
+  }, [searchParams, requestTypes, selectedTypeId, reset])
 
   const handleTypeChange = (typeId: string) => {
     setSelectedTypeId(typeId)
@@ -112,23 +129,26 @@ export const NewRequest = () => {
 
         <Card>
           <CardContent>
-            <FormControl fullWidth margin="normal" required>
-              <InputLabel>Tipo di Richiesta</InputLabel>
-              <Select
-                value={selectedTypeId}
-                onChange={e => handleTypeChange(e.target.value)}
-                label="Tipo di Richiesta"
-              >
-                <MenuItem value="">
-                  <em>Seleziona un tipo di richiesta</em>
-                </MenuItem>
-                {requestTypes.map(type => (
-                  <MenuItem key={type.id} value={type.id}>
-                    {type.name}
+            {/* Nascondi il select se il tipo è stato pre-impostato dalla URL */}
+            {!typePreselected && (
+              <FormControl fullWidth margin="normal" required>
+                <InputLabel>Tipo di Richiesta</InputLabel>
+                <Select
+                  value={selectedTypeId}
+                  onChange={e => handleTypeChange(e.target.value)}
+                  label="Tipo di Richiesta"
+                >
+                  <MenuItem value="">
+                    <em>Seleziona un tipo di richiesta</em>
                   </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+                  {requestTypes.map(type => (
+                    <MenuItem key={type.id} value={type.id}>
+                      {type.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
 
             {selectedType && (
               <Box component="form" onSubmit={handleSubmit(onSubmit)} sx={{ mt: 3 }}>

@@ -53,6 +53,33 @@ export function useGeneralTrend(
   });
 }
 
+export function useGeneralByRequester(filters: GeneralAnalyticsFilters = {}) {
+  return useQuery({
+    queryKey: ['analytics', 'general', 'requester', filters],
+    queryFn: () => generalAnalyticsApi.getByRequester(filters),
+    staleTime: 30000,
+  });
+}
+
+export function useGeneralAvgCompletionTime(filters: GeneralAnalyticsFilters = {}) {
+  return useQuery({
+    queryKey: ['analytics', 'general', 'avgCompletionTime', filters],
+    queryFn: () => generalAnalyticsApi.getAvgCompletionTime(filters),
+    staleTime: 30000,
+  });
+}
+
+export function useGeneralCompletionTimeTrend(
+  range: 'day' | 'week' | 'month' | 'year',
+  filters: GeneralAnalyticsFilters = {}
+) {
+  return useQuery({
+    queryKey: ['analytics', 'general', 'completionTimeTrend', range, filters],
+    queryFn: () => generalAnalyticsApi.getCompletionTimeTrend(range, filters),
+    staleTime: 30000,
+  });
+}
+
 // ============================================
 // HOOKS ANALYTICS DM329 (SOLO DM329)
 // ============================================
@@ -96,6 +123,33 @@ export function useDM329TopClients(filters: DM329AnalyticsFilters = {}) {
   return useQuery({
     queryKey: ['analytics', 'dm329', 'clients', filters],
     queryFn: () => dm329AnalyticsApi.getTopClients(filters),
+    staleTime: 30000,
+  });
+}
+
+export function useDM329AvgCompletionTime(filters: DM329AnalyticsFilters = {}) {
+  return useQuery({
+    queryKey: ['analytics', 'dm329', 'avgCompletionTime', filters],
+    queryFn: () => dm329AnalyticsApi.getAvgCompletionTime(filters),
+    staleTime: 30000,
+  });
+}
+
+export function useDM329CompletionTimeTrend(
+  range: 'day' | 'week' | 'month' | 'year',
+  filters: DM329AnalyticsFilters = {}
+) {
+  return useQuery({
+    queryKey: ['analytics', 'dm329', 'completionTimeTrend', range, filters],
+    queryFn: () => dm329AnalyticsApi.getCompletionTimeTrend(range, filters),
+    staleTime: 30000,
+  });
+}
+
+export function useDM329TransitionTimes(filters: DM329AnalyticsFilters = {}) {
+  return useQuery({
+    queryKey: ['analytics', 'dm329', 'transitionTimes', filters],
+    queryFn: () => dm329AnalyticsApi.getTransitionTimes(filters),
     staleTime: 30000,
   });
 }

@@ -207,7 +207,7 @@ INSERT INTO request_types (name, fields_schema, is_active) VALUES (
       "name": "lista_apparecchi",
       "type": "textarea",
       "label": "Lista Apparecchi",
-      "required": true,
+      "required": false,
       "maxLength": 2000,
       "placeholder": "Elencare gli apparecchi interessati (uno per riga)"
     },
