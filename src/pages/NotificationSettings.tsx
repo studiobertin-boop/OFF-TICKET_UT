@@ -118,9 +118,11 @@ export default function NotificationSettings() {
       const { data, error } = await supabase.functions.invoke('test-notification-email')
 
       if (error) {
+        console.error('Edge Function Error:', error)
+        console.error('Edge Function Data:', data)
         setTestEmailResult({
           success: false,
-          message: `Errore: ${error.message}`,
+          message: `Errore: ${error.message}${data?.error ? ` - ${data.error}` : ''}`,
         })
       } else {
         setTestEmailResult({
