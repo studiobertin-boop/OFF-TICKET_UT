@@ -22,7 +22,7 @@ import {
 } from '@mui/icons-material'
 import { Layout } from '../components/common/Layout'
 import { useNotificationPreferences } from '../hooks/useNotifications'
-import { supabase } from '../lib/supabase'
+import { supabase } from '../services/supabase'
 import { useAuth } from '../hooks/useAuth'
 import type { RequestStatus, DM329Status } from '../types'
 
