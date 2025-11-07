@@ -115,7 +115,26 @@ export default function NotificationSettings() {
     setTestEmailResult(null)
 
     try {
-      const { data, error } = await supabase.functions.invoke('test-notification-email')
+      // Get the current session to pass the access token
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+
+      if (sessionError || !session) {
+        console.error('Session error:', sessionError)
+        setTestEmailResult({
+          success: false,
+          message: 'Errore: Sessione non valida. Prova a fare logout e login.',
+        })
+        return
+      }
+
+      console.log('Calling Edge Function with session token...')
+
+      // Call Edge Function with explicit authorization header
+      const { data, error } = await supabase.functions.invoke('test-notification-email', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      })
 
       if (error) {
         console.error('Edge Function Error:', error)
@@ -124,13 +143,22 @@ export default function NotificationSettings() {
           success: false,
           message: `Errore: ${error.message}${data?.error ? ` - ${data.error}` : ''}`,
         })
+      } else if (data?.success === false) {
+        // Handle error returned in data
+        console.error('Function returned error:', data)
+        setTestEmailResult({
+          success: false,
+          message: `Errore: ${data.error || 'Unknown error'}`,
+        })
       } else {
+        console.log('Success:', data)
         setTestEmailResult({
           success: true,
           message: data.message || 'Email di test inviata con successo!',
         })
       }
     } catch (err) {
+      console.error('Exception:', err)
       setTestEmailResult({
         success: false,
         message: `Errore imprevisto: ${err instanceof Error ? err.message : 'Unknown error'}`,
