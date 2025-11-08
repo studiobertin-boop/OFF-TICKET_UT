@@ -1,14 +1,50 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import { requestsApi, UpdateRequestInput, RequestFilters } from '@/services/api/requests'
 import { RequestStatus, DM329Status } from '@/types'
+import { useAuth } from './useAuth'
+import { supabase } from '@/services/supabase'
 
 export const REQUESTS_QUERY_KEY = ['requests']
 
 export const useRequests = (filters?: RequestFilters) => {
-  return useQuery({
+  const { user, loading: authLoading } = useAuth()
+  const queryClient = useQueryClient()
+
+  // Attendi che l'autenticazione sia completata prima di eseguire la query
+  const query = useQuery({
     queryKey: [...REQUESTS_QUERY_KEY, filters],
     queryFn: () => requestsApi.getAll(filters),
+    enabled: !authLoading && !!user, // Esegui solo quando l'utente è caricato
   })
+
+  // Subscription real-time per aggiornamenti richieste
+  useEffect(() => {
+    if (!user) return
+
+    const channel = supabase
+      .channel('requests-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'requests',
+        },
+        (payload) => {
+          console.log('Request change detected:', payload)
+          // Invalida la cache per ricaricare i dati
+          queryClient.invalidateQueries({ queryKey: REQUESTS_QUERY_KEY })
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [user, queryClient])
+
+  return query
 }
 
 export const useRequest = (id: string) => {
