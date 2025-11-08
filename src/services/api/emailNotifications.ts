@@ -200,6 +200,8 @@ export const emailNotificationsApi = {
    * Invia notifiche email per creazione nuova richiesta
    */
   async notifyRequestCreated(requestId: string): Promise<void> {
+    console.log('[EMAIL] notifyRequestCreated called for request:', requestId)
+
     try {
       // Ottieni dati completi richiesta
       const { data: request, error } = await supabase
@@ -217,22 +219,39 @@ export const emailNotificationsApi = {
         .single()
 
       if (error || !request) {
-        console.error('Error fetching request for email notification:', error)
+        console.error('[EMAIL] Error fetching request for email notification:', error)
         return
       }
 
+      console.log('[EMAIL] Request data fetched:', { title: request.title, status: request.status })
+
       // Ottieni destinatari
       const recipients = await getNotificationRecipients(requestId)
+      console.log('[EMAIL] Recipients found:', recipients.length)
+      console.log('[EMAIL] Recipients details:', recipients.map(r => ({
+        email: r.email,
+        full_name: r.full_name,
+        role: r.role,
+        email_enabled: r.preferences.email
+      })))
 
       // Filtra solo quelli che hanno email abilitato per request_created
       const recipientsToNotify = recipients.filter((r) =>
         shouldNotifyUser(r, 'request_created')
       )
 
+      console.log('[EMAIL] Recipients to notify after filtering:', recipientsToNotify.length)
+      console.log('[EMAIL] Filtered recipients:', recipientsToNotify.map(r => r.email))
+
       // Invia email a ciascun destinatario
       const message = `Nuova richiesta creata: ${request.title}`
       const requestType = request.request_type as any
       const customer = request.customer as any
+
+      if (recipientsToNotify.length === 0) {
+        console.warn('[EMAIL] No recipients to notify (all have email disabled or no preferences found)')
+        return
+      }
 
       await Promise.all(
         recipientsToNotify.map((recipient) =>
@@ -253,9 +272,9 @@ export const emailNotificationsApi = {
         )
       )
 
-      console.log(`Email notifications sent for request_created: ${recipientsToNotify.length} recipients`)
+      console.log(`[EMAIL] Email notifications sent for request_created: ${recipientsToNotify.length} recipients`)
     } catch (error) {
-      console.error('Error in notifyRequestCreated:', error)
+      console.error('[EMAIL] Error in notifyRequestCreated:', error)
       // Non lanciare errore per non bloccare la creazione della richiesta
     }
   },
