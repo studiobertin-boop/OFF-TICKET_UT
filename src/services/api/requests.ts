@@ -128,14 +128,18 @@ export const requestsApi = {
     console.log('[REQUEST_CREATE] notifyRequestCreated function:', emailNotificationsApi.notifyRequestCreated)
 
     // Invia notifiche email in background (non blocca se fallisce)
+    // IMPORTANTE: usiamo void per indicare che ignoriamo intenzionalmente la Promise
+    // ma la Promise DEVE essere eseguita
     try {
       console.log('[REQUEST_CREATE] Calling notifyRequestCreated with ID:', data.id)
       const emailPromise = emailNotificationsApi.notifyRequestCreated(data.id)
       console.log('[REQUEST_CREATE] Promise created:', emailPromise)
 
-      emailPromise.catch((err) => {
-        console.error('[REQUEST_CREATE] Failed to send email notifications for new request:', err)
-      })
+      // Assicuriamo che la Promise venga eseguita anche se non aspettiamo il risultato
+      void emailPromise.then(
+        () => console.log('[REQUEST_CREATE] Email notification completed successfully'),
+        (err) => console.error('[REQUEST_CREATE] Failed to send email notifications for new request:', err)
+      )
     } catch (syncError) {
       console.error('[REQUEST_CREATE] SYNCHRONOUS ERROR calling email notification:', syncError)
     }
