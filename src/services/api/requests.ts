@@ -1,5 +1,6 @@
 import { supabase, ensureValidSession } from '../supabase'
 import { Request, RequestStatus, DM329Status } from '@/types'
+import { emailNotificationsApi } from './emailNotifications'
 
 export interface CreateRequestInput {
   request_type_id: string
@@ -119,6 +120,12 @@ export const requestsApi = {
       }
       throw error
     }
+
+    // Invia notifiche email in background (non blocca se fallisce)
+    emailNotificationsApi.notifyRequestCreated(data.id).catch((err) => {
+      console.error('Failed to send email notifications for new request:', err)
+    })
+
     return data
   },
 
@@ -128,6 +135,17 @@ export const requestsApi = {
     const sessionValid = await ensureValidSession()
     if (!sessionValid) {
       throw new Error('Sessione non valida. Per favore, effettua nuovamente il login.')
+    }
+
+    // Se viene aggiornato lo stato, recupera lo stato precedente per le notifiche
+    let oldStatus: string | undefined
+    if (updates.status) {
+      const { data: oldData } = await supabase
+        .from('requests')
+        .select('status')
+        .eq('id', id)
+        .single()
+      oldStatus = oldData?.status
     }
 
     const { data, error } = await supabase
@@ -156,6 +174,14 @@ export const requestsApi = {
       }
       throw error
     }
+
+    // Invia notifiche email se lo stato è cambiato
+    if (updates.status && oldStatus && oldStatus !== updates.status) {
+      emailNotificationsApi.notifyStatusChange(id, oldStatus, updates.status).catch((err) => {
+        console.error('Failed to send email notifications for status change:', err)
+      })
+    }
+
     return data
   },
 

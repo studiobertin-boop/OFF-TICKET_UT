@@ -51,7 +51,14 @@
       "Bash(git log:*)",
       "Bash(timeout 5 bash:*)",
       "Bash(psql:*)",
-      "Bash(if not exist \"supabase\\functions\\send-notification-email\" mkdir \"supabase\\functions\\send-notification-email\")"
+      "Bash(if not exist \"supabase\\functions\\send-notification-email\" mkdir \"supabase\\functions\\send-notification-email\")",
+      "Bash(timeout 15 bash:*)",
+      "Bash(supabase functions deploy:*)",
+      "Bash(timeout 60 bash -c \"sleep 10 && cd ''c:\\Users\\User14\\OneDrive - Studio Bertin\\STUDIOBERTIN\\SVILUPPO\\OFF-TICKET_UT'' && supabase functions logs test-notification-email --limit 50\")",
+      "Bash(supabase secrets set:*)",
+      "Bash(supabase secrets:*)",
+      "Bash(node test-resend-node.js:*)",
+      "Bash(nslookup:*)"
     ],
     "deny": [],
     "ask": []

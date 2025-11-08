@@ -215,12 +215,18 @@ serve(async (req) => {
   }
 
   try {
+    console.log('=== SEND NOTIFICATION EMAIL START ===')
+    console.log('RESEND_API_KEY present:', !!RESEND_API_KEY)
+    console.log('EMAIL_FROM:', EMAIL_FROM)
+    console.log('APP_URL:', APP_URL)
+
     const payload: EmailPayload = await req.json()
 
     console.log('Received email notification request:', {
       to: payload.to,
       event_type: payload.event_type,
       request_id: payload.request_id,
+      user_name: payload.user_name,
     })
 
     // Validate required fields
