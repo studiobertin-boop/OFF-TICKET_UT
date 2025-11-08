@@ -200,9 +200,12 @@ export const emailNotificationsApi = {
    * Invia notifiche email per creazione nuova richiesta
    */
   async notifyRequestCreated(requestId: string): Promise<void> {
+    console.log('[EMAIL] ========== FUNCTION ENTRY ==========')
     console.log('[EMAIL] notifyRequestCreated called for request:', requestId)
+    console.log('[EMAIL] Current timestamp:', new Date().toISOString())
 
     try {
+      console.log('[EMAIL] Inside try block, about to fetch request data')
       // Ottieni dati completi richiesta
       const { data: request, error } = await supabase
         .from('requests')

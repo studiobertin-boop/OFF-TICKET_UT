@@ -121,11 +121,26 @@ export const requestsApi = {
       throw error
     }
 
-    // Invia notifiche email in background (non blocca se fallisce)
-    emailNotificationsApi.notifyRequestCreated(data.id).catch((err) => {
-      console.error('Failed to send email notifications for new request:', err)
-    })
+    // CRITICAL DEBUG: Log BEFORE email notification call
+    console.log('[REQUEST_CREATE] Request created successfully, ID:', data.id)
+    console.log('[REQUEST_CREATE] About to call emailNotificationsApi.notifyRequestCreated')
+    console.log('[REQUEST_CREATE] emailNotificationsApi object:', emailNotificationsApi)
+    console.log('[REQUEST_CREATE] notifyRequestCreated function:', emailNotificationsApi.notifyRequestCreated)
 
+    // Invia notifiche email in background (non blocca se fallisce)
+    try {
+      console.log('[REQUEST_CREATE] Calling notifyRequestCreated with ID:', data.id)
+      const emailPromise = emailNotificationsApi.notifyRequestCreated(data.id)
+      console.log('[REQUEST_CREATE] Promise created:', emailPromise)
+
+      emailPromise.catch((err) => {
+        console.error('[REQUEST_CREATE] Failed to send email notifications for new request:', err)
+      })
+    } catch (syncError) {
+      console.error('[REQUEST_CREATE] SYNCHRONOUS ERROR calling email notification:', syncError)
+    }
+
+    console.log('[REQUEST_CREATE] Returning request data')
     return data
   },
 
