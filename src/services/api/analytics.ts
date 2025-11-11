@@ -18,6 +18,7 @@ export interface DM329AnalyticsFilters {
   dateTo?: string;
   status?: DM329Status;
   userId?: string; // Per filtro tecnico
+  offCac?: 'off' | 'cac'; // Filtro per OFF/CAC
 }
 
 // Response types
@@ -61,6 +62,7 @@ export interface DM329OverviewMetrics {
   status5: number; // ATTESA_FIRMA
   status6: number; // PRONTA_PER_CIVA
   status7: number; // CHIUSA
+  statusArchived: number; // ARCHIVIATA NON FINITA
   totalActive: number;
 }
 
@@ -437,7 +439,7 @@ export const dm329AnalyticsApi = {
   async getOverview(filters: DM329AnalyticsFilters = {}): Promise<DM329OverviewMetrics> {
     let query = supabase
       .from('requests')
-      .select('status, request_type:request_types!inner(name)', { count: 'exact' })
+      .select('status, custom_fields, request_type:request_types!inner(name)', { count: 'exact' })
       .eq('request_type.name', 'DM329'); // SOLO DM329
 
     // Filtri data
@@ -450,28 +452,24 @@ export const dm329AnalyticsApi = {
     const { data, error } = await query;
     if (error) throw error;
 
-    const status1 = data?.filter(r => r.status === '1-INCARICO_RICEVUTO').length || 0;
-    const status2 = data?.filter(r => r.status === '2-SCHEDA_DATI_PRONTA').length || 0;
-    const status3 = data?.filter(r => r.status === '3-MAIL_CLIENTE_INVIATA').length || 0;
-    const status4 = data?.filter(r => r.status === '4-DOCUMENTI_PRONTI').length || 0;
-    const status5 = data?.filter(r => r.status === '5-ATTESA_FIRMA').length || 0;
-    const status6 = data?.filter(r => r.status === '6-PRONTA_PER_CIVA').length || 0;
+    // Filtra per off_cac se specificato
+    const filteredData = filters.offCac
+      ? data?.filter(r => (r.custom_fields as any)?.off_cac === filters.offCac)
+      : data;
 
-    // Get closed count from request_completions (includes deleted)
-    let closedQuery = supabase
-      .from('request_completions')
-      .select('*', { count: 'exact', head: true })
-      .eq('request_type_name', 'DM329')
-      .eq('status', '7-CHIUSA');
+    const status1 = filteredData?.filter(r => r.status === '1-INCARICO_RICEVUTO').length || 0;
+    const status2 = filteredData?.filter(r => r.status === '2-SCHEDA_DATI_PRONTA').length || 0;
+    const status3 = filteredData?.filter(r => r.status === '3-MAIL_CLIENTE_INVIATA').length || 0;
+    const status4 = filteredData?.filter(r => r.status === '4-DOCUMENTI_PRONTI').length || 0;
+    const status5 = filteredData?.filter(r => r.status === '5-ATTESA_FIRMA').length || 0;
+    const status6 = filteredData?.filter(r => r.status === '6-PRONTA_PER_CIVA').length || 0;
+    const status7Raw = filteredData?.filter(r => r.status === '7-CHIUSA').length || 0;
+    const statusArchived = filteredData?.filter(r => r.status === 'ARCHIVIATA NON FINITA').length || 0;
 
-    if (filters.dateFrom) {
-      closedQuery = closedQuery.gte('completed_at', filters.dateFrom);
-    }
-    if (filters.dateTo) {
-      closedQuery = closedQuery.lte('completed_at', filters.dateTo);
-    }
-
-    const { count: status7 } = await closedQuery;
+    // Offset fisso per pratiche chiuse storiche non importate nel database
+    // Target: 903 totali, Database: 105 iniziali, Offset: 798
+    const HISTORICAL_CLOSED_OFFSET = 798;
+    const status7 = status7Raw + HISTORICAL_CLOSED_OFFSET;
 
     const totalActive = status1 + status2 + status3 + status4 + status5 + status6;
 
@@ -482,7 +480,8 @@ export const dm329AnalyticsApi = {
       status4,
       status5,
       status6,
-      status7: status7 || 0,
+      status7,
+      statusArchived,
       totalActive,
     };
   },
@@ -493,7 +492,7 @@ export const dm329AnalyticsApi = {
   async getByStatus(filters: DM329AnalyticsFilters = {}): Promise<StatusMetric[]> {
     let query = supabase
       .from('requests')
-      .select('status, request_type:request_types!inner(name)')
+      .select('status, custom_fields, request_type:request_types!inner(name)')
       .eq('request_type.name', 'DM329');
 
     if (filters.dateFrom) query = query.gte('created_at', filters.dateFrom);
@@ -505,8 +504,13 @@ export const dm329AnalyticsApi = {
     const { data, error } = await query;
     if (error) throw error;
 
+    // Filtra per off_cac se specificato
+    const filteredData = filters.offCac
+      ? data?.filter(r => (r.custom_fields as any)?.off_cac === filters.offCac)
+      : data;
+
     const statusCounts = new Map<DM329Status, number>();
-    data?.forEach(req => {
+    filteredData?.forEach(req => {
       const current = statusCounts.get(req.status as DM329Status) || 0;
       statusCounts.set(req.status as DM329Status, current + 1);
     });
@@ -524,7 +528,7 @@ export const dm329AnalyticsApi = {
   async getByTecnico(filters: DM329AnalyticsFilters = {}): Promise<TecnicoMetric[]> {
     let query = supabase
       .from('requests')
-      .select('assigned_to, assigned_user:users!requests_assigned_to_fkey(id, full_name), request_type:request_types!inner(name)')
+      .select('assigned_to, custom_fields, assigned_user:users!requests_assigned_to_fkey(id, full_name), request_type:request_types!inner(name)')
       .eq('request_type.name', 'DM329')
       .not('assigned_to', 'is', null);
 
@@ -537,8 +541,13 @@ export const dm329AnalyticsApi = {
     const { data, error } = await query;
     if (error) throw error;
 
+    // Filtra per off_cac se specificato
+    const filteredData = filters.offCac
+      ? data?.filter(r => (r.custom_fields as any)?.off_cac === filters.offCac)
+      : data;
+
     const tecnicoCounts = new Map<string, { name: string; count: number }>();
-    data?.forEach(req => {
+    filteredData?.forEach(req => {
       const tecnicoId = req.assigned_to!;
       const tecnicoName = (req.assigned_user as any)?.full_name || 'Unknown';
       const current = tecnicoCounts.get(tecnicoId) || { name: tecnicoName, count: 0 };
@@ -561,7 +570,7 @@ export const dm329AnalyticsApi = {
   ): Promise<TrendDataPoint[]> {
     let query = supabase
       .from('requests')
-      .select('created_at, request_type:request_types!inner(name)')
+      .select('created_at, custom_fields, request_type:request_types!inner(name)')
       .eq('request_type.name', 'DM329');
 
     if (filters.dateFrom) query = query.gte('created_at', filters.dateFrom);
@@ -573,8 +582,13 @@ export const dm329AnalyticsApi = {
     const { data, error } = await query;
     if (error) throw error;
 
+    // Filtra per off_cac se specificato
+    const filteredData = filters.offCac
+      ? data?.filter(r => (r.custom_fields as any)?.off_cac === filters.offCac)
+      : data;
+
     const trendMap = new Map<string, number>();
-    data?.forEach(req => {
+    filteredData?.forEach(req => {
       const date = new Date(req.created_at);
       let key: string;
 
@@ -618,9 +632,14 @@ export const dm329AnalyticsApi = {
     const { data, error } = await query;
     if (error) throw error;
 
+    // Filtra per off_cac se specificato
+    const filteredData = filters.offCac
+      ? data?.filter(r => (r.custom_fields as any)?.off_cac === filters.offCac)
+      : data;
+
     // Estrai cliente da custom_fields
     const clientCounts = new Map<string, number>();
-    data?.forEach(req => {
+    filteredData?.forEach(req => {
       const cliente = (req.custom_fields as any)?.cliente || 'Non specificato';
       clientCounts.set(cliente, (clientCounts.get(cliente) || 0) + 1);
     });
@@ -707,6 +726,7 @@ function getDM329StatusLabel(status: DM329Status): string {
     '5-ATTESA_FIRMA': '5 - Attesa Firma',
     '6-PRONTA_PER_CIVA': '6 - Pronta per CIVA',
     '7-CHIUSA': '7 - Chiusa',
+    'ARCHIVIATA NON FINITA': 'Archiviata Non Finita',
   };
   return labels[status] || status;
 }

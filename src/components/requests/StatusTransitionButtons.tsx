@@ -18,6 +18,7 @@ import {
   PauseCircle as PauseCircleIcon,
   Cancel as CancelIcon,
   PlayArrow as PlayArrowIcon,
+  HighlightOff as HighlightOffIcon,
 } from '@mui/icons-material'
 import { RequestStatus, DM329Status, UserRole } from '@/types'
 import { getAllowedNextStatuses, getStatusLabel } from '@/utils/workflow'
@@ -134,6 +135,9 @@ export const StatusTransitionButtons = ({
     }
     if (status === '7-CHIUSA') {
       return <CheckCircleIcon />
+    }
+    if (status === 'ARCHIVIATA NON FINITA') {
+      return <HighlightOffIcon />
     }
 
     // Standard workflow statuses

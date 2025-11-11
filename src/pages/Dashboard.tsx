@@ -286,6 +286,11 @@ export const Dashboard = () => {
                     color: '#4caf50',
                   },
                   {
+                    label: 'Archiviata Non Finita',
+                    count: dm329Overview.data?.statusArchived || 0,
+                    color: '#757575',
+                  },
+                  {
                     label: 'Totali Attive',
                     count: dm329Overview.data?.totalActive || 0,
                     color: '#673ab7',

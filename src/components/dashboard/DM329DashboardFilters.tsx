@@ -24,6 +24,7 @@ const DM329_STATUSES: DM329Status[] = [
   '5-ATTESA_FIRMA',
   '6-PRONTA_PER_CIVA',
   '7-CHIUSA',
+  'ARCHIVIATA NON FINITA',
 ];
 
 export function DM329DashboardFilters({ onFilterChange }: DM329DashboardFiltersProps) {
@@ -95,6 +96,20 @@ export function DM329DashboardFilters({ onFilterChange }: DM329DashboardFiltersP
               ))}
             </TextField>
           </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <TextField
+              fullWidth
+              select
+              label="OFF / CAC"
+              value={filters.offCac || ''}
+              onChange={e => handleChange('offCac', e.target.value)}
+              size="small"
+            >
+              <MenuItem value="">Tutti</MenuItem>
+              <MenuItem value="off">OFFICOMP</MenuItem>
+              <MenuItem value="cac">CAC</MenuItem>
+            </TextField>
+          </Grid>
           <Grid item xs={12}>
             <Box display="flex" gap={1} justifyContent="flex-end">
               <Button variant="outlined" onClick={handleReset}>
@@ -120,6 +135,7 @@ function getDM329StatusLabel(status: DM329Status): string {
     '5-ATTESA_FIRMA': '5 - Attesa Firma',
     '6-PRONTA_PER_CIVA': '6 - Pronta per CIVA',
     '7-CHIUSA': '7 - Chiusa',
+    'ARCHIVIATA NON FINITA': 'Archiviata Non Finita',
   };
   return labels[status] || status;
 }

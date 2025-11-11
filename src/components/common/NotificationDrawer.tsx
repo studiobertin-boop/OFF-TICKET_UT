@@ -14,17 +14,13 @@ import {
 } from '@mui/material'
 import {
   Close as CloseIcon,
-  Info as InfoIcon,
-  Warning as WarningIcon,
-  Cancel as CancelIcon,
-  CheckCircle as CheckCircleIcon,
-  RemoveCircle as RemoveCircleIcon,
 } from '@mui/icons-material'
 import { useNavigate } from 'react-router-dom'
 import { useNotifications } from '../../hooks/useNotifications'
 import type { Notification } from '../../types'
 import { formatDistanceToNow } from 'date-fns'
 import { it } from 'date-fns/locale'
+import { getEventIconConfig, mapNotificationEventType } from '@/utils/eventIcons'
 
 interface NotificationDrawerProps {
   open: boolean
@@ -33,64 +29,19 @@ interface NotificationDrawerProps {
 
 function getNotificationIcon(notification: Notification) {
   const { event_type, status_to } = notification
-
-  // Icone specifiche per stato finale
-  if (status_to === 'ABORTITA') {
-    // STOP - Cerchio rosso con X
-    return <CancelIcon color="error" />
-  }
-
-  if (status_to === 'COMPLETATA' || status_to === '7-CHIUSA') {
-    // COMPLETATA - Cerchio grigio
-    return <RemoveCircleIcon sx={{ color: 'grey.500' }} />
-  }
-
-  // Icone per tipo evento
-  switch (event_type) {
-    case 'request_created':
-      // Informazione - Cerchio blu con "i"
-      return <InfoIcon color="info" />
-    case 'request_suspended':
-      // Avviso - Triangolo arancio con "!"
-      return <WarningIcon color="warning" />
-    case 'request_unsuspended':
-      // Via libera - Cerchio verde con flag completato
-      return <CheckCircleIcon color="success" />
-    case 'status_change':
-      // Cambio stato intermedio - Cerchio blu con "i"
-      return <InfoIcon color="info" />
-    default:
-      return <InfoIcon />
-  }
+  const eventType = mapNotificationEventType(event_type, status_to)
+  const iconConfig = getEventIconConfig(eventType)
+  return iconConfig.icon
 }
 
 function getNotificationColor(
   notification: Notification
 ): 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning' {
   const { event_type, status_to } = notification
-
-  // Colori per stato finale
-  if (status_to === 'ABORTITA') {
-    return 'error'
-  }
-
-  if (status_to === 'COMPLETATA' || status_to === '7-CHIUSA') {
-    return 'default' // grigio
-  }
-
-  // Colori per tipo evento
-  switch (event_type) {
-    case 'request_created':
-      return 'info'
-    case 'request_suspended':
-      return 'warning'
-    case 'request_unsuspended':
-      return 'success'
-    case 'status_change':
-      return 'info'
-    default:
-      return 'default'
-  }
+  const eventType = mapNotificationEventType(event_type, status_to)
+  const iconConfig = getEventIconConfig(eventType)
+  // Mappa 'grey' a 'default' per Chip (che non supporta grey)
+  return iconConfig.color === 'grey' ? 'default' : iconConfig.color
 }
 
 function NotificationItem({ notification, onClose }: { notification: Notification; onClose: () => void }) {

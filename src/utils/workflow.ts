@@ -25,6 +25,7 @@ export const DM329_WORKFLOW: Record<DM329Status, DM329Status[]> = {
   '5-ATTESA_FIRMA': ['6-PRONTA_PER_CIVA'],
   '6-PRONTA_PER_CIVA': ['7-CHIUSA'],
   '7-CHIUSA': [], // Only admin can reopen
+  'ARCHIVIATA NON FINITA': [], // Only admin can reopen
 }
 
 /**
@@ -47,6 +48,7 @@ export const ALL_DM329_STATUSES: DM329Status[] = [
   '5-ATTESA_FIRMA',
   '6-PRONTA_PER_CIVA',
   '7-CHIUSA',
+  'ARCHIVIATA NON FINITA',
 ]
 
 /**
@@ -135,6 +137,7 @@ export function getStatusColor(
     '5-ATTESA_FIRMA': 'warning',
     '6-PRONTA_PER_CIVA': 'success',
     '7-CHIUSA': 'success',
+    'ARCHIVIATA NON FINITA': 'default',
   }
   return statusColors[status] || 'default'
 }
@@ -150,6 +153,7 @@ export const DM329_STATUS_LABELS: Record<DM329Status, string> = {
   '5-ATTESA_FIRMA': '5 - Attesa firma',
   '6-PRONTA_PER_CIVA': '6 - Pronta per CIVA',
   '7-CHIUSA': '7 - Chiusa',
+  'ARCHIVIATA NON FINITA': 'Archiviata non finita',
 }
 
 /**

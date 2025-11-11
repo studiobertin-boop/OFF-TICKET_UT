@@ -17,6 +17,7 @@ export type DM329Status =
   | '5-ATTESA_FIRMA'
   | '6-PRONTA_PER_CIVA'
   | '7-CHIUSA'
+  | 'ARCHIVIATA NON FINITA'
 
 export interface User {
   id: string
@@ -90,6 +91,7 @@ export interface Request {
   custom_fields: Record<string, any>
   is_hidden: boolean
   is_blocked?: boolean
+  off_cac?: 'off' | 'cac' | ''
   created_at: string
   updated_at: string
 }
@@ -135,6 +137,7 @@ export type NotificationEventType =
   | 'request_created'
   | 'request_suspended'
   | 'request_unsuspended'
+  | 'request_blocked'
   | 'status_change'
 
 export interface Notification {

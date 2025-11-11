@@ -20,14 +20,12 @@ import {
   TimelineOppositeContent,
 } from '@mui/lab'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
-import SyncAltIcon from '@mui/icons-material/SyncAlt'
-import WarningIcon from '@mui/icons-material/Warning'
-import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import { RequestHistory, RequestBlock } from '@/types'
 import { getRequestHistory } from '@/services/requestService'
 import { useRequestBlocks } from '@/hooks/useRequestBlocks'
 import { useQuery } from '@tanstack/react-query'
 import { getStatusLabel } from '@/utils/workflow'
+import { getEventIconConfig, getEventTypeFromStatus } from '@/utils/eventIcons'
 
 interface RequestHistoryPanelProps {
   requestId: string
@@ -158,6 +156,8 @@ export function RequestHistoryPanel({ requestId }: RequestHistoryPanelProps) {
 
           if (event.type === 'status_change') {
             const history = event.data as RequestHistory
+            const eventType = getEventTypeFromStatus(history.status_from, history.status_to)
+            const iconConfig = getEventIconConfig(eventType)
             return (
               <TimelineItem key={event.id}>
                 <TimelineOppositeContent sx={{ flex: 0.3, pt: 1.5 }}>
@@ -172,13 +172,13 @@ export function RequestHistoryPanel({ requestId }: RequestHistoryPanelProps) {
                   </Typography>
                 </TimelineOppositeContent>
                 <TimelineSeparator>
-                  <TimelineDot color="primary">
-                    <SyncAltIcon fontSize="small" />
+                  <TimelineDot color={iconConfig.color}>
+                    {iconConfig.icon}
                   </TimelineDot>
                   {!isLast && <TimelineConnector />}
                 </TimelineSeparator>
                 <TimelineContent sx={{ pb: 3 }}>
-                  <Typography variant="subtitle2">Cambio Stato</Typography>
+                  <Typography variant="subtitle2">{iconConfig.label}</Typography>
                   <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', my: 1 }}>
                     {history.status_from && (
                       <>
@@ -212,6 +212,7 @@ export function RequestHistoryPanel({ requestId }: RequestHistoryPanelProps) {
 
           if (event.type === 'block') {
             const block = event.data as RequestBlock
+            const iconConfig = getEventIconConfig('block')
             return (
               <TimelineItem key={event.id}>
                 <TimelineOppositeContent sx={{ flex: 0.3, pt: 1.5 }}>
@@ -226,14 +227,14 @@ export function RequestHistoryPanel({ requestId }: RequestHistoryPanelProps) {
                   </Typography>
                 </TimelineOppositeContent>
                 <TimelineSeparator>
-                  <TimelineDot color="warning">
-                    <WarningIcon fontSize="small" />
+                  <TimelineDot color={iconConfig.color}>
+                    {iconConfig.icon}
                   </TimelineDot>
                   {!isLast && <TimelineConnector />}
                 </TimelineSeparator>
                 <TimelineContent sx={{ pb: 3 }}>
                   <Typography variant="subtitle2" color="warning.main">
-                    Richiesta Bloccata
+                    {iconConfig.label}
                   </Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
                     Da: {block.blocked_by_user?.full_name || block.blocked_by_user?.email || 'Sconosciuto'}
@@ -254,6 +255,7 @@ export function RequestHistoryPanel({ requestId }: RequestHistoryPanelProps) {
 
           if (event.type === 'unblock') {
             const block = event.data as RequestBlock
+            const iconConfig = getEventIconConfig('unblock')
             return (
               <TimelineItem key={event.id}>
                 <TimelineOppositeContent sx={{ flex: 0.3, pt: 1.5 }}>
@@ -268,14 +270,14 @@ export function RequestHistoryPanel({ requestId }: RequestHistoryPanelProps) {
                   </Typography>
                 </TimelineOppositeContent>
                 <TimelineSeparator>
-                  <TimelineDot color="success">
-                    <CheckCircleIcon fontSize="small" />
+                  <TimelineDot color={iconConfig.color}>
+                    {iconConfig.icon}
                   </TimelineDot>
                   {!isLast && <TimelineConnector />}
                 </TimelineSeparator>
                 <TimelineContent sx={{ pb: 3 }}>
                   <Typography variant="subtitle2" color="success.main">
-                    Blocco Risolto
+                    {iconConfig.label}
                   </Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
                     Da: {block.unblocked_by_user?.full_name || block.unblocked_by_user?.email || 'Sconosciuto'}

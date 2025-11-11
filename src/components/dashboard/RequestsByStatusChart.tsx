@@ -13,15 +13,20 @@ export function RequestsByStatusChart({
   isLoading,
   title = 'Richieste per Stato',
 }: RequestsByStatusChartProps) {
+  // Filtra le pratiche chiuse e archiviate per DM329
+  const filteredData = data?.filter(item =>
+    item.status !== '7-CHIUSA' && item.status !== 'ARCHIVIATA NON FINITA'
+  ) || [];
+
   const chartData =
-    data?.map((item, index) => ({
+    filteredData?.map((item, index) => ({
       id: index,
       value: item.count,
       label: item.label,
       color: getStatusColorHex(item.status),
     })) || [];
 
-  const isEmpty = !data || data.length === 0;
+  const isEmpty = !filteredData || filteredData.length === 0;
 
   return (
     <Card>
@@ -50,12 +55,17 @@ export function RequestsByStatusChart({
                 faded: { innerRadius: 30, additionalRadius: -30, color: 'gray' },
               },
             ]}
-            height={300}
+            height={500}
+            margin={{ top: 20, right: 20, bottom: 100, left: 20 }}
             slotProps={{
               legend: {
-                direction: 'column',
-                position: { vertical: 'middle', horizontal: 'right' },
+                direction: 'row',
+                position: { vertical: 'bottom', horizontal: 'middle' },
                 padding: 0,
+                itemMarkWidth: 12,
+                itemMarkHeight: 12,
+                markGap: 5,
+                itemGap: 10,
               },
             }}
           />
