@@ -58,7 +58,11 @@
       "Bash(supabase secrets set:*)",
       "Bash(supabase secrets:*)",
       "Bash(node test-resend-node.js:*)",
-      "Bash(nslookup:*)"
+      "Bash(nslookup:*)",
+      "Bash(if not exist \"scripts\" mkdir \"scripts\")",
+      "Bash(test:*)",
+      "Bash(npx tsx:*)",
+      "Bash(timeout 3 bash:*)"
     ],
     "deny": [],
     "ask": []

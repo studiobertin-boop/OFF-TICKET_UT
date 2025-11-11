@@ -160,8 +160,8 @@ export function RequestHistoryPanel({ requestId }: RequestHistoryPanelProps) {
             const iconConfig = getEventIconConfig(eventType)
             return (
               <TimelineItem key={event.id}>
-                <TimelineOppositeContent sx={{ flex: 0.3, pt: 1.5 }}>
-                  <Typography variant="caption" color="text.secondary">
+                <TimelineOppositeContent sx={{ flex: 0.2, pt: 1.5, minWidth: 0 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
                     {new Date(event.timestamp).toLocaleString('it-IT', {
                       day: '2-digit',
                       month: '2-digit',
@@ -215,8 +215,8 @@ export function RequestHistoryPanel({ requestId }: RequestHistoryPanelProps) {
             const iconConfig = getEventIconConfig('block')
             return (
               <TimelineItem key={event.id}>
-                <TimelineOppositeContent sx={{ flex: 0.3, pt: 1.5 }}>
-                  <Typography variant="caption" color="text.secondary">
+                <TimelineOppositeContent sx={{ flex: 0.2, pt: 1.5, minWidth: 0 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
                     {new Date(event.timestamp).toLocaleString('it-IT', {
                       day: '2-digit',
                       month: '2-digit',
@@ -258,8 +258,8 @@ export function RequestHistoryPanel({ requestId }: RequestHistoryPanelProps) {
             const iconConfig = getEventIconConfig('unblock')
             return (
               <TimelineItem key={event.id}>
-                <TimelineOppositeContent sx={{ flex: 0.3, pt: 1.5 }}>
-                  <Typography variant="caption" color="text.secondary">
+                <TimelineOppositeContent sx={{ flex: 0.2, pt: 1.5, minWidth: 0 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
                     {new Date(event.timestamp).toLocaleString('it-IT', {
                       day: '2-digit',
                       month: '2-digit',

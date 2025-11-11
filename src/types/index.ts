@@ -91,6 +91,7 @@ export interface Request {
   custom_fields: Record<string, any>
   is_hidden: boolean
   is_blocked?: boolean
+  has_timer_alert?: boolean
   off_cac?: 'off' | 'cac' | ''
   created_at: string
   updated_at: string

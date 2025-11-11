@@ -211,7 +211,7 @@ export const RequestDetail = () => {
         {/* Two column layout: details on left, history on right */}
         <Grid container spacing={3}>
           {/* Left column: Request details */}
-          <Grid item xs={12} lg={8}>
+          <Grid item xs={12} lg={7}>
             <Card>
               <CardContent>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 3 }}>
@@ -407,7 +407,7 @@ export const RequestDetail = () => {
           </Grid>
 
           {/* Right column: History panel */}
-          <Grid item xs={12} lg={4}>
+          <Grid item xs={12} lg={5}>
             <Box sx={{ position: 'sticky', top: 16 }}>
               <RequestHistoryPanel requestId={request.id} />
             </Box>

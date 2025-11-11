@@ -1,10 +1,13 @@
--- =============================================
--- Update DM329 request type schema
--- =============================================
+-- ============================================
+-- UPDATE DM329 FORM SCHEMA
+-- APPLY THIS SQL IN SUPABASE SQL EDITOR NOW
+-- ============================================
 -- Changes:
 -- - Fixed cliente field: autocomplete instead of text
 -- - Removed fields: tipologia_intervento, superficie
--- - Renamed "Indirizzo Immobile" to "Impianto" (optional)
+-- - Renamed "Indirizzo Immobile" to "Impianto" (optional field)
+-- - All users (admin and userdm329) now see the same correct form
+
 UPDATE request_types
 SET fields_schema = '[
   {
@@ -42,4 +45,11 @@ SET fields_schema = '[
     "required": false
   }
 ]'::jsonb
+WHERE name = 'DM329';
+
+-- Verify the update
+SELECT
+  name,
+  jsonb_pretty(fields_schema) as schema
+FROM request_types
 WHERE name = 'DM329';

@@ -30,6 +30,7 @@ import {
 import { Request, DM329Status } from '@/types'
 import { getStatusColor, getStatusLabel } from '@/utils/workflow'
 import { BlockIndicator } from './BlockIndicator'
+import { TimerAlertIndicator } from './TimerAlertIndicator'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
 import {
@@ -147,9 +148,23 @@ export const DM329TableView = ({
 
     // Applica ordinamento
     filtered.sort((a, b) => {
-      // ALWAYS show blocked requests first
+      // Priority 1: ALWAYS show blocked requests first
       if (a.is_blocked && !b.is_blocked) return -1
       if (!a.is_blocked && b.is_blocked) return 1
+
+      // Priority 2: Show timer alerts second (only for non-blocked requests)
+      if (!a.is_blocked && !b.is_blocked) {
+        if (a.has_timer_alert && !b.has_timer_alert) return -1
+        if (!a.has_timer_alert && b.has_timer_alert) return 1
+      }
+
+      // Priority 3: Within same category (blocked/timer/normal), sort by created_at (oldest first)
+      // This ensures oldest requests appear first within each priority group
+      if (a.is_blocked === b.is_blocked && a.has_timer_alert === b.has_timer_alert) {
+        const aCreated = new Date(a.created_at).getTime()
+        const bCreated = new Date(b.created_at).getTime()
+        return aCreated - bCreated // Oldest first
+      }
 
       // Then sort by selected column
       let aValue: any
@@ -504,12 +519,17 @@ export const DM329TableView = ({
                 sx={{
                   cursor: 'pointer',
                   '&:hover': { backgroundColor: 'action.hover' },
-                  // Highlight blocked requests
+                  // Highlight blocked requests (priority 1)
                   ...(request.is_blocked && {
                     backgroundColor: 'warning.lighter',
                     '&:hover': { backgroundColor: 'warning.light' },
                   }),
-                  // Highlight selected requests
+                  // Highlight timer alert requests (priority 2, only if not blocked)
+                  ...(!request.is_blocked && request.has_timer_alert && {
+                    backgroundColor: 'error.lighter',
+                    '&:hover': { backgroundColor: 'error.light' },
+                  }),
+                  // Highlight selected requests (overrides others)
                   ...(selectionEnabled && selectedRequests.has(request.id) && {
                     backgroundColor: 'primary.light',
                     '&:hover': { backgroundColor: 'primary.main' },
@@ -527,7 +547,10 @@ export const DM329TableView = ({
                 )}
 
                 <TableCell sx={{ padding: 1 }}>
-                  {request.is_blocked && <BlockIndicator isBlocked={true} />}
+                  <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                    {request.is_blocked && <BlockIndicator isBlocked={true} />}
+                    {request.has_timer_alert && <TimerAlertIndicator hasAlert={true} />}
+                  </Box>
                 </TableCell>
                 <TableCell>
                   {format(new Date(request.updated_at), 'dd/MM/yyyy HH:mm', { locale: it })}
