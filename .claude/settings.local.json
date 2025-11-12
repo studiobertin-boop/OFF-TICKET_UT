@@ -64,7 +64,18 @@
       "Bash(npx tsx:*)",
       "Bash(timeout 3 bash:*)",
       "Bash(supabase functions:*)",
-      "Bash(timeout 60 bash:*)"
+      "Bash(timeout 60 bash:*)",
+      "Bash(Remove-Item \"c:\\Users\\User14\\OneDrive - Studio Bertin\\STUDIOBERTIN\\SVILUPPO\\OFF-TICKET_UT\\test-notification-trigger.sql\" -Force)",
+      "Bash(Remove-Item \"c:\\Users\\User14\\OneDrive - Studio Bertin\\STUDIOBERTIN\\SVILUPPO\\OFF-TICKET_UT\\supabase\\diagnostics.sql\" -Force)",
+      "Bash(Remove-Item \"c:\\Users\\User14\\OneDrive - Studio Bertin\\STUDIOBERTIN\\SVILUPPO\\OFF-TICKET_UT\\supabase\\test_recursion_fix.sql\" -Force)",
+      "Bash(Remove-Item \"c:\\Users\\User14\\OneDrive - Studio Bertin\\STUDIOBERTIN\\SVILUPPO\\OFF-TICKET_UT\\supabase\\check-auth-users-sync.sql\" -Force)",
+      "Bash(Remove-Item \"c:\\Users\\User14\\OneDrive - Studio Bertin\\STUDIOBERTIN\\SVILUPPO\\OFF-TICKET_UT\\supabase\\CHECK_DELETE_CASCADE.sql\" -Force)",
+      "Bash(Remove-Item \"c:\\Users\\User14\\OneDrive - Studio Bertin\\STUDIOBERTIN\\SVILUPPO\\OFF-TICKET_UT\\supabase\\DEBUG_CURRENT_USER.sql\" -Force)",
+      "Bash(Remove-Item \"c:\\Users\\User14\\OneDrive - Studio Bertin\\STUDIOBERTIN\\SVILUPPO\\OFF-TICKET_UT\\supabase\\DEBUG_DM329_ANALYTICS.sql\" -Force)",
+      "Bash(Remove-Item \"c:\\Users\\User14\\OneDrive - Studio Bertin\\STUDIOBERTIN\\SVILUPPO\\OFF-TICKET_UT\\supabase\\TEST_DM329_TRANSITION_TIMES.sql\" -Force)",
+      "Bash(Remove-Item \"c:\\Users\\User14\\OneDrive - Studio Bertin\\STUDIOBERTIN\\SVILUPPO\\OFF-TICKET_UT\\supabase\\ANALYZE_WORKFLOW_DATES.sql\" -Force)",
+      "Bash(Remove-Item \"c:\\Users\\User14\\OneDrive - Studio Bertin\\STUDIOBERTIN\\SVILUPPO\\OFF-TICKET_UT\\supabase\\DEBUG_COMPLETION_TIME.sql\" -Force)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []

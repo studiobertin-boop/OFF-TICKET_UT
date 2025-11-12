@@ -23,10 +23,12 @@ import {
   Edit as EditIcon,
   Save as SaveIcon,
   Close as CloseIcon,
+  Assignment as AssignmentIcon,
 } from '@mui/icons-material'
 import { Layout } from '@/components/common/Layout'
 import { useRequest, useHideRequest, useDeleteRequest, useUpdateRequest } from '@/hooks/useRequests'
 import { useAuth } from '@/hooks/useAuth'
+import { useFeatureFlag } from '@/hooks/useFeatureFlag'
 import { StatusTransitionButtons } from '@/components/requests/StatusTransitionButtons'
 import { AssignmentSection } from '@/components/requests/AssignmentSection'
 import { RequestHistoryPanel } from '@/components/requests/RequestHistoryPanel'
@@ -45,6 +47,7 @@ export const RequestDetail = () => {
   const { user } = useAuth()
   const { data: request, isLoading, error, refetch } = useRequest(id!)
   const { data: activeBlock } = useActiveBlock(id)
+  const { isEnabled: dm329FullWorkflowEnabled } = useFeatureFlag('dm329_full_workflow')
   const hideRequest = useHideRequest()
   const deleteRequest = useDeleteRequest()
   const updateRequest = useUpdateRequest()
@@ -148,6 +151,14 @@ export const RequestDetail = () => {
     user?.role === 'admin' ||
     (user?.role === 'userdm329' && isDM329)
 
+  // Determine if user can access technical details
+  // Only admin and userdm329 can access technical details for DM329 requests
+  // Only if feature flag is enabled
+  const canAccessTechnicalDetails =
+    dm329FullWorkflowEnabled &&
+    isDM329 &&
+    (user?.role === 'admin' || user?.role === 'userdm329')
+
   return (
     <Layout>
       <Box>
@@ -157,6 +168,19 @@ export const RequestDetail = () => {
           </Button>
 
           <Box sx={{ display: 'flex', gap: 1 }}>
+            {/* Technical Details button (DM329 only, with feature flag) */}
+            {canAccessTechnicalDetails && (
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<AssignmentIcon />}
+                onClick={() => navigate(`/requests/${id}/technical-details`)}
+                size="small"
+              >
+                Dettagli Pratica
+              </Button>
+            )}
+
             {/* Block/Unblock buttons */}
             {canBlock && !request.is_blocked && (
               <Button

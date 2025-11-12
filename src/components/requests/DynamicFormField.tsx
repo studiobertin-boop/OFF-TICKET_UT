@@ -15,6 +15,7 @@ import {
 import { FieldSchema } from '@/types'
 import { AutocompleteField } from './AutocompleteField'
 import { CompressorFields } from './CompressorFields'
+import { AddressAutocompleteField } from './AddressAutocompleteField'
 
 interface DynamicFormFieldProps {
   field: FieldSchema
@@ -267,6 +268,9 @@ export const DynamicFormField = ({ field, control, error }: DynamicFormFieldProp
 
       case 'autocomplete':
         return <AutocompleteField field={field} control={control} error={error} />
+
+      case 'address-autocomplete':
+        return <AddressAutocompleteField field={field} control={control} error={error} />
 
       case 'repeatable_group':
         return <CompressorFields field={field} control={control} errors={error} />

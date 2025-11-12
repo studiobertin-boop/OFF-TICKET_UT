@@ -8,6 +8,7 @@ import { Dashboard } from '@/pages/Dashboard'
 import { Requests } from '@/pages/Requests'
 import { RequestDetail } from '@/pages/RequestDetail'
 import { NewRequest } from '@/pages/NewRequest'
+import { TechnicalDetails } from '@/pages/TechnicalDetails'
 import { DeletionArchives } from '@/pages/DeletionArchives'
 import NotificationSettings from '@/pages/NotificationSettings'
 import AdminRequestTypes from '@/pages/admin/AdminRequestTypes'
@@ -68,6 +69,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <RequestDetail />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/requests/:id/technical-details"
+                element={
+                  <ProtectedRoute allowedRoles={['admin', 'userdm329']}>
+                    <TechnicalDetails />
                   </ProtectedRoute>
                 }
               />

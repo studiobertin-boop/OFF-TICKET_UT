@@ -31,7 +31,7 @@ export interface User {
 
 export interface FieldSchema {
   name: string
-  type: 'text' | 'textarea' | 'boolean' | 'select' | 'multiselect' | 'file' | 'date' | 'autocomplete' | 'number' | 'datetime-local' | 'repeatable_group'
+  type: 'text' | 'textarea' | 'boolean' | 'select' | 'multiselect' | 'file' | 'date' | 'autocomplete' | 'number' | 'datetime-local' | 'repeatable_group' | 'address-autocomplete'
   label: string
   required: boolean
   options?: string[]
@@ -198,4 +198,107 @@ export interface RecentActivity {
   user_id: string
   user_name: string
   created_at: string
+}
+
+// Feature Flags
+export interface FeatureFlag {
+  id: string
+  flag_name: string
+  is_enabled: boolean
+  description?: string
+  created_at: string
+  updated_at: string
+}
+
+// Customer Users (Portale Cliente)
+export interface CustomerUser {
+  id: string
+  customer_id: string
+  customer?: Customer
+  email: string
+  full_name: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  last_login_at?: string | null
+}
+
+// DM329 Technical Data
+export type OCRProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed'
+
+export interface AddressComponents {
+  street?: string
+  city?: string
+  province?: string
+  postal_code?: string
+  country?: string
+  formatted_address?: string
+  place_id?: string
+  latitude?: number
+  longitude?: number
+}
+
+export interface OCRResult {
+  image_id: string
+  image_url?: string
+  extracted_text: string
+  confidence: number
+  matched_equipment?: EquipmentCatalogItem
+  fields_extracted?: Record<string, any>
+  processed_at: string
+}
+
+export interface DM329TechnicalData {
+  id: string
+  request_id: string
+  request?: Request
+
+  // Dati impianto
+  indirizzo_impianto?: string
+  indirizzo_impianto_formatted?: AddressComponents
+
+  // Stato compilazione
+  is_completed: boolean
+  completed_by?: string
+  completed_by_user?: User
+  completed_at?: string | null
+
+  // Dati apparecchiature (JSONB flessibile)
+  equipment_data: Record<string, any>
+
+  // OCR
+  ocr_processing_status: OCRProcessingStatus
+  ocr_results: OCRResult[]
+  ocr_processed_at?: string | null
+
+  // Metadata
+  created_at: string
+  updated_at: string
+  created_by?: string
+  created_by_user?: User
+}
+
+// Equipment Catalog (per normalizzazione OCR)
+export interface EquipmentCatalogItem {
+  id: string
+  tipo: string
+  marca: string
+  modello: string
+  aliases?: string[]
+  specs?: Record<string, any>
+  is_active: boolean
+  usage_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface EquipmentSearchResult extends EquipmentCatalogItem {
+  similarity_score: number
+}
+
+// Estensione Request con technical_data
+declare module './index' {
+  interface Request {
+    dm329_technical_data?: DM329TechnicalData
+  }
 }
