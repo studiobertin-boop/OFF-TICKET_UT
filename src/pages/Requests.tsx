@@ -18,17 +18,24 @@ import {
   ToggleButtonGroup,
   Tabs,
   Tab,
+  TextField,
+  Checkbox,
+  ListItemText,
+  OutlinedInput,
+  IconButton,
 } from '@mui/material'
 import {
   Add as AddIcon,
   ViewModule as GridViewIcon,
   ViewList as TableViewIcon,
+  Clear as ClearIcon,
 } from '@mui/icons-material'
 import { Layout } from '@/components/common/Layout'
 import { useRequests } from '@/hooks/useRequests'
 import { useRequestTypes } from '@/hooks/useRequestTypes'
 import { useAuth } from '@/hooks/useAuth'
 import { getStatusColor, getStatusLabel } from '@/utils/workflow'
+import type { DM329Status } from '@/types'
 import { RequestsTableView } from '@/components/requests/RequestsTableView'
 import { DM329TableView } from '@/components/requests/DM329TableView'
 import { HiddenRequestsView } from '@/components/requests/HiddenRequestsView'
@@ -40,6 +47,30 @@ import { toast } from 'react-hot-toast'
 
 type ViewMode = 'grid' | 'table'
 
+const DM329_STATUSES: DM329Status[] = [
+  '1-INCARICO_RICEVUTO',
+  '2-SCHEDA_DATI_PRONTA',
+  '3-MAIL_CLIENTE_INVIATA',
+  '4-DOCUMENTI_PRONTI',
+  '5-ATTESA_FIRMA',
+  '6-PRONTA_PER_CIVA',
+  '7-CHIUSA',
+]
+
+const getDM329StatusLabel = (status: DM329Status): string => {
+  const labels: Record<DM329Status, string> = {
+    '1-INCARICO_RICEVUTO': '1 - Incarico Ricevuto',
+    '2-SCHEDA_DATI_PRONTA': '2 - Scheda Dati Pronta',
+    '3-MAIL_CLIENTE_INVIATA': '3 - Mail Cliente Inviata',
+    '4-DOCUMENTI_PRONTI': '4 - Documenti Pronti',
+    '5-ATTESA_FIRMA': '5 - Attesa Firma',
+    '6-PRONTA_PER_CIVA': '6 - Pronta per CIVA',
+    '7-CHIUSA': '7 - Chiusa',
+    'ARCHIVIATA NON FINITA': 'Archiviata Non Finita',
+  }
+  return labels[status] || status
+}
+
 export const Requests = () => {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -50,6 +81,12 @@ export const Requests = () => {
   // Se è userdm329, parte dal tab DM329 (tab 1), altrimenti dal tab Generali (tab 0)
   // Tab: 0 = Generali, 1 = DM329, 2 = Nascoste Generali (admin), 3 = Nascoste DM329 (admin)
   const [activeTab, setActiveTab] = useState(user?.role === 'userdm329' ? 1 : 0)
+
+  // DM329 specific filters for cards view
+  const [dm329ClienteFilter, setDm329ClienteFilter] = useState<string[]>([])
+  const [dm329StatoFilter, setDm329StatoFilter] = useState<string[]>([])
+  const [dm329NoCivaFilter, setDm329NoCivaFilter] = useState<'all' | 'true' | 'false'>('all')
+  const [dm329NoteFilter, setDm329NoteFilter] = useState('')
 
   // Selection state
   const [selectedRequests, setSelectedRequests] = useState<Set<string>>(new Set())
@@ -147,6 +184,69 @@ export const Requests = () => {
       default: return otherRequests
     }
   }, [canViewGeneralTab, canViewDM329Tab, activeTab, otherRequests, dm329Requests, hiddenOtherRequests, hiddenDM329Requests])
+
+  // Filtraggio per vista cards DM329
+  const filteredDM329Requests = useMemo(() => {
+    if (activeTab !== 1 || viewMode !== 'grid') return displayRequests
+
+    let filtered = [...displayRequests]
+
+    // Applica filtri DM329
+    if (dm329ClienteFilter.length > 0) {
+      filtered = filtered.filter(req => {
+        const cliente = req.custom_fields?.cliente
+        const clienteStr = typeof cliente === 'string'
+          ? cliente
+          : (cliente && typeof cliente === 'object' && 'ragione_sociale' in cliente)
+            ? cliente.ragione_sociale
+            : ''
+        return dm329ClienteFilter.includes(clienteStr)
+      })
+    }
+    if (dm329StatoFilter.length > 0) {
+      filtered = filtered.filter(req =>
+        dm329StatoFilter.includes(req.status as DM329Status)
+      )
+    }
+    if (dm329NoCivaFilter !== 'all') {
+      filtered = filtered.filter(req => {
+        const noCiva = req.custom_fields?.no_civa as boolean
+        return dm329NoCivaFilter === 'true' ? noCiva === true : noCiva !== true
+      })
+    }
+    if (dm329NoteFilter) {
+      filtered = filtered.filter(req => {
+        const note = req.custom_fields?.note as string
+        return note?.toLowerCase().includes(dm329NoteFilter.toLowerCase())
+      })
+    }
+
+    return filtered
+  }, [displayRequests, activeTab, viewMode, dm329ClienteFilter, dm329StatoFilter, dm329NoCivaFilter, dm329NoteFilter])
+
+  // Estrai valori unici clienti per filtro DM329
+  const uniqueDM329Clients = useMemo(() => {
+    const clients = dm329Requests
+      .map(r => {
+        const cliente = r.custom_fields?.cliente
+        if (typeof cliente === 'string') return cliente
+        if (cliente && typeof cliente === 'object' && 'ragione_sociale' in cliente) {
+          return cliente.ragione_sociale
+        }
+        return null
+      })
+      .filter(Boolean) as string[]
+    return Array.from(new Set(clients)).sort()
+  }, [dm329Requests])
+
+  const clearDM329Filters = () => {
+    setDm329ClienteFilter([])
+    setDm329StatoFilter([])
+    setDm329NoCivaFilter('all')
+    setDm329NoteFilter('')
+  }
+
+  const hasDM329ActiveFilters = dm329ClienteFilter.length > 0 || dm329StatoFilter.length > 0 || dm329NoCivaFilter !== 'all' || dm329NoteFilter
 
   // Clear selection when changing tabs
   useEffect(() => {
@@ -293,8 +393,8 @@ export const Requests = () => {
           </Box>
         )}
 
-        {/* Filters - solo per visualizzazione griglia */}
-        {viewMode === 'grid' && (
+        {/* Filters - solo per visualizzazione griglia e solo per richieste generali (non DM329) */}
+        {viewMode === 'grid' && activeTab === 0 && (
           <Grid container spacing={2} sx={{ mb: 3 }}>
             <Grid item xs={12} sm={6}>
               <FormControl fullWidth>
@@ -330,6 +430,126 @@ export const Requests = () => {
               </FormControl>
             </Grid>
           </Grid>
+        )}
+
+        {/* DM329 Filters - solo per visualizzazione griglia e solo per richieste DM329 */}
+        {viewMode === 'grid' && (activeTab === 1 || !canViewGeneralTab) && (
+          <>
+            {/* Active filters chips */}
+            {hasDM329ActiveFilters && (
+              <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  {dm329ClienteFilter.length > 0 && (
+                    <Chip label={`Clienti: ${dm329ClienteFilter.length}`} size="small" onDelete={() => setDm329ClienteFilter([])} />
+                  )}
+                  {dm329StatoFilter.length > 0 && (
+                    <Chip label={`Stati: ${dm329StatoFilter.length}`} size="small" onDelete={() => setDm329StatoFilter([])} />
+                  )}
+                  {dm329NoCivaFilter !== 'all' && (
+                    <Chip label={`No CIVA: ${dm329NoCivaFilter === 'true' ? 'Sì' : 'No'}`} size="small" onDelete={() => setDm329NoCivaFilter('all')} />
+                  )}
+                  {dm329NoteFilter && (
+                    <Chip label={`Note: "${dm329NoteFilter}"`} size="small" onDelete={() => setDm329NoteFilter('')} />
+                  )}
+                </Box>
+                <IconButton size="small" onClick={clearDM329Filters} color="primary" title="Cancella tutti i filtri">
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </Box>
+            )}
+
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+              {/* Cliente Filter */}
+              <Grid item xs={12} sm={6} md={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Cliente</InputLabel>
+                  <Select
+                    multiple
+                    value={dm329ClienteFilter}
+                    onChange={(e) => setDm329ClienteFilter(e.target.value as string[])}
+                    input={<OutlinedInput label="Cliente" />}
+                    renderValue={(selected) => {
+                      if (selected.length === 0) return <em>Tutti</em>
+                      return `${selected.length} selezionati`
+                    }}
+                    MenuProps={{
+                      PaperProps: {
+                        style: {
+                          maxHeight: 300,
+                        },
+                      },
+                    }}
+                  >
+                    {uniqueDM329Clients.map((cliente) => (
+                      <MenuItem key={cliente} value={cliente}>
+                        <Checkbox checked={dm329ClienteFilter.indexOf(cliente) > -1} />
+                        <ListItemText primary={cliente} />
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              {/* Stato Filter */}
+              <Grid item xs={12} sm={6} md={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Stato</InputLabel>
+                  <Select
+                    multiple
+                    value={dm329StatoFilter}
+                    onChange={(e) => setDm329StatoFilter(e.target.value as string[])}
+                    input={<OutlinedInput label="Stato" />}
+                    renderValue={(selected) => {
+                      if (selected.length === 0) return <em>Tutti</em>
+                      return `${selected.length} selezionati`
+                    }}
+                    MenuProps={{
+                      PaperProps: {
+                        style: {
+                          maxHeight: 300,
+                        },
+                      },
+                    }}
+                  >
+                    {DM329_STATUSES.map((status) => (
+                      <MenuItem key={status} value={status}>
+                        <Checkbox checked={dm329StatoFilter.indexOf(status) > -1} />
+                        <ListItemText primary={getDM329StatusLabel(status)} />
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              {/* No CIVA Filter */}
+              <Grid item xs={12} sm={6} md={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>No CIVA</InputLabel>
+                  <Select
+                    value={dm329NoCivaFilter}
+                    onChange={(e) => setDm329NoCivaFilter(e.target.value as 'all' | 'true' | 'false')}
+                    label="No CIVA"
+                  >
+                    <MenuItem value="all">Tutti</MenuItem>
+                    <MenuItem value="true">Sì</MenuItem>
+                    <MenuItem value="false">No</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              {/* Note Filter */}
+              <Grid item xs={12} sm={6} md={3}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Cerca nelle note"
+                  value={dm329NoteFilter}
+                  onChange={(e) => setDm329NoteFilter(e.target.value)}
+                  placeholder="Filtra per note..."
+                />
+              </Grid>
+            </Grid>
+          </>
         )}
 
         {/* Bulk Actions Bar */}
@@ -396,11 +616,11 @@ export const Requests = () => {
         {/* Visualizzazione Griglia */}
         {viewMode === 'grid' && (
           <>
-            {displayRequests.length === 0 ? (
+            {((activeTab === 1 || !canViewGeneralTab) ? filteredDM329Requests : displayRequests).length === 0 ? (
               <Alert severity="info">Nessuna richiesta trovata</Alert>
             ) : (
               <Grid container spacing={2}>
-                {displayRequests.map(request => (
+                {((activeTab === 1 || !canViewGeneralTab) ? filteredDM329Requests : displayRequests).map(request => (
                   <Grid item xs={12} key={request.id}>
                     <Card
                       sx={{ cursor: 'pointer', '&:hover': { boxShadow: 4 } }}

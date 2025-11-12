@@ -181,3 +181,21 @@ export interface DeletionArchive {
   deleted_by_user?: User
   created_at: string
 }
+
+export type ActivityType =
+  | 'APERTA'
+  | 'CAMBIO_STATO'
+  | 'BLOCCATA'
+  | 'SBLOCCATA'
+  | 'COMPLETATA'
+
+export interface RecentActivity {
+  activity_id: string
+  activity_type: ActivityType
+  activity_description: string
+  request_id: string
+  request_title: string
+  user_id: string
+  user_name: string
+  created_at: string
+}

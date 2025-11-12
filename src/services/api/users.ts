@@ -151,8 +151,17 @@ export async function updateUser(
  */
 export async function deleteUser(userId: string): Promise<void> {
   try {
+    console.log('deleteUser called with userId:', userId)
+
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Nessuna sessione attiva')
+    if (!user) {
+      console.error('No active session')
+      throw new Error('Nessuna sessione attiva')
+    }
+
+    console.log('Calling Edge Function manage-user with action: delete')
+    console.log('Calling user ID:', user.id)
+    console.log('Target user ID:', userId)
 
     const { data, error } = await supabase.functions.invoke('manage-user', {
       body: {
@@ -162,14 +171,24 @@ export async function deleteUser(userId: string): Promise<void> {
       },
     })
 
+    console.log('Edge Function response:', { data, error })
+
     if (error) {
-      console.error('Error deleting user:', error)
+      console.error('Error from Edge Function:', error)
       throw new Error(`Errore nell'eliminazione dell'utente: ${error.message}`)
     }
 
-    if (!data?.success) {
-      throw new Error(data?.error || 'Errore nell\'eliminazione dell\'utente')
+    if (!data) {
+      console.error('No data returned from Edge Function')
+      throw new Error('Nessuna risposta dalla Edge Function')
     }
+
+    if (!data.success) {
+      console.error('Edge Function returned success: false', data)
+      throw new Error(data.error || 'Errore nell\'eliminazione dell\'utente')
+    }
+
+    console.log('User deleted successfully')
   } catch (error) {
     console.error('Unexpected error deleting user:', error)
     throw error

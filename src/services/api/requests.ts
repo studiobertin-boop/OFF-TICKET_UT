@@ -95,12 +95,22 @@ export const requestsApi = {
       throw new Error('Non autenticato')
     }
 
+    // Determina il tipo di richiesta per impostare lo stato iniziale corretto
+    const { data: requestType } = await supabase
+      .from('request_types')
+      .select('name')
+      .eq('id', input.request_type_id)
+      .single()
+
+    // Per DM329: stato iniziale è '1-INCARICO_RICEVUTO', per altri tipi: 'APERTA'
+    const initialStatus = requestType?.name === 'DM329' ? '1-INCARICO_RICEVUTO' : 'APERTA'
+
     const { data, error } = await supabase
       .from('requests')
       .insert({
         ...input,
         created_by: session.session.user.id,
-        status: 'APERTA', // Default status for standard requests
+        status: initialStatus,
       })
       .select(`
         *,

@@ -96,8 +96,8 @@ export const Layout = ({ children }: LayoutProps) => {
             >
               Richieste
             </Button>
-            {/* Dashboard solo per admin */}
-            {user?.role === 'admin' && (
+            {/* Dashboard per admin, tecnico e userdm329 */}
+            {(user?.role === 'admin' || user?.role === 'tecnico' || user?.role === 'userdm329') && (
               <Button
                 color="inherit"
                 startIcon={<DashboardIcon />}

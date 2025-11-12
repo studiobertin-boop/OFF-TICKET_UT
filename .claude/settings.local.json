@@ -62,7 +62,9 @@
       "Bash(if not exist \"scripts\" mkdir \"scripts\")",
       "Bash(test:*)",
       "Bash(npx tsx:*)",
-      "Bash(timeout 3 bash:*)"
+      "Bash(timeout 3 bash:*)",
+      "Bash(supabase functions:*)",
+      "Bash(timeout 60 bash:*)"
     ],
     "deny": [],
     "ask": []

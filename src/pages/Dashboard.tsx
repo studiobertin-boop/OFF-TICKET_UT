@@ -29,6 +29,7 @@ import {
   useDM329CompletionTimeTrend,
   useDM329TransitionTimes,
 } from '@/hooks/useAnalytics';
+import { useRecentActivity } from '@/hooks/useActivity';
 
 // Components
 import { StatusTiles } from '@/components/dashboard/StatusTiles';
@@ -40,6 +41,7 @@ import { AvgTimeChart } from '@/components/dashboard/AvgTimeChart';
 import { DM329TransitionChart } from '@/components/dashboard/DM329TransitionChart';
 import { GeneralDashboardFilters } from '@/components/dashboard/GeneralDashboardFilters';
 import { DM329DashboardFilters } from '@/components/dashboard/DM329DashboardFilters';
+import { RecentActivityFeed } from '@/components/dashboard/RecentActivityFeed';
 
 import type { GeneralAnalyticsFilters, DM329AnalyticsFilters } from '@/services/api/analytics';
 
@@ -53,12 +55,12 @@ export const Dashboard = () => {
   const [generalFilters, setGeneralFilters] = useState<GeneralAnalyticsFilters>({});
   const [dm329Filters, setDM329Filters] = useState<DM329AnalyticsFilters>({});
 
-  // Redirect utente non autorizzato (solo admin e tecnici per dashboard generale)
+  // Redirect utente non autorizzato (solo admin, tecnici e userdm329 possono accedere)
   if (user?.role === 'utente') {
     return <Navigate to="/requests" replace />;
   }
 
-  // Solo userdm329 non può vedere il tab generale, admin e tecnici vedono tutto
+  // userdm329 può vedere solo il tab DM329, admin e tecnici vedono tutto
   const canViewGeneralDashboard = user?.role !== 'userdm329';
 
   // Filtro per tecnico (vede solo assegnate + create)
@@ -87,6 +89,10 @@ export const Dashboard = () => {
   const dm329CompletionTimeTrend = useDM329CompletionTimeTrend(trendRange, dm329UserFilters);
   const dm329TransitionTimes = useDM329TransitionTimes(dm329UserFilters);
 
+  // ========== RECENT ACTIVITY ==========
+  const generalActivity = useRecentActivity(undefined, 20);
+  const dm329Activity = useRecentActivity('DM329', 20);
+
   return (
     <Layout>
       <Box>
@@ -94,12 +100,21 @@ export const Dashboard = () => {
           Dashboard Analytics
         </Typography>
         <Typography variant="body1" color="text.secondary" gutterBottom>
-          Benvenuto, {user?.full_name}! ({user?.role === 'admin' ? 'Amministratore' : 'Tecnico'})
+          Benvenuto, {user?.full_name}! (
+          {user?.role === 'admin' ? 'Amministratore' :
+           user?.role === 'userdm329' ? 'Utente DM329' :
+           'Tecnico'})
         </Typography>
 
         {user?.role === 'tecnico' && (
           <Alert severity="info" sx={{ mt: 2, mb: 3 }}>
             Stai visualizzando solo le richieste assegnate a te o create da te.
+          </Alert>
+        )}
+
+        {user?.role === 'userdm329' && (
+          <Alert severity="info" sx={{ mt: 2, mb: 3 }}>
+            Stai visualizzando tutte le richieste DM329.
           </Alert>
         )}
 
@@ -166,6 +181,7 @@ export const Dashboard = () => {
 
             {/* Charts */}
             <Grid container spacing={3} sx={{ mt: 1 }}>
+              {/* Row 1: Grafici a torta distribuzione */}
               <Grid item xs={12} md={6}>
                 <RequestsByTypeChart
                   data={generalByType.data}
@@ -179,6 +195,8 @@ export const Dashboard = () => {
                   title="Richieste per Stato"
                 />
               </Grid>
+
+              {/* Row 2: Grafico richiedenti + Attività recenti */}
               <Grid item xs={12} md={6}>
                 <RequestsByTecnicoChart
                   data={generalByRequester.data}
@@ -186,6 +204,15 @@ export const Dashboard = () => {
                   title="Richieste per Richiedente"
                 />
               </Grid>
+              <Grid item xs={12} md={6}>
+                <RecentActivityFeed
+                  data={generalActivity.data}
+                  isLoading={generalActivity.isLoading}
+                  title="Ultime Attività"
+                />
+              </Grid>
+
+              {/* Row 3: Grafici trend temporali */}
               <Grid item xs={12} md={6}>
                 <Box>
                   <FormControl size="small" sx={{ mb: 2, minWidth: 150 }}>
@@ -305,6 +332,7 @@ export const Dashboard = () => {
 
             {/* Charts DM329 */}
             <Grid container spacing={3} sx={{ mt: 1 }}>
+              {/* Row 1: Distribuzione stati + Storico richieste */}
               <Grid item xs={12} md={6}>
                 <RequestsByStatusChart
                   data={dm329ByStatus.data}
@@ -335,6 +363,8 @@ export const Dashboard = () => {
                   />
                 </Box>
               </Grid>
+
+              {/* Row 2: Tempo medio completamento + Attività recenti */}
               <Grid item xs={12} md={6}>
                 <Box>
                   <FormControl size="small" sx={{ mb: 2, minWidth: 150 }}>
@@ -358,6 +388,15 @@ export const Dashboard = () => {
                   />
                 </Box>
               </Grid>
+              <Grid item xs={12} md={6}>
+                <RecentActivityFeed
+                  data={dm329Activity.data}
+                  isLoading={dm329Activity.isLoading}
+                  title="Ultime Attività DM329"
+                />
+              </Grid>
+
+              {/* Row 3: Tempi transizioni (full width) */}
               <Grid item xs={12}>
                 <DM329TransitionChart
                   data={dm329TransitionTimes.data}

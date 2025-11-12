@@ -80,7 +80,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .eq('id', userId)
         .single()
 
-      if (error) throw error
+      if (error) {
+        // Se l'utente non esiste nella tabella users, eseguire logout forzato
+        console.error('User profile not found in database:', error)
+        await supabase.auth.signOut()
+        throw new Error('Profilo utente non trovato. Contattare l\'amministratore.')
+      }
 
       // Verificare se l'utente è sospeso
       if (data.is_suspended) {
@@ -92,6 +97,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(data)
     } catch (error) {
       console.error('Error loading user profile:', error)
+      // Assicurarsi che l'utente sia null e fare logout
+      setUser(null)
+      setSession(null)
       throw error
     } finally {
       setLoading(false)

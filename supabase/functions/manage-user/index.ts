@@ -180,15 +180,71 @@ serve(async (req) => {
       }
 
       case 'delete': {
-        // Eliminare utente da auth.users (CASCADE elimina anche da public.users)
-        const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(
+        console.log('Starting delete operation for user:', requestData.userId)
+
+        // STEP 1: Eliminare prima i dati collegati dall'utente
+        // Nota: Le richieste create_by potrebbero avere constraint, quindi le gestiamo
+
+        // Eliminare le richieste assegnate all'utente (impostare assigned_to a NULL)
+        console.log('Updating assigned requests...')
+        const { error: updateAssignedError } = await supabaseAdmin
+          .from('requests')
+          .update({ assigned_to: null })
+          .eq('assigned_to', requestData.userId)
+
+        if (updateAssignedError) {
+          console.error('Error updating assigned requests:', updateAssignedError)
+          throw new Error(`Error updating assigned requests: ${updateAssignedError.message}`)
+        }
+
+        // Mantenere le richieste create dall'utente impostando created_by a NULL
+        console.log('Updating created_by to NULL for user requests...')
+        const { error: updateCreatedError } = await supabaseAdmin
+          .from('requests')
+          .update({ created_by: null })
+          .eq('created_by', requestData.userId)
+
+        if (updateCreatedError) {
+          console.error('Error updating created_by:', updateCreatedError)
+          throw new Error(`Error updating created_by: ${updateCreatedError.message}`)
+        }
+
+        // Eliminare le notifiche dell'utente
+        console.log('Deleting notifications...')
+        const { error: deleteNotificationsError } = await supabaseAdmin
+          .from('notifications')
+          .delete()
+          .eq('user_id', requestData.userId)
+
+        if (deleteNotificationsError) {
+          console.error('Error deleting notifications:', deleteNotificationsError)
+          // Non blocchiamo se le notifiche falliscono
+        }
+
+        // STEP 2: Eliminare l'utente da public.users
+        console.log('Deleting from public.users...')
+        const { error: deletePublicUserError } = await supabaseAdmin
+          .from('users')
+          .delete()
+          .eq('id', requestData.userId)
+
+        if (deletePublicUserError) {
+          console.error('Error deleting from public.users:', deletePublicUserError)
+          throw new Error(`Error deleting from public.users: ${deletePublicUserError.message}`)
+        }
+
+        // STEP 3: Eliminare l'utente da auth.users
+        console.log('Deleting from auth.users...')
+        const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(
           requestData.userId
         )
 
-        if (deleteError) {
-          throw new Error(`Delete error: ${deleteError.message}`)
+        if (deleteAuthError) {
+          console.error('Error deleting from auth.users:', deleteAuthError)
+          throw new Error(`Delete error: ${deleteAuthError.message}`)
         }
 
+        console.log('User deleted successfully')
         return new Response(
           JSON.stringify({ success: true }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

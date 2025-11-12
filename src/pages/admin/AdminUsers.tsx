@@ -63,6 +63,7 @@ export default function AdminUsers() {
   const [userToDelete, setUserToDelete] = useState<User | null>(null)
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
   const [userForPassword, setUserForPassword] = useState<User | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const { data: users, isLoading, error } = useUsers()
   const deleteUserMutation = useDeleteUser()
@@ -81,18 +82,32 @@ export default function AdminUsers() {
 
   const handleDeleteClick = (user: User) => {
     setUserToDelete(user)
+    setDeleteError(null) // Reset errore precedente
     setDeleteDialogOpen(true)
   }
 
   const handleConfirmDelete = async () => {
     if (!userToDelete) return
+
+    setDeleteError(null) // Reset errore
+
     try {
+      console.log('Starting delete for user:', userToDelete.id)
       await deleteUserMutation.mutateAsync(userToDelete.id)
+      console.log('Delete successful')
       setDeleteDialogOpen(false)
       setUserToDelete(null)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error deleting user:', err)
+      // Mostrare l'errore all'utente
+      setDeleteError(err?.message || 'Errore sconosciuto durante l\'eliminazione')
     }
+  }
+
+  const handleCancelDelete = () => {
+    setDeleteDialogOpen(false)
+    setUserToDelete(null)
+    setDeleteError(null)
   }
 
   const handleSuspendToggle = async (user: User) => {
@@ -289,7 +304,9 @@ export default function AdminUsers() {
       {/* Dialog Conferma Eliminazione */}
       <Dialog
         open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
+        onClose={handleCancelDelete}
+        maxWidth="sm"
+        fullWidth
       >
         <DialogTitle>Conferma Eliminazione</DialogTitle>
         <DialogContent>
@@ -299,13 +316,28 @@ export default function AdminUsers() {
             {userToDelete?.email})?
             <br />
             <br />
-            Questa azione è <strong>irreversibile</strong> e eliminerà anche
-            tutte le richieste e i dati associati all'utente.
+            Questa azione è <strong>irreversibile</strong>. Le richieste create
+            dall'utente verranno mantenute ma il creatore sarà rimosso.
           </DialogContentText>
+
+          {deleteError && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {deleteError}
+            </Alert>
+          )}
+
+          {deleteUserMutation.isPending && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+              <CircularProgress size={24} />
+              <Typography variant="body2" sx={{ ml: 2 }}>
+                Eliminazione in corso...
+              </Typography>
+            </Box>
+          )}
         </DialogContent>
         <DialogActions>
           <Button
-            onClick={() => setDeleteDialogOpen(false)}
+            onClick={handleCancelDelete}
             disabled={deleteUserMutation.isPending}
           >
             Annulla
@@ -318,10 +350,12 @@ export default function AdminUsers() {
             startIcon={
               deleteUserMutation.isPending ? (
                 <CircularProgress size={20} />
-              ) : null
+              ) : (
+                <DeleteIcon />
+              )
             }
           >
-            Elimina
+            {deleteUserMutation.isPending ? 'Eliminazione...' : 'Elimina'}
           </Button>
         </DialogActions>
       </Dialog>

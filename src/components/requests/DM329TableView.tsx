@@ -52,7 +52,7 @@ interface DM329TableViewProps {
 }
 
 type OrderDirection = 'asc' | 'desc'
-type OrderBy = 'updated_at' | 'cliente' | 'status' | 'no_civa' | 'note'
+type OrderBy = 'updated_at' | 'cliente' | 'status' | 'no_civa' | 'note' | 'is_blocked' | 'has_timer_alert'
 
 const DM329_STATUSES: DM329Status[] = [
   '1-INCARICO_RICEVUTO',
@@ -82,6 +82,8 @@ export const DM329TableView = ({
   const [statoFilter, setStatoFilter] = useState<DM329Status[]>([])
   const [noCivaFilter, setNoCivaFilter] = useState<'all' | 'true' | 'false'>('all')
   const [noteFilter, setNoteFilter] = useState('')
+  const [blockedFilter, setBlockedFilter] = useState<'all' | 'true' | 'false'>('all')
+  const [timerAlertFilter, setTimerAlertFilter] = useState<'all' | 'true' | 'false'>('all')
 
   const handleSort = (property: OrderBy) => {
     const isAsc = orderBy === property && order === 'asc'
@@ -145,32 +147,33 @@ export const DM329TableView = ({
         return note?.toLowerCase().includes(noteFilter.toLowerCase())
       })
     }
+    if (blockedFilter !== 'all') {
+      filtered = filtered.filter(req => {
+        const isBlocked = req.is_blocked === true
+        return blockedFilter === 'true' ? isBlocked : !isBlocked
+      })
+    }
+    if (timerAlertFilter !== 'all') {
+      filtered = filtered.filter(req => {
+        const hasTimerAlert = req.has_timer_alert === true
+        return timerAlertFilter === 'true' ? hasTimerAlert : !hasTimerAlert
+      })
+    }
 
     // Applica ordinamento
     filtered.sort((a, b) => {
-      // Priority 1: ALWAYS show blocked requests first
-      if (a.is_blocked && !b.is_blocked) return -1
-      if (!a.is_blocked && b.is_blocked) return 1
-
-      // Priority 2: Show timer alerts second (only for non-blocked requests)
-      if (!a.is_blocked && !b.is_blocked) {
-        if (a.has_timer_alert && !b.has_timer_alert) return -1
-        if (!a.has_timer_alert && b.has_timer_alert) return 1
-      }
-
-      // Priority 3: Within same category (blocked/timer/normal), sort by created_at (oldest first)
-      // This ensures oldest requests appear first within each priority group
-      if (a.is_blocked === b.is_blocked && a.has_timer_alert === b.has_timer_alert) {
-        const aCreated = new Date(a.created_at).getTime()
-        const bCreated = new Date(b.created_at).getTime()
-        return aCreated - bCreated // Oldest first
-      }
-
-      // Then sort by selected column
       let aValue: any
       let bValue: any
 
       switch (orderBy) {
+        case 'is_blocked':
+          aValue = a.is_blocked ? 1 : 0
+          bValue = b.is_blocked ? 1 : 0
+          break
+        case 'has_timer_alert':
+          aValue = a.has_timer_alert ? 1 : 0
+          bValue = b.has_timer_alert ? 1 : 0
+          break
         case 'updated_at':
           aValue = new Date(a.updated_at).getTime()
           bValue = new Date(b.updated_at).getTime()
@@ -215,7 +218,7 @@ export const DM329TableView = ({
     })
 
     return filtered
-  }, [requests, orderBy, order, clienteFilter, statoFilter, noCivaFilter, noteFilter])
+  }, [requests, orderBy, order, clienteFilter, statoFilter, noCivaFilter, noteFilter, blockedFilter, timerAlertFilter])
 
   const clearFilters = () => {
     setClienteFilter([])
@@ -223,9 +226,11 @@ export const DM329TableView = ({
     setStatoFilter([])
     setNoCivaFilter('all')
     setNoteFilter('')
+    setBlockedFilter('all')
+    setTimerAlertFilter('all')
   }
 
-  const hasActiveFilters = clienteFilter.length > 0 || statoFilter.length > 0 || noCivaFilter !== 'all' || noteFilter
+  const hasActiveFilters = clienteFilter.length > 0 || statoFilter.length > 0 || noCivaFilter !== 'all' || noteFilter || blockedFilter !== 'all' || timerAlertFilter !== 'all'
 
   // Check if all filteredAndSortedRequests are selected
   const allSelected = selectionEnabled &&
@@ -334,6 +339,12 @@ export const DM329TableView = ({
             {noteFilter && (
               <Chip label={`Note: "${noteFilter}"`} size="small" onDelete={() => setNoteFilter('')} />
             )}
+            {blockedFilter !== 'all' && (
+              <Chip label={`Bloccate: ${blockedFilter === 'true' ? 'Sì' : 'No'}`} size="small" onDelete={() => setBlockedFilter('all')} />
+            )}
+            {timerAlertFilter !== 'all' && (
+              <Chip label={`Timer scaduto: ${timerAlertFilter === 'true' ? 'Sì' : 'No'}`} size="small" onDelete={() => setTimerAlertFilter('all')} />
+            )}
           </Box>
           <IconButton size="small" onClick={clearFilters} color="primary" title="Cancella tutti i filtri">
             <ClearIcon fontSize="small" />
@@ -342,7 +353,7 @@ export const DM329TableView = ({
       )}
 
       <TableContainer component={Paper}>
-        <Table size="small" sx={{ minWidth: 900 }}>
+        <Table size="small">
           <TableHead>
             <TableRow>
               {/* Selection checkbox column */}
@@ -356,22 +367,66 @@ export const DM329TableView = ({
                 </TableCell>
               )}
 
-              {/* Block indicator column */}
-              <TableCell sx={{ width: 50, padding: 1 }} />
+              {/* Blocked indicator column */}
+              <TableCell sx={{ width: 70, padding: 0.5 }}>
+                <TableSortLabel
+                  active={orderBy === 'is_blocked'}
+                  direction={orderBy === 'is_blocked' ? order : 'asc'}
+                  onClick={() => handleSort('is_blocked')}
+                  sx={{ fontSize: '0.8rem' }}
+                >
+                  Blocc.
+                </TableSortLabel>
+                <FormControl size="small" fullWidth sx={{ mt: 0.5 }}>
+                  <Select
+                    value={blockedFilter}
+                    onChange={(e) => setBlockedFilter(e.target.value as 'all' | 'true' | 'false')}
+                    sx={{ fontSize: '0.75rem' }}
+                  >
+                    <MenuItem value="all">Tutti</MenuItem>
+                    <MenuItem value="true">Sì</MenuItem>
+                    <MenuItem value="false">No</MenuItem>
+                  </Select>
+                </FormControl>
+              </TableCell>
+
+              {/* Timer alert indicator column */}
+              <TableCell sx={{ width: 70, padding: 0.5 }}>
+                <TableSortLabel
+                  active={orderBy === 'has_timer_alert'}
+                  direction={orderBy === 'has_timer_alert' ? order : 'asc'}
+                  onClick={() => handleSort('has_timer_alert')}
+                  sx={{ fontSize: '0.8rem' }}
+                >
+                  Scad.
+                </TableSortLabel>
+                <FormControl size="small" fullWidth sx={{ mt: 0.5 }}>
+                  <Select
+                    value={timerAlertFilter}
+                    onChange={(e) => setTimerAlertFilter(e.target.value as 'all' | 'true' | 'false')}
+                    sx={{ fontSize: '0.75rem' }}
+                  >
+                    <MenuItem value="all">Tutti</MenuItem>
+                    <MenuItem value="true">Sì</MenuItem>
+                    <MenuItem value="false">No</MenuItem>
+                  </Select>
+                </FormControl>
+              </TableCell>
 
               {/* Data ultimo cambio stato */}
-              <TableCell sx={{ minWidth: 150 }}>
+              <TableCell sx={{ width: 130 }}>
                 <TableSortLabel
                   active={orderBy === 'updated_at'}
                   direction={orderBy === 'updated_at' ? order : 'asc'}
                   onClick={() => handleSort('updated_at')}
+                  sx={{ fontSize: '0.8rem' }}
                 >
-                  Data Ultimo Cambio
+                  Ult. Cambio
                 </TableSortLabel>
               </TableCell>
 
               {/* Cliente */}
-              <TableCell sx={{ minWidth: 200 }}>
+              <TableCell sx={{ minWidth: 150 }}>
                 <TableSortLabel
                   active={orderBy === 'cliente'}
                   direction={orderBy === 'cliente' ? order : 'asc'}
@@ -430,11 +485,12 @@ export const DM329TableView = ({
               </TableCell>
 
               {/* Stato */}
-              <TableCell sx={{ minWidth: 200 }}>
+              <TableCell sx={{ minWidth: 160 }}>
                 <TableSortLabel
                   active={orderBy === 'status'}
                   direction={orderBy === 'status' ? order : 'asc'}
                   onClick={() => handleSort('status')}
+                  sx={{ fontSize: '0.8rem' }}
                 >
                   Stato
                 </TableSortLabel>
@@ -470,11 +526,12 @@ export const DM329TableView = ({
               </TableCell>
 
               {/* No CIVA */}
-              <TableCell sx={{ minWidth: 120, textAlign: 'center' }}>
+              <TableCell sx={{ width: 90, textAlign: 'center' }}>
                 <TableSortLabel
                   active={orderBy === 'no_civa'}
                   direction={orderBy === 'no_civa' ? order : 'asc'}
                   onClick={() => handleSort('no_civa')}
+                  sx={{ fontSize: '0.8rem' }}
                 >
                   No CIVA
                 </TableSortLabel>
@@ -491,11 +548,12 @@ export const DM329TableView = ({
               </TableCell>
 
               {/* Note */}
-              <TableCell sx={{ minWidth: 300 }}>
+              <TableCell sx={{ minWidth: 200 }}>
                 <TableSortLabel
                   active={orderBy === 'note'}
                   direction={orderBy === 'note' ? order : 'asc'}
                   onClick={() => handleSort('note')}
+                  sx={{ fontSize: '0.8rem' }}
                 >
                   Note
                 </TableSortLabel>
@@ -519,17 +577,7 @@ export const DM329TableView = ({
                 sx={{
                   cursor: 'pointer',
                   '&:hover': { backgroundColor: 'action.hover' },
-                  // Highlight blocked requests (priority 1)
-                  ...(request.is_blocked && {
-                    backgroundColor: 'warning.lighter',
-                    '&:hover': { backgroundColor: 'warning.light' },
-                  }),
-                  // Highlight timer alert requests (priority 2, only if not blocked)
-                  ...(!request.is_blocked && request.has_timer_alert && {
-                    backgroundColor: 'error.lighter',
-                    '&:hover': { backgroundColor: 'error.light' },
-                  }),
-                  // Highlight selected requests (overrides others)
+                  // Highlight selected requests
                   ...(selectionEnabled && selectedRequests.has(request.id) && {
                     backgroundColor: 'primary.light',
                     '&:hover': { backgroundColor: 'primary.main' },
@@ -546,11 +594,14 @@ export const DM329TableView = ({
                   </TableCell>
                 )}
 
-                <TableCell sx={{ padding: 1 }}>
-                  <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-                    {request.is_blocked && <BlockIndicator isBlocked={true} />}
-                    {request.has_timer_alert && <TimerAlertIndicator hasAlert={true} />}
-                  </Box>
+                {/* Blocked indicator */}
+                <TableCell sx={{ padding: 1, textAlign: 'center' }}>
+                  {request.is_blocked && <BlockIndicator isBlocked={true} />}
+                </TableCell>
+
+                {/* Timer alert indicator */}
+                <TableCell sx={{ padding: 1, textAlign: 'center' }}>
+                  {request.has_timer_alert && <TimerAlertIndicator hasAlert={true} />}
                 </TableCell>
                 <TableCell>
                   {format(new Date(request.updated_at), 'dd/MM/yyyy HH:mm', { locale: it })}
@@ -582,7 +633,7 @@ export const DM329TableView = ({
                 <TableCell>
                   <Box
                     sx={{
-                      maxWidth: 300,
+                      maxWidth: 200,
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
@@ -596,7 +647,7 @@ export const DM329TableView = ({
 
             {filteredAndSortedRequests.length === 0 && (
               <TableRow>
-                <TableCell colSpan={selectionEnabled ? 7 : 6} align="center" sx={{ py: 3 }}>
+                <TableCell colSpan={selectionEnabled ? 8 : 7} align="center" sx={{ py: 3 }}>
                   Nessuna richiesta DM329 trovata
                 </TableCell>
               </TableRow>
