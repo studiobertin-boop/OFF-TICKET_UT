@@ -463,13 +463,28 @@ export const dm329AnalyticsApi = {
     const status4 = filteredData?.filter(r => r.status === '4-DOCUMENTI_PRONTI').length || 0;
     const status5 = filteredData?.filter(r => r.status === '5-ATTESA_FIRMA').length || 0;
     const status6 = filteredData?.filter(r => r.status === '6-PRONTA_PER_CIVA').length || 0;
-    const status7Raw = filteredData?.filter(r => r.status === '7-CHIUSA').length || 0;
     const statusArchived = filteredData?.filter(r => r.status === 'ARCHIVIATA NON FINITA').length || 0;
+
+    // Get completed count from request_completions (includes deleted DM329)
+    let completedQuery = supabase
+      .from('request_completions')
+      .select('*', { count: 'exact', head: true })
+      .eq('request_type_name', 'DM329')
+      .eq('status', '7-CHIUSA');
+
+    if (filters.dateFrom) {
+      completedQuery = completedQuery.gte('completed_at', filters.dateFrom);
+    }
+    if (filters.dateTo) {
+      completedQuery = completedQuery.lte('completed_at', filters.dateTo);
+    }
+
+    const { count: status7Count } = await completedQuery;
 
     // Offset fisso per pratiche chiuse storiche non importate nel database
     // Target: 903 totali, Database: 105 iniziali, Offset: 798
     const HISTORICAL_CLOSED_OFFSET = 798;
-    const status7 = status7Raw + HISTORICAL_CLOSED_OFFSET;
+    const status7 = (status7Count || 0) + HISTORICAL_CLOSED_OFFSET;
 
     const totalActive = status1 + status2 + status3 + status4 + status5 + status6;
 
