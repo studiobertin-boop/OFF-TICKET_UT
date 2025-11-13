@@ -71,12 +71,14 @@ export const EquipmentAutocomplete = ({
     if (!equipmentType) return
 
     const loadMarche = async () => {
+      console.log('🔍 Loading marche for tipo:', equipmentType)
       setLoadingMarche(true)
       try {
         const marche = await equipmentCatalogApi.getMarcheByTipo(equipmentType)
+        console.log('✅ Marche loaded:', marche.length, 'items')
         setMarcheOptions(marche)
       } catch (error) {
-        console.error('Error loading marche:', error)
+        console.error('❌ Error loading marche:', error)
         setMarcheOptions([])
       } finally {
         setLoadingMarche(false)
@@ -113,16 +115,26 @@ export const EquipmentAutocomplete = ({
 
   /**
    * Verifica se mostrare bottone "Aggiungi"
-   * Lo mostriamo se marca E modello sono compilati E non esistono nel catalogo
+   * Lo mostriamo se:
+   * 1. Marca compilata ma non nei suggerimenti (nuova marca)
+   * 2. Marca E modello compilati E non esistono nel catalogo
    */
   useEffect(() => {
-    if (!marcaValue || !modelloValue || !onAddToCatalog) {
+    if (!marcaValue || !onAddToCatalog) {
       setShowAddButton(false)
       return
     }
 
     const checkExists = async () => {
       try {
+        // Caso 1: Solo marca compilata, verifica se è nuova
+        if (!modelloValue) {
+          const marcaExists = marcheOptions.includes(marcaValue)
+          setShowAddButton(!marcaExists)
+          return
+        }
+
+        // Caso 2: Marca e modello compilati, verifica combinazione
         const exists = await equipmentCatalogApi.exists(equipmentType, marcaValue, modelloValue)
         setShowAddButton(!exists)
       } catch (error) {
@@ -131,7 +143,7 @@ export const EquipmentAutocomplete = ({
     }
 
     checkExists()
-  }, [equipmentType, marcaValue, modelloValue, onAddToCatalog])
+  }, [equipmentType, marcaValue, modelloValue, onAddToCatalog, marcheOptions])
 
   /**
    * Handle marca change

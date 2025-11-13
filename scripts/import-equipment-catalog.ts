@@ -7,10 +7,20 @@
  * Usage: npx tsx scripts/import-equipment-catalog.ts
  */
 
+import { config } from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
-import * as XLSX from 'xlsx'
+import XLSX from 'xlsx'
 import * as path from 'path'
 import * as fs from 'fs'
+
+// Carica variabili d'ambiente da .env.local
+config({ path: '.env.local' })
+
+// Debug: verifica variabili caricate
+console.log('🔍 Debug variabili d\'ambiente:')
+console.log('VITE_SUPABASE_URL:', process.env.VITE_SUPABASE_URL ? '✅ Presente' : '❌ Mancante')
+console.log('SUPABASE_SERVICE_ROLE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? '✅ Presente' : '❌ Mancante')
+console.log()
 
 // Supabase config
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || ''
@@ -160,35 +170,48 @@ async function main() {
   let updated = 0
   let errors = 0
 
-  // Batch import (100 alla volta per performance)
-  const BATCH_SIZE = 100
-  for (let i = 0; i < equipmentRows.length; i += BATCH_SIZE) {
-    const batch = equipmentRows.slice(i, i + BATCH_SIZE)
+  // Import uno alla volta (per gestire duplicati)
+  for (let i = 0; i < equipmentRows.length; i++) {
+    const row = equipmentRows[i]
 
-    const records = batch.map(row => ({
-      tipo: row.tipo_excel, // Legacy field
-      tipo_apparecchiatura: row.tipo_apparecchiatura,
-      marca: row.marca,
-      modello: row.modello,
-      specs: row.specs,
-      is_active: true,
-      is_user_defined: false, // Dati da import iniziale
-      usage_count: 0
-    }))
-
-    const { data, error } = await supabase
+    // Prima verifica se esiste già
+    const { data: existing } = await supabase
       .from('equipment_catalog')
-      .upsert(records, {
-        onConflict: 'tipo_apparecchiatura,marca,modello',
-        ignoreDuplicates: false
-      })
+      .select('id')
+      .eq('tipo_apparecchiatura', row.tipo_apparecchiatura)
+      .eq('marca', row.marca)
+      .eq('modello', row.modello)
+      .single()
 
-    if (error) {
-      console.error(`❌ Errore batch ${Math.floor(i / BATCH_SIZE) + 1}:`, error.message)
-      errors += batch.length
+    if (existing) {
+      // Già esiste, skippa
+      updated++
     } else {
-      inserted += batch.length
-      process.stdout.write(`   Processate: ${Math.min(i + BATCH_SIZE, equipmentRows.length)}/${equipmentRows.length}\r`)
+      // Non esiste, inserisci
+      const { error } = await supabase
+        .from('equipment_catalog')
+        .insert({
+          tipo: row.tipo_excel, // Legacy field
+          tipo_apparecchiatura: row.tipo_apparecchiatura,
+          marca: row.marca,
+          modello: row.modello,
+          specs: row.specs,
+          is_active: true,
+          is_user_defined: false, // Dati da import iniziale
+          usage_count: 0
+        })
+
+      if (error) {
+        console.error(`❌ Errore: ${row.tipo_excel} - ${row.marca} ${row.modello}:`, error.message)
+        errors++
+      } else {
+        inserted++
+      }
+    }
+
+    // Progress indicator
+    if ((i + 1) % 10 === 0 || i === equipmentRows.length - 1) {
+      process.stdout.write(`   Processate: ${i + 1}/${equipmentRows.length}\r`)
     }
   }
 

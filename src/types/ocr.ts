@@ -35,6 +35,19 @@ export interface OCRAnalysisResponse {
 }
 
 // ============================================================================
+// NORMALIZED FIELDS
+// ============================================================================
+
+export interface NormalizedField {
+  originalValue: string
+  normalizedValue: string
+  wasNormalized: boolean
+  confidence: number
+  source: 'exact_match' | 'fuzzy_match' | 'no_match'
+  alternatives?: FuzzyMatch[]
+}
+
+// ============================================================================
 // EXTRACTED DATA
 // ============================================================================
 
@@ -69,6 +82,10 @@ export interface OCRExtractedData {
 
   // Confidence per campo
   field_confidence?: Record<string, number>
+
+  // Normalizzazione marca/modello
+  marca_normalized?: NormalizedField
+  modello_normalized?: NormalizedField
 }
 
 // ============================================================================
@@ -117,4 +134,34 @@ export interface OCRReviewData {
   fuzzy_matches: FuzzyMatch[]
   equipment_type: EquipmentType
   equipment_code?: string
+}
+
+// ============================================================================
+// BATCH OCR
+// ============================================================================
+
+export interface BatchOCRItem {
+  id: string
+  file: File
+  filename: string
+  preview: string
+  parsedType: string | null // EquipmentCatalogType
+  parsedIndex: number
+  parsedParentIndex?: number
+  status: 'pending' | 'processing' | 'completed' | 'error' | 'conflict'
+  error?: string
+  result?: OCRAnalysisResponse
+  normalizedMarca?: NormalizedField
+  normalizedModello?: NormalizedField
+  hasConflict?: boolean
+  conflictFields?: string[]
+}
+
+export interface BatchOCRResult {
+  total: number
+  completed: number
+  errors: number
+  skipped: number
+  conflicts: number
+  normalized: number // Quanti marca/modello sono stati normalizzati
 }

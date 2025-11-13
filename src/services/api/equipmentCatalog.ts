@@ -30,13 +30,30 @@ export const equipmentCatalogApi = {
    * Ordinate per usage_count (popolarità)
    */
   async getMarcheByTipo(tipo: EquipmentCatalogType): Promise<string[]> {
-    const { data, error } = await supabase.rpc('get_marche_by_tipo', {
-      tipo: tipo
-    })
+    const { data, error } = await supabase
+      .from('equipment_catalog')
+      .select('marca')
+      .eq('tipo_apparecchiatura', tipo)
+      .eq('is_active', true)
+      .not('marca', 'is', null)
+      .neq('marca', '')
 
     if (error) throw error
 
-    return data.map((item: { marca: string }) => item.marca)
+    // Raggruppa per marca e conta occorrenze
+    const marcaCount = data.reduce((acc: Record<string, number>, item) => {
+      const marca = item.marca
+      acc[marca] = (acc[marca] || 0) + 1
+      return acc
+    }, {})
+
+    // Ordina per count DESC, poi alfabeticamente
+    return Object.entries(marcaCount)
+      .sort(([a, countA], [b, countB]) => {
+        if (countB !== countA) return countB - countA
+        return a.localeCompare(b)
+      })
+      .map(([marca]) => marca)
   },
 
   /**
@@ -47,14 +64,22 @@ export const equipmentCatalogApi = {
     tipo: EquipmentCatalogType,
     marca: string
   ): Promise<string[]> {
-    const { data, error } = await supabase.rpc('get_modelli_by_tipo_marca', {
-      tipo: tipo,
-      marca_filter: marca
-    })
+    const { data, error } = await supabase
+      .from('equipment_catalog')
+      .select('modello, usage_count')
+      .eq('tipo_apparecchiatura', tipo)
+      .eq('marca', marca)
+      .eq('is_active', true)
+      .not('modello', 'is', null)
+      .neq('modello', '')
+      .order('usage_count', { ascending: false })
+      .order('modello', { ascending: true })
 
     if (error) throw error
 
-    return data.map((item: { modello: string }) => item.modello)
+    // Rimuovi duplicati mantenendo l'ordine
+    const uniqueModelli = [...new Set(data.map(item => item.modello))]
+    return uniqueModelli
   },
 
   /**
