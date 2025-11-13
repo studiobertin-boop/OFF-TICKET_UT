@@ -46,6 +46,7 @@ export const SerbatoiSection = ({ control, errors }: SerbatoiSectionProps) => {
               control={control}
               basePath={`serbatoi.${index}`}
               errors={errors}
+              equipmentType="Serbatoi"
               fields={{
                 marca: true,
                 modello: true,

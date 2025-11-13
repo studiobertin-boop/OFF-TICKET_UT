@@ -278,22 +278,43 @@ export interface DM329TechnicalData {
   created_by_user?: User
 }
 
-// Equipment Catalog (per normalizzazione OCR)
+// Equipment Catalog (per normalizzazione OCR e filtri cascata)
+export type EquipmentCatalogType =
+  | 'Serbatoi'
+  | 'Compressori'
+  | 'Disoleatori'
+  | 'Essiccatori'
+  | 'Scambiatori'
+  | 'Filtri'
+  | 'Separatori'
+  | 'Valvole di sicurezza'
+  | 'Altro'
+
 export interface EquipmentCatalogItem {
   id: string
-  tipo: string
+  tipo: string // Legacy field - verrà deprecato
+  tipo_apparecchiatura?: EquipmentCatalogType // Nuovo campo strutturato
   marca: string
   modello: string
   aliases?: string[]
   specs?: Record<string, any>
   is_active: boolean
+  is_user_defined: boolean // true se aggiunto manualmente dall'utente
   usage_count: number
   created_at: string
   updated_at: string
+  created_by?: string
 }
 
 export interface EquipmentSearchResult extends EquipmentCatalogItem {
   similarity_score: number
+}
+
+// Per filtri cascata
+export interface CascadeFilterOptions {
+  tipi: EquipmentCatalogType[]
+  marche: string[]
+  modelli: string[]
 }
 
 // Estensione Request con technical_data

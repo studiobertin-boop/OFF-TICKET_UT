@@ -1,10 +1,16 @@
+import { useState } from 'react'
 import { Control, Controller } from 'react-hook-form'
 import { TextField, Grid } from '@mui/material'
+import { EquipmentAutocomplete } from './EquipmentAutocomplete'
+import { AddToCatalogDialog } from './AddToCatalogDialog'
+import type { EquipmentCatalogType } from '@/types'
 
 interface CommonEquipmentFieldsProps {
   control: Control<any>
   basePath: string
   errors: any
+  equipmentType?: EquipmentCatalogType // Tipo per filtri cascata
+  readOnly?: boolean
   fields?: {
     marca?: boolean
     modello?: boolean
@@ -20,11 +26,14 @@ interface CommonEquipmentFieldsProps {
 /**
  * Campi comuni per apparecchiature
  * Riutilizzabile tra serbatoi, compressori, essiccatori, etc.
+ * Con integrazione autocomplete marca/modello dal catalogo
  */
 export const CommonEquipmentFields = ({
   control,
   basePath,
   errors,
+  equipmentType,
+  readOnly = false,
   fields = {},
 }: CommonEquipmentFieldsProps) => {
   const {
@@ -38,6 +47,11 @@ export const CommonEquipmentFields = ({
     note = false,
   } = fields
 
+  // State per dialog aggiungi al catalogo
+  const [showAddDialog, setShowAddDialog] = useState(false)
+  const [pendingMarca, setPendingMarca] = useState('')
+  const [pendingModello, setPendingModello] = useState('')
+
   // Helper per ottenere error path annidato
   const getError = (fieldName: string) => {
     const parts = `${basePath}.${fieldName}`.split('.')
@@ -49,47 +63,98 @@ export const CommonEquipmentFields = ({
     return error
   }
 
-  return (
-    <Grid container spacing={2}>
-      {/* Marca */}
-      {marca && (
-        <Grid item xs={12} md={6}>
-          <Controller
-            name={`${basePath}.marca`}
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label="Marca"
-                fullWidth
-                error={!!getError('marca')}
-                helperText={getError('marca')?.message || 'Compilabile da OCR'}
-                placeholder="Es: Atlas Copco, Kaeser..."
-              />
-            )}
-          />
-        </Grid>
-      )}
+  // Handlers per autocomplete
+  const handleAddToCatalog = (marca: string, modello: string) => {
+    setPendingMarca(marca)
+    setPendingModello(modello)
+    setShowAddDialog(true)
+  }
 
-      {/* Modello */}
-      {modello && (
-        <Grid item xs={12} md={6}>
-          <Controller
-            name={`${basePath}.modello`}
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label="Modello"
-                fullWidth
-                error={!!getError('modello')}
-                helperText={getError('modello')?.message || 'Compilabile da OCR'}
-                placeholder="Es: GA 30, BSD 72..."
-              />
+  const handleCatalogConfirm = () => {
+    setShowAddDialog(false)
+    // I valori sono già nel form, non serve fare altro
+  }
+
+  const handleCatalogCancel = () => {
+    setShowAddDialog(false)
+  }
+
+  return (
+    <>
+      <Grid container spacing={2}>
+        {/* Marca e Modello con Autocomplete (se equipmentType specificato) */}
+        {marca && modello && equipmentType ? (
+          <Grid item xs={12}>
+            <Controller
+              name={`${basePath}.marca`}
+              control={control}
+              render={({ field: marcaField }) => (
+                <Controller
+                  name={`${basePath}.modello`}
+                  control={control}
+                  render={({ field: modelloField }) => (
+                    <EquipmentAutocomplete
+                      equipmentType={equipmentType}
+                      marcaValue={marcaField.value || ''}
+                      modelloValue={modelloField.value || ''}
+                      onMarcaChange={marcaField.onChange}
+                      onModelloChange={modelloField.onChange}
+                      onAddToCatalog={handleAddToCatalog}
+                      readOnly={readOnly}
+                      size="small"
+                      fullWidth
+                    />
+                  )}
+                />
+              )}
+            />
+          </Grid>
+        ) : (
+          <>
+            {/* Fallback: TextField semplici se non c'è equipmentType */}
+            {marca && (
+              <Grid item xs={12} md={6}>
+                <Controller
+                  name={`${basePath}.marca`}
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label="Marca"
+                      fullWidth
+                      size="small"
+                      disabled={readOnly}
+                      error={!!getError('marca')}
+                      helperText={getError('marca')?.message || 'Compilabile da OCR'}
+                      placeholder="Es: Atlas Copco, Kaeser..."
+                    />
+                  )}
+                />
+              </Grid>
             )}
-          />
-        </Grid>
-      )}
+
+            {modello && (
+              <Grid item xs={12} md={6}>
+                <Controller
+                  name={`${basePath}.modello`}
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label="Modello"
+                      fullWidth
+                      size="small"
+                      disabled={readOnly}
+                      error={!!getError('modello')}
+                      helperText={getError('modello')?.message || 'Compilabile da OCR'}
+                      placeholder="Es: GA 30, BSD 72..."
+                    />
+                  )}
+                />
+              </Grid>
+            )}
+          </>
+        )}
 
       {/* N° di Fabbrica */}
       {n_fabbrica && (
@@ -234,5 +299,18 @@ export const CommonEquipmentFields = ({
         </Grid>
       )}
     </Grid>
+
+      {/* Dialog per aggiungere al catalogo */}
+      {equipmentType && (
+        <AddToCatalogDialog
+          open={showAddDialog}
+          equipmentType={equipmentType}
+          marca={pendingMarca}
+          modello={pendingModello}
+          onConfirm={handleCatalogConfirm}
+          onCancel={handleCatalogCancel}
+        />
+      )}
+    </>
   )
 }

@@ -50,6 +50,7 @@ export const CompressoriSection = ({ control, errors }: CompressoriSectionProps)
               control={control}
               basePath={`compressori.${index}`}
               errors={errors}
+              equipmentType="Compressori"
               fields={{
                 marca: true,
                 modello: true,
@@ -152,6 +153,7 @@ export const DisoleatoriSection = ({ control, errors, compressori }: Disoleatori
               control={control}
               basePath={`disoleatori.${index}`}
               errors={errors}
+              equipmentType="Disoleatori"
               fields={{
                 marca: true,
                 modello: true,
@@ -216,6 +218,7 @@ export const EssiccatoriSection = ({ control, errors }: EssiccatoriSectionProps)
               control={control}
               basePath={`essiccatori.${index}`}
               errors={errors}
+              equipmentType="Essiccatori"
               fields={{
                 marca: true,
                 modello: true,
@@ -312,6 +315,7 @@ export const ScambiatoriSection = ({ control, errors, essiccatori }: Scambiatori
               control={control}
               basePath={`scambiatori.${index}`}
               errors={errors}
+              equipmentType="Scambiatori"
               fields={{
                 marca: true,
                 modello: true,
@@ -365,6 +369,7 @@ export const FiltriSection = ({ control, errors }: FiltriSectionProps) => {
           control={control}
           basePath={`filtri.${index}`}
           errors={errors}
+          equipmentType="Filtri"
           fields={{
             marca: true,
             modello: true,
@@ -414,6 +419,7 @@ export const SeparatoriSection = ({ control, errors }: SeparatoriSectionProps) =
           control={control}
           basePath={`separatori.${index}`}
           errors={errors}
+          equipmentType="Separatori"
           fields={{
             marca: true,
             modello: true,
