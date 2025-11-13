@@ -91,10 +91,10 @@ export const TechnicalSheetForm = ({
       clearTimeout(autoSaveTimeoutRef.current)
     }
 
-    // Set new timeout for autosave (3 secondi dopo l'ultima modifica)
+    // Set new timeout for autosave (120 secondi dopo l'ultima modifica)
     autoSaveTimeoutRef.current = setTimeout(() => {
       onAutoSave(watchedData as SchedaDatiCompleta)
-    }, 3000)
+    }, 120000)
 
     // Cleanup
     return () => {
