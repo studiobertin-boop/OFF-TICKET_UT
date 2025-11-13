@@ -1,0 +1,120 @@
+/**
+ * Types per OCR e Photo Upload - PASSO 3
+ * Integrazione GPT-4o Vision per riconoscimento targhette
+ */
+
+// ============================================================================
+// EQUIPMENT TYPES
+// ============================================================================
+
+export type EquipmentType =
+  | 'serbatoio'
+  | 'compressore'
+  | 'disoleatore'
+  | 'essiccatore'
+  | 'scambiatore'
+  | 'filtro'
+  | 'separatore'
+
+// ============================================================================
+// OCR REQUEST/RESPONSE
+// ============================================================================
+
+export interface OCRAnalysisRequest {
+  image_base64: string
+  equipment_type: EquipmentType
+  equipment_code?: string // Es: "S1", "C2", etc.
+}
+
+export interface OCRAnalysisResponse {
+  success: boolean
+  data?: OCRExtractedData
+  error?: string
+  confidence_score?: number // 0-100
+  fuzzy_matches?: FuzzyMatch[]
+}
+
+// ============================================================================
+// EXTRACTED DATA
+// ============================================================================
+
+export interface OCRExtractedData {
+  // Campi comuni
+  marca?: string
+  modello?: string
+  n_fabbrica?: string
+  anno?: number
+
+  // Campi specifici per tipo
+  pressione_max?: number // bar
+  volume?: number // litri
+  materiale_n?: string // Solo compressori
+
+  // Valvola di sicurezza (per serbatoi e disoleatori)
+  valvola_sicurezza?: {
+    marca?: string
+    modello?: string
+    n_fabbrica?: string
+    diametro_pressione?: string // Es: "1/2\" 13bar"
+  }
+
+  // Manometro (per serbatoi)
+  manometro?: {
+    fondo_scala?: number
+    segno_rosso?: number
+  }
+
+  // Raw text estratto (per debugging)
+  raw_text?: string
+
+  // Confidence per campo
+  field_confidence?: Record<string, number>
+}
+
+// ============================================================================
+// FUZZY MATCHING
+// ============================================================================
+
+export interface FuzzyMatch {
+  equipment_type: string
+  marca: string
+  modello: string
+  similarity_score: number // 0-1
+  usage_count: number
+  last_used?: string
+}
+
+// ============================================================================
+// PHOTO UPLOAD
+// ============================================================================
+
+export interface UploadedPhoto {
+  id: string
+  file: File
+  preview_url: string
+  equipment_type: EquipmentType
+  equipment_code?: string
+  uploaded_at: Date
+  ocr_status: 'pending' | 'processing' | 'completed' | 'error'
+  ocr_result?: OCRExtractedData
+  error_message?: string
+}
+
+export interface PhotoUploadState {
+  photos: UploadedPhoto[]
+  uploading: boolean
+  analyzing: boolean
+  current_analyzing?: string // photo id
+}
+
+// ============================================================================
+// OCR REVIEW DIALOG
+// ============================================================================
+
+export interface OCRReviewData {
+  photo: UploadedPhoto
+  extracted_data: OCRExtractedData
+  fuzzy_matches: FuzzyMatch[]
+  equipment_type: EquipmentType
+  equipment_code?: string
+}

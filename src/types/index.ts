@@ -305,3 +305,4 @@ declare module './index' {
 
 // Re-export technical sheet types
 export * from './technicalSheet'
+export * from './ocr'
