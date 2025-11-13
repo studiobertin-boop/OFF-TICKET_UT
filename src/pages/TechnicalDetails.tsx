@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Box,
@@ -10,6 +10,7 @@ import {
   Alert,
   Grid,
   Chip,
+  Snackbar,
 } from '@mui/material'
 import {
   ArrowBack as ArrowBackIcon,
@@ -47,6 +48,9 @@ export const TechnicalDetails = () => {
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [formData, setFormData] = useState<SchedaDatiCompleta | null>(null)
+  const [autoSaving, setAutoSaving] = useState(false)
+  const [showSaveSuccess, setShowSaveSuccess] = useState(false)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
 
   // Carica scheda dati tecnici
   useEffect(() => {
@@ -80,6 +84,23 @@ export const TechnicalDetails = () => {
     }
   }, [user, navigate])
 
+  // Autosave function (senza alert/snackbar)
+  const handleAutoSave = useCallback(async (data: SchedaDatiCompleta) => {
+    if (!id) return
+
+    try {
+      setAutoSaving(true)
+      await technicalDataApi.updateEquipmentData(id, data)
+      setFormData(data)
+      setLastSaved(new Date())
+    } catch (err) {
+      console.error('Error auto-saving:', err)
+    } finally {
+      setAutoSaving(false)
+    }
+  }, [id])
+
+  // Manual save function (con feedback)
   const handleFormSubmit = async (data: SchedaDatiCompleta) => {
     if (!id) return
 
@@ -89,8 +110,9 @@ export const TechnicalDetails = () => {
       // Salva i dati nel campo equipment_data (JSONB)
       await technicalDataApi.updateEquipmentData(id, data)
 
-      alert('Bozza salvata con successo')
       setFormData(data)
+      setLastSaved(new Date())
+      setShowSaveSuccess(true)
     } catch (err) {
       console.error('Error saving draft:', err)
       alert('Errore nel salvataggio della bozza')
@@ -220,7 +242,20 @@ export const TechnicalDetails = () => {
             )}
           </Box>
 
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            {/* Indicatore autosave */}
+            {autoSaving && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <CircularProgress size={14} />
+                Salvataggio automatico...
+              </Typography>
+            )}
+            {lastSaved && !autoSaving && (
+              <Typography variant="caption" color="text.secondary">
+                Ultimo salvataggio: {lastSaved.toLocaleTimeString('it-IT')}
+              </Typography>
+            )}
+
             {isCompleted ? (
               <Button
                 variant="outlined"
@@ -231,15 +266,31 @@ export const TechnicalDetails = () => {
                 Riapri per Modifiche
               </Button>
             ) : (
-              <Button
-                variant="contained"
-                color="success"
-                startIcon={<CheckCircleIcon />}
-                onClick={handleCompleteSheet}
-                disabled={saving}
-              >
-                Completa Scheda
-              </Button>
+              <>
+                <Button
+                  variant="outlined"
+                  startIcon={<SaveIcon />}
+                  onClick={() => {
+                    // Trigger manual save via form submit
+                    const form = document.querySelector('form')
+                    if (form) {
+                      form.requestSubmit()
+                    }
+                  }}
+                  disabled={saving || autoSaving}
+                >
+                  Salva Bozza
+                </Button>
+                <Button
+                  variant="contained"
+                  color="success"
+                  startIcon={<CheckCircleIcon />}
+                  onClick={handleCompleteSheet}
+                  disabled={saving || autoSaving}
+                >
+                  Completa Scheda
+                </Button>
+              </>
             )}
           </Box>
         </Box>
@@ -293,6 +344,7 @@ export const TechnicalDetails = () => {
             <TechnicalSheetForm
               defaultValues={formData || undefined}
               onSubmit={handleFormSubmit}
+              onAutoSave={handleAutoSave}
               customerName={customerName}
               readOnly={isCompleted}
             />
@@ -316,6 +368,14 @@ export const TechnicalDetails = () => {
             </Alert>
           </CardContent>
         </Card>
+
+        {/* Snackbar per conferma salvataggio */}
+        <Snackbar
+          open={showSaveSuccess}
+          autoHideDuration={3000}
+          onClose={() => setShowSaveSuccess(false)}
+          message="Bozza salvata con successo"
+        />
       </Box>
     </Layout>
   )

@@ -39,6 +39,9 @@ export interface DatiImpianto {
 // SEZIONE 3: SERBATOI (S1-S7)
 // ============================================================================
 
+export type FinituraInternaOption = 'VERNICIATO' | 'ZINCATO' | 'VITROFLEX' | 'ALTRO'
+export type ScaricoOption = 'AUTOMATICO' | 'MANUALE' | 'ASSENTE'
+
 export interface ValvolaSicurezza {
   marca?: string // OCR
   modello?: string // OCR
@@ -58,9 +61,9 @@ export interface Serbatoio {
   volume?: number // litri (intero, min 50, max 5000)
   n_fabbrica?: string // OCR
   anno?: number // intero (min 1980, max 2100)
-  finitura_interna?: string[]
+  finitura_interna?: FinituraInternaOption // Select singola
   ancorato_terra?: boolean
-  scarico?: string[]
+  scarico?: ScaricoOption // Select singola
   note?: string
   valvola_sicurezza: ValvolaSicurezza // OBBLIGATORIA
   manometro?: Manometro

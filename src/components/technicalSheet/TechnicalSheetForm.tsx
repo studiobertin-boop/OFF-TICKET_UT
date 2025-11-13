@@ -1,4 +1,5 @@
 import { useForm, FormProvider } from 'react-hook-form'
+import { useEffect, useRef } from 'react'
 import {
   Box,
   Accordion,
@@ -6,7 +7,6 @@ import {
   AccordionDetails,
   Typography,
   Chip,
-  LinearProgress,
 } from '@mui/material'
 import { ExpandMore as ExpandMoreIcon } from '@mui/icons-material'
 import { DatiGeneraliSection } from './DatiGeneraliSection'
@@ -26,6 +26,7 @@ import type { SchedaDatiCompleta } from '@/types'
 interface TechnicalSheetFormProps {
   defaultValues?: Partial<SchedaDatiCompleta>
   onSubmit: (data: SchedaDatiCompleta) => void
+  onAutoSave?: (data: SchedaDatiCompleta) => void
   customerName?: string
   readOnly?: boolean
 }
@@ -37,6 +38,7 @@ interface TechnicalSheetFormProps {
 export const TechnicalSheetForm = ({
   defaultValues,
   onSubmit,
+  onAutoSave,
   customerName,
   readOnly = false,
 }: TechnicalSheetFormProps) => {
@@ -77,18 +79,31 @@ export const TechnicalSheetForm = ({
   const compressori = watch('compressori') || []
   const essiccatori = watch('essiccatori') || []
 
-  const sections = [
-    { id: 1, title: 'Dati Generali', required: true },
-    { id: 2, title: 'Dati Impianto', required: true },
-    { id: 3, title: 'Serbatoi', required: false },
-    { id: 4, title: 'Compressori', required: false },
-    { id: 5, title: 'Disoleatori', required: false },
-    { id: 6, title: 'Essiccatori', required: false },
-    { id: 7, title: 'Scambiatori', required: false },
-    { id: 8, title: 'Filtri', required: false },
-    { id: 9, title: 'Separatori', required: false },
-    { id: 10, title: 'Altri Apparecchi', required: false },
-  ]
+  // Autosave con debounce
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const watchedData = watch()
+
+  useEffect(() => {
+    if (!onAutoSave || readOnly) return
+
+    // Clear existing timeout
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current)
+    }
+
+    // Set new timeout for autosave (3 secondi dopo l'ultima modifica)
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      onAutoSave(watchedData as SchedaDatiCompleta)
+    }, 3000)
+
+    // Cleanup
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current)
+      }
+    }
+  }, [watchedData, onAutoSave, readOnly])
+
 
   return (
     <FormProvider {...methods}>

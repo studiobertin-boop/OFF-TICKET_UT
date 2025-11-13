@@ -1,9 +1,12 @@
 import { Control, Controller, useFieldArray } from 'react-hook-form'
-import { Grid, TextField, FormControlLabel, Checkbox, Typography, Divider } from '@mui/material'
+import { Grid, TextField, FormControlLabel, Checkbox, Typography, Divider, Select, MenuItem, FormControl, InputLabel } from '@mui/material'
 import { EquipmentSection } from './EquipmentSection'
 import { CommonEquipmentFields } from './CommonEquipmentFields'
 import { ValvolaSicurezzaFields } from './ValvolaSicurezzaFields'
-import { EQUIPMENT_LIMITS, generateEquipmentCode } from '@/types'
+import { EQUIPMENT_LIMITS, generateEquipmentCode, type FinituraInternaOption, type ScaricoOption } from '@/types'
+
+const FINITURA_INTERNA_OPTIONS: FinituraInternaOption[] = ['VERNICIATO', 'ZINCATO', 'VITROFLEX', 'ALTRO']
+const SCARICO_OPTIONS: ScaricoOption[] = ['AUTOMATICO', 'MANUALE', 'ASSENTE']
 
 interface SerbatoiSectionProps {
   control: Control<any>
@@ -36,7 +39,7 @@ export const SerbatoiSection = ({ control, errors }: SerbatoiSectionProps) => {
       onRemove={remove}
       generateCode={(index) => generateEquipmentCode(EQUIPMENT_LIMITS.serbatoi.prefix, index + 1)}
       itemTypeName="serbatoio"
-      renderItem={(item, index) => (
+      renderItem={(_item, index) => (
         <Grid container spacing={2}>
           <Grid item xs={12}>
             <CommonEquipmentFields
@@ -60,12 +63,23 @@ export const SerbatoiSection = ({ control, errors }: SerbatoiSectionProps) => {
               name={`serbatoi.${index}.finitura_interna`}
               control={control}
               render={({ field }) => (
-                <TextField
-                  {...field}
-                  label="Finitura Interna"
-                  fullWidth
-                  placeholder="Es: Zincato, Verniciato..."
-                />
+                <FormControl fullWidth size="small">
+                  <InputLabel>Finitura Interna</InputLabel>
+                  <Select
+                    {...field}
+                    label="Finitura Interna"
+                    value={field.value || ''}
+                  >
+                    <MenuItem value="">
+                      <em>Nessuna</em>
+                    </MenuItem>
+                    {FINITURA_INTERNA_OPTIONS.map((option) => (
+                      <MenuItem key={option} value={option}>
+                        {option}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
               )}
             />
           </Grid>
@@ -95,12 +109,23 @@ export const SerbatoiSection = ({ control, errors }: SerbatoiSectionProps) => {
               name={`serbatoi.${index}.scarico`}
               control={control}
               render={({ field }) => (
-                <TextField
-                  {...field}
-                  label="Scarico"
-                  fullWidth
-                  placeholder="Es: Manuale, Automatico..."
-                />
+                <FormControl fullWidth size="small">
+                  <InputLabel>Scarico</InputLabel>
+                  <Select
+                    {...field}
+                    label="Scarico"
+                    value={field.value || ''}
+                  >
+                    <MenuItem value="">
+                      <em>Nessuna</em>
+                    </MenuItem>
+                    {SCARICO_OPTIONS.map((option) => (
+                      <MenuItem key={option} value={option}>
+                        {option}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
               )}
             />
           </Grid>

@@ -17,8 +17,6 @@ import {
 import {
   ARIA_ASPIRATA_OPTIONS,
   RACCOLTA_CONDENSE_OPTIONS,
-  type AriaAspirataOption,
-  type RaccoltaCondenserOption,
 } from '@/types'
 
 interface DatiImpiantoSectionProps {

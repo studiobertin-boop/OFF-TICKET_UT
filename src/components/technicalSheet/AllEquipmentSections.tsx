@@ -43,7 +43,7 @@ export const CompressoriSection = ({ control, errors }: CompressoriSectionProps)
       onRemove={remove}
       generateCode={(index) => generateEquipmentCode(EQUIPMENT_LIMITS.compressori.prefix, index + 1)}
       itemTypeName="compressore"
-      renderItem={(item, index) => (
+      renderItem={(_item, index) => (
         <Grid container spacing={2}>
           <Grid item xs={12}>
             <CommonEquipmentFields
@@ -102,7 +102,7 @@ export const DisoleatoriSection = ({ control, errors, compressori }: Disoleatori
 
   const handleAdd = () => {
     // Trova compressori senza disoleatore
-    const compressoriSenzaDisoleatore = compressori.filter((c, idx) => {
+    const compressoriSenzaDisoleatore = compressori.filter((_c, idx) => {
       const compressoreCodice = generateEquipmentCode(EQUIPMENT_LIMITS.compressori.prefix, idx + 1)
       return !fields.some((d: any) => d.compressore_associato === compressoreCodice)
     })
@@ -209,7 +209,7 @@ export const EssiccatoriSection = ({ control, errors }: EssiccatoriSectionProps)
       onRemove={remove}
       generateCode={(index) => generateEquipmentCode(EQUIPMENT_LIMITS.essiccatori.prefix, index + 1)}
       itemTypeName="essiccatore"
-      renderItem={(item, index) => (
+      renderItem={(_item, index) => (
         <Grid container spacing={2}>
           <Grid item xs={12}>
             <CommonEquipmentFields
@@ -265,7 +265,7 @@ export const ScambiatoriSection = ({ control, errors, essiccatori }: Scambiatori
   })
 
   const handleAdd = () => {
-    const essiccatoriSenzaScambiatore = essiccatori.filter((e, idx) => {
+    const essiccatoriSenzaScambiatore = essiccatori.filter((_e, idx) => {
       const essiccatoreCodice = generateEquipmentCode(EQUIPMENT_LIMITS.essiccatori.prefix, idx + 1)
       return !fields.some((s: any) => s.essiccatore_associato === essiccatoreCodice)
     })
@@ -360,7 +360,7 @@ export const FiltriSection = ({ control, errors }: FiltriSectionProps) => {
       onRemove={remove}
       generateCode={(index) => generateEquipmentCode(EQUIPMENT_LIMITS.filtri.prefix, index + 1)}
       itemTypeName="filtro"
-      renderItem={(item, index) => (
+      renderItem={(_item, index) => (
         <CommonEquipmentFields
           control={control}
           basePath={`filtri.${index}`}
@@ -409,7 +409,7 @@ export const SeparatoriSection = ({ control, errors }: SeparatoriSectionProps) =
       onRemove={remove}
       generateCode={(index) => generateEquipmentCode(EQUIPMENT_LIMITS.separatori.prefix, index + 1)}
       itemTypeName="separatore"
-      renderItem={(item, index) => (
+      renderItem={(_item, index) => (
         <CommonEquipmentFields
           control={control}
           basePath={`separatori.${index}`}
@@ -433,7 +433,7 @@ interface AltriApparecchiSectionProps {
   errors: any
 }
 
-export const AltriApparecchiSection = ({ control, errors }: AltriApparecchiSectionProps) => {
+export const AltriApparecchiSection = ({ control }: AltriApparecchiSectionProps) => {
   return (
     <Grid container spacing={2}>
       <Grid item xs={12}>

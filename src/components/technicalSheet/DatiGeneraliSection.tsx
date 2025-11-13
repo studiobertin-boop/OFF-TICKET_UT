@@ -5,7 +5,6 @@ import {
   Typography,
   Box,
 } from '@mui/material'
-import type { DatiGenerali } from '@/types'
 
 interface DatiGeneraliSectionProps {
   control: Control<any>

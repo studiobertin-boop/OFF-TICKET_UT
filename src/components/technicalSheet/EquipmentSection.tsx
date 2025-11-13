@@ -5,7 +5,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardActions,
   IconButton,
   Chip,
   Alert,
@@ -13,7 +12,6 @@ import {
 import {
   Add as AddIcon,
   Delete as DeleteIcon,
-  CameraAlt as CameraIcon,
 } from '@mui/icons-material'
 
 interface EquipmentSectionProps {
