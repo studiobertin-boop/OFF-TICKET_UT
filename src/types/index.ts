@@ -302,3 +302,6 @@ declare module './index' {
     dm329_technical_data?: DM329TechnicalData
   }
 }
+
+// Re-export technical sheet types
+export * from './technicalSheet'

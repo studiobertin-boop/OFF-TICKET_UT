@@ -9,7 +9,6 @@ import {
   CircularProgress,
   Alert,
   Grid,
-  Divider,
   Chip,
 } from '@mui/material'
 import {
@@ -22,21 +21,20 @@ import { Layout } from '@/components/common/Layout'
 import { useRequest } from '@/hooks/useRequests'
 import { useAuth } from '@/hooks/useAuth'
 import { technicalDataApi } from '@/services/api/technicalData'
-import type { DM329TechnicalData } from '@/types'
+import { TechnicalSheetForm } from '@/components/technicalSheet/TechnicalSheetForm'
+import type { DM329TechnicalData, SchedaDatiCompleta } from '@/types'
 
 /**
  * Pagina SCHEDA DATI - Gestione dati tecnici pratiche DM329
  *
- * PASSO 1: Skeleton/layout base
- * - Visualizza informazioni richiesta
- * - Placeholder per form (campi aggiunti nei passi successivi)
- * - Bottoni "Salva Bozza" e "Completa Scheda"
- * - Sezione upload foto targhette (preparazione OCR futuro)
+ * PASSO 2: Form completo implementato
+ * - 10 sezioni con apparecchiature ripetibili
+ * - Validazione campi obbligatori
+ * - Salvataggio bozza e completamento scheda
  *
  * PASSI FUTURI:
- * - Passo 2: Aggiunta campi form specifici forniti dall'utente
  * - Passo 3: Integrazione OCR con GPT-4o Vision
- * - Passo 4: Pre-compilazione da dati cliente
+ * - Passo 4: Portale cliente
  */
 export const TechnicalDetails = () => {
   const { id } = useParams<{ id: string }>()
@@ -48,6 +46,7 @@ export const TechnicalDetails = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [formData, setFormData] = useState<SchedaDatiCompleta | null>(null)
 
   // Carica scheda dati tecnici
   useEffect(() => {
@@ -58,6 +57,11 @@ export const TechnicalDetails = () => {
         setLoading(true)
         const data = await technicalDataApi.getByRequestId(id)
         setTechnicalData(data)
+
+        // Parse equipment_data da JSONB
+        if (data && data.equipment_data) {
+          setFormData(data.equipment_data as SchedaDatiCompleta)
+        }
       } catch (err) {
         console.error('Error loading technical data:', err)
         setError(err instanceof Error ? err.message : 'Errore nel caricamento della scheda dati')
@@ -76,15 +80,17 @@ export const TechnicalDetails = () => {
     }
   }, [user, navigate])
 
-  const handleSaveDraft = async () => {
+  const handleFormSubmit = async (data: SchedaDatiCompleta) => {
     if (!id) return
 
     try {
       setSaving(true)
-      // TODO Passo 2: Salvare i dati del form
-      // Per ora salviamo solo un aggiornamento vuoto per testare
-      await technicalDataApi.update(id, {})
+
+      // Salva i dati nel campo equipment_data (JSONB)
+      await technicalDataApi.updateEquipmentData(id, data)
+
       alert('Bozza salvata con successo')
+      setFormData(data)
     } catch (err) {
       console.error('Error saving draft:', err)
       alert('Errore nel salvataggio della bozza')
@@ -96,16 +102,21 @@ export const TechnicalDetails = () => {
   const handleCompleteSheet = async () => {
     if (!id) return
 
+    // TODO: Validare campi obbligatori prima di completare
     const confirmed = window.confirm(
       'Confermi di voler completare la scheda dati?\n\n' +
-      'Questa azione cambierà automaticamente lo stato della pratica a "2-SCHEDA_DATI_PRONTA".'
+      'Questa azione cambierà automaticamente lo stato della pratica a "2-SCHEDA_DATI_PRONTA".\n\n' +
+      'Assicurati che tutti i campi obbligatori siano compilati.'
     )
 
     if (!confirmed) return
 
     try {
       setSaving(true)
+
+      // Marca come completata (trigger cambio stato automatico)
       await technicalDataApi.markAsCompleted(id)
+
       alert('Scheda dati completata! Lo stato della pratica è stato aggiornato.')
       navigate(`/requests/${id}`)
     } catch (err) {
@@ -128,9 +139,11 @@ export const TechnicalDetails = () => {
     try {
       setSaving(true)
       await technicalDataApi.markAsIncomplete(id)
+
       // Ricarica i dati
       const data = await technicalDataApi.getByRequestId(id)
       setTechnicalData(data)
+
       alert('Scheda dati riaperta per modifiche')
     } catch (err) {
       console.error('Error reopening sheet:', err)
@@ -218,25 +231,15 @@ export const TechnicalDetails = () => {
                 Riapri per Modifiche
               </Button>
             ) : (
-              <>
-                <Button
-                  variant="outlined"
-                  startIcon={<SaveIcon />}
-                  onClick={handleSaveDraft}
-                  disabled={saving}
-                >
-                  Salva Bozza
-                </Button>
-                <Button
-                  variant="contained"
-                  color="success"
-                  startIcon={<CheckCircleIcon />}
-                  onClick={handleCompleteSheet}
-                  disabled={saving}
-                >
-                  Completa Scheda
-                </Button>
-              </>
+              <Button
+                variant="contained"
+                color="success"
+                startIcon={<CheckCircleIcon />}
+                onClick={handleCompleteSheet}
+                disabled={saving}
+              >
+                Completa Scheda
+              </Button>
             )}
           </Box>
         </Box>
@@ -266,53 +269,44 @@ export const TechnicalDetails = () => {
                 </Typography>
                 <Typography variant="body1">{request.status}</Typography>
               </Grid>
-              {technicalData.indirizzo_impianto && (
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Indirizzo Impianto
-                  </Typography>
-                  <Typography variant="body1">{technicalData.indirizzo_impianto}</Typography>
-                </Grid>
-              )}
             </Grid>
           </CardContent>
         </Card>
 
-        {/* Form Dati Tecnici - PLACEHOLDER PASSO 1 */}
+        {/* Form Dati Tecnici - PASSO 2 COMPLETATO */}
         <Card sx={{ mb: 3 }}>
           <CardContent>
             <Typography variant="h6" gutterBottom>
               Dati Sala Compressori e Apparecchiature
             </Typography>
-            <Divider sx={{ my: 2 }} />
 
-            <Alert severity="info" sx={{ mb: 2 }}>
+            <Alert severity="info" sx={{ my: 2 }}>
               <Typography variant="body2">
-                <strong>PASSO 1 - Implementazione in corso</strong>
+                <strong>PASSO 2 - Form Implementato</strong>
                 <br />
-                I campi specifici del form verranno aggiunti nel Passo 2.
+                Il form è completo con tutte le 10 sezioni. Compilalo e usa il bottone "Completa Scheda" per terminare.
                 <br />
-                Questa è la struttura base della pagina.
+                I dati vengono salvati automaticamente in formato JSONB nel campo equipment_data.
               </Typography>
             </Alert>
 
-            <Box sx={{ p: 3, bgcolor: 'background.default', borderRadius: 1 }}>
-              <Typography variant="body2" color="text.secondary" align="center">
-                Form campi dati tecnici verrà inserito qui
-              </Typography>
-            </Box>
+            <TechnicalSheetForm
+              defaultValues={formData || undefined}
+              onSubmit={handleFormSubmit}
+              customerName={customerName}
+              readOnly={isCompleted}
+            />
           </CardContent>
         </Card>
 
-        {/* Sezione Upload Foto Targhette - PLACEHOLDER PASSO 1 */}
+        {/* Sezione Upload Foto Targhette - PLACEHOLDER PASSO 3 */}
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
               Foto Targhette Apparecchiature (OCR)
             </Typography>
-            <Divider sx={{ my: 2 }} />
 
-            <Alert severity="info" sx={{ mb: 2 }}>
+            <Alert severity="info">
               <Typography variant="body2">
                 <strong>PASSO 3 - Da implementare</strong>
                 <br />
@@ -320,12 +314,6 @@ export const TechnicalDetails = () => {
                 delle targhette verrà implementata nel Passo 3.
               </Typography>
             </Alert>
-
-            <Box sx={{ p: 3, bgcolor: 'background.default', borderRadius: 1 }}>
-              <Typography variant="body2" color="text.secondary" align="center">
-                Upload e OCR foto targhette verrà inserito qui
-              </Typography>
-            </Box>
           </CardContent>
         </Card>
       </Box>
