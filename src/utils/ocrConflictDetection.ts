@@ -1,5 +1,4 @@
 import type { EquipmentCatalogType } from '@/types'
-import { getFormPath } from './filenameParser'
 
 /**
  * Risultato verifica conflitto
@@ -13,7 +12,7 @@ export interface ConflictResult {
 /**
  * Campi da verificare per ciascun tipo di apparecchiatura
  */
-const EQUIPMENT_FIELDS: Record<EquipmentCatalogType, string[]> = {
+const EQUIPMENT_FIELDS: Partial<Record<EquipmentCatalogType, string[]>> = {
   'Serbatoi': ['marca', 'modello', 'n_fabbrica', 'anno', 'volume'],
   'Compressori': ['marca', 'modello', 'n_fabbrica', 'materiale_n', 'anno', 'pressione_max'],
   'Disoleatori': ['marca', 'modello', 'n_fabbrica', 'anno'],
@@ -22,7 +21,7 @@ const EQUIPMENT_FIELDS: Record<EquipmentCatalogType, string[]> = {
   'Filtri': ['marca', 'modello', 'n_fabbrica', 'anno'],
   'Separatori': ['marca', 'modello', 'n_fabbrica', 'anno'],
   'Valvole di sicurezza': ['marca', 'modello', 'n_fabbrica', 'anno'],
-  'Altri apparecchi': ['tipo_apparecchio', 'marca', 'modello', 'n_fabbrica', 'anno']
+  'Altro': ['tipo_apparecchio', 'marca', 'modello', 'n_fabbrica', 'anno']
 }
 
 /**

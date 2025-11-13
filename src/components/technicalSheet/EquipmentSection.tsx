@@ -26,6 +26,7 @@ interface EquipmentSectionProps {
   generateCode: (index: number) => string
   canRemove?: (item: any, index: number) => { can: boolean; reason?: string }
   itemTypeName?: string // Es: "serbatoio", "compressore"
+  renderHeaderActions?: (item: any, index: number) => ReactNode // Es: bottone OCR
 }
 
 /**
@@ -44,6 +45,7 @@ export const EquipmentSection = ({
   generateCode,
   canRemove,
   itemTypeName = 'apparecchiatura',
+  renderHeaderActions,
 }: EquipmentSectionProps) => {
   const canAddMore = items.length < maxItems
   const canRemoveItems = items.length > minItems
@@ -118,14 +120,20 @@ export const EquipmentSection = ({
                     color="primary"
                     size="small"
                   />
-                  <IconButton
-                    size="small"
-                    color="error"
-                    onClick={() => handleRemove(index)}
-                    disabled={!canRemoveItems}
-                  >
-                    <DeleteIcon />
-                  </IconButton>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {/* Azioni personalizzate (es: bottone OCR) */}
+                    {renderHeaderActions && renderHeaderActions(item, index)}
+
+                    {/* Bottone elimina */}
+                    <IconButton
+                      size="small"
+                      color="error"
+                      onClick={() => handleRemove(index)}
+                      disabled={!canRemoveItems}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </Box>
                 </Box>
                 {renderItem(item, index)}
               </CardContent>

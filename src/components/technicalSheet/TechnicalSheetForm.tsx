@@ -1,5 +1,5 @@
 import { useForm, FormProvider } from 'react-hook-form'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Box,
   Accordion,
@@ -7,8 +7,12 @@ import {
   AccordionDetails,
   Typography,
   Chip,
+  Button,
 } from '@mui/material'
-import { ExpandMore as ExpandMoreIcon } from '@mui/icons-material'
+import {
+  ExpandMore as ExpandMoreIcon,
+  AutoFixHigh as AutoFixHighIcon,
+} from '@mui/icons-material'
 import { DatiGeneraliSection } from './DatiGeneraliSection'
 import { DatiImpiantoSection } from './DatiImpiantoSection'
 import { SerbatoiSection } from './SerbatoiSection'
@@ -21,7 +25,9 @@ import {
   SeparatoriSection,
   AltriApparecchiSection,
 } from './AllEquipmentSections'
+import { BatchOCRDialog } from './BatchOCRDialog'
 import type { SchedaDatiCompleta } from '@/types'
+import type { BatchOCRResult } from '@/types/ocr'
 
 interface TechnicalSheetFormProps {
   defaultValues?: Partial<SchedaDatiCompleta>
@@ -79,6 +85,9 @@ export const TechnicalSheetForm = ({
   const compressori = watch('compressori') || []
   const essiccatori = watch('essiccatori') || []
 
+  // State per Batch OCR Dialog
+  const [batchOCRDialogOpen, setBatchOCRDialogOpen] = useState(false)
+
   // Autosave con debounce
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const watchedData = watch()
@@ -104,6 +113,22 @@ export const TechnicalSheetForm = ({
     }
   }, [watchedData, onAutoSave, readOnly])
 
+
+  const handleBatchOCRComplete = (results: BatchOCRResult) => {
+    console.log('✅ Batch OCR completato:', results)
+
+    // TODO: Applicare risultati al form
+    // Per ora mostriamo solo un summary
+    alert(
+      `Batch OCR completato!\n\n` +
+      `Totale: ${results.total}\n` +
+      `Completati: ${results.completed}\n` +
+      `Errori: ${results.errors}\n` +
+      `Normalizzati: ${results.normalized}`
+    )
+
+    setBatchOCRDialogOpen(false)
+  }
 
   return (
     <FormProvider {...methods}>
@@ -137,6 +162,30 @@ export const TechnicalSheetForm = ({
             <DatiImpiantoSection control={control} errors={errors} />
           </AccordionDetails>
         </Accordion>
+
+        {/* Header Sezione Apparecchiature con bottone Batch OCR */}
+        <Box
+          sx={{
+            mt: 3,
+            mb: 2,
+            p: 2,
+            bgcolor: 'background.paper',
+            borderRadius: 1,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <Typography variant="h6">3. Apparecchiature</Typography>
+          <Button
+            variant="contained"
+            startIcon={<AutoFixHighIcon />}
+            onClick={() => setBatchOCRDialogOpen(true)}
+            disabled={readOnly}
+          >
+            Riconosci Automaticamente
+          </Button>
+        </Box>
 
         {/* Sezione 3: Serbatoi */}
         <Accordion>
@@ -225,6 +274,13 @@ export const TechnicalSheetForm = ({
             <AltriApparecchiSection control={control} errors={errors} />
           </AccordionDetails>
         </Accordion>
+
+        {/* Batch OCR Dialog */}
+        <BatchOCRDialog
+          open={batchOCRDialogOpen}
+          onClose={() => setBatchOCRDialogOpen(false)}
+          onComplete={handleBatchOCRComplete}
+        />
       </Box>
     </FormProvider>
   )

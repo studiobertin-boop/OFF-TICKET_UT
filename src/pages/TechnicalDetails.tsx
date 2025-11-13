@@ -195,16 +195,30 @@ export const TechnicalDetails = () => {
   }, [])
 
   const handleOCRConfirm = useCallback((editedData: OCRExtractedData, selectedMatch?: FuzzyMatch) => {
-    // TODO: Insert edited data into form
-    // This will be implemented based on equipment type
-    console.log('OCR data confirmed:', editedData, selectedMatch)
+    if (!ocrReviewData?.equipment_code) {
+      console.error('❌ Codice apparecchiatura mancante')
+      alert('Errore: codice apparecchiatura non trovato')
+      return
+    }
+
+    // Parse equipment code (es: "S1", "C2.1")
+    const equipmentCode = ocrReviewData.equipment_code
+
+    console.log('✅ OCR data confirmed:', { editedData, selectedMatch, equipmentCode })
+
+    // Nota: L'inserimento nel form verrà gestito da TechnicalSheetForm
+    // che riceverà questi dati tramite un nuovo prop onOCRDataReady
+    // Per ora mostriamo i dati confermati
+
+    // TODO: Implementare callback per passare dati al form
+    // onOCRDataReady({ equipmentCode, data: editedData })
 
     // Close dialog
     setOcrReviewData(null)
 
     // Show success message
-    alert('Dati OCR inseriti con successo! Controlla i campi e modifica se necessario.')
-  }, [])
+    alert('Dati OCR confermati! Per ora visualizzati in console. Prossimo step: integrazione con form.')
+  }, [ocrReviewData])
 
   const handleOCRCancel = useCallback(() => {
     setOcrReviewData(null)

@@ -1,9 +1,11 @@
-import { Control, Controller, useFieldArray } from 'react-hook-form'
+import { Control, Controller, useFieldArray, useFormContext } from 'react-hook-form'
 import { Grid, TextField, FormControlLabel, Checkbox, Typography, Divider, Select, MenuItem, FormControl, InputLabel } from '@mui/material'
 import { EquipmentSection } from './EquipmentSection'
 import { CommonEquipmentFields } from './CommonEquipmentFields'
 import { ValvolaSicurezzaFields } from './ValvolaSicurezzaFields'
+import { SingleOCRButton } from './SingleOCRButton'
 import { EQUIPMENT_LIMITS, generateEquipmentCode, type FinituraInternaOption, type ScaricoOption } from '@/types'
+import type { OCRExtractedData } from '@/types/ocr'
 
 const FINITURA_INTERNA_OPTIONS: FinituraInternaOption[] = ['VERNICIATO', 'ZINCATO', 'VITROFLEX', 'ALTRO']
 const SCARICO_OPTIONS: ScaricoOption[] = ['AUTOMATICO', 'MANUALE', 'ASSENTE']
@@ -19,6 +21,8 @@ export const SerbatoiSection = ({ control, errors }: SerbatoiSectionProps) => {
     name: 'serbatoi',
   })
 
+  const { setValue, trigger } = useFormContext()
+
   const handleAdd = () => {
     const newIndex = fields.length + 1
     append({
@@ -26,6 +30,49 @@ export const SerbatoiSection = ({ control, errors }: SerbatoiSectionProps) => {
       valvola_sicurezza: {}, // Obbligatoria
       manometro: {},
     })
+  }
+
+  const handleOCRComplete = (index: number, data: OCRExtractedData) => {
+    const basePath = `serbatoi.${index}`
+
+    console.log('📝 Applicazione dati OCR a Serbatoio #' + (index + 1), data)
+
+    // Popola campi comuni
+    if (data.marca) setValue(`${basePath}.marca`, data.marca)
+    if (data.modello) setValue(`${basePath}.modello`, data.modello)
+    if (data.n_fabbrica) setValue(`${basePath}.n_fabbrica`, data.n_fabbrica)
+    if (data.anno) setValue(`${basePath}.anno`, data.anno)
+    if (data.volume) setValue(`${basePath}.volume`, data.volume)
+    if (data.pressione_max) setValue(`${basePath}.pressione_max`, data.pressione_max)
+
+    // Popola valvola di sicurezza (se presente nei dati OCR)
+    if (data.valvola_sicurezza) {
+      if (data.valvola_sicurezza.marca) {
+        setValue(`${basePath}.valvola_sicurezza.marca`, data.valvola_sicurezza.marca)
+      }
+      if (data.valvola_sicurezza.modello) {
+        setValue(`${basePath}.valvola_sicurezza.modello`, data.valvola_sicurezza.modello)
+      }
+      if (data.valvola_sicurezza.n_fabbrica) {
+        setValue(`${basePath}.valvola_sicurezza.n_fabbrica`, data.valvola_sicurezza.n_fabbrica)
+      }
+      if (data.valvola_sicurezza.diametro_pressione) {
+        setValue(`${basePath}.valvola_sicurezza.diametro_pressione`, data.valvola_sicurezza.diametro_pressione)
+      }
+    }
+
+    // Popola manometro (se presente)
+    if (data.manometro) {
+      if (data.manometro.fondo_scala) {
+        setValue(`${basePath}.manometro.fondo_scala`, data.manometro.fondo_scala)
+      }
+      if (data.manometro.segno_rosso) {
+        setValue(`${basePath}.manometro.segno_rosso`, data.manometro.segno_rosso)
+      }
+    }
+
+    // Valida immediatamente i campi
+    trigger(basePath)
   }
 
   return (
@@ -39,6 +86,13 @@ export const SerbatoiSection = ({ control, errors }: SerbatoiSectionProps) => {
       onRemove={remove}
       generateCode={(index) => generateEquipmentCode(EQUIPMENT_LIMITS.serbatoi.prefix, index + 1)}
       itemTypeName="serbatoio"
+      renderHeaderActions={(_item, index) => (
+        <SingleOCRButton
+          equipmentType="Serbatoi"
+          equipmentIndex={index}
+          onOCRComplete={(data) => handleOCRComplete(index, data)}
+        />
+      )}
       renderItem={(_item, index) => (
         <Grid container spacing={2}>
           <Grid item xs={12}>

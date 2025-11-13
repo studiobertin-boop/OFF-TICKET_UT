@@ -3,12 +3,14 @@
  * Per ottimizzare il numero di file e semplificare l'import
  */
 
-import { Control, Controller, useFieldArray } from 'react-hook-form'
+import { Control, Controller, useFieldArray, useFormContext } from 'react-hook-form'
 import { Grid, FormControlLabel, Checkbox, TextField } from '@mui/material'
 import { EquipmentSection } from './EquipmentSection'
 import { CommonEquipmentFields } from './CommonEquipmentFields'
 import { ValvolaSicurezzaFields } from './ValvolaSicurezzaFields'
+import { SingleOCRButton } from './SingleOCRButton'
 import { EQUIPMENT_LIMITS, generateEquipmentCode } from '@/types'
+import type { OCRExtractedData } from '@/types/ocr'
 
 // ============================================================================
 // COMPRESSORI (C1-C5)
@@ -25,11 +27,30 @@ export const CompressoriSection = ({ control, errors }: CompressoriSectionProps)
     name: 'compressori',
   })
 
+  const { setValue, trigger } = useFormContext()
+
   const handleAdd = () => {
     append({
       codice: generateEquipmentCode(EQUIPMENT_LIMITS.compressori.prefix, fields.length + 1),
       ha_disoleatore: false,
     })
+  }
+
+  const handleOCRComplete = (index: number, data: OCRExtractedData) => {
+    const basePath = `compressori.${index}`
+
+    console.log('📝 Applicazione dati OCR a Compressore #' + (index + 1), data)
+
+    // Popola campi comuni
+    if (data.marca) setValue(`${basePath}.marca`, data.marca)
+    if (data.modello) setValue(`${basePath}.modello`, data.modello)
+    if (data.n_fabbrica) setValue(`${basePath}.n_fabbrica`, data.n_fabbrica)
+    if (data.anno) setValue(`${basePath}.anno`, data.anno)
+    if (data.pressione_max) setValue(`${basePath}.pressione_max`, data.pressione_max)
+    if (data.materiale_n) setValue(`${basePath}.materiale_n`, data.materiale_n)
+
+    // Valida
+    trigger(basePath)
   }
 
   return (
@@ -43,6 +64,13 @@ export const CompressoriSection = ({ control, errors }: CompressoriSectionProps)
       onRemove={remove}
       generateCode={(index) => generateEquipmentCode(EQUIPMENT_LIMITS.compressori.prefix, index + 1)}
       itemTypeName="compressore"
+      renderHeaderActions={(_item, index) => (
+        <SingleOCRButton
+          equipmentType="Compressori"
+          equipmentIndex={index}
+          onOCRComplete={(data) => handleOCRComplete(index, data)}
+        />
+      )}
       renderItem={(_item, index) => (
         <Grid container spacing={2}>
           <Grid item xs={12}>
@@ -193,11 +221,29 @@ export const EssiccatoriSection = ({ control, errors }: EssiccatoriSectionProps)
     name: 'essiccatori',
   })
 
+  const { setValue, trigger } = useFormContext()
+
   const handleAdd = () => {
     append({
       codice: generateEquipmentCode(EQUIPMENT_LIMITS.essiccatori.prefix, fields.length + 1),
       ha_scambiatore: false,
     })
+  }
+
+  const handleOCRComplete = (index: number, data: OCRExtractedData) => {
+    const basePath = `essiccatori.${index}`
+
+    console.log('📝 Applicazione dati OCR a Essiccatore #' + (index + 1), data)
+
+    // Popola campi
+    if (data.marca) setValue(`${basePath}.marca`, data.marca)
+    if (data.modello) setValue(`${basePath}.modello`, data.modello)
+    if (data.n_fabbrica) setValue(`${basePath}.n_fabbrica`, data.n_fabbrica)
+    if (data.anno) setValue(`${basePath}.anno`, data.anno)
+    if (data.pressione_max) setValue(`${basePath}.pressione_max`, data.pressione_max)
+
+    // Valida
+    trigger(basePath)
   }
 
   return (
@@ -211,6 +257,13 @@ export const EssiccatoriSection = ({ control, errors }: EssiccatoriSectionProps)
       onRemove={remove}
       generateCode={(index) => generateEquipmentCode(EQUIPMENT_LIMITS.essiccatori.prefix, index + 1)}
       itemTypeName="essiccatore"
+      renderHeaderActions={(_item, index) => (
+        <SingleOCRButton
+          equipmentType="Essiccatori"
+          equipmentIndex={index}
+          onOCRComplete={(data) => handleOCRComplete(index, data)}
+        />
+      )}
       renderItem={(_item, index) => (
         <Grid container spacing={2}>
           <Grid item xs={12}>
@@ -347,10 +400,27 @@ export const FiltriSection = ({ control, errors }: FiltriSectionProps) => {
     name: 'filtri',
   })
 
+  const { setValue, trigger } = useFormContext()
+
   const handleAdd = () => {
     append({
       codice: generateEquipmentCode(EQUIPMENT_LIMITS.filtri.prefix, fields.length + 1),
     })
+  }
+
+  const handleOCRComplete = (index: number, data: OCRExtractedData) => {
+    const basePath = `filtri.${index}`
+
+    console.log('📝 Applicazione dati OCR a Filtro #' + (index + 1), data)
+
+    // Popola campi
+    if (data.marca) setValue(`${basePath}.marca`, data.marca)
+    if (data.modello) setValue(`${basePath}.modello`, data.modello)
+    if (data.n_fabbrica) setValue(`${basePath}.n_fabbrica`, data.n_fabbrica)
+    if (data.anno) setValue(`${basePath}.anno`, data.anno)
+
+    // Valida
+    trigger(basePath)
   }
 
   return (
@@ -364,6 +434,13 @@ export const FiltriSection = ({ control, errors }: FiltriSectionProps) => {
       onRemove={remove}
       generateCode={(index) => generateEquipmentCode(EQUIPMENT_LIMITS.filtri.prefix, index + 1)}
       itemTypeName="filtro"
+      renderHeaderActions={(_item, index) => (
+        <SingleOCRButton
+          equipmentType="Filtri"
+          equipmentIndex={index}
+          onOCRComplete={(data) => handleOCRComplete(index, data)}
+        />
+      )}
       renderItem={(_item, index) => (
         <CommonEquipmentFields
           control={control}
@@ -397,10 +474,25 @@ export const SeparatoriSection = ({ control, errors }: SeparatoriSectionProps) =
     name: 'separatori',
   })
 
+  const { setValue, trigger } = useFormContext()
+
   const handleAdd = () => {
     append({
       codice: generateEquipmentCode(EQUIPMENT_LIMITS.separatori.prefix, fields.length + 1),
     })
+  }
+
+  const handleOCRComplete = (index: number, data: OCRExtractedData) => {
+    const basePath = `separatori.${index}`
+
+    console.log('📝 Applicazione dati OCR a Separatore #' + (index + 1), data)
+
+    // Popola campi
+    if (data.marca) setValue(`${basePath}.marca`, data.marca)
+    if (data.modello) setValue(`${basePath}.modello`, data.modello)
+
+    // Valida
+    trigger(basePath)
   }
 
   return (
@@ -414,6 +506,13 @@ export const SeparatoriSection = ({ control, errors }: SeparatoriSectionProps) =
       onRemove={remove}
       generateCode={(index) => generateEquipmentCode(EQUIPMENT_LIMITS.separatori.prefix, index + 1)}
       itemTypeName="separatore"
+      renderHeaderActions={(_item, index) => (
+        <SingleOCRButton
+          equipmentType="Separatori"
+          equipmentIndex={index}
+          onOCRComplete={(data) => handleOCRComplete(index, data)}
+        />
+      )}
       renderItem={(_item, index) => (
         <CommonEquipmentFields
           control={control}
