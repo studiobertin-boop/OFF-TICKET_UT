@@ -23,16 +23,20 @@ import {
   Edit as EditIcon,
   Save as SaveIcon,
   Close as CloseIcon,
+  Assignment as AssignmentIcon,
+  PersonAdd as PersonAddIcon,
 } from '@mui/icons-material'
 import { Layout } from '@/components/common/Layout'
 import { useRequest, useHideRequest, useDeleteRequest, useUpdateRequest } from '@/hooks/useRequests'
 import { useAuth } from '@/hooks/useAuth'
+import { useFeatureFlag } from '@/hooks/useFeatureFlag'
 import { StatusTransitionButtons } from '@/components/requests/StatusTransitionButtons'
 import { AssignmentSection } from '@/components/requests/AssignmentSection'
 import { RequestHistoryPanel } from '@/components/requests/RequestHistoryPanel'
 import { BlockIndicator } from '@/components/requests/BlockIndicator'
 import { BlockRequestDialog } from '@/components/requests/BlockRequestDialog'
 import { UnblockRequestDialog } from '@/components/requests/UnblockRequestDialog'
+import { AttributeRequestDialog } from '@/components/requests/AttributeRequestDialog'
 import { ConfirmHideDialog } from '@/components/requests/ConfirmHideDialog'
 import { ConfirmDeleteDialog } from '@/components/requests/ConfirmDeleteDialog'
 import { AttachmentsSection } from '@/components/requests/AttachmentsSection'
@@ -45,6 +49,7 @@ export const RequestDetail = () => {
   const { user } = useAuth()
   const { data: request, isLoading, error, refetch } = useRequest(id!)
   const { data: activeBlock } = useActiveBlock(id)
+  const { isEnabled: dm329FullWorkflowEnabled } = useFeatureFlag('dm329_full_workflow')
   const hideRequest = useHideRequest()
   const deleteRequest = useDeleteRequest()
   const updateRequest = useUpdateRequest()
@@ -53,6 +58,7 @@ export const RequestDetail = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [blockDialogOpen, setBlockDialogOpen] = useState(false)
   const [unblockDialogOpen, setUnblockDialogOpen] = useState(false)
+  const [attributeDialogOpen, setAttributeDialogOpen] = useState(false)
   const [isEditingNote, setIsEditingNote] = useState(false)
   const [noteValue, setNoteValue] = useState('')
 
@@ -144,9 +150,19 @@ export const RequestDetail = () => {
   // Determine if user can edit notes
   // Admin: always
   // Userdm329: only on DM329 requests
+  // Tecnico: only on general requests (not DM329)
   const canEditNote =
     user?.role === 'admin' ||
-    (user?.role === 'userdm329' && isDM329)
+    (user?.role === 'userdm329' && isDM329) ||
+    (user?.role === 'tecnico' && !isDM329)
+
+  // Determine if user can access technical details
+  // Only admin and userdm329 can access technical details for DM329 requests
+  // Only if feature flag is enabled
+  const canAccessTechnicalDetails =
+    dm329FullWorkflowEnabled &&
+    isDM329 &&
+    (user?.role === 'admin' || user?.role === 'userdm329')
 
   return (
     <Layout>
@@ -157,6 +173,19 @@ export const RequestDetail = () => {
           </Button>
 
           <Box sx={{ display: 'flex', gap: 1 }}>
+            {/* Technical Details button (DM329 only, with feature flag) */}
+            {canAccessTechnicalDetails && (
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<AssignmentIcon />}
+                onClick={() => navigate(`/requests/${id}/technical-details`)}
+                size="small"
+              >
+                Dettagli Pratica
+              </Button>
+            )}
+
             {/* Block/Unblock buttons */}
             {canBlock && !request.is_blocked && (
               <Button
@@ -185,6 +214,15 @@ export const RequestDetail = () => {
             {/* Admin actions */}
             {user?.role === 'admin' && (
               <>
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  startIcon={<PersonAddIcon />}
+                  onClick={() => setAttributeDialogOpen(true)}
+                  size="small"
+                >
+                  Attribuisci
+                </Button>
                 <Button
                   variant="outlined"
                   color="warning"
@@ -325,57 +363,55 @@ export const RequestDetail = () => {
           </CardContent>
         </Card>
 
-        {/* Notes Section - Only for DM329 requests */}
-        {isDM329 && (
-          <Card sx={{ mt: 3 }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">Note</Typography>
-                {canEditNote && !isEditingNote && (
-                  <IconButton size="small" onClick={handleEditNote} color="primary">
-                    <EditIcon />
-                  </IconButton>
-                )}
-              </Box>
-
-              {isEditingNote ? (
-                <Box>
-                  <TextField
-                    fullWidth
-                    multiline
-                    rows={4}
-                    value={noteValue}
-                    onChange={(e) => setNoteValue(e.target.value)}
-                    placeholder="Aggiungi note..."
-                    variant="outlined"
-                  />
-                  <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
-                    <Button
-                      variant="contained"
-                      startIcon={<SaveIcon />}
-                      onClick={handleSaveNote}
-                      disabled={updateRequest.isPending}
-                    >
-                      Salva
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      startIcon={<CloseIcon />}
-                      onClick={handleCancelNote}
-                      disabled={updateRequest.isPending}
-                    >
-                      Annulla
-                    </Button>
-                  </Box>
-                </Box>
-              ) : (
-                <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-                  {(request.custom_fields?.note as string) || <em>Nessuna nota disponibile</em>}
-                </Typography>
+        {/* Notes Section - Available for all request types */}
+        <Card sx={{ mt: 3 }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6">Note</Typography>
+              {canEditNote && !isEditingNote && (
+                <IconButton size="small" onClick={handleEditNote} color="primary">
+                  <EditIcon />
+                </IconButton>
               )}
-            </CardContent>
-          </Card>
-        )}
+            </Box>
+
+            {isEditingNote ? (
+              <Box>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={4}
+                  value={noteValue}
+                  onChange={(e) => setNoteValue(e.target.value)}
+                  placeholder="Aggiungi note..."
+                  variant="outlined"
+                />
+                <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                  <Button
+                    variant="contained"
+                    startIcon={<SaveIcon />}
+                    onClick={handleSaveNote}
+                    disabled={updateRequest.isPending}
+                  >
+                    Salva
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<CloseIcon />}
+                    onClick={handleCancelNote}
+                    disabled={updateRequest.isPending}
+                  >
+                    Annulla
+                  </Button>
+                </Box>
+              </Box>
+            ) : (
+              <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+                {(request.custom_fields?.note as string) || <em>Nessuna nota disponibile</em>}
+              </Typography>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Status Transition Buttons */}
         <Card sx={{ mt: 3 }}>
@@ -427,6 +463,13 @@ export const RequestDetail = () => {
         open={unblockDialogOpen}
         onClose={() => setUnblockDialogOpen(false)}
         block={activeBlock}
+        requestTitle={request.title}
+      />
+
+      <AttributeRequestDialog
+        open={attributeDialogOpen}
+        onClose={() => setAttributeDialogOpen(false)}
+        requestId={request.id}
         requestTitle={request.title}
       />
 
