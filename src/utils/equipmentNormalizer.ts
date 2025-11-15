@@ -121,16 +121,22 @@ async function normalizeMarca(
     5
   )
 
-  if (fuzzyResults.length > 0 && fuzzyResults[0].similarity >= 0.5) {
+  if (fuzzyResults.length > 0 && fuzzyResults[0].similarity_score >= 0.5) {
     const bestMatch = fuzzyResults[0]
 
     return {
       originalValue: rawMarca,
       normalizedValue: bestMatch.marca,
       wasNormalized: true,
-      confidence: Math.round(bestMatch.similarity * 100),
+      confidence: Math.round(bestMatch.similarity_score * 100),
       source: 'fuzzy_match',
-      alternatives: fuzzyResults.slice(0, 3) // Top 3 alternative
+      alternatives: fuzzyResults.slice(0, 3).map(r => ({
+        equipment_type: r.tipo_apparecchiatura || r.tipo,
+        marca: r.marca,
+        modello: r.modello,
+        similarity_score: r.similarity_score,
+        usage_count: r.usage_count
+      }))
     }
   }
 
@@ -199,18 +205,21 @@ async function normalizeModello(
     r => r.marca.toLowerCase() === normalizedMarca.toLowerCase()
   )
 
-  if (matchingMarca.length > 0 && matchingMarca[0].similarity >= 0.5) {
+  if (matchingMarca.length > 0 && matchingMarca[0].similarity_score >= 0.5) {
     const bestMatch = matchingMarca[0]
 
     return {
       originalValue: rawModello,
       normalizedValue: bestMatch.modello,
       wasNormalized: true,
-      confidence: Math.round(bestMatch.similarity * 100),
+      confidence: Math.round(bestMatch.similarity_score * 100),
       source: 'fuzzy_match',
       alternatives: matchingMarca.slice(0, 3).map(m => ({
-        ...m,
-        // Highlight del modello nelle alternative
+        equipment_type: m.tipo_apparecchiatura || m.tipo,
+        marca: m.marca,
+        modello: m.modello,
+        similarity_score: m.similarity_score,
+        usage_count: m.usage_count,
         description: m.modello
       }))
     }

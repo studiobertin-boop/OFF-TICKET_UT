@@ -89,7 +89,7 @@ export const BatchOCRDialog = ({ open, onClose, onComplete }: BatchOCRDialogProp
         isValid: parsed.isValid
       })
 
-      const item = {
+      const item: BatchOCRItem = {
         id: crypto.randomUUID(),
         file,
         filename: file.name,
@@ -98,7 +98,7 @@ export const BatchOCRDialog = ({ open, onClose, onComplete }: BatchOCRDialogProp
         parsedIndex: parsed.index,
         parsedParentIndex: parsed.parentIndex,
         parsedComponentType: parsed.componentType,
-        status: parsed.isValid ? 'pending' : 'error',
+        status: (parsed.isValid ? 'pending' : 'error') as 'pending' | 'processing' | 'completed' | 'error' | 'conflict',
         error: parsed.error
       }
 
