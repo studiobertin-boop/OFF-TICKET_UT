@@ -7,8 +7,7 @@
 -- 1. Verifica migration registrate nel sistema
 SELECT
   version,
-  name,
-  inserted_at
+  name
 FROM supabase_migrations.schema_migrations
 WHERE version IN (
   '20251112100000',
