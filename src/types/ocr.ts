@@ -15,6 +15,7 @@ export type EquipmentType =
   | 'scambiatore'
   | 'filtro'
   | 'separatore'
+  | 'valvola' // Solo valvola di sicurezza
 
 // ============================================================================
 // OCR REQUEST/RESPONSE
@@ -62,6 +63,7 @@ export interface OCRExtractedData {
   pressione_max?: number // bar
   volume?: number // litri
   materiale_n?: string // Solo compressori
+  diametro_pressione?: string // Solo valvole (quando tipo OCR = 'valvola')
 
   // Valvola di sicurezza (per serbatoi e disoleatori)
   valvola_sicurezza?: {
@@ -148,6 +150,7 @@ export interface BatchOCRItem {
   parsedType: string | null // EquipmentCatalogType
   parsedIndex: number
   parsedParentIndex?: number
+  parsedComponentType?: 'valvola_sicurezza' | 'manometro' // Per componenti nested (S1.1)
   status: 'pending' | 'processing' | 'completed' | 'error' | 'conflict'
   error?: string
   result?: OCRAnalysisResponse

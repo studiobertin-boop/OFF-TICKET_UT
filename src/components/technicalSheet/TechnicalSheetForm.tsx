@@ -27,7 +27,8 @@ import {
 } from './AllEquipmentSections'
 import { BatchOCRDialog } from './BatchOCRDialog'
 import type { SchedaDatiCompleta } from '@/types'
-import type { BatchOCRResult } from '@/types/ocr'
+import type { BatchOCRResult, BatchOCRItem } from '@/types/ocr'
+import type { EquipmentCatalogType } from '@/types'
 
 interface TechnicalSheetFormProps {
   defaultValues?: Partial<SchedaDatiCompleta>
@@ -79,6 +80,7 @@ export const TechnicalSheetForm = ({
     handleSubmit,
     formState: { errors },
     watch,
+    setValue,
   } = methods
 
   // Watch per sezioni dipendenti
@@ -114,17 +116,135 @@ export const TechnicalSheetForm = ({
   }, [watchedData, onAutoSave, readOnly])
 
 
-  const handleBatchOCRComplete = (results: BatchOCRResult) => {
-    console.log('✅ Batch OCR completato:', results)
+  const handleBatchOCRComplete = (results: BatchOCRResult, items: BatchOCRItem[]) => {
+    console.log('✅ Batch OCR completato:', results, items)
 
-    // TODO: Applicare risultati al form
-    // Per ora mostriamo solo un summary
+    // Debug: mostra stato di ogni item PRIMA del filtro
+    items.forEach((item, idx) => {
+      console.log(`📋 Item ${idx} (${item.filename}):`, {
+        status: item.status,
+        hasResult: !!item.result,
+        hasData: !!item.result?.data,
+        dataContent: item.result?.data, // 🔍 CONTENUTO COMPLETO di data
+        dataKeys: item.result?.data ? Object.keys(item.result.data) : [],
+        result: item.result,
+        parsedType: item.parsedType,
+        parsedComponentType: item.parsedComponentType
+      })
+    })
+
+    // Applica risultati al form
+    const completedItems = items.filter(i => i.status === 'completed' && i.result?.data)
+    console.log('📦 Items completati da processare:', completedItems.length)
+
+    completedItems.forEach(item => {
+      console.log('🔍 Item RAW:', {
+        filename: item.filename,
+        parsedType: item.parsedType,
+        parsedIndex: item.parsedIndex,
+        parsedComponentType: item.parsedComponentType,
+        hasData: !!item.result?.data
+      })
+
+      if (!item.parsedType || !item.result?.data) {
+        console.warn('⏭️ Skipping item:', item.filename)
+        return
+      }
+
+      const data = item.result.data
+      const equipmentType = item.parsedType as EquipmentCatalogType
+
+      console.log(`🔧 Processando ${equipmentType} index ${item.parsedIndex}:`, data)
+
+      // Mappa tipo → field array name
+      const typeToFieldMap: Record<EquipmentCatalogType, string> = {
+        'Serbatoi': 'serbatoi',
+        'Compressori': 'compressori',
+        'Disoleatori': 'disoleatori',
+        'Essiccatori': 'essiccatori',
+        'Scambiatori': 'scambiatori',
+        'Filtri': 'filtri',
+        'Separatori': 'separatori',
+        'Altro': 'altri_apparecchi',
+        'Valvole di sicurezza': '' // Non applicabile
+      }
+
+      const fieldName = typeToFieldMap[equipmentType]
+      if (!fieldName) {
+        console.warn('⚠️ Tipo non mappato:', equipmentType)
+        return
+      }
+
+      // Gestione componente nested (valvola)
+      if (item.parsedComponentType === 'valvola_sicurezza') {
+        console.log(`🔐 Popolando valvola per ${fieldName}[${item.parsedIndex}]`)
+
+        // Usa valori normalizzati se disponibili
+        const marca = item.normalizedMarca?.normalizedValue || data.marca || ''
+        const modello = item.normalizedModello?.normalizedValue || data.modello || ''
+
+        const basePath = `${fieldName}.${item.parsedIndex}.valvola_sicurezza`
+        setValue(`${basePath}.marca` as any, marca)
+        setValue(`${basePath}.modello` as any, modello)
+        if (data.n_fabbrica) setValue(`${basePath}.n_fabbrica` as any, data.n_fabbrica)
+        if (data.diametro_pressione) setValue(`${basePath}.diametro_pressione` as any, data.diametro_pressione)
+
+        console.log(`✅ Valvola popolata: ${marca} ${modello}`)
+        return
+      }
+
+      // Ottieni array corrente
+      const currentArray = watch(fieldName as any) || []
+      console.log(`📋 Array corrente ${fieldName}:`, currentArray.length, 'items')
+
+      // Usa valori normalizzati se disponibili, altrimenti usa raw OCR
+      const marca = item.normalizedMarca?.normalizedValue || data.marca || ''
+      const modello = item.normalizedModello?.normalizedValue || data.modello || ''
+
+      // Crea nuova apparecchiatura o aggiorna esistente
+      const newEquipment: any = {
+        marca,
+        modello,
+        n_fabbrica: data.n_fabbrica || '',
+        anno: data.anno || undefined,
+        volume: data.volume || undefined,
+        pressione_max: data.pressione_max || undefined,
+        materiale_n: data.materiale_n || undefined,
+      }
+
+      // Aggiungi dati specifici per serbatoi
+      if (equipmentType === 'Serbatoi') {
+        newEquipment.valvola_sicurezza = data.valvola_sicurezza || {}
+        newEquipment.manometro = data.manometro || {}
+      }
+
+      // Aggiungi dati specifici per disoleatori
+      if (equipmentType === 'Disoleatori') {
+        newEquipment.valvola_sicurezza = data.valvola_sicurezza || {}
+      }
+
+      // Inserisci nell'array all'indice corretto
+      const newArray = [...currentArray]
+
+      // Assicurati che l'array sia abbastanza grande
+      while (newArray.length <= item.parsedIndex) {
+        newArray.push({})
+      }
+
+      newArray[item.parsedIndex] = newEquipment
+
+      console.log(`💾 Salvando in ${fieldName}[${item.parsedIndex}]:`, newEquipment)
+      console.log(`📊 Nuovo array ${fieldName}:`, newArray)
+      setValue(fieldName as any, newArray, { shouldValidate: true, shouldDirty: true })
+    })
+
     alert(
       `Batch OCR completato!\n\n` +
       `Totale: ${results.total}\n` +
       `Completati: ${results.completed}\n` +
       `Errori: ${results.errors}\n` +
-      `Normalizzati: ${results.normalized}`
+      `Normalizzati: ${results.normalized}\n\n` +
+      `${completedItems.length} apparecchiature aggiunte al form.`
     )
 
     setBatchOCRDialogOpen(false)

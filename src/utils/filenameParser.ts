@@ -7,9 +7,10 @@ export interface ParsedFilename {
   equipmentType: EquipmentCatalogType | null
   index: number // Index 0-based dell'apparecchiatura
   parentIndex?: number // Per disoleatori/scambiatori (opzionale)
+  componentType?: 'valvola_sicurezza' | 'manometro' // Per componenti nested (S1.1 = valvola serbatoio 1)
   isValid: boolean
   error?: string
-  rawPrefix: string // Es: "S1", "C2.1", "E1.1"
+  rawPrefix: string // Es: "S1", "C2.1", "E1.1", "S1.1"
 }
 
 /**
@@ -17,6 +18,7 @@ export interface ParsedFilename {
  *
  * Naming Convention:
  * - S1, S2, S3 → Serbatoi
+ * - S1.1, S2.1 → Valvole di sicurezza (del serbatoio N)
  * - C1, C2 → Compressori
  * - C1.1, C2.1 → Disoleatori (del compressore N)
  * - E1, E2 → Essiccatori
@@ -38,12 +40,14 @@ const FILENAME_PREFIX_MAP: Record<string, EquipmentCatalogType> = {
  * Supporta:
  * - Formato base: S1, C2, E3, F1, SEP1
  * - Formato annidato: C1.1, E2.1 (disoleatori/scambiatori)
+ * - Formato componenti: S1.1 (valvole di sicurezza)
  *
  * @param filename - Nome file (con o senza estensione)
  * @returns Oggetto ParsedFilename con tipo, indice e validità
  *
  * @example
  * parseEquipmentFilename("S1.jpg") → { equipmentType: 'Serbatoi', index: 0, isValid: true }
+ * parseEquipmentFilename("S1.1.jpg") → { equipmentType: 'Serbatoi', index: 0, componentType: 'valvola_sicurezza', isValid: true }
  * parseEquipmentFilename("C2.1.png") → { equipmentType: 'Disoleatori', index: 0, parentIndex: 1, isValid: true }
  * parseEquipmentFilename("E1.1") → { equipmentType: 'Scambiatori', index: 0, parentIndex: 0, isValid: true }
  * parseEquipmentFilename("SEP3.jpg") → { equipmentType: 'Separatori', index: 2, isValid: true }
@@ -107,7 +111,10 @@ export function parseEquipmentFilename(filename: string): ParsedFilename {
 }
 
 /**
- * Parse formato annidato (C1.1 = Disoleatore compressore 1, E2.1 = Scambiatore essiccatore 2)
+ * Parse formato annidato
+ * - C1.1 = Disoleatore del compressore 1
+ * - E2.1 = Scambiatore dell'essiccatore 2
+ * - S1.1 = Valvola di sicurezza del serbatoio 1
  */
 function parseNestedFormat(
   prefix: string,
@@ -132,6 +139,17 @@ function parseNestedFormat(
       equipmentType: 'Scambiatori',
       index: childIndex,
       parentIndex: parentIndex,
+      isValid: true,
+      rawPrefix
+    }
+  }
+
+  // S1.1 → Valvola di sicurezza del serbatoio 1
+  if (prefix === 'S') {
+    return {
+      equipmentType: 'Serbatoi',
+      index: parentIndex, // L'indice del serbatoio
+      componentType: 'valvola_sicurezza',
       isValid: true,
       rawPrefix
     }
@@ -206,6 +224,15 @@ export function formatParsedFilename(parsed: ParsedFilename): string {
 
   const singularType = parsed.equipmentType.slice(0, -1) // Rimuovi 's' finale
   const displayIndex = parsed.index + 1 // Convert to 1-based
+
+  // Componente nested (es: "Valvola di Sicurezza S1")
+  if (parsed.componentType === 'valvola_sicurezza') {
+    return `Valvola di Sicurezza ${singularType.charAt(0)}${displayIndex}`
+  }
+
+  if (parsed.componentType === 'manometro') {
+    return `Manometro ${singularType.charAt(0)}${displayIndex}`
+  }
 
   if (parsed.parentIndex !== undefined) {
     const parentType = parsed.equipmentType === 'Disoleatori' ? 'Compressore' : 'Essiccatore'

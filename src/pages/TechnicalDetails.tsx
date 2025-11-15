@@ -23,9 +23,8 @@ import { useRequest } from '@/hooks/useRequests'
 import { useAuth } from '@/hooks/useAuth'
 import { technicalDataApi } from '@/services/api/technicalData'
 import { TechnicalSheetForm } from '@/components/technicalSheet/TechnicalSheetForm'
-import { PhotoUploadSection } from '@/components/technicalSheet/PhotoUploadSection'
 import { OCRReviewDialog } from '@/components/technicalSheet/OCRReviewDialog'
-import type { DM329TechnicalData, SchedaDatiCompleta, UploadedPhoto, OCRExtractedData, FuzzyMatch, OCRReviewData } from '@/types'
+import type { DM329TechnicalData, SchedaDatiCompleta, OCRExtractedData, FuzzyMatch, OCRReviewData } from '@/types'
 
 /**
  * Pagina SCHEDA DATI - Gestione dati tecnici pratiche DM329
@@ -179,21 +178,6 @@ export const TechnicalDetails = () => {
   }
 
   // OCR handlers
-  const handlePhotoAnalyzed = useCallback((
-    photo: UploadedPhoto,
-    extractedData: OCRExtractedData,
-    fuzzyMatches: FuzzyMatch[]
-  ) => {
-    // Open review dialog
-    setOcrReviewData({
-      photo,
-      extracted_data: extractedData,
-      fuzzy_matches: fuzzyMatches,
-      equipment_type: photo.equipment_type,
-      equipment_code: photo.equipment_code
-    })
-  }, [])
-
   const handleOCRConfirm = useCallback((editedData: OCRExtractedData, selectedMatch?: FuzzyMatch) => {
     if (!ocrReviewData?.equipment_code) {
       console.error('❌ Codice apparecchiatura mancante')
@@ -396,26 +380,6 @@ export const TechnicalDetails = () => {
               onAutoSave={handleAutoSave}
               customerName={customerName}
               readOnly={isCompleted}
-            />
-          </CardContent>
-        </Card>
-
-        {/* Sezione Upload Foto Targhette - PASSO 3 IMPLEMENTATO */}
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Alert severity="success" sx={{ mb: 2 }}>
-              <Typography variant="body2">
-                <strong>PASSO 3 - OCR Implementato!</strong>
-                <br />
-                Carica foto delle targhette per compilare automaticamente i campi usando GPT-4o Vision.
-                <br />
-                I dati estratti verranno mostrati per revisione prima dell'inserimento.
-              </Typography>
-            </Alert>
-
-            <PhotoUploadSection
-              onPhotoAnalyzed={handlePhotoAnalyzed}
-              disabled={isCompleted}
             />
           </CardContent>
         </Card>

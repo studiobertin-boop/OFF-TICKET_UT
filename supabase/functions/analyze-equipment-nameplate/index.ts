@@ -211,7 +211,9 @@ Return ONLY a JSON object (no markdown, no explanations) with the following stru
   "pressione_max": "maximum pressure in bar (number or null)",
   "volume": "volume in liters (integer or null)"`,
     filtro: ``,
-    separatore: ``
+    separatore: ``,
+    valvola: `
+  "diametro_pressione": "diameter and pressure rating (string or null, e.g. '1/2\" 13bar')"`
   }
 
   const specificFields = equipmentSpecificFields[equipmentType] || ''

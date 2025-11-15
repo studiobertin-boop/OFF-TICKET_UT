@@ -10,6 +10,7 @@ interface SingleOCRButtonProps {
   equipmentType: EquipmentCatalogType
   equipmentIndex: number
   parentIndex?: number
+  componentType?: 'valvola_sicurezza' | 'manometro' // Per componenti nested (S1.1)
   onOCRComplete: (data: OCRExtractedData) => void
   disabled?: boolean
 }
@@ -69,6 +70,7 @@ export const SingleOCRButton = ({
   equipmentType,
   equipmentIndex,
   parentIndex,
+  componentType,
   onOCRComplete,
   disabled = false
 }: SingleOCRButtonProps) => {
@@ -88,11 +90,18 @@ export const SingleOCRButton = ({
     const file = event.target.files?.[0]
     if (!file) return
 
-    // Mappa tipo catalogo → tipo OCR
-    const ocrType = CATALOG_TO_OCR_TYPE_MAP[equipmentType]
+    // Se componentType è presente, usa tipo OCR specifico per il componente
+    let ocrType: EquipmentType | undefined
+    if (componentType === 'valvola_sicurezza') {
+      ocrType = 'valvola'
+    } else {
+      // Mappa tipo catalogo → tipo OCR
+      ocrType = CATALOG_TO_OCR_TYPE_MAP[equipmentType]
+    }
+
     const code = generateEquipmentCode(equipmentType, equipmentIndex, parentIndex)
 
-    console.log('📸 Upload foto singola:', { equipmentType, ocrType, code, file: file.name })
+    console.log('📸 Upload foto singola:', { equipmentType, ocrType, code, componentType, file: file.name })
 
     const result = await analyzeImage(file, ocrType, code)
 

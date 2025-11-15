@@ -497,3 +497,110 @@ export async function unblockRequest(
     return { success: false, message: 'Errore imprevisto durante lo sblocco' }
   }
 }
+
+// =====================================================
+// REQUEST ATTRIBUTION API
+// =====================================================
+
+/**
+ * Attribute request to a user (admin only)
+ * The attributed user will see the request as if they created it
+ */
+export async function attributeRequest(
+  requestId: string,
+  attributedToUserId: string,
+  attributedBy: string,
+  notes?: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    // Ensure session is valid before proceeding
+    const sessionValid = await ensureValidSession()
+    if (!sessionValid) {
+      return {
+        success: false,
+        message: 'Sessione non valida. Per favore, effettua nuovamente il login.',
+      }
+    }
+
+    console.log('Attributing request:', {
+      requestId,
+      attributedToUserId,
+      attributedBy,
+      notes,
+    })
+
+    // Call database function to handle attribution with all side effects
+    const { data, error } = await supabase.rpc('attribute_request', {
+      p_request_id: requestId,
+      p_attributed_to: attributedToUserId,
+      p_attributed_by: attributedBy,
+      p_notes: notes || null,
+    })
+
+    console.log('Attribution result:', { data, error })
+
+    if (error) {
+      console.error('Attribution error:', error)
+      if (error.code === '42501') {
+        return {
+          success: false,
+          message:
+            'Permessi insufficienti per attribuire questa richiesta. Solo gli amministratori possono effettuare attribuzioni.',
+        }
+      }
+      if (error.message?.includes('JWT')) {
+        return {
+          success: false,
+          message: 'Sessione scaduta. Ricarica la pagina ed effettua nuovamente il login.',
+        }
+      }
+      return {
+        success: false,
+        message: `Errore durante l'attribuzione: ${error.message}`,
+      }
+    }
+
+    // Database function returns JSON with {success, message, data}
+    if (data && typeof data === 'object') {
+      if (data.success) {
+        return {
+          success: true,
+          message: data.message || 'Richiesta attribuita con successo',
+        }
+      } else {
+        return {
+          success: false,
+          message: data.message || 'Errore durante l\'attribuzione',
+        }
+      }
+    }
+
+    return { success: true, message: 'Richiesta attribuita con successo' }
+  } catch (error) {
+    console.error('Unexpected error:', error)
+    return { success: false, message: 'Errore imprevisto durante l\'attribuzione' }
+  }
+}
+
+/**
+ * Get all users (for attribution dropdown)
+ */
+export async function getAllUsers() {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, full_name, email, role')
+      .eq('is_suspended', false) // Only active users
+      .order('full_name')
+
+    if (error) {
+      console.error('Users fetch error:', error)
+      return []
+    }
+
+    return data || []
+  } catch (error) {
+    console.error('Unexpected error:', error)
+    return []
+  }
+}

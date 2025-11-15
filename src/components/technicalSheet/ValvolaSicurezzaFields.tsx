@@ -1,12 +1,15 @@
 import { Control, Controller } from 'react-hook-form'
 import { TextField, Grid, Typography, Box, Divider } from '@mui/material'
 import { Warning as WarningIcon } from '@mui/icons-material'
+import type { ReactNode } from 'react'
+import { EquipmentAutocomplete } from './EquipmentAutocomplete'
 
 interface ValvolaSicurezzaFieldsProps {
   control: Control<any>
   basePath: string
   errors: any
   codiceValvola: string
+  renderOCRButton?: ReactNode // Pulsante OCR opzionale
 }
 
 /**
@@ -18,6 +21,7 @@ export const ValvolaSicurezzaFields = ({
   basePath,
   errors,
   codiceValvola,
+  renderOCRButton,
 }: ValvolaSicurezzaFieldsProps) => {
   const getError = (fieldName: string) => {
     const parts = `${basePath}.valvola_sicurezza.${fieldName}`.split('.')
@@ -36,44 +40,36 @@ export const ValvolaSicurezzaFields = ({
         <Typography variant="subtitle2" fontWeight="bold">
           Valvola di Sicurezza {codiceValvola} (OBBLIGATORIA)
         </Typography>
+        {renderOCRButton && (
+          <Box sx={{ ml: 'auto' }}>
+            {renderOCRButton}
+          </Box>
+        )}
       </Box>
 
       <Divider sx={{ mb: 2 }} />
 
       <Grid container spacing={2}>
-        {/* Marca */}
-        <Grid item xs={12} md={6}>
+        {/* Marca e Modello con Autocomplete */}
+        <Grid item xs={12}>
           <Controller
             name={`${basePath}.valvola_sicurezza.marca`}
             control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label="Marca Valvola"
-                fullWidth
-                size="small"
-                error={!!getError('marca')}
-                helperText={getError('marca')?.message || 'Compilabile da OCR'}
-                placeholder="Es: LESER, Goetze..."
-              />
-            )}
-          />
-        </Grid>
-
-        {/* Modello */}
-        <Grid item xs={12} md={6}>
-          <Controller
-            name={`${basePath}.valvola_sicurezza.modello`}
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label="Modello Valvola"
-                fullWidth
-                size="small"
-                error={!!getError('modello')}
-                helperText={getError('modello')?.message || 'Compilabile da OCR'}
-                placeholder="Es: 441, 526..."
+            render={({ field: marcaField }) => (
+              <Controller
+                name={`${basePath}.valvola_sicurezza.modello`}
+                control={control}
+                render={({ field: modelloField }) => (
+                  <EquipmentAutocomplete
+                    equipmentType="Valvole di sicurezza"
+                    marcaValue={marcaField.value || ''}
+                    modelloValue={modelloField.value || ''}
+                    onMarcaChange={marcaField.onChange}
+                    onModelloChange={modelloField.onChange}
+                    size="small"
+                    fullWidth
+                  />
+                )}
               />
             )}
           />

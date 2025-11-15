@@ -12,8 +12,9 @@ import type { EquipmentCatalogType } from '@/types'
 
 /**
  * Mappa EquipmentType (OCR) → EquipmentCatalogType (Catalogo)
+ * 'valvola' non ha un tipo catalogo (è un componente nested)
  */
-const EQUIPMENT_TYPE_MAP: Record<EquipmentType, EquipmentCatalogType> = {
+const EQUIPMENT_TYPE_MAP: Partial<Record<EquipmentType, EquipmentCatalogType>> = {
   'serbatoio': 'Serbatoi',
   'compressore': 'Compressori',
   'disoleatore': 'Disoleatori',
@@ -21,6 +22,7 @@ const EQUIPMENT_TYPE_MAP: Record<EquipmentType, EquipmentCatalogType> = {
   'scambiatore': 'Scambiatori',
   'filtro': 'Filtri',
   'separatore': 'Separatori'
+  // 'valvola' non mappato - è un componente, non un'apparecchiatura
 }
 
 /**

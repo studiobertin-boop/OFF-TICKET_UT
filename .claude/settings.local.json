@@ -78,7 +78,13 @@
       "Bash(git checkout:*)",
       "Bash(python:*)",
       "Bash(cmd /c \"dir /b \"\"c:\\Users\\User14\\OneDrive - Studio Bertin\\STUDIOBERTIN\\SVILUPPO\\OFF-TICKET_UT\\DOCUMENTAZIONE\"\" 2>&1\")",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(pkill:*)",
+      "Bash(timeout 10 npm run dev:*)",
+      "Bash(supabase migration:*)",
+      "Bash(supabase db reset:*)",
+      "Bash(supabase status:*)",
+      "Bash(supabase link:*)"
     ],
     "deny": [],
     "ask": []

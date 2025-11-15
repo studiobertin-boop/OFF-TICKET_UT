@@ -32,7 +32,7 @@ import type { EquipmentCatalogType } from '@/types'
 interface BatchOCRDialogProps {
   open: boolean
   onClose: () => void
-  onComplete: (results: BatchOCRResult) => void
+  onComplete: (results: BatchOCRResult, items: BatchOCRItem[]) => void
 }
 
 /**
@@ -81,7 +81,15 @@ export const BatchOCRDialog = ({ open, onClose, onComplete }: BatchOCRDialogProp
     const newItems: BatchOCRItem[] = files.map(file => {
       const parsed = parseEquipmentFilename(file.name)
 
-      return {
+      console.log(`🔍 PARSING ${file.name}:`, {
+        equipmentType: parsed.equipmentType,
+        index: parsed.index,
+        componentType: parsed.componentType,
+        parentIndex: parsed.parentIndex,
+        isValid: parsed.isValid
+      })
+
+      const item = {
         id: crypto.randomUUID(),
         file,
         filename: file.name,
@@ -89,9 +97,17 @@ export const BatchOCRDialog = ({ open, onClose, onComplete }: BatchOCRDialogProp
         parsedType: parsed.equipmentType,
         parsedIndex: parsed.index,
         parsedParentIndex: parsed.parentIndex,
+        parsedComponentType: parsed.componentType,
         status: parsed.isValid ? 'pending' : 'error',
         error: parsed.error
       }
+
+      console.log(`✅ ITEM CREATO per ${file.name}:`, {
+        parsedType: item.parsedType,
+        parsedComponentType: item.parsedComponentType
+      })
+
+      return item
     })
 
     setItems(newItems)
@@ -105,23 +121,33 @@ export const BatchOCRDialog = ({ open, onClose, onComplete }: BatchOCRDialogProp
     let completedCount = 0
     let errorCount = 0
 
+    // Track updated items locally (fix per bug stato asincrono)
+    let updatedItems = [...items]
+
     for (let i = 0; i < validItems.length; i++) {
       const item = validItems[i]
 
       // Update status to processing
-      setItems(prev => prev.map(it =>
-        it.id === item.id ? { ...it, status: 'processing' } : it
-      ))
+      updatedItems = updatedItems.map(it =>
+        it.id === item.id ? { ...it, status: 'processing' as const } : it
+      )
+      setItems(updatedItems)
 
       try {
-        // Map catalog type to OCR type
-        const ocrType = item.parsedType ? CATALOG_TO_OCR_TYPE_MAP[item.parsedType] : null
+        // Map catalog type to OCR type, or use 'valvola' if componentType is set
+        let ocrType: EquipmentType | undefined
+
+        if (item.parsedComponentType === 'valvola_sicurezza') {
+          ocrType = 'valvola'
+        } else {
+          ocrType = item.parsedType ? CATALOG_TO_OCR_TYPE_MAP[item.parsedType] : undefined
+        }
 
         if (!ocrType) {
           throw new Error('Tipo apparecchiatura non mappato')
         }
 
-        // Generate equipment code (es: "S1", "C2.1")
+        // Generate equipment code (es: "S1", "C2.1", "S1.1")
         const equipmentCode = generateEquipmentCodeFromParsed(item)
 
         // Analyze image
@@ -129,15 +155,16 @@ export const BatchOCRDialog = ({ open, onClose, onComplete }: BatchOCRDialogProp
 
         if (result.success && result.data) {
           // Update item with results
-          setItems(prev => prev.map(it =>
+          updatedItems = updatedItems.map(it =>
             it.id === item.id ? {
               ...it,
-              status: 'completed',
+              status: 'completed' as const,
               result,
               normalizedMarca: result.data?.marca_normalized,
               normalizedModello: result.data?.modello_normalized
             } : it
-          ))
+          )
+          setItems(updatedItems)
 
           completedCount++
         } else {
@@ -147,13 +174,14 @@ export const BatchOCRDialog = ({ open, onClose, onComplete }: BatchOCRDialogProp
         const errorMessage = err instanceof Error ? err.message : 'Errore sconosciuto'
 
         // Update item with error
-        setItems(prev => prev.map(it =>
+        updatedItems = updatedItems.map(it =>
           it.id === item.id ? {
             ...it,
-            status: 'error',
+            status: 'error' as const,
             error: errorMessage
           } : it
-        ))
+        )
+        setItems(updatedItems)
 
         errorCount++
       }
@@ -169,19 +197,20 @@ export const BatchOCRDialog = ({ open, onClose, onComplete }: BatchOCRDialogProp
 
     setProcessing(false)
 
-    // Prepare results
+    // Prepare results using updatedItems instead of state
     const result: BatchOCRResult = {
-      total: items.length,
+      total: updatedItems.length,
       completed: completedCount,
       errors: errorCount,
-      skipped: items.filter(i => i.status === 'error' && !i.result).length,
+      skipped: updatedItems.filter(i => i.status === 'error' && !i.result).length,
       conflicts: 0, // TODO: Implementare rilevamento conflitti
-      normalized: items.filter(i =>
+      normalized: updatedItems.filter(i =>
         i.normalizedMarca?.wasNormalized || i.normalizedModello?.wasNormalized
       ).length
     }
 
-    onComplete(result)
+    // Pass updatedItems instead of state items
+    onComplete(result, updatedItems)
   }
 
   const handleReset = () => {
@@ -211,7 +240,8 @@ export const BatchOCRDialog = ({ open, onClose, onComplete }: BatchOCRDialogProp
               1. Seleziona più foto di targhette<br />
               2. Rinomina i file secondo la convenzione: <strong>S1.jpg, C2.jpg, E1.jpg, F1.jpg, SEP1.jpg</strong><br />
               3. Per apparecchiature nested usa: <strong>C1.1.jpg</strong> (Disoleatore), <strong>E1.1.jpg</strong> (Scambiatore)<br />
-              4. L'OCR riconoscerà automaticamente marca, modello e altri dati
+              4. Per componenti usa: <strong>S1.1.jpg</strong> (Valvola di sicurezza del serbatoio 1)<br />
+              5. L'OCR riconoscerà automaticamente marca, modello e altri dati
             </Typography>
           </Alert>
         )}
@@ -276,15 +306,21 @@ export const BatchOCRDialog = ({ open, onClose, onComplete }: BatchOCRDialogProp
                     </TableCell>
                     <TableCell>
                       {item.parsedType && item.parsedIndex >= 0 ? (
-                        <Typography variant="body2">
-                          {formatParsedFilename({
-                            equipmentType: item.parsedType as EquipmentCatalogType,
-                            index: item.parsedIndex,
-                            parentIndex: item.parsedParentIndex,
-                            isValid: true,
-                            rawPrefix: ''
-                          })}
-                        </Typography>
+                        <Box>
+                          <Typography variant="body2">
+                            {formatParsedFilename({
+                              equipmentType: item.parsedType as EquipmentCatalogType,
+                              index: item.parsedIndex,
+                              parentIndex: item.parsedParentIndex,
+                              componentType: item.parsedComponentType,
+                              isValid: true,
+                              rawPrefix: ''
+                            })}
+                          </Typography>
+                          {item.parsedComponentType === 'valvola_sicurezza' && (
+                            <Chip label="Valvola" color="warning" size="small" sx={{ mt: 0.5 }} />
+                          )}
+                        </Box>
                       ) : (
                         <Chip label="Non valido" color="error" size="small" />
                       )}
@@ -380,8 +416,13 @@ function generateEquipmentCodeFromParsed(item: BatchOCRItem): string {
 
   if (!prefix) return ''
 
+  // Componenti nested (es: "S1.1" per valvola)
+  if (item.parsedComponentType === 'valvola_sicurezza') {
+    return `${prefix}${item.parsedIndex + 1}.1`
+  }
+
   if (item.parsedParentIndex !== undefined) {
-    // Nested (es: "C1.1")
+    // Nested equipment (es: "C1.1" per disoleatore)
     const parentPrefix = prefixMap['Compressori']
     return `${parentPrefix}${item.parsedParentIndex + 1}.${item.parsedIndex + 1}`
   }

@@ -75,6 +75,22 @@ export const SerbatoiSection = ({ control, errors }: SerbatoiSectionProps) => {
     trigger(basePath)
   }
 
+  // Handler OCR specifico per valvola di sicurezza (S1.1, S2.1, etc.)
+  const handleValvolaOCRComplete = (index: number, data: OCRExtractedData) => {
+    const basePath = `serbatoi.${index}.valvola_sicurezza`
+
+    console.log('📝 Applicazione dati OCR a Valvola di Sicurezza S' + (index + 1) + '.1', data)
+
+    // Popola campi valvola da OCR
+    if (data.marca) setValue(`${basePath}.marca`, data.marca)
+    if (data.modello) setValue(`${basePath}.modello`, data.modello)
+    if (data.n_fabbrica) setValue(`${basePath}.n_fabbrica`, data.n_fabbrica)
+    if (data.diametro_pressione) setValue(`${basePath}.diametro_pressione`, data.diametro_pressione)
+
+    // Valida immediatamente
+    trigger(basePath)
+  }
+
   return (
     <EquipmentSection
       title="3. Serbatoi"
@@ -192,6 +208,14 @@ export const SerbatoiSection = ({ control, errors }: SerbatoiSectionProps) => {
               basePath={`serbatoi.${index}`}
               errors={errors}
               codiceValvola={`S${index + 1}.1`}
+              renderOCRButton={
+                <SingleOCRButton
+                  equipmentType="Serbatoi"
+                  equipmentIndex={index}
+                  componentType="valvola_sicurezza"
+                  onOCRComplete={(data) => handleValvolaOCRComplete(index, data)}
+                />
+              }
             />
           </Grid>
 
