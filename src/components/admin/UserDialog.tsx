@@ -22,13 +22,13 @@ const createUserSchema = z.object({
   email: z.string().email('Email non valida'),
   password: z.string().min(8, 'La password deve contenere almeno 8 caratteri'),
   full_name: z.string().min(2, 'Il nome completo è richiesto'),
-  role: z.enum(['admin', 'tecnico', 'utente', 'userdm329']),
+  role: z.enum(['admin', 'tecnico', 'utente', 'userdm329', 'tecnicoDM329']),
 })
 
 // Schema di validazione per modifica utente
 const updateUserSchema = z.object({
   full_name: z.string().min(2, 'Il nome completo è richiesto'),
-  role: z.enum(['admin', 'tecnico', 'utente', 'userdm329']),
+  role: z.enum(['admin', 'tecnico', 'utente', 'userdm329', 'tecnicoDM329']),
 })
 
 type CreateUserFormData = z.infer<typeof createUserSchema>
@@ -236,7 +236,7 @@ export default function UserDialog({ open, onClose, user }: UserDialogProps) {
                   }
                   disabled={isLoading}
                 >
-                  {(['admin', 'tecnico', 'utente', 'userdm329'] as UserRole[]).map(
+                  {(['admin', 'tecnico', 'utente', 'userdm329', 'tecnicoDM329'] as UserRole[]).map(
                     (role) => (
                       <MenuItem key={role} value={role}>
                         {roleLabels[role]}
