@@ -45,6 +45,7 @@ const roleLabels: Record<UserRole, string> = {
   tecnico: 'Tecnico',
   utente: 'Utente',
   userdm329: 'Utente DM329',
+  tecnicoDM329: 'Tecnico DM329',
 }
 
 const roleDescriptions: Record<UserRole, string> = {
@@ -52,6 +53,7 @@ const roleDescriptions: Record<UserRole, string> = {
   tecnico: 'Può vedere tutto, può modificare solo le pratiche assegnate',
   utente: 'Può vedere solo le pratiche assegnate',
   userdm329: 'Può vedere solo dashboard DM329, vedere e modificare tutte le richieste DM329',
+  tecnicoDM329: 'Può vedere e modificare solo le schede dati DM329 assegnate a lui',
 }
 
 export default function UserDialog({ open, onClose, user }: UserDialogProps) {
