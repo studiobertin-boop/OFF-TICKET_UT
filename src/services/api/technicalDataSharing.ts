@@ -2,7 +2,7 @@
  * API for managing DM329 technical data sharing with userDM329 users
  */
 
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/services/supabase'
 import type { User } from '@/types'
 
 export interface SharedUser {
