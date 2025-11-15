@@ -264,3 +264,25 @@ export async function getTechnicians(): Promise<
 
   return data || []
 }
+
+/**
+ * Get list of DM329 technicians (tecnicoDM329 role)
+ * Used for assigning DM329 requests to technical staff
+ */
+export async function getDM329Technicians(): Promise<
+  Pick<User, 'id' | 'full_name' | 'email'>[]
+> {
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, full_name, email')
+    .eq('role', 'tecnicoDM329')
+    .eq('is_suspended', false)
+    .order('full_name')
+
+  if (error) {
+    console.error('Error fetching DM329 technicians:', error)
+    throw new Error(`Errore nel recupero dei tecnici DM329: ${error.message}`)
+  }
+
+  return data || []
+}

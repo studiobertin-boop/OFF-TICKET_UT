@@ -16,6 +16,7 @@ import {
 import { PersonAdd as PersonAddIcon, PersonRemove as PersonRemoveIcon } from '@mui/icons-material'
 import { User } from '@/types'
 import { getTechnicians, assignRequest, unassignRequest } from '@/services/requestService'
+import { getDM329Technicians } from '@/services/api/users'
 import { useAuth } from '@/hooks/useAuth'
 import { useQueryClient } from '@tanstack/react-query'
 import { REQUESTS_QUERY_KEY } from '@/hooks/useRequests'
@@ -24,6 +25,7 @@ interface AssignmentSectionProps {
   requestId: string
   currentAssignedTo?: string
   assignedUser?: User
+  requestTypeName?: string
   onAssignmentChanged: () => void
 }
 
@@ -31,6 +33,7 @@ export const AssignmentSection = ({
   requestId,
   currentAssignedTo,
   assignedUser,
+  requestTypeName,
   onAssignmentChanged,
 }: AssignmentSectionProps) => {
   const { user } = useAuth()
@@ -41,16 +44,22 @@ export const AssignmentSection = ({
   const [error, setError] = useState<string | null>(null)
   const [loadingTechnicians, setLoadingTechnicians] = useState(true)
 
-  // Only admin can assign/unassign
-  const canManageAssignment = user?.role === 'admin'
+  const isDM329 = requestTypeName === 'DM329'
+
+  // Admin e userdm329 possono assegnare richieste DM329
+  // Solo admin può assegnare richieste standard
+  const canManageAssignment =
+    user?.role === 'admin' ||
+    (user?.role === 'userdm329' && isDM329)
 
   useEffect(() => {
     loadTechnicians()
-  }, [])
+  }, [isDM329])
 
   const loadTechnicians = async () => {
     setLoadingTechnicians(true)
-    const data = await getTechnicians()
+    // Carica tecnici DM329 per richieste DM329, altrimenti tecnici standard
+    const data = isDM329 ? await getDM329Technicians() : await getTechnicians()
     setTechnicians(data as User[])
     setLoadingTechnicians(false)
   }

@@ -17,6 +17,7 @@ import {
   Save as SaveIcon,
   CheckCircle as CheckCircleIcon,
   Edit as EditIcon,
+  Share as ShareIcon,
 } from '@mui/icons-material'
 import { Layout } from '@/components/common/Layout'
 import { useRequest } from '@/hooks/useRequests'
@@ -24,6 +25,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { technicalDataApi } from '@/services/api/technicalData'
 import { TechnicalSheetForm } from '@/components/technicalSheet/TechnicalSheetForm'
 import { OCRReviewDialog } from '@/components/technicalSheet/OCRReviewDialog'
+import { ShareDialog } from '@/components/technicalSheet/ShareDialog'
 import type { DM329TechnicalData, SchedaDatiCompleta, OCRExtractedData, FuzzyMatch, OCRReviewData } from '@/types'
 
 /**
@@ -53,6 +55,7 @@ export const TechnicalDetails = () => {
   const [showSaveSuccess, setShowSaveSuccess] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [ocrReviewData, setOcrReviewData] = useState<OCRReviewData | null>(null)
+  const [shareDialogOpen, setShareDialogOpen] = useState(false)
 
   // Carica scheda dati tecnici
   useEffect(() => {
@@ -66,7 +69,17 @@ export const TechnicalDetails = () => {
 
         // Parse equipment_data da JSONB
         if (data && data.equipment_data) {
-          setFormData(data.equipment_data as SchedaDatiCompleta)
+          const parsedData = data.equipment_data as SchedaDatiCompleta
+
+          // Precompilazione nome_tecnico se vuoto e richiesta assegnata
+          if (!parsedData.dati_generali?.nome_tecnico && request?.assigned_user?.full_name) {
+            parsedData.dati_generali = {
+              ...parsedData.dati_generali,
+              nome_tecnico: request.assigned_user.full_name,
+            }
+          }
+
+          setFormData(parsedData)
         }
       } catch (err) {
         console.error('Error loading technical data:', err)
@@ -77,11 +90,11 @@ export const TechnicalDetails = () => {
     }
 
     loadTechnicalData()
-  }, [id])
+  }, [id, request?.assigned_user])
 
-  // Verifica accesso (solo admin e userdm329)
+  // Verifica accesso (solo admin, userdm329 e tecnicoDM329)
   useEffect(() => {
-    if (user && user.role !== 'admin' && user.role !== 'userdm329') {
+    if (user && user.role !== 'admin' && user.role !== 'userdm329' && user.role !== 'tecnicoDM329') {
       navigate('/requests')
     }
   }, [user, navigate])
@@ -250,6 +263,12 @@ export const TechnicalDetails = () => {
   const isCompleted = technicalData.is_completed
   const customerName = request.custom_fields?.cliente?.ragione_sociale || 'N/A'
 
+  // Determina se l'utente può gestire la condivisione
+  const canManageSharing =
+    user?.role === 'admin' ||
+    user?.role === 'userdm329' ||
+    (user?.role === 'tecnicoDM329' && request?.assigned_to === user?.id)
+
   return (
     <Layout>
       <Box>
@@ -287,6 +306,19 @@ export const TechnicalDetails = () => {
               <Typography variant="caption" color="text.secondary">
                 Ultimo salvataggio: {lastSaved.toLocaleTimeString('it-IT')}
               </Typography>
+            )}
+
+            {/* Bottone Assegna Scheda */}
+            {canManageSharing && (
+              <Button
+                variant="outlined"
+                color="primary"
+                startIcon={<ShareIcon />}
+                onClick={() => setShareDialogOpen(true)}
+                size="small"
+              >
+                Assegna Scheda
+              </Button>
             )}
 
             {isCompleted ? (
@@ -391,6 +423,16 @@ export const TechnicalDetails = () => {
           onConfirm={handleOCRConfirm}
           onCancel={handleOCRCancel}
         />
+
+        {/* Share Dialog */}
+        {technicalData && (
+          <ShareDialog
+            open={shareDialogOpen}
+            onClose={() => setShareDialogOpen(false)}
+            technicalDataId={technicalData.id}
+            requestId={request.id}
+          />
+        )}
 
         {/* Snackbar per conferma salvataggio */}
         <Snackbar

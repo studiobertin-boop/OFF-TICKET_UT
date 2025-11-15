@@ -157,12 +157,14 @@ export const RequestDetail = () => {
     (user?.role === 'tecnico' && !isDM329)
 
   // Determine if user can access technical details
-  // Only admin and userdm329 can access technical details for DM329 requests
+  // Admin, userdm329, and tecnicoDM329 (if assigned) can access technical details for DM329 requests
   // Only if feature flag is enabled
   const canAccessTechnicalDetails =
     dm329FullWorkflowEnabled &&
     isDM329 &&
-    (user?.role === 'admin' || user?.role === 'userdm329')
+    (user?.role === 'admin' ||
+     user?.role === 'userdm329' ||
+     (user?.role === 'tecnicoDM329' && request?.assigned_to === user?.id))
 
   return (
     <Layout>
@@ -182,7 +184,7 @@ export const RequestDetail = () => {
                 onClick={() => navigate(`/requests/${id}/technical-details`)}
                 size="small"
               >
-                Dettagli Pratica
+                SCHEDA DATI
               </Button>
             )}
 
@@ -435,6 +437,7 @@ export const RequestDetail = () => {
               requestId={request.id}
               currentAssignedTo={request.assigned_to}
               assignedUser={request.assigned_user}
+              requestTypeName={request.request_type?.name}
               onAssignmentChanged={refetch}
             />
 

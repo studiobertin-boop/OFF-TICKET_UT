@@ -1,5 +1,5 @@
 // Database Types
-export type UserRole = 'admin' | 'tecnico' | 'utente' | 'userdm329'
+export type UserRole = 'admin' | 'tecnico' | 'utente' | 'userdm329' | 'tecnicoDM329'
 
 export type RequestStatus =
   | 'APERTA'

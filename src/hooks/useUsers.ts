@@ -9,6 +9,7 @@ import {
   unsuspendUser,
   resetUserPassword,
   getTechnicians,
+  getDM329Technicians,
   type CreateUserData,
   type UpdateUserData,
 } from '../services/api/users'
@@ -22,6 +23,7 @@ export const userKeys = {
   details: () => [...userKeys.all, 'detail'] as const,
   detail: (id: string) => [...userKeys.details(), id] as const,
   technicians: () => [...userKeys.all, 'technicians'] as const,
+  dm329Technicians: () => [...userKeys.all, 'dm329-technicians'] as const,
 }
 
 /**
@@ -59,6 +61,17 @@ export function useTechnicians() {
 }
 
 /**
+ * Hook per recuperare i tecnici DM329 (per assegnazione richieste DM329)
+ */
+export function useDM329Technicians() {
+  return useQuery({
+    queryKey: userKeys.dm329Technicians(),
+    queryFn: getDM329Technicians,
+    staleTime: 1000 * 60 * 5, // 5 minuti
+  })
+}
+
+/**
  * Hook per creare un nuovo utente
  */
 export function useCreateUser() {
@@ -70,6 +83,7 @@ export function useCreateUser() {
       // Invalidare la cache degli utenti per ricaricare la lista
       queryClient.invalidateQueries({ queryKey: userKeys.list() })
       queryClient.invalidateQueries({ queryKey: userKeys.technicians() })
+      queryClient.invalidateQueries({ queryKey: userKeys.dm329Technicians() })
     },
   })
 }
@@ -87,6 +101,7 @@ export function useUpdateUser() {
       queryClient.invalidateQueries({ queryKey: userKeys.detail(data.id) })
       queryClient.invalidateQueries({ queryKey: userKeys.list() })
       queryClient.invalidateQueries({ queryKey: userKeys.technicians() })
+      queryClient.invalidateQueries({ queryKey: userKeys.dm329Technicians() })
     },
   })
 }
@@ -103,6 +118,7 @@ export function useDeleteUser() {
       // Invalidare la cache degli utenti
       queryClient.invalidateQueries({ queryKey: userKeys.list() })
       queryClient.invalidateQueries({ queryKey: userKeys.technicians() })
+      queryClient.invalidateQueries({ queryKey: userKeys.dm329Technicians() })
     },
   })
 }
@@ -119,6 +135,7 @@ export function useSuspendUser() {
       queryClient.invalidateQueries({ queryKey: userKeys.detail(data.id) })
       queryClient.invalidateQueries({ queryKey: userKeys.list() })
       queryClient.invalidateQueries({ queryKey: userKeys.technicians() })
+      queryClient.invalidateQueries({ queryKey: userKeys.dm329Technicians() })
     },
   })
 }
@@ -135,6 +152,7 @@ export function useUnsuspendUser() {
       queryClient.invalidateQueries({ queryKey: userKeys.detail(data.id) })
       queryClient.invalidateQueries({ queryKey: userKeys.list() })
       queryClient.invalidateQueries({ queryKey: userKeys.technicians() })
+      queryClient.invalidateQueries({ queryKey: userKeys.dm329Technicians() })
     },
   })
 }
