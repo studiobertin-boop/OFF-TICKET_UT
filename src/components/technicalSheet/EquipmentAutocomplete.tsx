@@ -13,6 +13,7 @@ import {
 } from '@mui/icons-material'
 import { equipmentCatalogApi } from '@/services/api/equipmentCatalog'
 import type { EquipmentCatalogType } from '@/types'
+import { AddEquipmentDialog } from './AddEquipmentDialog'
 
 interface EquipmentAutocompleteProps {
   // Tipo apparecchiatura (filtra le opzioni)
@@ -63,6 +64,7 @@ export const EquipmentAutocomplete = ({
   const [loadingMarche, setLoadingMarche] = useState(false)
   const [loadingModelli, setLoadingModelli] = useState(false)
   const [showAddButton, setShowAddButton] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
 
   /**
    * Carica marche quando cambia il tipo
@@ -165,11 +167,34 @@ export const EquipmentAutocomplete = ({
   }
 
   /**
-   * Handle add to catalog
+   * Handle add to catalog - Apre dialog
    */
   const handleAddToCatalog = () => {
-    if (onAddToCatalog && marcaValue && modelloValue) {
-      onAddToCatalog(marcaValue, modelloValue)
+    setDialogOpen(true)
+  }
+
+  /**
+   * Handle dialog success - Aggiorna marca/modello e ricarica opzioni
+   */
+  const handleDialogSuccess = async (marca: string, modello: string) => {
+    // Aggiorna valori
+    onMarcaChange(marca)
+    onModelloChange(modello)
+
+    // Ricarica opzioni per aggiornare autocomplete
+    try {
+      const marche = await equipmentCatalogApi.getMarcheByTipo(equipmentType)
+      setMarcheOptions(marche)
+
+      const modelli = await equipmentCatalogApi.getModelliByTipoMarca(equipmentType, marca)
+      setModelliOptions(modelli)
+    } catch (error) {
+      console.error('Error refreshing equipment options:', error)
+    }
+
+    // Callback opzionale
+    if (onAddToCatalog) {
+      onAddToCatalog(marca, modello)
     }
   }
 
@@ -269,6 +294,14 @@ export const EquipmentAutocomplete = ({
           </IconButton>
         </Tooltip>
       )}
+
+      {/* Dialog Aggiungi Equipment */}
+      <AddEquipmentDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        equipmentType={equipmentType}
+        onSuccess={handleDialogSuccess}
+      />
     </Box>
   )
 }

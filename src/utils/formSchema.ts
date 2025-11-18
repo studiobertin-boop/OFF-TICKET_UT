@@ -118,6 +118,34 @@ export const generateZodSchema = (fields: FieldSchema[]) => {
         }
         break
 
+      case 'address-autocomplete':
+        // Address autocomplete can be either a string or an object
+        const addressSchema = z.union([
+          z.string(),
+          z.object({
+            address: z.string(),
+            formatted: z.object({
+              place_id: z.string(),
+              formatted_address: z.string(),
+            }).nullable().optional(),
+          }),
+        ])
+
+        if (field.required) {
+          fieldSchema = addressSchema.refine(
+            val => {
+              if (typeof val === 'string') return val.length > 0
+              return val?.address && val.address.length > 0
+            },
+            {
+              message: `${field.label} è obbligatorio`,
+            }
+          )
+        } else {
+          fieldSchema = addressSchema.optional()
+        }
+        break
+
       default:
         fieldSchema = z.any()
     }
@@ -162,6 +190,9 @@ export const getDefaultValues = (fields: FieldSchema[]): Record<string, any> => 
         break
       case 'autocomplete':
         defaults[field.name] = null
+        break
+      case 'address-autocomplete':
+        defaults[field.name] = ''
         break
       case 'repeatable_group':
         defaults[field.name] = []

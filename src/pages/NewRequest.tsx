@@ -93,9 +93,20 @@ export const NewRequest = () => {
         }
       })
 
+      // Generate title based on request type
+      let title = `${selectedType.name} - ${new Date().toLocaleDateString('it-IT')}`
+
+      // For DM329, include customer name in title
+      if (selectedType.name === 'DM329' && processedData.cliente) {
+        const clienteName = typeof processedData.cliente === 'string'
+          ? processedData.cliente
+          : processedData.cliente.ragione_sociale || processedData.cliente
+        title = `DM329 - ${clienteName} - ${new Date().toLocaleDateString('it-IT')}`
+      }
+
       const request = await createRequest.mutateAsync({
         request_type_id: selectedTypeId,
-        title: `${selectedType.name} - ${new Date().toLocaleDateString('it-IT')}`,
+        title,
         custom_fields: processedData,
         customer_id,
       })

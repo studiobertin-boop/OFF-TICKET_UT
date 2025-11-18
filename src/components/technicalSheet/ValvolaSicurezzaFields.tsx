@@ -3,6 +3,7 @@ import { TextField, Grid, Typography, Box, Divider } from '@mui/material'
 import { Warning as WarningIcon } from '@mui/icons-material'
 import type { ReactNode } from 'react'
 import { EquipmentAutocomplete } from './EquipmentAutocomplete'
+import { useTecnicoDM329Visibility } from '@/hooks/useTecnicoDM329Visibility'
 
 interface ValvolaSicurezzaFieldsProps {
   control: Control<any>
@@ -15,6 +16,13 @@ interface ValvolaSicurezzaFieldsProps {
 /**
  * Campi per Valvola di Sicurezza
  * Obbligatoria per serbatoi e disoleatori
+ *
+ * MODIFICHE:
+ * - Aggiunto campo "Anno"
+ * - Rinominato "Pressione" → "Pressione di Taratura" (pressione_taratura)
+ * - Aggiunto "TS - Temperatura" (ts_temperatura) - NON visibile a tecnicoDM329
+ * - Aggiunto "Volume aria scaricato" (volume_aria_scaricato) - NON visibile a tecnicoDM329
+ * - Aggiunto "Categoria PED" (readonly "IV") - NON visibile a tecnicoDM329
  */
 export const ValvolaSicurezzaFields = ({
   control,
@@ -23,6 +31,8 @@ export const ValvolaSicurezzaFields = ({
   codiceValvola,
   renderOCRButton,
 }: ValvolaSicurezzaFieldsProps) => {
+  const { showAdvancedFields } = useTecnicoDM329Visibility()
+
   const getError = (fieldName: string) => {
     const parts = `${basePath}.valvola_sicurezza.${fieldName}`.split('.')
     let error = errors
@@ -76,7 +86,7 @@ export const ValvolaSicurezzaFields = ({
         </Grid>
 
         {/* N° Fabbrica */}
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} md={4}>
           <Controller
             name={`${basePath}.valvola_sicurezza.n_fabbrica`}
             control={control}
@@ -94,24 +104,186 @@ export const ValvolaSicurezzaFields = ({
           />
         </Grid>
 
-        {/* Diametro e Pressione */}
-        <Grid item xs={12} md={6}>
+        {/* Anno - NUOVO */}
+        <Grid item xs={12} md={4}>
           <Controller
-            name={`${basePath}.valvola_sicurezza.diametro_pressione`}
+            name={`${basePath}.valvola_sicurezza.anno`}
             control={control}
             render={({ field }) => (
               <TextField
                 {...field}
-                label="Diametro e Pressione"
+                label="Anno"
                 fullWidth
                 size="small"
-                error={!!getError('diametro_pressione')}
-                helperText={getError('diametro_pressione')?.message || 'Compilabile da OCR - Es: 1/2" 13bar'}
-                placeholder={'Es: 1/2" 13bar, 3/4" 10bar'}
+                type="number"
+                inputProps={{ min: 1980, max: 2100, step: 1 }}
+                onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                error={!!getError('anno')}
+                helperText={getError('anno')?.message || 'Anno di fabbricazione'}
+                placeholder="Es: 2020"
               />
             )}
           />
         </Grid>
+
+        {/* Diametro */}
+        <Grid item xs={12} md={4}>
+          <Controller
+            name={`${basePath}.valvola_sicurezza.diametro`}
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                label="Diametro"
+                fullWidth
+                size="small"
+                error={!!getError('diametro')}
+                helperText={getError('diametro')?.message || 'Es: 1/2", 3/4"'}
+                placeholder='Es: 1/2", 3/4"'
+              />
+            )}
+          />
+        </Grid>
+
+        {/* Pressione di Taratura - RINOMINATO */}
+        <Grid item xs={12} md={6}>
+          <Controller
+            name={`${basePath}.valvola_sicurezza.pressione_taratura`}
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                label="Ptar - Pressione di Taratura (bar)"
+                fullWidth
+                size="small"
+                type="number"
+                inputProps={{ min: 0, max: 100000, step: 0.1 }}
+                onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
+                error={!!getError('pressione_taratura') || !!getError('pressione')}
+                helperText={getError('pressione_taratura')?.message || 'Da 0 a 100.000 bar (1 decimale)'}
+              />
+            )}
+          />
+        </Grid>
+
+        {/* Pressione - DEPRECATED nascosto */}
+        <Grid item xs={12} md={6} sx={{ display: 'none' }}>
+          <Controller
+            name={`${basePath}.valvola_sicurezza.pressione`}
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                label="Pressione (deprecated)"
+                fullWidth
+                size="small"
+                disabled
+              />
+            )}
+          />
+        </Grid>
+
+        {/* TS - Temperatura - NUOVO - NASCOSTO a tecnicoDM329 */}
+        {showAdvancedFields && (
+          <Grid item xs={12} md={6}>
+            <Controller
+              name={`${basePath}.valvola_sicurezza.ts_temperatura`}
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  label="TS - Temperatura massima (°C)"
+                  fullWidth
+                  size="small"
+                  type="number"
+                  inputProps={{ min: 50, max: 250, step: 1 }}
+                  onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                  error={!!getError('ts_temperatura')}
+                  helperText={getError('ts_temperatura')?.message || 'Intero da 50 a 250 °C'}
+                />
+              )}
+            />
+          </Grid>
+        )}
+
+        {/* Temperatura massima ammissibile - DEPRECATED nascosto */}
+        <Grid item xs={12} md={6} sx={{ display: 'none' }}>
+          <Controller
+            name={`${basePath}.valvola_sicurezza.temperatura_max`}
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                label="Temperatura max (deprecated)"
+                fullWidth
+                size="small"
+                disabled
+              />
+            )}
+          />
+        </Grid>
+
+        {/* Volume aria scaricato - NUOVO - NASCOSTO a tecnicoDM329 */}
+        {showAdvancedFields && (
+          <Grid item xs={12} md={6}>
+            <Controller
+              name={`${basePath}.valvola_sicurezza.volume_aria_scaricato`}
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  label="Qmax - Volume aria scaricato (l/min)"
+                  fullWidth
+                  size="small"
+                  type="number"
+                  inputProps={{ min: 100, max: 100000, step: 1 }}
+                  onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                  error={!!getError('volume_aria_scaricato')}
+                  helperText={getError('volume_aria_scaricato')?.message || 'Intero da 100 a 100.000 l/min'}
+                />
+              )}
+            />
+          </Grid>
+        )}
+
+        {/* Portata massima - DEPRECATED nascosto */}
+        <Grid item xs={12} md={6} sx={{ display: 'none' }}>
+          <Controller
+            name={`${basePath}.valvola_sicurezza.portata_max`}
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                label="Portata max (deprecated)"
+                fullWidth
+                size="small"
+                disabled
+              />
+            )}
+          />
+        </Grid>
+
+        {/* Categoria PED - NUOVO - readonly "IV" - NASCOSTO a tecnicoDM329 */}
+        {showAdvancedFields && (
+          <Grid item xs={12} md={6}>
+            <Controller
+              name={`${basePath}.valvola_sicurezza.categoria_ped`}
+              control={control}
+              defaultValue="IV"
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  label="Categoria PED"
+                  fullWidth
+                  size="small"
+                  value="IV"
+                  disabled
+                  helperText="Categoria PED sempre IV per valvole di sicurezza"
+                />
+              )}
+            />
+          </Grid>
+        )}
       </Grid>
     </Box>
   )

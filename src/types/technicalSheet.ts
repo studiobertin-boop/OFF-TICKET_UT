@@ -11,6 +11,7 @@ export interface DatiGenerali {
   data_sopralluogo: string // Formato gg/mm/aaaa
   nome_tecnico: string
   cliente: string // Suggerimento da DB
+  sede_legale: string // Autocomplete indirizzo OpenStreetMap - OBBLIGATORIO
   note_generali?: string
 }
 
@@ -22,7 +23,9 @@ export type AriaAspirataOption = 'Pulita' | 'Vapori' | 'Acidi' | 'Polveri' | 'Um
 export type RaccoltaCondenserOption = 'Nessuna' | 'separatore' | 'tanica' | 'altro'
 
 export interface DatiImpianto {
-  indirizzo_impianto: string
+  sede_imp_uguale_legale: boolean // Se true, sede_impianto = sede_legale (readonly)
+  sede_impianto: string // Autocomplete indirizzo - Obbligatorio se sede_imp_uguale_legale = false
+  indirizzo_impianto: string // DEPRECATED - mantenuto per retrocompatibilità
   denominazione_sala?: string
   locale_dedicato?: boolean
   locale_condiviso_con?: string
@@ -30,7 +33,9 @@ export interface DatiImpianto {
   raccolta_condense: RaccoltaCondenserOption[] // Obbligatorio
   accesso_locale_vietato?: boolean
   lontano_fonti_calore?: boolean
-  fonti_calore_vicine?: string
+  lontano_materiale_infiammabile?: boolean // NUOVO - Obbligatorio
+  fonti_calore_materiali_infiammabili?: string // Rinominato da fonti_calore_vicine
+  fonti_calore_vicine?: string // DEPRECATED - mantenuto per retrocompatibilità
   diametri_collegamenti_sala?: string
   diametri_linee_distribuzione?: string
 }
@@ -41,12 +46,21 @@ export interface DatiImpianto {
 
 export type FinituraInternaOption = 'VERNICIATO' | 'ZINCATO' | 'VITROFLEX' | 'ALTRO'
 export type ScaricoOption = 'AUTOMATICO' | 'MANUALE' | 'ASSENTE'
+export type CategoriaPED = 'I' | 'II' | 'III' | 'IV'
 
 export interface ValvolaSicurezza {
   marca?: string // OCR
   modello?: string // OCR
   n_fabbrica?: string // OCR
-  diametro_pressione?: string // OCR - "Diametro e Pressione"
+  anno?: number // NUOVO - intero (min 1980, max 2100)
+  diametro?: string // Testo libero
+  pressione_taratura?: number // RINOMINATO da pressione - Ptar (bar) - 1 decimale (min 0, max 100000)
+  pressione?: number // DEPRECATED - mantenuto per retrocompatibilità
+  ts_temperatura?: number // NUOVO - TS (°C) - intero (min 50, max 250) - NON visibile a tecnicoDM329
+  temperatura_max?: number // DEPRECATED - mantenuto per retrocompatibilità - TS (°C) - intero (min 0, max 500)
+  volume_aria_scaricato?: number // NUOVO - Qmax (l/min) - intero (min 100, max 100000) - NON visibile a tecnicoDM329
+  portata_max?: number // DEPRECATED - mantenuto per retrocompatibilità - Qmax (l/min) - intero (min 0, max 100000)
+  categoria_ped?: CategoriaPED // NUOVO - Sempre "IV" readonly - NON visibile a tecnicoDM329
 }
 
 export interface Manometro {
@@ -57,10 +71,13 @@ export interface Manometro {
 export interface Serbatoio {
   codice: string // S1, S2, ... S7
   marca?: string // Suggerimento DB + OCR
-  modello?: string // Suggerimento DB + OCR
+  modello?: string // Suggerimento DB + OCR - NON visibile a tecnicoDM329
   volume?: number // litri (intero, min 50, max 5000)
   n_fabbrica?: string // OCR
   anno?: number // intero (min 1980, max 2100)
+  ps_pressione_max?: number // NUOVO - PS (bar) - 1 decimale (min 3.0, max 50.0) - NON visibile a tecnicoDM329
+  ts_temperatura?: number // NUOVO - TS (°C) - intero (min 50, max 250) - NON visibile a tecnicoDM329
+  categoria_ped?: CategoriaPED // NUOVO - Select I/II/III/IV - NON visibile a tecnicoDM329
   finitura_interna?: FinituraInternaOption // Select singola
   ancorato_terra?: boolean
   scarico?: ScaricoOption // Select singola
@@ -82,6 +99,8 @@ export interface Compressore {
   materiale_n?: string // OCR
   anno?: number // intero (min 1980, max 2100)
   pressione_max?: number // bar (1 decimale, min 10, max 30)
+  volume_aria_prodotto?: number // FAD (l/min) - intero (min 0, max 100000) - NON visibile a tecnicoDM329
+  fad?: number // DEPRECATED - mantenuto per retrocompatibilità - FAD (l/min) - Volume d'aria prodotto - intero (min 0, max 100000)
   note?: string
   ha_disoleatore?: boolean // Flag per relazione con disoleatore
   foto_targhetta?: string
@@ -97,8 +116,12 @@ export interface Disoleatore {
   marca?: string // Suggerimento DB + OCR
   modello?: string // Suggerimento DB + OCR
   n_fabbrica?: string // OCR
+  anno?: number // intero (min 1980, max 2100)
   volume?: number // litri (intero, min 50, max 5000)
-  pressione_max?: number // bar (1 decimale, min 10, max 30)
+  ps_pressione_max?: number // NUOVO - PS (bar) - 1 decimale (min 3.0, max 50.0) - NON visibile a tecnicoDM329
+  pressione_max?: number // DEPRECATED - mantenuto per retrocompatibilità - bar (1 decimale, min 10, max 30)
+  ts_temperatura?: number // NUOVO - TS (°C) - intero (min 50, max 250) - NON visibile a tecnicoDM329
+  categoria_ped?: CategoriaPED // NUOVO - Select I/II/III/IV - NON visibile a tecnicoDM329
   note?: string
   valvola_sicurezza: ValvolaSicurezza // OBBLIGATORIA
   foto_targhetta?: string
@@ -114,8 +137,11 @@ export interface Essiccatore {
   modello?: string // Suggerimento DB + OCR
   n_fabbrica?: string // OCR
   anno?: number // intero (min 1980, max 2100)
-  pressione_max?: number // bar (1 decimale, min 10, max 30)
+  ps_pressione_max?: number // NUOVO - PS (bar) - 1 decimale (min 3.0, max 50.0) - NON visibile a tecnicoDM329
+  pressione_max?: number // DEPRECATED - mantenuto per retrocompatibilità - bar (1 decimale, min 10, max 30)
+  volume_aria_trattata?: number // Q (l/min) - Volume d'aria trattata - intero (min 0, max 100000) - NON visibile a tecnicoDM329
   ha_scambiatore?: boolean // Flag per relazione con scambiatore
+  note?: string
   foto_targhetta?: string
 }
 
@@ -130,8 +156,12 @@ export interface Scambiatore {
   modello?: string // Suggerimento DB + OCR
   n_fabbrica?: string // OCR
   anno?: number // intero (min 1980, max 2100)
-  pressione_max?: number // bar (1 decimale, min 10, max 30)
-  volume?: number // litri (intero, min 50, max 5000)
+  ps_pressione_max?: number // NUOVO - PS (bar) - 1 decimale (min 3.0, max 50.0) - NON visibile a tecnicoDM329
+  pressione_max?: number // DEPRECATED - mantenuto per retrocompatibilità - bar (1 decimale, min 10, max 30)
+  ts_temperatura?: number // NUOVO - TS (°C) - intero (min 50, max 250) - NON visibile a tecnicoDM329
+  temperatura_max?: number // DEPRECATED - mantenuto per retrocompatibilità - TS (°C) - Temperatura massima ammissibile - intero (min 0, max 500)
+  volume?: number // litri (intero, min 50, max 5000) - NON visibile a tecnicoDM329
+  note?: string
   foto_targhetta?: string
 }
 
@@ -139,12 +169,28 @@ export interface Scambiatore {
 // SEZIONE 8: FILTRI (F1-F8)
 // ============================================================================
 
+export interface RecipienteFiltro {
+  codice: string // F1.1, F2.1, ... F8.1
+  filtro_associato: string // F1, F2, ... F8
+  marca?: string // Suggerimento DB + OCR - NON visibile a tecnicoDM329
+  modello?: string // Suggerimento DB + OCR - NON visibile a tecnicoDM329
+  n_fabbrica?: string // OCR - NON visibile a tecnicoDM329
+  anno?: number // intero (min 1980, max 2100) - NON visibile a tecnicoDM329
+  ps_pressione_max?: number // PS (bar) - 1 decimale (min 3.0, max 50.0) - NON visibile a tecnicoDM329
+  ts_temperatura?: number // TS (°C) - intero (min 50, max 250) - NON visibile a tecnicoDM329
+  volume?: number // litri (intero, min 50, max 5000) - NON visibile a tecnicoDM329
+  note?: string // NON visibile a tecnicoDM329
+  foto_targhetta?: string // NON visibile a tecnicoDM329
+}
+
 export interface Filtro {
   codice: string // F1, F2, ... F8
   marca?: string // Suggerimento DB + OCR
   modello?: string // Suggerimento DB + OCR
   n_fabbrica?: string // OCR
   anno?: number // intero (min 1980, max 2100)
+  note?: string
+  ha_recipiente?: boolean // Flag per relazione con recipiente filtro
   foto_targhetta?: string
 }
 
@@ -156,6 +202,9 @@ export interface Separatore {
   codice: string // SEP1, SEP2, SEP3
   marca?: string // Suggerimento DB + OCR
   modello?: string // Suggerimento DB + OCR
+  n_fabbrica?: string // OCR
+  anno?: number // intero (min 1980, max 2100)
+  note?: string
   foto_targhetta?: string
 }
 
@@ -164,7 +213,12 @@ export interface Separatore {
 // ============================================================================
 
 export interface AltriApparecchi {
-  descrizione?: string // Campo libero multiriga
+  marca?: string // Suggerimento DB
+  modello?: string // Suggerimento DB
+  n_fabbrica?: string
+  anno?: number // intero (min 1980, max 2100)
+  note?: string
+  descrizione?: string // DEPRECATED - mantenuto per retrocompatibilità - Campo libero multiriga
 }
 
 // ============================================================================
@@ -187,6 +241,7 @@ export interface SchedaDatiCompleta {
   essiccatori: Essiccatore[] // max 4
   scambiatori: Scambiatore[] // max 4 (dipendenti da essiccatori)
   filtri: Filtro[] // max 8
+  recipienti_filtro: RecipienteFiltro[] // max 8 (dipendenti da filtri)
   separatori: Separatore[] // max 3
   altri_apparecchi?: AltriApparecchi
 }
@@ -202,6 +257,7 @@ export const EQUIPMENT_LIMITS = {
   essiccatori: { min: 1, max: 4, prefix: 'E' },
   scambiatori: { min: 0, max: 4, prefix: 'E', suffix: '.1' }, // Dipendenti
   filtri: { min: 1, max: 8, prefix: 'F' },
+  recipienti_filtro: { min: 0, max: 8, prefix: 'F', suffix: '.1' }, // Dipendenti da filtri
   separatori: { min: 1, max: 3, prefix: 'SEP' },
 } as const
 
@@ -275,6 +331,16 @@ export const hasScambiatore = (
   scambiatori: Scambiatore[]
 ): boolean => {
   return scambiatori.some((s) => s.essiccatore_associato === essiccatoreCodice)
+}
+
+/**
+ * Verifica se un filtro ha un recipiente associato
+ */
+export const hasRecipienteFiltro = (
+  filtroCodice: string,
+  recipienti: RecipienteFiltro[]
+): boolean => {
+  return recipienti.some((r) => r.filtro_associato === filtroCodice)
 }
 
 /**

@@ -4,11 +4,13 @@ import { EquipmentSection } from './EquipmentSection'
 import { CommonEquipmentFields } from './CommonEquipmentFields'
 import { ValvolaSicurezzaFields } from './ValvolaSicurezzaFields'
 import { SingleOCRButton } from './SingleOCRButton'
-import { EQUIPMENT_LIMITS, generateEquipmentCode, type FinituraInternaOption, type ScaricoOption } from '@/types'
+import { EQUIPMENT_LIMITS, generateEquipmentCode, type FinituraInternaOption, type ScaricoOption, type CategoriaPED } from '@/types'
 import type { OCRExtractedData } from '@/types/ocr'
+import { useTecnicoDM329Visibility } from '@/hooks/useTecnicoDM329Visibility'
 
 const FINITURA_INTERNA_OPTIONS: FinituraInternaOption[] = ['VERNICIATO', 'ZINCATO', 'VITROFLEX', 'ALTRO']
 const SCARICO_OPTIONS: ScaricoOption[] = ['AUTOMATICO', 'MANUALE', 'ASSENTE']
+const CATEGORIA_PED_OPTIONS: CategoriaPED[] = ['I', 'II', 'III', 'IV']
 
 interface SerbatoiSectionProps {
   control: Control<any>
@@ -16,6 +18,8 @@ interface SerbatoiSectionProps {
 }
 
 export const SerbatoiSection = ({ control, errors }: SerbatoiSectionProps) => {
+  const { showAdvancedFields } = useTecnicoDM329Visibility()
+
   const { fields, append, remove } = useFieldArray({
     control,
     name: 'serbatoi',
@@ -119,7 +123,7 @@ export const SerbatoiSection = ({ control, errors }: SerbatoiSectionProps) => {
               equipmentType="Serbatoi"
               fields={{
                 marca: true,
-                modello: true,
+                modello: showAdvancedFields, // Nascosto a tecnicoDM329
                 n_fabbrica: true,
                 anno: true,
                 volume: true,
@@ -127,6 +131,81 @@ export const SerbatoiSection = ({ control, errors }: SerbatoiSectionProps) => {
               }}
             />
           </Grid>
+
+          {/* PS - Pressione Massima - NUOVO - NASCOSTO a tecnicoDM329 */}
+          {showAdvancedFields && (
+            <Grid item xs={12} md={4}>
+              <Controller
+                name={`serbatoi.${index}.ps_pressione_max`}
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="PS - Pressione Massima (bar)"
+                    type="number"
+                    fullWidth
+                    size="small"
+                    placeholder="Es: 12.5"
+                    inputProps={{ min: 3.0, max: 50.0, step: 0.1 }}
+                    onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
+                    helperText="Da 3.0 a 50.0 bar (1 decimale)"
+                  />
+                )}
+              />
+            </Grid>
+          )}
+
+          {/* TS - Temperatura Massima - NUOVO - NASCOSTO a tecnicoDM329 */}
+          {showAdvancedFields && (
+            <Grid item xs={12} md={4}>
+              <Controller
+                name={`serbatoi.${index}.ts_temperatura`}
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="TS - Temperatura Massima (°C)"
+                    type="number"
+                    fullWidth
+                    size="small"
+                    placeholder="Es: 120"
+                    inputProps={{ min: 50, max: 250, step: 1 }}
+                    onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                    helperText="Intero da 50 a 250 °C"
+                  />
+                )}
+              />
+            </Grid>
+          )}
+
+          {/* Categoria PED - NUOVO - NASCOSTO a tecnicoDM329 */}
+          {showAdvancedFields && (
+            <Grid item xs={12} md={4}>
+              <Controller
+                name={`serbatoi.${index}.categoria_ped`}
+                control={control}
+                render={({ field }) => (
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Categoria PED</InputLabel>
+                    <Select
+                      {...field}
+                      label="Categoria PED"
+                      value={field.value || ''}
+                    >
+                      <MenuItem value="">
+                        <em>Nessuna</em>
+                      </MenuItem>
+                      {CATEGORIA_PED_OPTIONS.map((option) => (
+                        <MenuItem key={option} value={option}>
+                          {option}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                )}
+              />
+            </Grid>
+          )}
 
           {/* Finitura Interna */}
           <Grid item xs={12} md={4}>

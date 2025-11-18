@@ -13,6 +13,7 @@ interface AuthContextType {
   isTecnico: boolean
   isUtente: boolean
   isUserDM329: boolean
+  isTecnicoDM329: boolean
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -25,6 +26,7 @@ const AuthContext = createContext<AuthContextType>({
   isTecnico: false,
   isUtente: false,
   isUserDM329: false,
+  isTecnicoDM329: false,
 })
 
 export const useAuth = () => useContext(AuthContext)
@@ -130,6 +132,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const isTecnico = user?.role === 'tecnico'
   const isUtente = user?.role === 'utente'
   const isUserDM329 = user?.role === 'userdm329'
+  const isTecnicoDM329 = user?.role === 'tecnicoDM329'
 
   return (
     <AuthContext.Provider
@@ -143,6 +146,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isTecnico,
         isUtente,
         isUserDM329,
+        isTecnicoDM329,
       }}
     >
       {children}

@@ -143,11 +143,14 @@ function cleanClienteName(cliente: string): string {
 }
 
 /**
- * Generate title from client name
+ * Generate title from client name and date
  */
-function generateTitle(cliente: string): string {
+function generateTitle(cliente: string, createdDate: string): string {
   const cleanName = cleanClienteName(cliente)
-  return `DM329 - ${cleanName}`
+  // Parse ISO date to DD/MM/YYYY for consistency
+  const date = new Date(createdDate)
+  const formattedDate = date.toLocaleDateString('it-IT')
+  return `DM329 - ${cleanName} - ${formattedDate}`
 }
 
 /**
@@ -223,7 +226,7 @@ function transformCSVRowToDBRow(
 
   return {
     request_type_id: dm329TypeId,
-    title: generateTitle(row.CLIENTE),
+    title: generateTitle(row.CLIENTE, created_at),
     status: mapCSVStatusToDBStatus(row.STATO),
     created_by: adminUserId,
     created_at,

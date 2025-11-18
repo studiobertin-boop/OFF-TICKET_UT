@@ -6,9 +6,6 @@ import {
   Chip,
   Alert,
   CircularProgress,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
 } from '@mui/material'
 import {
   Timeline,
@@ -19,7 +16,6 @@ import {
   TimelineDot,
   TimelineOppositeContent,
 } from '@mui/lab'
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import { RequestHistory, RequestBlock } from '@/types'
 import { getRequestHistory } from '@/services/requestService'
 import { useRequestBlocks } from '@/hooks/useRequestBlocks'
@@ -142,7 +138,7 @@ export function RequestHistoryPanel({ requestId }: RequestHistoryPanelProps) {
   }
 
   return (
-    <Paper sx={{ p: 3, height: '100%', overflowY: 'auto' }}>
+    <Paper sx={{ p: 3, height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
       <Typography variant="h6" gutterBottom>
         Storico Richiesta
       </Typography>
@@ -150,7 +146,7 @@ export function RequestHistoryPanel({ requestId }: RequestHistoryPanelProps) {
         Cronologia completa di cambi stato e blocchi
       </Typography>
 
-      <Timeline position="right">
+      <Timeline position="right" sx={{ p: 0, m: 0 }}>
         {timeline.map((event, index) => {
           const isLast = index === timeline.length - 1
 
@@ -160,8 +156,8 @@ export function RequestHistoryPanel({ requestId }: RequestHistoryPanelProps) {
             const iconConfig = getEventIconConfig(eventType)
             return (
               <TimelineItem key={event.id}>
-                <TimelineOppositeContent sx={{ flex: 0.2, pt: 1.5, minWidth: 0 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                <TimelineOppositeContent sx={{ flex: '0 0 auto', maxWidth: '80px', pt: 1.5, pr: 1 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', lineHeight: 1.2 }}>
                     {new Date(event.timestamp).toLocaleString('it-IT', {
                       day: '2-digit',
                       month: '2-digit',
@@ -172,38 +168,42 @@ export function RequestHistoryPanel({ requestId }: RequestHistoryPanelProps) {
                   </Typography>
                 </TimelineOppositeContent>
                 <TimelineSeparator>
-                  <TimelineDot color={iconConfig.color}>
+                  <TimelineDot color={iconConfig.color} sx={{ my: 0.5 }}>
                     {iconConfig.icon}
                   </TimelineDot>
                   {!isLast && <TimelineConnector />}
                 </TimelineSeparator>
-                <TimelineContent sx={{ pb: 3 }}>
-                  <Typography variant="subtitle2">{iconConfig.label}</Typography>
-                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', my: 1 }}>
+                <TimelineContent sx={{ pb: 3, pr: 0, minWidth: 0 }}>
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>{iconConfig.label}</Typography>
+                  <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', my: 1, flexWrap: 'wrap' }}>
                     {history.status_from && (
                       <>
                         <Chip
                           label={getStatusLabel(history.status_from as any)}
                           size="small"
                           variant="outlined"
+                          sx={{ maxWidth: '100%', height: 'auto', '& .MuiChip-label': { whiteSpace: 'normal', py: 0.5 } }}
                         />
-                        <Typography variant="body2">→</Typography>
+                        <Typography variant="body2" sx={{ mx: 0.5 }}>→</Typography>
                       </>
                     )}
-                    <Chip label={getStatusLabel(history.status_to as any)} size="small" color="primary" />
+                    <Chip
+                      label={getStatusLabel(history.status_to as any)}
+                      size="small"
+                      color="primary"
+                      sx={{ maxWidth: '100%', height: 'auto', '& .MuiChip-label': { whiteSpace: 'normal', py: 0.5 } }}
+                    />
                   </Box>
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', wordBreak: 'break-word' }}>
                     Da: {history.changed_by_user?.full_name || history.changed_by_user?.email || 'Sconosciuto'}
                   </Typography>
                   {history.notes && (
-                    <Accordion sx={{ mt: 1 }} elevation={0}>
-                      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                        <Typography variant="caption">Note</Typography>
-                      </AccordionSummary>
-                      <AccordionDetails>
-                        <Typography variant="body2">{history.notes}</Typography>
-                      </AccordionDetails>
-                    </Accordion>
+                    <Box sx={{ mt: 1, p: 1.5, bgcolor: 'background.default', borderRadius: 1 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'medium', display: 'block', mb: 0.5 }}>
+                        Note
+                      </Typography>
+                      <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>{history.notes}</Typography>
+                    </Box>
                   )}
                 </TimelineContent>
               </TimelineItem>
@@ -215,8 +215,8 @@ export function RequestHistoryPanel({ requestId }: RequestHistoryPanelProps) {
             const iconConfig = getEventIconConfig('block')
             return (
               <TimelineItem key={event.id}>
-                <TimelineOppositeContent sx={{ flex: 0.2, pt: 1.5, minWidth: 0 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                <TimelineOppositeContent sx={{ flex: '0 0 auto', maxWidth: '80px', pt: 1.5, pr: 1 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', lineHeight: 1.2 }}>
                     {new Date(event.timestamp).toLocaleString('it-IT', {
                       day: '2-digit',
                       month: '2-digit',
@@ -227,23 +227,23 @@ export function RequestHistoryPanel({ requestId }: RequestHistoryPanelProps) {
                   </Typography>
                 </TimelineOppositeContent>
                 <TimelineSeparator>
-                  <TimelineDot color={iconConfig.color}>
+                  <TimelineDot color={iconConfig.color} sx={{ my: 0.5 }}>
                     {iconConfig.icon}
                   </TimelineDot>
                   {!isLast && <TimelineConnector />}
                 </TimelineSeparator>
-                <TimelineContent sx={{ pb: 3 }}>
-                  <Typography variant="subtitle2" color="warning.main">
+                <TimelineContent sx={{ pb: 3, pr: 0, minWidth: 0 }}>
+                  <Typography variant="subtitle2" color="warning.main" sx={{ mb: 1 }}>
                     {iconConfig.label}
                   </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, wordBreak: 'break-word' }}>
                     Da: {block.blocked_by_user?.full_name || block.blocked_by_user?.email || 'Sconosciuto'}
                   </Typography>
                   <Paper sx={{ p: 1.5, bgcolor: 'warning.light', mt: 1 }} elevation={0}>
                     <Typography variant="body2" sx={{ fontWeight: 'medium', mb: 0.5 }}>
                       Motivo:
                     </Typography>
-                    <Typography variant="body2">{block.reason}</Typography>
+                    <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>{block.reason}</Typography>
                   </Paper>
                   {block.is_active && (
                     <Chip label="Blocco Attivo" size="small" color="warning" sx={{ mt: 1 }} />
@@ -258,8 +258,8 @@ export function RequestHistoryPanel({ requestId }: RequestHistoryPanelProps) {
             const iconConfig = getEventIconConfig('unblock')
             return (
               <TimelineItem key={event.id}>
-                <TimelineOppositeContent sx={{ flex: 0.2, pt: 1.5, minWidth: 0 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                <TimelineOppositeContent sx={{ flex: '0 0 auto', maxWidth: '80px', pt: 1.5, pr: 1 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', lineHeight: 1.2 }}>
                     {new Date(event.timestamp).toLocaleString('it-IT', {
                       day: '2-digit',
                       month: '2-digit',
@@ -270,16 +270,16 @@ export function RequestHistoryPanel({ requestId }: RequestHistoryPanelProps) {
                   </Typography>
                 </TimelineOppositeContent>
                 <TimelineSeparator>
-                  <TimelineDot color={iconConfig.color}>
+                  <TimelineDot color={iconConfig.color} sx={{ my: 0.5 }}>
                     {iconConfig.icon}
                   </TimelineDot>
                   {!isLast && <TimelineConnector />}
                 </TimelineSeparator>
-                <TimelineContent sx={{ pb: 3 }}>
-                  <Typography variant="subtitle2" color="success.main">
+                <TimelineContent sx={{ pb: 3, pr: 0, minWidth: 0 }}>
+                  <Typography variant="subtitle2" color="success.main" sx={{ mb: 1 }}>
                     {iconConfig.label}
                   </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, wordBreak: 'break-word' }}>
                     Da: {block.unblocked_by_user?.full_name || block.unblocked_by_user?.email || 'Sconosciuto'}
                   </Typography>
                   {block.resolution_notes && (
@@ -287,7 +287,7 @@ export function RequestHistoryPanel({ requestId }: RequestHistoryPanelProps) {
                       <Typography variant="body2" sx={{ fontWeight: 'medium', mb: 0.5 }}>
                         Note di risoluzione:
                       </Typography>
-                      <Typography variant="body2">{block.resolution_notes}</Typography>
+                      <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>{block.resolution_notes}</Typography>
                     </Paper>
                   )}
                 </TimelineContent>
