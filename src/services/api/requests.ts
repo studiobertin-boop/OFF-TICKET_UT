@@ -15,6 +15,7 @@ export interface UpdateRequestInput {
   assigned_to?: string | null
   custom_fields?: Record<string, any>
   customer_id?: string | null
+  is_urgent?: boolean
 }
 
 export interface RequestFilters {
@@ -371,5 +372,36 @@ export const requestsApi = {
       }
       throw error
     }
+  },
+
+  // Toggle urgent flag
+  toggleUrgent: async (id: string, isUrgent: boolean): Promise<Request> => {
+    // Ensure session is valid before proceeding
+    const sessionValid = await ensureValidSession()
+    if (!sessionValid) {
+      throw new Error('Sessione non valida. Per favore, effettua nuovamente il login.')
+    }
+
+    const { data, error } = await supabase
+      .from('requests')
+      .update({ is_urgent: isUrgent })
+      .eq('id', id)
+      .select(`
+        *,
+        request_type:request_types(*),
+        assigned_user:users!requests_assigned_to_fkey(id, email, full_name, role),
+        creator:users!requests_created_by_fkey(id, email, full_name, role),
+        customer:customers(*)
+      `)
+      .single()
+
+    if (error) {
+      if (error.code === '42501') {
+        throw new Error('Permessi insufficienti per modificare lo stato urgente di questa richiesta.')
+      }
+      throw error
+    }
+
+    return data
   },
 }

@@ -25,11 +25,13 @@ import {
   Close as CloseIcon,
   Assignment as AssignmentIcon,
   PersonAdd as PersonAddIcon,
+  PriorityHigh as PriorityHighIcon,
 } from '@mui/icons-material'
 import { Layout } from '@/components/common/Layout'
 import { useRequest, useHideRequest, useDeleteRequest, useUpdateRequest } from '@/hooks/useRequests'
 import { useAuth } from '@/hooks/useAuth'
 import { useFeatureFlag } from '@/hooks/useFeatureFlag'
+import { requestsApi } from '@/services/api/requests'
 import { StatusTransitionButtons } from '@/components/requests/StatusTransitionButtons'
 import { AssignmentSection } from '@/components/requests/AssignmentSection'
 import { RequestHistoryPanel } from '@/components/requests/RequestHistoryPanel'
@@ -61,6 +63,7 @@ export const RequestDetail = () => {
   const [attributeDialogOpen, setAttributeDialogOpen] = useState(false)
   const [isEditingNote, setIsEditingNote] = useState(false)
   const [noteValue, setNoteValue] = useState('')
+  const [togglingUrgent, setTogglingUrgent] = useState(false)
 
   const handleHide = async () => {
     try {
@@ -85,6 +88,23 @@ export const RequestDetail = () => {
   const handleEditNote = () => {
     setNoteValue((request?.custom_fields?.note as string) || '')
     setIsEditingNote(true)
+  }
+
+  const handleToggleUrgent = async () => {
+    if (!id || !request) return
+
+    const newUrgentState = !request.is_urgent
+
+    try {
+      setTogglingUrgent(true)
+      await requestsApi.toggleUrgent(id, newUrgentState)
+      await refetch()
+    } catch (err) {
+      console.error('Error toggling urgent status:', err)
+      alert('Errore nel cambiamento dello stato urgente')
+    } finally {
+      setTogglingUrgent(false)
+    }
   }
 
   const handleSaveNote = async () => {
@@ -166,6 +186,10 @@ export const RequestDetail = () => {
      user?.role === 'userdm329' ||
      (user?.role === 'tecnicoDM329' && request?.assigned_to === user?.id))
 
+  // Determine if user can toggle urgent status
+  // Only admin and userdm329 can mark requests as urgent
+  const canToggleUrgent = user?.role === 'admin' || user?.role === 'userdm329'
+
   return (
     <Layout>
       <Box>
@@ -185,6 +209,20 @@ export const RequestDetail = () => {
                 size="small"
               >
                 SCHEDA DATI
+              </Button>
+            )}
+
+            {/* Urgent toggle button - Only for admin and userdm329 */}
+            {canToggleUrgent && (
+              <Button
+                variant={request.is_urgent ? 'contained' : 'outlined'}
+                color="error"
+                startIcon={<PriorityHighIcon />}
+                onClick={handleToggleUrgent}
+                disabled={togglingUrgent}
+                size="small"
+              >
+                {request.is_urgent ? 'URGENTE' : 'SEGNA URGENTE'}
               </Button>
             )}
 

@@ -396,16 +396,6 @@ export const TechnicalDetails = () => {
               Dati Sala Compressori e Apparecchiature
             </Typography>
 
-            <Alert severity="info" sx={{ my: 2 }}>
-              <Typography variant="body2">
-                <strong>PASSO 2 - Form Implementato</strong>
-                <br />
-                Il form è completo con tutte le 10 sezioni. Compilalo e usa il bottone "Completa Scheda" per terminare.
-                <br />
-                I dati vengono salvati automaticamente in formato JSONB nel campo equipment_data.
-              </Typography>
-            </Alert>
-
             <TechnicalSheetForm
               defaultValues={formData || undefined}
               onSubmit={handleFormSubmit}

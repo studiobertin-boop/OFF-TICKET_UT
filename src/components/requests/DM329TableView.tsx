@@ -30,6 +30,7 @@ import {
 import { Request, DM329Status } from '@/types'
 import { getStatusColor, getStatusLabel } from '@/utils/workflow'
 import { BlockIndicator } from './BlockIndicator'
+import { UrgentIndicator } from './UrgentIndicator'
 import { TimerAlertIndicator } from './TimerAlertIndicator'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
@@ -52,7 +53,7 @@ interface DM329TableViewProps {
 }
 
 type OrderDirection = 'asc' | 'desc'
-type OrderBy = 'updated_at' | 'cliente' | 'status' | 'no_civa' | 'note' | 'is_blocked' | 'has_timer_alert'
+type OrderBy = 'updated_at' | 'cliente' | 'status' | 'no_civa' | 'note' | 'is_urgent' | 'is_blocked' | 'has_timer_alert'
 
 const DM329_STATUSES: DM329Status[] = [
   '1-INCARICO_RICEVUTO',
@@ -82,6 +83,7 @@ export const DM329TableView = ({
   const [statoFilter, setStatoFilter] = useState<DM329Status[]>([])
   const [noCivaFilter, setNoCivaFilter] = useState<'all' | 'true' | 'false'>('all')
   const [noteFilter, setNoteFilter] = useState('')
+  const [urgentFilter, setUrgentFilter] = useState<'all' | 'true' | 'false'>('all')
   const [blockedFilter, setBlockedFilter] = useState<'all' | 'true' | 'false'>('all')
   const [timerAlertFilter, setTimerAlertFilter] = useState<'all' | 'true' | 'false'>('all')
 
@@ -147,6 +149,12 @@ export const DM329TableView = ({
         return note?.toLowerCase().includes(noteFilter.toLowerCase())
       })
     }
+    if (urgentFilter !== 'all') {
+      filtered = filtered.filter(req => {
+        const isUrgent = req.is_urgent === true
+        return urgentFilter === 'true' ? isUrgent : !isUrgent
+      })
+    }
     if (blockedFilter !== 'all') {
       filtered = filtered.filter(req => {
         const isBlocked = req.is_blocked === true
@@ -166,6 +174,10 @@ export const DM329TableView = ({
       let bValue: any
 
       switch (orderBy) {
+        case 'is_urgent':
+          aValue = a.is_urgent ? 1 : 0
+          bValue = b.is_urgent ? 1 : 0
+          break
         case 'is_blocked':
           aValue = a.is_blocked ? 1 : 0
           bValue = b.is_blocked ? 1 : 0
@@ -218,7 +230,7 @@ export const DM329TableView = ({
     })
 
     return filtered
-  }, [requests, orderBy, order, clienteFilter, statoFilter, noCivaFilter, noteFilter, blockedFilter, timerAlertFilter])
+  }, [requests, orderBy, order, clienteFilter, statoFilter, noCivaFilter, noteFilter, urgentFilter, blockedFilter, timerAlertFilter])
 
   const clearFilters = () => {
     setClienteFilter([])
@@ -226,11 +238,12 @@ export const DM329TableView = ({
     setStatoFilter([])
     setNoCivaFilter('all')
     setNoteFilter('')
+    setUrgentFilter('all')
     setBlockedFilter('all')
     setTimerAlertFilter('all')
   }
 
-  const hasActiveFilters = clienteFilter.length > 0 || statoFilter.length > 0 || noCivaFilter !== 'all' || noteFilter || blockedFilter !== 'all' || timerAlertFilter !== 'all'
+  const hasActiveFilters = clienteFilter.length > 0 || statoFilter.length > 0 || noCivaFilter !== 'all' || noteFilter || urgentFilter !== 'all' || blockedFilter !== 'all' || timerAlertFilter !== 'all'
 
   // Check if all filteredAndSortedRequests are selected
   const allSelected = selectionEnabled &&
@@ -339,6 +352,9 @@ export const DM329TableView = ({
             {noteFilter && (
               <Chip label={`Note: "${noteFilter}"`} size="small" onDelete={() => setNoteFilter('')} />
             )}
+            {urgentFilter !== 'all' && (
+              <Chip label={`Urgenti: ${urgentFilter === 'true' ? 'Sì' : 'No'}`} size="small" onDelete={() => setUrgentFilter('all')} />
+            )}
             {blockedFilter !== 'all' && (
               <Chip label={`Bloccate: ${blockedFilter === 'true' ? 'Sì' : 'No'}`} size="small" onDelete={() => setBlockedFilter('all')} />
             )}
@@ -366,6 +382,29 @@ export const DM329TableView = ({
                   />
                 </TableCell>
               )}
+
+              {/* Urgent indicator column */}
+              <TableCell sx={{ width: 70, padding: 0.5 }}>
+                <TableSortLabel
+                  active={orderBy === 'is_urgent'}
+                  direction={orderBy === 'is_urgent' ? order : 'asc'}
+                  onClick={() => handleSort('is_urgent')}
+                  sx={{ fontSize: '0.8rem' }}
+                >
+                  Urg.
+                </TableSortLabel>
+                <FormControl size="small" fullWidth sx={{ mt: 0.5 }}>
+                  <Select
+                    value={urgentFilter}
+                    onChange={(e) => setUrgentFilter(e.target.value as 'all' | 'true' | 'false')}
+                    sx={{ fontSize: '0.75rem' }}
+                  >
+                    <MenuItem value="all">Tutti</MenuItem>
+                    <MenuItem value="true">Sì</MenuItem>
+                    <MenuItem value="false">No</MenuItem>
+                  </Select>
+                </FormControl>
+              </TableCell>
 
               {/* Blocked indicator column */}
               <TableCell sx={{ width: 70, padding: 0.5 }}>
@@ -594,6 +633,11 @@ export const DM329TableView = ({
                   </TableCell>
                 )}
 
+                {/* Urgent indicator */}
+                <TableCell sx={{ padding: 1, textAlign: 'center' }}>
+                  {request.is_urgent && <UrgentIndicator isUrgent={true} />}
+                </TableCell>
+
                 {/* Blocked indicator */}
                 <TableCell sx={{ padding: 1, textAlign: 'center' }}>
                   {request.is_blocked && <BlockIndicator isBlocked={true} />}
@@ -647,7 +691,7 @@ export const DM329TableView = ({
 
             {filteredAndSortedRequests.length === 0 && (
               <TableRow>
-                <TableCell colSpan={selectionEnabled ? 8 : 7} align="center" sx={{ py: 3 }}>
+                <TableCell colSpan={selectionEnabled ? 9 : 8} align="center" sx={{ py: 3 }}>
                   Nessuna richiesta DM329 trovata
                 </TableCell>
               </TableRow>
