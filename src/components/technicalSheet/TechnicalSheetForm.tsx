@@ -18,9 +18,7 @@ import { DatiImpiantoSection } from './DatiImpiantoSection'
 import { SerbatoiSection } from './SerbatoiSection'
 import {
   CompressoriSection,
-  DisoleatoriSection,
   EssiccatoriSection,
-  ScambiatoriSection,
   FiltriSection,
   SeparatoriSection,
   AltriApparecchiSection,
@@ -82,10 +80,6 @@ export const TechnicalSheetForm = ({
     watch,
     setValue,
   } = methods
-
-  // Watch per sezioni dipendenti
-  const compressori = watch('compressori') || []
-  const essiccatori = watch('essiccatori') || []
 
   // State per Batch OCR Dialog
   const [batchOCRDialogOpen, setBatchOCRDialogOpen] = useState(false)
@@ -165,6 +159,7 @@ export const TechnicalSheetForm = ({
         'Scambiatori': 'scambiatori',
         'Filtri': 'filtri',
         'Separatori': 'separatori',
+        'Recipienti filtro': 'recipienti_filtro',
         'Altro': 'altri_apparecchi',
         'Valvole di sicurezza': '' // Non applicabile
       }
@@ -317,7 +312,7 @@ export const TechnicalSheetForm = ({
           </AccordionDetails>
         </Accordion>
 
-        {/* Sezione 4: Compressori */}
+        {/* Sezione 4: Compressori (con Disoleatori inline) */}
         <Accordion>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Typography variant="h6">4. Compressori</Typography>
@@ -327,68 +322,40 @@ export const TechnicalSheetForm = ({
           </AccordionDetails>
         </Accordion>
 
-        {/* Sezione 5: Disoleatori */}
+        {/* Sezione 5: Essiccatori (con Scambiatori inline) */}
         <Accordion>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="h6">5. Disoleatori</Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            <DisoleatoriSection
-              control={control}
-              errors={errors}
-              compressori={compressori}
-            />
-          </AccordionDetails>
-        </Accordion>
-
-        {/* Sezione 6: Essiccatori */}
-        <Accordion>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="h6">6. Essiccatori</Typography>
+            <Typography variant="h6">5. Essiccatori</Typography>
           </AccordionSummary>
           <AccordionDetails>
             <EssiccatoriSection control={control} errors={errors} />
           </AccordionDetails>
         </Accordion>
 
-        {/* Sezione 7: Scambiatori */}
+        {/* Sezione 6: Filtri (con Recipienti Filtro inline) */}
         <Accordion>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="h6">7. Scambiatori</Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            <ScambiatoriSection
-              control={control}
-              errors={errors}
-              essiccatori={essiccatori}
-            />
-          </AccordionDetails>
-        </Accordion>
-
-        {/* Sezione 8: Filtri */}
-        <Accordion>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="h6">8. Filtri</Typography>
+            <Typography variant="h6">6. Filtri</Typography>
           </AccordionSummary>
           <AccordionDetails>
             <FiltriSection control={control} errors={errors} />
           </AccordionDetails>
         </Accordion>
 
-        {/* Sezione 9: Separatori */}
+        {/* Sezione 7: Separatori */}
         <Accordion>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="h6">9. Separatori</Typography>
+            <Typography variant="h6">7. Separatori</Typography>
           </AccordionSummary>
           <AccordionDetails>
             <SeparatoriSection control={control} errors={errors} />
           </AccordionDetails>
         </Accordion>
 
-        {/* Sezione 10: Altri Apparecchi */}
+        {/* Sezione 8: Altri Apparecchi */}
         <Accordion>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="h6">10. Altri Apparecchi</Typography>
+            <Typography variant="h6">8. Altri Apparecchi</Typography>
           </AccordionSummary>
           <AccordionDetails>
             <AltriApparecchiSection control={control} errors={errors} />

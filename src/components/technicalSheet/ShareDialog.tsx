@@ -45,7 +45,7 @@ interface ShareDialogProps {
   requestId: string
 }
 
-export const ShareDialog = ({ open, onClose, technicalDataId, requestId }: ShareDialogProps) => {
+export const ShareDialog = ({ open, onClose, technicalDataId }: ShareDialogProps) => {
   const [availableUsers, setAvailableUsers] = useState<Pick<User, 'id' | 'full_name' | 'email'>[]>(
     []
   )

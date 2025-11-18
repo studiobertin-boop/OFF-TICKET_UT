@@ -47,6 +47,7 @@ const roleLabels: Record<UserRole, string> = {
   tecnico: 'Tecnico',
   utente: 'Utente',
   userdm329: 'Utente DM329',
+  tecnicoDM329: 'Tecnico DM329',
 }
 
 const roleColors: Record<UserRole, 'error' | 'primary' | 'default' | 'secondary'> = {
@@ -54,6 +55,7 @@ const roleColors: Record<UserRole, 'error' | 'primary' | 'default' | 'secondary'
   tecnico: 'primary',
   utente: 'default',
   userdm329: 'secondary',
+  tecnicoDM329: 'primary',
 }
 
 export default function AdminUsers() {

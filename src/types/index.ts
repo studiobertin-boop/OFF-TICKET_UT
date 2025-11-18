@@ -289,6 +289,7 @@ export type EquipmentCatalogType =
   | 'Filtri'
   | 'Separatori'
   | 'Valvole di sicurezza'
+  | 'Recipienti filtro'
   | 'Altro'
 
 export interface EquipmentCatalogItem {

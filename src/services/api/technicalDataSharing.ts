@@ -67,7 +67,7 @@ export async function getSharedUsers(technicalDataId: string): Promise<SharedUse
     throw new Error(`Errore nel recupero degli utenti condivisi: ${error.message}`)
   }
 
-  return data || []
+  return (data || []) as unknown as SharedUser[]
 }
 
 /**
