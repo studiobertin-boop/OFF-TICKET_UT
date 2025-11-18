@@ -248,119 +248,176 @@ export const TechnicalSheetForm = ({
   return (
     <FormProvider {...methods}>
       <Box component="form" onSubmit={handleSubmit(onSubmit)}>
-        {/* Sezione 1: Dati Generali */}
-        <Accordion defaultExpanded>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
-              <Typography variant="h6">1. Dati Generali</Typography>
-              <Chip label="Obbligatorio" size="small" color="error" />
-            </Box>
-          </AccordionSummary>
-          <AccordionDetails>
-            <DatiGeneraliSection
-              control={control}
-              errors={errors}
-              defaultCustomer={customerName}
-            />
-          </AccordionDetails>
-        </Accordion>
-
-        {/* Sezione 2: Dati Impianto */}
-        <Accordion>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
-              <Typography variant="h6">2. Dati Impianto</Typography>
-              <Chip label="Obbligatorio" size="small" color="error" />
-            </Box>
-          </AccordionSummary>
-          <AccordionDetails>
-            <DatiImpiantoSection control={control} errors={errors} />
-          </AccordionDetails>
-        </Accordion>
-
-        {/* Header Sezione Apparecchiature con bottone Batch OCR */}
-        <Box
-          sx={{
-            mt: 3,
-            mb: 2,
-            p: 2,
-            bgcolor: 'background.paper',
-            borderRadius: 1,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <Typography variant="h6">3. Apparecchiature</Typography>
-          <Button
-            variant="contained"
-            startIcon={<AutoFixHighIcon />}
-            onClick={() => setBatchOCRDialogOpen(true)}
-            disabled={readOnly}
-          >
-            Riconosci Automaticamente
-          </Button>
+        {/* Sezione 1: Informazioni Pratica */}
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold', color: 'text.primary' }}>
+            1 - Informazioni Pratica
+          </Typography>
+          <Accordion defaultExpanded>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
+                <Typography variant="h6">Dati Generali</Typography>
+                <Chip label="Obbligatorio" size="small" color="error" />
+              </Box>
+            </AccordionSummary>
+            <AccordionDetails>
+              <DatiGeneraliSection
+                control={control}
+                errors={errors}
+                defaultCustomer={customerName}
+              />
+            </AccordionDetails>
+          </Accordion>
         </Box>
 
-        {/* Sezione 3: Serbatoi */}
-        <Accordion>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="h6">3. Serbatoi</Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            <SerbatoiSection control={control} errors={errors} />
-          </AccordionDetails>
-        </Accordion>
+        {/* Sezione 2: Dati Sala Compressori */}
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold', color: 'text.primary' }}>
+            2 - Dati Sala Compressori
+          </Typography>
+          <Accordion>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
+                <Typography variant="h6">Dati Impianto</Typography>
+                <Chip label="Obbligatorio" size="small" color="error" />
+              </Box>
+            </AccordionSummary>
+            <AccordionDetails>
+              <DatiImpiantoSection control={control} errors={errors} />
+            </AccordionDetails>
+          </Accordion>
+        </Box>
 
-        {/* Sezione 4: Compressori (con Disoleatori inline) */}
-        <Accordion>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="h6">4. Compressori</Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            <CompressoriSection control={control} errors={errors} />
-          </AccordionDetails>
-        </Accordion>
+        {/* Sezione 3: Dati Apparecchiature */}
+        <Box sx={{ mb: 4 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
+              3 - Dati Apparecchiature
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<AutoFixHighIcon />}
+              onClick={() => setBatchOCRDialogOpen(true)}
+              disabled={readOnly}
+            >
+              Riconosci Automaticamente
+            </Button>
+          </Box>
 
-        {/* Sezione 5: Essiccatori (con Scambiatori inline) */}
-        <Accordion>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="h6">5. Essiccatori</Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            <EssiccatoriSection control={control} errors={errors} />
-          </AccordionDetails>
-        </Accordion>
+          {/* S - Serbatoi */}
+          <Accordion
+            sx={{
+              bgcolor: 'rgba(173, 216, 230, 0.15)',
+              '&:before': { display: 'none' },
+              mb: 1,
+            }}
+          >
+            <AccordionSummary
+              expandIcon={<ExpandMoreIcon />}
+              sx={{ bgcolor: 'rgba(173, 216, 230, 0.25)' }}
+            >
+              <Typography variant="h6" sx={{ fontWeight: 'medium' }}>S - Serbatoi</Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <SerbatoiSection control={control} errors={errors} />
+            </AccordionDetails>
+          </Accordion>
 
-        {/* Sezione 6: Filtri (con Recipienti Filtro inline) */}
-        <Accordion>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="h6">6. Filtri</Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            <FiltriSection control={control} errors={errors} />
-          </AccordionDetails>
-        </Accordion>
+          {/* C - Compressori (con Disoleatori inline) */}
+          <Accordion
+            sx={{
+              bgcolor: 'rgba(255, 235, 132, 0.15)',
+              '&:before': { display: 'none' },
+              mb: 1,
+            }}
+          >
+            <AccordionSummary
+              expandIcon={<ExpandMoreIcon />}
+              sx={{ bgcolor: 'rgba(255, 235, 132, 0.25)' }}
+            >
+              <Typography variant="h6" sx={{ fontWeight: 'medium' }}>C - Compressori</Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <CompressoriSection control={control} errors={errors} />
+            </AccordionDetails>
+          </Accordion>
 
-        {/* Sezione 7: Separatori */}
-        <Accordion>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="h6">7. Separatori</Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            <SeparatoriSection control={control} errors={errors} />
-          </AccordionDetails>
-        </Accordion>
+          {/* E - Essiccatori (con Scambiatori inline) */}
+          <Accordion
+            sx={{
+              bgcolor: 'rgba(200, 230, 201, 0.15)',
+              '&:before': { display: 'none' },
+              mb: 1,
+            }}
+          >
+            <AccordionSummary
+              expandIcon={<ExpandMoreIcon />}
+              sx={{ bgcolor: 'rgba(200, 230, 201, 0.25)' }}
+            >
+              <Typography variant="h6" sx={{ fontWeight: 'medium' }}>E - Essiccatori</Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <EssiccatoriSection control={control} errors={errors} />
+            </AccordionDetails>
+          </Accordion>
 
-        {/* Sezione 8: Altri Apparecchi */}
-        <Accordion>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="h6">8. Altri Apparecchi</Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            <AltriApparecchiSection control={control} errors={errors} />
-          </AccordionDetails>
-        </Accordion>
+          {/* F - Filtri (con Recipienti Filtro inline) */}
+          <Accordion
+            sx={{
+              bgcolor: 'rgba(255, 204, 188, 0.15)',
+              '&:before': { display: 'none' },
+              mb: 1,
+            }}
+          >
+            <AccordionSummary
+              expandIcon={<ExpandMoreIcon />}
+              sx={{ bgcolor: 'rgba(255, 204, 188, 0.25)' }}
+            >
+              <Typography variant="h6" sx={{ fontWeight: 'medium' }}>F - Filtri</Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <FiltriSection control={control} errors={errors} />
+            </AccordionDetails>
+          </Accordion>
+
+          {/* SE - Separatori */}
+          <Accordion
+            sx={{
+              bgcolor: 'rgba(225, 190, 231, 0.15)',
+              '&:before': { display: 'none' },
+              mb: 1,
+            }}
+          >
+            <AccordionSummary
+              expandIcon={<ExpandMoreIcon />}
+              sx={{ bgcolor: 'rgba(225, 190, 231, 0.25)' }}
+            >
+              <Typography variant="h6" sx={{ fontWeight: 'medium' }}>SE - Separatori</Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <SeparatoriSection control={control} errors={errors} />
+            </AccordionDetails>
+          </Accordion>
+
+          {/* AA - Altri Apparecchi */}
+          <Accordion
+            sx={{
+              bgcolor: 'rgba(207, 216, 220, 0.15)',
+              '&:before': { display: 'none' },
+              mb: 1,
+            }}
+          >
+            <AccordionSummary
+              expandIcon={<ExpandMoreIcon />}
+              sx={{ bgcolor: 'rgba(207, 216, 220, 0.25)' }}
+            >
+              <Typography variant="h6" sx={{ fontWeight: 'medium' }}>AA - Altri Apparecchi</Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <AltriApparecchiSection control={control} errors={errors} />
+            </AccordionDetails>
+          </Accordion>
+        </Box>
 
         {/* Batch OCR Dialog */}
         <BatchOCRDialog

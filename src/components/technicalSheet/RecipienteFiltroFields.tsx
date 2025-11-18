@@ -13,6 +13,7 @@ interface RecipienteFiltroFieldsProps {
   codiceRecipiente: string
   filtroAssociato: string
   renderOCRButton?: ReactNode // Pulsante OCR opzionale
+  bgColor?: string // Colore di sfondo personalizzato
 }
 
 const CATEGORIA_PED_OPTIONS: CategoriaPED[] = ['I', 'II', 'III', 'IV']
@@ -39,6 +40,7 @@ export const RecipienteFiltroFields = ({
   codiceRecipiente,
   filtroAssociato,
   renderOCRButton,
+  bgColor = 'rgba(255, 204, 188, 0.35)', // Default arancio più carico
 }: RecipienteFiltroFieldsProps) => {
   const { showRecipienteFiltro } = useTecnicoDM329Visibility()
 
@@ -58,7 +60,7 @@ export const RecipienteFiltroFields = ({
   }
 
   return (
-    <Box sx={{ mt: 2, p: 2, bgcolor: 'info.dark', borderRadius: 1 }}>
+    <Box sx={{ mt: 2, p: 2, bgcolor: bgColor, borderRadius: 1 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
         <WarningIcon fontSize="small" />
         <Typography variant="subtitle2" fontWeight="bold">

@@ -287,6 +287,7 @@ export const SerbatoiSection = ({ control, errors }: SerbatoiSectionProps) => {
               basePath={`serbatoi.${index}`}
               errors={errors}
               codiceValvola={`S${index + 1}.1`}
+              bgColor="rgba(173, 216, 230, 0.35)"
               renderOCRButton={
                 <SingleOCRButton
                   equipmentType="Serbatoi"

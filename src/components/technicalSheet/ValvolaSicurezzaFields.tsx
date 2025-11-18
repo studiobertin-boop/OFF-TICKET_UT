@@ -11,6 +11,7 @@ interface ValvolaSicurezzaFieldsProps {
   errors: any
   codiceValvola: string
   renderOCRButton?: ReactNode // Pulsante OCR opzionale
+  bgColor?: string // Colore di sfondo personalizzato
 }
 
 /**
@@ -30,6 +31,7 @@ export const ValvolaSicurezzaFields = ({
   errors,
   codiceValvola,
   renderOCRButton,
+  bgColor = 'rgba(255, 235, 132, 0.50)', // Default giallo più carico
 }: ValvolaSicurezzaFieldsProps) => {
   const { showAdvancedFields } = useTecnicoDM329Visibility()
 
@@ -44,7 +46,7 @@ export const ValvolaSicurezzaFields = ({
   }
 
   return (
-    <Box sx={{ mt: 2, p: 2, bgcolor: 'warning.light', borderRadius: 1 }}>
+    <Box sx={{ mt: 2, p: 2, bgcolor: bgColor, borderRadius: 1 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
         <WarningIcon fontSize="small" />
         <Typography variant="subtitle2" fontWeight="bold">

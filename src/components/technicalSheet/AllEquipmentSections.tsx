@@ -205,7 +205,7 @@ export const CompressoriSection = ({ control, errors }: CompressoriSectionProps)
                         }}
                       />
                     }
-                    label="Ha Disoleatore Associato"
+                    label="Ha disoleatore da denunciare"
                   />
                 )}
               />
@@ -214,7 +214,7 @@ export const CompressoriSection = ({ control, errors }: CompressoriSectionProps)
             {/* Disoleatore inline - Rendering condizionale */}
             {haDisoleatore && disoleatoreIndex !== -1 && (
               <Grid item xs={12}>
-                <Box sx={{ mt: 2, p: 2, bgcolor: 'warning.dark', borderRadius: 1 }}>
+                <Box sx={{ mt: 2, p: 2, bgcolor: 'rgba(255, 235, 132, 0.35)', borderRadius: 1 }}>
                   <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
                     Disoleatore {compressoreCodice}.1 - Associato a {compressoreCodice}
                   </Typography>
@@ -313,6 +313,7 @@ export const CompressoriSection = ({ control, errors }: CompressoriSectionProps)
                         basePath={`disoleatori.${disoleatoreIndex}`}
                         errors={errors}
                         codiceValvola={`${compressoreCodice}.2`}
+                        bgColor="rgba(255, 235, 132, 0.50)"
                       />
                     </Grid>
                   </Grid>
@@ -524,7 +525,7 @@ export const EssiccatoriSection = ({ control, errors }: EssiccatoriSectionProps)
                         }}
                     />
                   }
-                  label="Ha Scambiatore Associato"
+                  label="Ha scambiatore da denunciare"
                 />
               )}
             />
@@ -533,7 +534,7 @@ export const EssiccatoriSection = ({ control, errors }: EssiccatoriSectionProps)
             {/* Scambiatore inline - Rendering condizionale */}
             {haScambiatore && scambiatoreIndex !== -1 && (
               <Grid item xs={12}>
-                <Box sx={{ mt: 2, p: 2, bgcolor: 'info.dark', borderRadius: 1 }}>
+                <Box sx={{ mt: 2, p: 2, bgcolor: 'rgba(200, 230, 201, 0.35)', borderRadius: 1 }}>
                   <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
                     Scambiatore {essiccatoreCodice}.1 - Associato a {essiccatoreCodice}
                   </Typography>
@@ -770,7 +771,7 @@ export const FiltriSection = ({ control, errors }: FiltriSectionProps) => {
                           }}
                         />
                       }
-                      label="Ha Recipiente Filtro Associato"
+                      label="Ha recipiente filtro da denunciare"
                     />
                   )}
                 />
@@ -786,6 +787,7 @@ export const FiltriSection = ({ control, errors }: FiltriSectionProps) => {
                   errors={errors}
                   codiceRecipiente={`${filtroCodice}.1`}
                   filtroAssociato={filtroCodice}
+                  bgColor="rgba(255, 204, 188, 0.35)"
                 />
               </Grid>
             )}
