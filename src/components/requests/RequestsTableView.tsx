@@ -27,6 +27,7 @@ import {
 } from '@mui/icons-material'
 import { Request, RequestStatus } from '@/types'
 import { getStatusColor, getStatusLabel } from '@/utils/workflow'
+import { usePersistedState } from '@/hooks/usePersistedState'
 import { BlockIndicator } from './BlockIndicator'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
@@ -68,15 +69,17 @@ export const RequestsTableView = ({
   showPrintButton = true,
 }: RequestsTableViewProps) => {
   const navigate = useNavigate()
-  const [orderBy, setOrderBy] = useState<OrderBy>('updated_at')
-  const [order, setOrder] = useState<OrderDirection>('desc')
 
-  // Filtri per colonna
-  const [tipoFilter, setTipoFilter] = useState<string[]>([])
-  const [clienteFilter, setClienteFilter] = useState<string[]>([])
+  // Stati persistiti nel sessionStorage
+  const [orderBy, setOrderBy] = usePersistedState<OrderBy>('requestsTable_orderBy', 'updated_at')
+  const [order, setOrder] = usePersistedState<OrderDirection>('requestsTable_order', 'desc')
+
+  // Filtri per colonna (persistiti)
+  const [tipoFilter, setTipoFilter] = usePersistedState<string[]>('requestsTable_tipoFilter', [])
+  const [clienteFilter, setClienteFilter] = usePersistedState<string[]>('requestsTable_clienteFilter', [])
   const [clienteSearchText, setClienteSearchText] = useState('')
-  const [statoFilter, setStatoFilter] = useState<RequestStatus[]>([])
-  const [creatorFilter, setCreatorFilter] = useState<string[]>([])
+  const [statoFilter, setStatoFilter] = usePersistedState<RequestStatus[]>('requestsTable_statoFilter', [])
+  const [creatorFilter, setCreatorFilter] = usePersistedState<string[]>('requestsTable_creatorFilter', [])
 
   const handleSort = (property: OrderBy) => {
     const isAsc = orderBy === property && order === 'asc'

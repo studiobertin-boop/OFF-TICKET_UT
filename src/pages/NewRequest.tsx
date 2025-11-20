@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
   Box,
@@ -20,6 +20,7 @@ import { Layout } from '@/components/common/Layout'
 import { DynamicFormField } from '@/components/requests/DynamicFormField'
 import { useRequestTypes } from '@/hooks/useRequestTypes'
 import { useCreateRequest } from '@/hooks/useRequests'
+import { useCustomer } from '@/hooks/useCustomers'
 import { generateZodSchemaWithValidations, getDefaultValues } from '@/utils/formSchema'
 
 export const NewRequest = () => {
@@ -42,10 +43,47 @@ export const NewRequest = () => {
     handleSubmit,
     formState: { errors },
     reset,
+    setValue,
   } = useForm({
     resolver: selectedType ? zodResolver(generateZodSchemaWithValidations(visibleFields, selectedType.name)) : undefined,
     defaultValues: selectedType ? getDefaultValues(visibleFields) : {},
   })
+
+  // Watch cliente field for auto-filling sede_legale (only for DM329)
+  const clienteValue = useWatch({
+    control,
+    name: 'cliente',
+  })
+
+  // Get customer details when cliente is selected
+  const customerId = typeof clienteValue === 'object' && clienteValue?.id ? clienteValue.id : null
+  const { data: customerData } = useCustomer(customerId || '')
+
+  // Auto-fill sede_legale when customer has address data
+  useEffect(() => {
+    if (selectedType?.name === 'DM329' && customerData) {
+      const { via, cap, citta, provincia } = customerData
+
+      // Format address only if at least one field is present
+      if (via || cap || citta || provincia) {
+        const addressParts = []
+        if (via) addressParts.push(via)
+        if (cap && citta) {
+          addressParts.push(`${cap} ${citta}`)
+        } else if (citta) {
+          addressParts.push(citta)
+        } else if (cap) {
+          addressParts.push(cap)
+        }
+        if (provincia) addressParts.push(`(${provincia})`)
+
+        const formattedAddress = addressParts.join(', ')
+        if (formattedAddress) {
+          setValue('sede_legale', formattedAddress)
+        }
+      }
+    }
+  }, [customerData, selectedType, setValue])
 
   // Pre-seleziona il tipo se viene passato nella query string
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { Control, Controller, useWatch } from 'react-hook-form'
+import { Control, Controller, useWatch, useFormContext } from 'react-hook-form'
 import {
   TextField,
   Grid,
@@ -23,6 +23,7 @@ import { AddressAutocompleteField } from '@/components/requests/AddressAutocompl
 interface DatiImpiantoSectionProps {
   control: Control<any>
   errors: any
+  sedeLegale?: string
 }
 
 /**
@@ -38,18 +39,16 @@ interface DatiImpiantoSectionProps {
 export const DatiImpiantoSection = ({
   control,
   errors,
+  sedeLegale,
 }: DatiImpiantoSectionProps) => {
+  // Get setValue from form context
+  const { setValue } = useFormContext()
+
   // Watch per logica condizionale
   const sedeImpUgualeLegale = useWatch({
     control,
     name: 'dati_impianto.sede_imp_uguale_legale',
     defaultValue: false,
-  })
-
-  const sedeLegale = useWatch({
-    control,
-    name: 'dati_generali.sede_legale',
-    defaultValue: '',
   })
 
   const localeDedicato = useWatch({
@@ -78,9 +77,9 @@ export const DatiImpiantoSection = ({
                     checked={field.value || false}
                     onChange={(e) => {
                       field.onChange(e.target.checked)
-                      // Se checked, copia automaticamente la sede legale
+                      // Se checked, copia automaticamente la sede legale dalla richiesta principale
                       if (e.target.checked && sedeLegale) {
-                        control._formValues.dati_impianto.sede_impianto = sedeLegale
+                        setValue('dati_impianto.sede_impianto', sedeLegale)
                       }
                     }}
                   />

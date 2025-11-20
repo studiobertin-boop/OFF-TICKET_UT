@@ -5,7 +5,6 @@ import {
   Typography,
   Box,
 } from '@mui/material'
-import { AddressAutocompleteField } from '@/components/requests/AddressAutocompleteField'
 
 interface DatiGeneraliSectionProps {
   control: Control<any>
@@ -18,7 +17,6 @@ interface DatiGeneraliSectionProps {
  * - Data sopralluogo (obbligatorio)
  * - Nome tecnico (obbligatorio)
  * - Cliente (obbligatorio, suggerimento da DB)
- * - Sede legale (obbligatorio, autocomplete OpenStreetMap)
  * - Note generali (opzionale)
  */
 export const DatiGeneraliSection = ({
@@ -77,7 +75,7 @@ export const DatiGeneraliSection = ({
         </Grid>
 
         {/* Cliente */}
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} md={6}>
           <Controller
             name="dati_generali.cliente"
             control={control}
@@ -94,21 +92,6 @@ export const DatiGeneraliSection = ({
                 placeholder="Ragione sociale cliente"
               />
             )}
-          />
-        </Grid>
-
-        {/* Sede Legale */}
-        <Grid item xs={12}>
-          <AddressAutocompleteField
-            field={{
-              name: 'dati_generali.sede_legale',
-              label: 'Sede Legale',
-              type: 'address-autocomplete',
-              required: true,
-              placeholder: 'Via, Città, CAP...',
-            }}
-            control={control}
-            error={errors?.dati_generali?.sede_legale}
           />
         </Grid>
 

@@ -262,6 +262,7 @@ export const TechnicalDetails = () => {
 
   const isCompleted = technicalData.is_completed
   const customerName = request.custom_fields?.cliente?.ragione_sociale || 'N/A'
+  const sedeLegale = request.custom_fields?.sede_legale || ''
 
   // Determina se l'utente può gestire la condivisione
   const canManageSharing =
@@ -401,6 +402,7 @@ export const TechnicalDetails = () => {
               onSubmit={handleFormSubmit}
               onAutoSave={handleAutoSave}
               customerName={customerName}
+              sedeLegale={sedeLegale}
               readOnly={isCompleted}
             />
           </CardContent>

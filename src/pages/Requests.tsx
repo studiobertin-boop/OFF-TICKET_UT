@@ -34,6 +34,7 @@ import { Layout } from '@/components/common/Layout'
 import { useRequests } from '@/hooks/useRequests'
 import { useRequestTypes } from '@/hooks/useRequestTypes'
 import { useAuth } from '@/hooks/useAuth'
+import { usePersistedState } from '@/hooks/usePersistedState'
 import { getStatusColor, getStatusLabel } from '@/utils/workflow'
 import type { DM329Status } from '@/types'
 import { RequestsTableView } from '@/components/requests/RequestsTableView'
@@ -75,18 +76,21 @@ export const Requests = () => {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { user } = useAuth()
-  const [statusFilter, setStatusFilter] = useState<string>('')
-  const [typeFilter, setTypeFilter] = useState<string>('')
-  const [viewMode, setViewMode] = useState<ViewMode>('table') // Default: vista tabellare
-  // Se è userdm329, parte dal tab DM329 (tab 1), altrimenti dal tab Generali (tab 0)
-  // Tab: 0 = Generali, 1 = DM329, 2 = Nascoste Generali (admin), 3 = Nascoste DM329 (admin)
-  const [activeTab, setActiveTab] = useState(user?.role === 'userdm329' ? 1 : 0)
 
-  // DM329 specific filters for cards view
-  const [dm329ClienteFilter, setDm329ClienteFilter] = useState<string[]>([])
-  const [dm329StatoFilter, setDm329StatoFilter] = useState<string[]>([])
-  const [dm329NoCivaFilter, setDm329NoCivaFilter] = useState<'all' | 'true' | 'false'>('all')
-  const [dm329NoteFilter, setDm329NoteFilter] = useState('')
+  // Stati persistiti nel sessionStorage
+  const [statusFilter, setStatusFilter] = usePersistedState<string>('requests_statusFilter', '')
+  const [typeFilter, setTypeFilter] = usePersistedState<string>('requests_typeFilter', '')
+  const [viewMode, setViewMode] = usePersistedState<ViewMode>('requests_viewMode', 'table')
+  const [activeTab, setActiveTab] = usePersistedState<number>(
+    'requests_activeTab',
+    user?.role === 'userdm329' ? 1 : 0
+  )
+
+  // DM329 specific filters for cards view (persistiti)
+  const [dm329ClienteFilter, setDm329ClienteFilter] = usePersistedState<string[]>('requests_dm329ClienteFilter', [])
+  const [dm329StatoFilter, setDm329StatoFilter] = usePersistedState<string[]>('requests_dm329StatoFilter', [])
+  const [dm329NoCivaFilter, setDm329NoCivaFilter] = usePersistedState<'all' | 'true' | 'false'>('requests_dm329NoCivaFilter', 'all')
+  const [dm329NoteFilter, setDm329NoteFilter] = usePersistedState<string>('requests_dm329NoteFilter', '')
 
   // Selection state
   const [selectedRequests, setSelectedRequests] = useState<Set<string>>(new Set())

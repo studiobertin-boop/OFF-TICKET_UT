@@ -70,6 +70,10 @@ export interface Customer {
   id: string
   ragione_sociale: string
   external_id?: string | null
+  via?: string | null
+  cap?: string | null
+  citta?: string | null
+  provincia?: string | null
   is_active: boolean
   created_at: string
   updated_at: string

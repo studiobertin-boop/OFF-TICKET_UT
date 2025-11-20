@@ -119,29 +119,30 @@ INSERT INTO request_types (name, fields_schema, is_active) VALUES (
       "valueField": "id"
     },
     {
-      "name": "indirizzo_immobile",
-      "type": "textarea",
-      "label": "Indirizzo Immobile",
-      "required": true
-    },
-    {
-      "name": "tipologia_intervento",
-      "type": "select",
-      "label": "Tipologia Intervento",
-      "required": true,
-      "options": ["Nuova Costruzione", "Ristrutturazione", "Ampliamento", "Cambio Destinazione"]
-    },
-    {
-      "name": "superficie",
+      "name": "sede_legale",
       "type": "text",
-      "label": "Superficie (mq)",
-      "required": false
+      "label": "Sede Legale",
+      "required": false,
+      "placeholder": "Auto-compilato dal cliente selezionato"
     },
     {
       "name": "note",
       "type": "textarea",
       "label": "Note",
       "required": false
+    },
+    {
+      "name": "no_civa",
+      "type": "boolean",
+      "label": "No CIVA",
+      "required": false
+    },
+    {
+      "name": "off_cac",
+      "type": "select",
+      "label": "OFF/CAC",
+      "required": false,
+      "options": ["", "off", "cac"]
     }
   ]'::jsonb,
   true
@@ -160,14 +161,12 @@ INSERT INTO requests (
   custom_fields
 ) VALUES (
   (SELECT id FROM request_types WHERE name = 'DM329' LIMIT 1),
-  'DM329 - Nuova costruzione Via Roma 15',
+  'DM329 - Società Costruzioni SRL',
   '1-INCARICO_RICEVUTO',
   (SELECT id FROM users WHERE email = 'utente@studiobertin.it' LIMIT 1),
   '{
     "cliente": "Società Costruzioni SRL",
-    "indirizzo_immobile": "Via Roma 15, 10100 Torino",
-    "tipologia_intervento": "Nuova Costruzione",
-    "superficie": "250",
+    "sede_legale": "Via Roma 15, 10100 Torino (TO)",
     "note": "Cliente richiede urgenza per scadenze comunali"
   }'::jsonb
 );

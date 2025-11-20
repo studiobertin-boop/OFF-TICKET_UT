@@ -2,6 +2,8 @@ import { useForm, FormProvider } from 'react-hook-form'
 import { useEffect, useRef, useState } from 'react'
 import {
   Box,
+  Card,
+  CardContent,
   Accordion,
   AccordionSummary,
   AccordionDetails,
@@ -33,6 +35,7 @@ interface TechnicalSheetFormProps {
   onSubmit: (data: SchedaDatiCompleta) => void
   onAutoSave?: (data: SchedaDatiCompleta) => void
   customerName?: string
+  sedeLegale?: string
   readOnly?: boolean
 }
 
@@ -45,6 +48,7 @@ export const TechnicalSheetForm = ({
   onSubmit,
   onAutoSave,
   customerName,
+  sedeLegale,
   readOnly = false,
 }: TechnicalSheetFormProps) => {
   const methods = useForm<SchedaDatiCompleta>({
@@ -249,60 +253,65 @@ export const TechnicalSheetForm = ({
     <FormProvider {...methods}>
       <Box component="form" onSubmit={handleSubmit(onSubmit)}>
         {/* Sezione 1: Informazioni Pratica */}
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold', color: 'text.primary' }}>
-            1 - Informazioni Pratica
-          </Typography>
-          <Accordion defaultExpanded>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
-                <Typography variant="h6">Dati Generali</Typography>
-                <Chip label="Obbligatorio" size="small" color="error" />
-              </Box>
-            </AccordionSummary>
-            <AccordionDetails>
-              <DatiGeneraliSection
-                control={control}
-                errors={errors}
-                defaultCustomer={customerName}
-              />
-            </AccordionDetails>
-          </Accordion>
-        </Box>
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold', color: 'text.primary' }}>
+              1 - Informazioni Pratica
+            </Typography>
+            <Accordion defaultExpanded>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
+                  <Typography variant="h6">Dati Generali</Typography>
+                  <Chip label="Obbligatorio" size="small" color="error" />
+                </Box>
+              </AccordionSummary>
+              <AccordionDetails>
+                <DatiGeneraliSection
+                  control={control}
+                  errors={errors}
+                  defaultCustomer={customerName}
+                />
+              </AccordionDetails>
+            </Accordion>
+          </CardContent>
+        </Card>
 
         {/* Sezione 2: Dati Sala Compressori */}
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold', color: 'text.primary' }}>
-            2 - Dati Sala Compressori
-          </Typography>
-          <Accordion>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
-                <Typography variant="h6">Dati Impianto</Typography>
-                <Chip label="Obbligatorio" size="small" color="error" />
-              </Box>
-            </AccordionSummary>
-            <AccordionDetails>
-              <DatiImpiantoSection control={control} errors={errors} />
-            </AccordionDetails>
-          </Accordion>
-        </Box>
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold', color: 'text.primary' }}>
+              2 - Dati Sala Compressori
+            </Typography>
+            <Accordion>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
+                  <Typography variant="h6">Dati Impianto</Typography>
+                  <Chip label="Obbligatorio" size="small" color="error" />
+                </Box>
+              </AccordionSummary>
+              <AccordionDetails>
+                <DatiImpiantoSection control={control} errors={errors} sedeLegale={sedeLegale} />
+              </AccordionDetails>
+            </Accordion>
+          </CardContent>
+        </Card>
 
         {/* Sezione 3: Dati Apparecchiature */}
-        <Box sx={{ mb: 4 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
-              3 - Dati Apparecchiature
-            </Typography>
-            <Button
-              variant="contained"
-              startIcon={<AutoFixHighIcon />}
-              onClick={() => setBatchOCRDialogOpen(true)}
-              disabled={readOnly}
-            >
-              Riconosci Automaticamente
-            </Button>
-          </Box>
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
+                3 - Dati Apparecchiature
+              </Typography>
+              <Button
+                variant="contained"
+                startIcon={<AutoFixHighIcon />}
+                onClick={() => setBatchOCRDialogOpen(true)}
+                disabled={readOnly}
+              >
+                Riconosci Automaticamente
+              </Button>
+            </Box>
 
           {/* S - Serbatoi */}
           <Accordion
@@ -417,7 +426,8 @@ export const TechnicalSheetForm = ({
               <AltriApparecchiSection control={control} errors={errors} />
             </AccordionDetails>
           </Accordion>
-        </Box>
+        </CardContent>
+      </Card>
 
         {/* Batch OCR Dialog */}
         <BatchOCRDialog

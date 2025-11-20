@@ -13,7 +13,14 @@
     "test:ui": "vitest --ui",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
-    "supabase:reset": "supabase db reset"
+    "supabase:reset": "supabase db reset",
+    "sync-customers": "tsx scripts/sync-customers-from-excel.ts",
+    "sync-customers:dry-run": "tsx scripts/sync-customers-from-excel.ts --dry-run",
+    "sync-customers:verbose": "tsx scripts/sync-customers-from-excel.ts --verbose",
+    "find-duplicates": "tsx scripts/find-duplicate-customers.ts",
+    "cleanup-duplicates": "tsx scripts/cleanup-duplicate-customers.ts",
+    "delete-all-customers": "tsx scripts/delete-all-customers.ts",
+    "smart-cleanup": "tsx scripts/smart-cleanup-customers.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

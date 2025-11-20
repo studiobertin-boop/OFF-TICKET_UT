@@ -37,7 +37,6 @@ import {
   useCreateCustomer,
   useUpdateCustomer,
   useDeleteCustomer,
-  useSyncCustomers,
 } from '@/hooks/useCustomers'
 import type { Customer } from '@/types'
 import { Layout } from '@/components/common/Layout'
@@ -56,6 +55,12 @@ export default function CustomersManagement() {
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null)
   const [newCustomerName, setNewCustomerName] = useState('')
   const [editCustomerName, setEditCustomerName] = useState('')
+  const [editCustomerAddress, setEditCustomerAddress] = useState({
+    via: '',
+    cap: '',
+    citta: '',
+    provincia: '',
+  })
 
   // Hooks
   const { data: customersResponse, isLoading, error } = useCustomers({
@@ -66,7 +71,6 @@ export default function CustomersManagement() {
   const createCustomer = useCreateCustomer()
   const updateCustomer = useUpdateCustomer()
   const deleteCustomer = useDeleteCustomer()
-  const syncCustomers = useSyncCustomers()
 
   // Extract data from response
   const customers = customersResponse?.data || []
@@ -139,6 +143,12 @@ export default function CustomersManagement() {
   const handleEditClick = (customer: Customer) => {
     setSelectedCustomer(customer)
     setEditCustomerName(customer.ragione_sociale)
+    setEditCustomerAddress({
+      via: customer.via || '',
+      cap: customer.cap || '',
+      citta: customer.citta || '',
+      provincia: customer.provincia || '',
+    })
     setEditDialogOpen(true)
   }
 
@@ -148,11 +158,18 @@ export default function CustomersManagement() {
     try {
       await updateCustomer.mutateAsync({
         id: selectedCustomer.id,
-        updates: { ragione_sociale: editCustomerName },
+        updates: {
+          ragione_sociale: editCustomerName,
+          via: editCustomerAddress.via || null,
+          cap: editCustomerAddress.cap || null,
+          citta: editCustomerAddress.citta || null,
+          provincia: editCustomerAddress.provincia || null,
+        },
       })
       setEditDialogOpen(false)
       setSelectedCustomer(null)
       setEditCustomerName('')
+      setEditCustomerAddress({ via: '', cap: '', citta: '', provincia: '' })
     } catch (err) {
       console.error('Error updating customer:', err)
     }
@@ -175,14 +192,15 @@ export default function CustomersManagement() {
     }
   }
 
-  const handleSyncClick = async () => {
-    try {
-      const result = await syncCustomers.mutateAsync()
-      alert(`Sincronizzazione completata! ${result.inserted} clienti sincronizzati.`)
-    } catch (err: any) {
-      console.error('Error syncing customers:', err)
-      alert(`Errore nella sincronizzazione: ${err.message}`)
-    }
+  const handleSyncClick = () => {
+    alert(
+      'Per sincronizzare i clienti da Excel MAGO, esegui il seguente comando nel terminale:\n\n' +
+        'npm run sync-customers:dry-run\n\n' +
+        '(per vedere le modifiche senza applicarle)\n\n' +
+        'oppure\n\n' +
+        'npm run sync-customers\n\n' +
+        '(per applicare le modifiche)'
+    )
   }
 
   if (isLoading) {
@@ -205,9 +223,8 @@ export default function CustomersManagement() {
               variant="outlined"
               startIcon={<SyncIcon />}
               onClick={handleSyncClick}
-              disabled={syncCustomers.isPending}
             >
-              {syncCustomers.isPending ? 'Sincronizzazione...' : 'Sincronizza da Progetto Esterno'}
+              Sincronizza da Excel MAGO
             </Button>
             <Button variant="contained" startIcon={<AddIcon />} onClick={handleCreateClick}>
               Nuovo Cliente
@@ -244,6 +261,8 @@ export default function CustomersManagement() {
             <TableHead>
               <TableRow>
                 <TableCell>Ragione Sociale</TableCell>
+                <TableCell>Indirizzo</TableCell>
+                <TableCell>Città</TableCell>
                 <TableCell>ID Esterno</TableCell>
                 <TableCell>Stato</TableCell>
                 <TableCell>Data Creazione</TableCell>
@@ -253,7 +272,7 @@ export default function CustomersManagement() {
             <TableBody>
               {customers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} align="center">
+                  <TableCell colSpan={7} align="center">
                     <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
                       Nessun cliente trovato
                     </Typography>
@@ -264,6 +283,28 @@ export default function CustomersManagement() {
                   <TableRow key={customer.id} hover>
                     <TableCell>
                       <Typography variant="body1">{customer.ragione_sociale}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      {customer.via ? (
+                        <Typography variant="body2">
+                          {customer.via}
+                          {customer.cap && ` - ${customer.cap}`}
+                          {customer.provincia && ` (${customer.provincia})`}
+                        </Typography>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          -
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {customer.citta ? (
+                        <Typography variant="body2">{customer.citta}</Typography>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          -
+                        </Typography>
+                      )}
                     </TableCell>
                     <TableCell>
                       {customer.external_id ? (
@@ -384,23 +425,61 @@ export default function CustomersManagement() {
       </Dialog>
 
       {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>Modifica Cliente</DialogTitle>
         <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Ragione Sociale"
-            fullWidth
-            value={editCustomerName}
-            onChange={(e) => setEditCustomerName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                handleEditConfirm()
-              }
-            }}
-          />
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <TextField
+              autoFocus
+              label="Ragione Sociale"
+              fullWidth
+              value={editCustomerName}
+              onChange={(e) => setEditCustomerName(e.target.value)}
+              required
+            />
+
+            <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 1 }}>
+              Sede Legale
+            </Typography>
+
+            <TextField
+              label="Indirizzo (Via)"
+              fullWidth
+              value={editCustomerAddress.via}
+              onChange={(e) => setEditCustomerAddress({ ...editCustomerAddress, via: e.target.value })}
+              placeholder="Via Roma, 123"
+            />
+
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField
+                label="CAP"
+                value={editCustomerAddress.cap}
+                onChange={(e) => setEditCustomerAddress({ ...editCustomerAddress, cap: e.target.value })}
+                placeholder="20100"
+                sx={{ width: '30%' }}
+              />
+
+              <TextField
+                label="Città"
+                fullWidth
+                value={editCustomerAddress.citta}
+                onChange={(e) => setEditCustomerAddress({ ...editCustomerAddress, citta: e.target.value })}
+                placeholder="Milano"
+              />
+
+              <TextField
+                label="Provincia"
+                value={editCustomerAddress.provincia}
+                onChange={(e) => {
+                  const value = e.target.value.toUpperCase().substring(0, 2)
+                  setEditCustomerAddress({ ...editCustomerAddress, provincia: value })
+                }}
+                placeholder="MI"
+                inputProps={{ maxLength: 2 }}
+                sx={{ width: '20%' }}
+              />
+            </Box>
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditDialogOpen(false)}>Annulla</Button>

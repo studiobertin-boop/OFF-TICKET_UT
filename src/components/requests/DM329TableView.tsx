@@ -29,6 +29,7 @@ import {
 } from '@mui/icons-material'
 import { Request, DM329Status } from '@/types'
 import { getStatusColor, getStatusLabel } from '@/utils/workflow'
+import { usePersistedState } from '@/hooks/usePersistedState'
 import { BlockIndicator } from './BlockIndicator'
 import { UrgentIndicator } from './UrgentIndicator'
 import { TimerAlertIndicator } from './TimerAlertIndicator'
@@ -74,18 +75,20 @@ export const DM329TableView = ({
   showPrintButton = true,
 }: DM329TableViewProps) => {
   const navigate = useNavigate()
-  const [orderBy, setOrderBy] = useState<OrderBy>('updated_at')
-  const [order, setOrder] = useState<OrderDirection>('desc')
 
-  // Filtri per colonna
-  const [clienteFilter, setClienteFilter] = useState<string[]>([])
+  // Stati persistiti nel sessionStorage
+  const [orderBy, setOrderBy] = usePersistedState<OrderBy>('dm329Table_orderBy', 'updated_at')
+  const [order, setOrder] = usePersistedState<OrderDirection>('dm329Table_order', 'desc')
+
+  // Filtri per colonna (persistiti)
+  const [clienteFilter, setClienteFilter] = usePersistedState<string[]>('dm329Table_clienteFilter', [])
   const [clienteSearchText, setClienteSearchText] = useState('')
-  const [statoFilter, setStatoFilter] = useState<DM329Status[]>([])
-  const [noCivaFilter, setNoCivaFilter] = useState<'all' | 'true' | 'false'>('all')
-  const [noteFilter, setNoteFilter] = useState('')
-  const [urgentFilter, setUrgentFilter] = useState<'all' | 'true' | 'false'>('all')
-  const [blockedFilter, setBlockedFilter] = useState<'all' | 'true' | 'false'>('all')
-  const [timerAlertFilter, setTimerAlertFilter] = useState<'all' | 'true' | 'false'>('all')
+  const [statoFilter, setStatoFilter] = usePersistedState<DM329Status[]>('dm329Table_statoFilter', [])
+  const [noCivaFilter, setNoCivaFilter] = usePersistedState<'all' | 'true' | 'false'>('dm329Table_noCivaFilter', 'all')
+  const [noteFilter, setNoteFilter] = usePersistedState<string>('dm329Table_noteFilter', '')
+  const [urgentFilter, setUrgentFilter] = usePersistedState<'all' | 'true' | 'false'>('dm329Table_urgentFilter', 'all')
+  const [blockedFilter, setBlockedFilter] = usePersistedState<'all' | 'true' | 'false'>('dm329Table_blockedFilter', 'all')
+  const [timerAlertFilter, setTimerAlertFilter] = usePersistedState<'all' | 'true' | 'false'>('dm329Table_timerAlertFilter', 'all')
 
   const handleSort = (property: OrderBy) => {
     const isAsc = orderBy === property && order === 'asc'
