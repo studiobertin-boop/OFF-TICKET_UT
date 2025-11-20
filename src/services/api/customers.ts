@@ -8,6 +8,10 @@ export interface CreateCustomerInput {
 export interface UpdateCustomerInput {
   ragione_sociale?: string
   is_active?: boolean
+  via?: string | null
+  cap?: string | null
+  citta?: string | null
+  provincia?: string | null
 }
 
 export interface CustomerFilters {
