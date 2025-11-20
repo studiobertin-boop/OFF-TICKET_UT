@@ -135,7 +135,9 @@
       "Bash(tsx:*)",
       "Bash(npm run smart-cleanup:*)",
       "Bash(taskkill:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(cmd /c \"rd /s /q backups\")",
+      "Bash(cmd /c \"rd /s /q supabase\\migrations_backup_20251119_153135\")"
     ],
     "deny": [],
     "ask": []

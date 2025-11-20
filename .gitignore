@@ -83,3 +83,15 @@ Desktop.ini
 # pnpm-lock.yaml
 
 .vercel
+
+# Backups and migrations backups
+backups/
+supabase/migrations_backup_*/
+
+# Documentation files (Excel, Word, CSV with sensitive data)
+DOCUMENTAZIONE/*.xlsx
+DOCUMENTAZIONE/*.docx
+DOCUMENTAZIONE/*.csv
+
+# Problematic temporary files
+nul
