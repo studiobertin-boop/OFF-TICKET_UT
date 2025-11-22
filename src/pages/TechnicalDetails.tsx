@@ -18,6 +18,7 @@ import {
   CheckCircle as CheckCircleIcon,
   Edit as EditIcon,
   Share as ShareIcon,
+  Description as DescriptionIcon,
 } from '@mui/icons-material'
 import { Layout } from '@/components/common/Layout'
 import { useRequest } from '@/hooks/useRequests'
@@ -26,6 +27,7 @@ import { technicalDataApi } from '@/services/api/technicalData'
 import { TechnicalSheetForm } from '@/components/technicalSheet/TechnicalSheetForm'
 import { OCRReviewDialog } from '@/components/technicalSheet/OCRReviewDialog'
 import { ShareDialog } from '@/components/technicalSheet/ShareDialog'
+import { GenerateReportDialog } from '@/components/reports/GenerateReportDialog'
 import type { DM329TechnicalData, SchedaDatiCompleta, OCRExtractedData, FuzzyMatch, OCRReviewData } from '@/types'
 
 /**
@@ -56,6 +58,7 @@ export const TechnicalDetails = () => {
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [ocrReviewData, setOcrReviewData] = useState<OCRReviewData | null>(null)
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
+  const [generateReportDialogOpen, setGenerateReportDialogOpen] = useState(false)
 
   // Carica scheda dati tecnici
   useEffect(() => {
@@ -64,7 +67,30 @@ export const TechnicalDetails = () => {
 
       try {
         setLoading(true)
-        const data = await technicalDataApi.getByRequestId(id)
+        let data = await technicalDataApi.getByRequestId(id)
+
+        // Se la scheda dati non esiste, creala automaticamente
+        // (necessario per richieste DM329 create prima dell'implementazione della funzionalità)
+        if (!data) {
+          console.log('Technical data not found for request', id, '- creating automatically...')
+
+          // Estrai indirizzo impianto dai custom_fields della richiesta se disponibile
+          const indirizzoImpianto = request?.custom_fields?.indirizzo_impianto as string | undefined
+
+          try {
+            // Crea la scheda dati
+            data = await technicalDataApi.create(id, indirizzoImpianto)
+            console.log('Technical data created successfully:', data.id)
+
+            // Mostra messaggio informativo all'utente
+            setError('Scheda dati creata automaticamente. Puoi ora compilare i dati tecnici.')
+            setTimeout(() => setError(null), 5000) // Rimuovi messaggio dopo 5 secondi
+          } catch (createErr) {
+            console.error('Error creating technical data:', createErr)
+            throw new Error('Impossibile creare la scheda dati. Verifica i permessi.')
+          }
+        }
+
         setTechnicalData(data)
 
         // Parse equipment_data da JSONB
@@ -90,7 +116,7 @@ export const TechnicalDetails = () => {
     }
 
     loadTechnicalData()
-  }, [id, request?.assigned_user])
+  }, [id, request?.assigned_user, request?.custom_fields])
 
   // Verifica accesso (solo admin, userdm329 e tecnicoDM329)
   useEffect(() => {
@@ -239,11 +265,11 @@ export const TechnicalDetails = () => {
     )
   }
 
-  if (error || !technicalData) {
+  if (!technicalData) {
     return (
       <Layout>
         <Alert severity="error">
-          {error || 'Scheda dati tecnici non trovata'}
+          Scheda dati tecnici non trovata
         </Alert>
       </Layout>
     )
@@ -273,6 +299,13 @@ export const TechnicalDetails = () => {
   return (
     <Layout>
       <Box>
+        {/* Messaggio informativo creazione automatica */}
+        {error && (
+          <Alert severity="info" sx={{ mb: 3 }} onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        )}
+
         {/* Header */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -323,14 +356,25 @@ export const TechnicalDetails = () => {
             )}
 
             {isCompleted ? (
-              <Button
-                variant="outlined"
-                startIcon={<EditIcon />}
-                onClick={handleReopenSheet}
-                disabled={saving}
-              >
-                Riapri per Modifiche
-              </Button>
+              <>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  startIcon={<DescriptionIcon />}
+                  onClick={() => setGenerateReportDialogOpen(true)}
+                  disabled={saving}
+                >
+                  Genera Relazione
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<EditIcon />}
+                  onClick={handleReopenSheet}
+                  disabled={saving}
+                >
+                  Riapri per Modifiche
+                </Button>
+              </>
             ) : (
               <>
                 <Button
@@ -423,6 +467,17 @@ export const TechnicalDetails = () => {
             onClose={() => setShareDialogOpen(false)}
             technicalDataId={technicalData.id}
             requestId={request.id}
+          />
+        )}
+
+        {/* Generate Report Dialog */}
+        {technicalData && request.customer && (
+          <GenerateReportDialog
+            open={generateReportDialogOpen}
+            onClose={() => setGenerateReportDialogOpen(false)}
+            technicalData={technicalData}
+            request={request}
+            customer={request.customer}
           />
         )}
 
