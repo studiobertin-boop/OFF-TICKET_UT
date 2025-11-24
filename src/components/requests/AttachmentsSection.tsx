@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import {
   Box,
   Typography,
@@ -10,79 +10,130 @@ import {
   ListItemIcon,
   IconButton,
   CircularProgress,
+  Button,
+  Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  DialogContentText,
 } from '@mui/material'
 import {
   AttachFile as AttachFileIcon,
   Download as DownloadIcon,
   Description as DescriptionIcon,
+  Delete as DeleteIcon,
+  CloudUpload as CloudUploadIcon,
 } from '@mui/icons-material'
-import { useQuery } from '@tanstack/react-query'
-import { supabase } from '@/services/supabase'
-
-interface Attachment {
-  id: string
-  request_id: string
-  file_name: string
-  file_path: string
-  file_size: number
-  uploaded_by: string
-  created_at: string
-  uploaded_by_user?: {
-    full_name: string
-    email: string
-  }
-}
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { attachmentsApi, type Attachment } from '@/services/api/attachments'
+import { useAuth } from '@/hooks/useAuth'
 
 interface AttachmentsSectionProps {
   requestId: string
+  requestCreatedBy?: string
+  requestAssignedTo?: string | null
 }
 
-export function AttachmentsSection({ requestId }: AttachmentsSectionProps) {
+export function AttachmentsSection({
+  requestId,
+  requestCreatedBy,
+  requestAssignedTo
+}: AttachmentsSectionProps) {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const [downloading, setDownloading] = useState<string | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [attachmentToDelete, setAttachmentToDelete] = useState<Attachment | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   // Fetch attachments
   const { data: attachments, isLoading } = useQuery({
     queryKey: ['attachments', requestId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('attachments')
-        .select(`
-          *,
-          uploaded_by_user:users!uploaded_by(full_name, email)
-        `)
-        .eq('request_id', requestId)
-        .order('created_at', { ascending: false })
+    queryFn: () => attachmentsApi.getByRequestId(requestId),
+  })
 
-      if (error) throw error
-      return data as Attachment[]
+  // Upload mutation
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => attachmentsApi.upload({ requestId, file }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['attachments', requestId] })
+      setUploadError(null)
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    },
+    onError: (error: Error) => {
+      console.error('Upload error:', error)
+      setUploadError(error.message)
+    },
+  })
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: (attachmentId: string) => attachmentsApi.delete(attachmentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['attachments', requestId] })
+      setDeleteDialogOpen(false)
+      setAttachmentToDelete(null)
+    },
+    onError: (error: Error) => {
+      console.error('Delete error:', error)
+      alert(`Errore nell'eliminazione: ${error.message}`)
     },
   })
 
   const handleDownload = async (attachment: Attachment) => {
     try {
       setDownloading(attachment.id)
-
-      const { data, error } = await supabase.storage
-        .from('attachments')
-        .download(attachment.file_path)
-
-      if (error) throw error
-
-      // Create download link
-      const url = URL.createObjectURL(data)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = attachment.file_name
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
+      await attachmentsApi.download(attachment.file_path, attachment.file_name)
     } catch (err) {
       console.error('Download error:', err)
+      alert('Errore nel download del file')
     } finally {
       setDownloading(null)
     }
   }
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      uploadMutation.mutate(file)
+    }
+  }
+
+  const handleDeleteClick = (attachment: Attachment) => {
+    setAttachmentToDelete(attachment)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDeleteConfirm = () => {
+    if (attachmentToDelete) {
+      deleteMutation.mutate(attachmentToDelete.id)
+    }
+  }
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false)
+    setAttachmentToDelete(null)
+  }
+
+  // Determine permissions
+  // Can add attachments: admin, creator, or assigned user
+  const canAddAttachment =
+    user?.role === 'admin' ||
+    user?.id === requestCreatedBy ||
+    user?.id === requestAssignedTo
+
+  // Can delete attachments: admin, creator, assigned user, or uploader
+  const canDeleteAttachment = (attachment: Attachment) =>
+    user?.role === 'admin' ||
+    user?.id === requestCreatedBy ||
+    user?.id === requestAssignedTo ||
+    user?.id === attachment.uploaded_by
 
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`
@@ -102,7 +153,7 @@ export function AttachmentsSection({ requestId }: AttachmentsSectionProps) {
 
   if (isLoading) {
     return (
-      <Card>
+      <Card sx={{ mt: 3 }}>
         <CardContent>
           <Box display="flex" justifyContent="center" p={2}>
             <CircularProgress />
@@ -112,78 +163,144 @@ export function AttachmentsSection({ requestId }: AttachmentsSectionProps) {
     )
   }
 
-  if (!attachments || attachments.length === 0) {
-    return (
-      <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            <AttachFileIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
-            Allegati
-          </Typography>
-          <Typography color="text.secondary">Nessun allegato presente</Typography>
-        </CardContent>
-      </Card>
-    )
-  }
-
   return (
-    <Card>
+    <Card sx={{ mt: 3 }}>
       <CardContent>
-        <Typography variant="h6" gutterBottom>
-          <AttachFileIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
-          Allegati ({attachments.length})
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h6">
+            <AttachFileIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
+            Allegati ({attachments?.length || 0})
+          </Typography>
 
-        <List>
-          {attachments.map((attachment) => (
-            <ListItem
-              key={attachment.id}
-              sx={{
-                border: '1px solid',
-                borderColor: 'divider',
-                borderRadius: 1,
-                mb: 1,
-              }}
-              secondaryAction={
-                <IconButton
-                  edge="end"
-                  onClick={() => handleDownload(attachment)}
-                  disabled={downloading === attachment.id}
-                >
-                  {downloading === attachment.id ? (
-                    <CircularProgress size={24} />
-                  ) : (
-                    <DownloadIcon />
-                  )}
-                </IconButton>
-              }
-            >
-              <ListItemIcon>
-                <DescriptionIcon />
-              </ListItemIcon>
-              <ListItemText
-                primary={attachment.file_name}
-                secondary={
-                  <Box component="span">
-                    <Typography variant="caption" display="block">
-                      {formatFileSize(attachment.file_size)}
-                    </Typography>
-                    <Typography variant="caption" display="block">
-                      Caricato da:{' '}
-                      {attachment.uploaded_by_user?.full_name ||
-                        attachment.uploaded_by_user?.email ||
-                        'Sconosciuto'}
-                    </Typography>
-                    <Typography variant="caption" display="block" color="text.secondary">
-                      {formatDate(attachment.created_at)}
-                    </Typography>
+          {canAddAttachment && (
+            <Box>
+              <input
+                ref={fileInputRef}
+                type="file"
+                hidden
+                onChange={handleFileSelect}
+                accept="*/*"
+              />
+              <Button
+                variant="outlined"
+                startIcon={<CloudUploadIcon />}
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadMutation.isPending}
+                size="small"
+              >
+                {uploadMutation.isPending ? 'Caricamento...' : 'Carica File'}
+              </Button>
+            </Box>
+          )}
+        </Box>
+
+        {uploadError && (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setUploadError(null)}>
+            {uploadError}
+          </Alert>
+        )}
+
+        {uploadMutation.isPending && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
+            <CircularProgress size={24} />
+            <Typography variant="body2">Caricamento in corso...</Typography>
+          </Box>
+        )}
+
+        {!attachments || attachments.length === 0 ? (
+          <Typography color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
+            Nessun allegato presente
+          </Typography>
+        ) : (
+          <List>
+            {attachments.map((attachment) => (
+              <ListItem
+                key={attachment.id}
+                sx={{
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 1,
+                  mb: 1,
+                }}
+                secondaryAction={
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <IconButton
+                      edge="end"
+                      onClick={() => handleDownload(attachment)}
+                      disabled={downloading === attachment.id}
+                      title="Scarica"
+                    >
+                      {downloading === attachment.id ? (
+                        <CircularProgress size={24} />
+                      ) : (
+                        <DownloadIcon />
+                      )}
+                    </IconButton>
+                    {canDeleteAttachment(attachment) && (
+                      <IconButton
+                        edge="end"
+                        onClick={() => handleDeleteClick(attachment)}
+                        disabled={deleteMutation.isPending}
+                        color="error"
+                        title="Elimina"
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    )}
                   </Box>
                 }
-              />
-            </ListItem>
-          ))}
-        </List>
+              >
+                <ListItemIcon>
+                  <DescriptionIcon />
+                </ListItemIcon>
+                <ListItemText
+                  primary={attachment.file_name}
+                  secondary={
+                    <Box component="span">
+                      <Typography variant="caption" display="block">
+                        {formatFileSize(attachment.file_size)}
+                      </Typography>
+                      <Typography variant="caption" display="block">
+                        Caricato da:{' '}
+                        {attachment.uploaded_by_user?.full_name ||
+                          attachment.uploaded_by_user?.email ||
+                          'Sconosciuto'}
+                      </Typography>
+                      <Typography variant="caption" display="block" color="text.secondary">
+                        {formatDate(attachment.created_at)}
+                      </Typography>
+                    </Box>
+                  }
+                />
+              </ListItem>
+            ))}
+          </List>
+        )}
       </CardContent>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={handleDeleteCancel}>
+        <DialogTitle>Conferma Eliminazione</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Sei sicuro di voler eliminare l'allegato "{attachmentToDelete?.file_name}"?
+            Questa azione non può essere annullata.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleDeleteCancel} disabled={deleteMutation.isPending}>
+            Annulla
+          </Button>
+          <Button
+            onClick={handleDeleteConfirm}
+            color="error"
+            variant="contained"
+            disabled={deleteMutation.isPending}
+          >
+            {deleteMutation.isPending ? 'Eliminazione...' : 'Elimina'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Card>
   )
 }

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Box,
@@ -29,6 +29,9 @@ import { Request, RequestStatus } from '@/types'
 import { getStatusColor, getStatusLabel } from '@/utils/workflow'
 import { usePersistedState } from '@/hooks/usePersistedState'
 import { BlockIndicator } from './BlockIndicator'
+import { UrgentIndicator } from './UrgentIndicator'
+import { NewMessageIndicator } from './NewMessageIndicator'
+import { requestMessageViewsApi } from '@/services/api/requestMessageViews'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
 import {
@@ -49,7 +52,7 @@ interface RequestsTableViewProps {
 }
 
 type OrderDirection = 'asc' | 'desc'
-type OrderBy = 'updated_at' | 'request_type' | 'cliente' | 'status' | 'created_by'
+type OrderBy = 'updated_at' | 'request_type' | 'cliente' | 'status' | 'created_by' | 'is_urgent'
 
 const GENERAL_STATUSES: RequestStatus[] = [
   'APERTA',
@@ -80,6 +83,22 @@ export const RequestsTableView = ({
   const [clienteSearchText, setClienteSearchText] = useState('')
   const [statoFilter, setStatoFilter] = usePersistedState<RequestStatus[]>('requestsTable_statoFilter', [])
   const [creatorFilter, setCreatorFilter] = usePersistedState<string[]>('requestsTable_creatorFilter', [])
+
+  // State for unread message status
+  const [unreadStatus, setUnreadStatus] = useState<Record<string, boolean>>({})
+
+  // Fetch unread status for all requests
+  useEffect(() => {
+    const fetchUnreadStatus = async () => {
+      const requestIds = requests.map((r) => r.id)
+      const status = await requestMessageViewsApi.getUnreadStatusForRequests(requestIds)
+      setUnreadStatus(status)
+    }
+
+    if (requests.length > 0) {
+      fetchUnreadStatus()
+    }
+  }, [requests])
 
   const handleSort = (property: OrderBy) => {
     const isAsc = orderBy === property && order === 'asc'
@@ -196,6 +215,10 @@ export const RequestsTableView = ({
         case 'created_by':
           aValue = a.creator?.full_name || ''
           bValue = b.creator?.full_name || ''
+          break
+        case 'is_urgent':
+          aValue = a.is_urgent ? 1 : 0
+          bValue = b.is_urgent ? 1 : 0
           break
         default:
           return 0
@@ -350,6 +373,20 @@ export const RequestsTableView = ({
                   />
                 </TableCell>
               )}
+
+              {/* New message indicator column */}
+              <TableCell sx={{ width: 50, padding: 0.5 }} />
+
+              {/* Urgent indicator column */}
+              <TableCell sx={{ width: 50, padding: 0.5 }}>
+                <TableSortLabel
+                  active={orderBy === 'is_urgent'}
+                  direction={orderBy === 'is_urgent' ? order : 'asc'}
+                  onClick={() => handleSort('is_urgent')}
+                >
+                  Urg.
+                </TableSortLabel>
+              </TableCell>
 
               {/* Block indicator column */}
               <TableCell sx={{ width: 50, padding: 1 }} />
@@ -576,6 +613,17 @@ export const RequestsTableView = ({
                   </TableCell>
                 )}
 
+                {/* New message indicator */}
+                <TableCell sx={{ padding: 1, textAlign: 'center' }}>
+                  <NewMessageIndicator hasNewMessages={unreadStatus[request.id] || false} />
+                </TableCell>
+
+                {/* Urgent indicator */}
+                <TableCell sx={{ padding: 1, textAlign: 'center' }}>
+                  {request.is_urgent && <UrgentIndicator isUrgent={true} />}
+                </TableCell>
+
+                {/* Block indicator */}
                 <TableCell sx={{ padding: 1 }}>
                   {request.is_blocked && <BlockIndicator isBlocked={true} />}
                 </TableCell>
@@ -606,7 +654,7 @@ export const RequestsTableView = ({
 
             {filteredAndSortedRequests.length === 0 && (
               <TableRow>
-                <TableCell colSpan={selectionEnabled ? 7 : 6} align="center" sx={{ py: 3 }}>
+                <TableCell colSpan={selectionEnabled ? 9 : 8} align="center" sx={{ py: 3 }}>
                   Nessuna richiesta trovata
                 </TableCell>
               </TableRow>

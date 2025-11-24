@@ -35,6 +35,7 @@ import { requestsApi } from '@/services/api/requests'
 import { StatusTransitionButtons } from '@/components/requests/StatusTransitionButtons'
 import { AssignmentSection } from '@/components/requests/AssignmentSection'
 import { RequestHistoryPanel } from '@/components/requests/RequestHistoryPanel'
+import { RequestChatBox } from '@/components/requests/RequestChatBox'
 import { BlockIndicator } from '@/components/requests/BlockIndicator'
 import { BlockRequestDialog } from '@/components/requests/BlockRequestDialog'
 import { UnblockRequestDialog } from '@/components/requests/UnblockRequestDialog'
@@ -480,13 +481,18 @@ export const RequestDetail = () => {
             />
 
             {/* Attachments Section */}
-            <AttachmentsSection requestId={request.id} />
+            <AttachmentsSection
+              requestId={request.id}
+              requestCreatedBy={request.created_by}
+              requestAssignedTo={request.assigned_to}
+            />
           </Grid>
 
-          {/* Right column: History panel */}
+          {/* Right column: History panel and Chat */}
           <Grid item xs={12} lg={5}>
-            <Box sx={{ position: 'sticky', top: 16 }}>
+            <Box sx={{ position: 'sticky', top: 16, display: 'flex', flexDirection: 'column', gap: 3 }}>
               <RequestHistoryPanel requestId={request.id} />
+              <RequestChatBox requestId={request.id} />
             </Box>
           </Grid>
         </Grid>
