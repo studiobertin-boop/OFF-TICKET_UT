@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Control, Controller } from 'react-hook-form'
+import { Control, Controller, useFormContext } from 'react-hook-form'
 import { TextField, Grid } from '@mui/material'
 import { EquipmentAutocomplete } from './EquipmentAutocomplete'
 import { AddToCatalogDialog } from './AddToCatalogDialog'
@@ -52,6 +52,9 @@ export const CommonEquipmentFields = ({
   const [pendingMarca, setPendingMarca] = useState('')
   const [pendingModello, setPendingModello] = useState('')
 
+  // ✅ Hook per popolare campi da specs
+  const { setValue } = useFormContext()
+
   // Helper per ottenere error path annidato
   const getError = (fieldName: string) => {
     const parts = `${basePath}.${fieldName}`.split('.')
@@ -79,6 +82,46 @@ export const CommonEquipmentFields = ({
     setShowAddDialog(false)
   }
 
+  // ✅ Handler per popolare campi quando viene selezionata apparecchiatura dal catalogo
+  const handleEquipmentSelected = (specs: Record<string, any>) => {
+    console.log('📦 Populating fields from specs:', specs)
+
+    // Mappa specs → campi form
+    // Specs comuni: volume, fad, ps, ts, categoria_ped, ptar
+
+    if (specs.volume !== undefined && volume) {
+      setValue(`${basePath}.volume`, specs.volume)
+    }
+
+    if (specs.fad !== undefined) {
+      // FAD può essere salvato come "fad" o "volume_aria_prodotto"
+      setValue(`${basePath}.volume_aria_prodotto`, specs.fad)
+      setValue(`${basePath}.fad`, specs.fad) // Backward compatibility
+    }
+
+    if (specs.ps !== undefined) {
+      // PS può essere nei campi: ps_pressione_max, pressione_max
+      setValue(`${basePath}.ps_pressione_max`, specs.ps)
+      if (pressione_max) {
+        setValue(`${basePath}.pressione_max`, specs.ps)
+      }
+    }
+
+    if (specs.ts !== undefined) {
+      setValue(`${basePath}.ts_temperatura`, specs.ts)
+    }
+
+    if (specs.categoria_ped !== undefined) {
+      setValue(`${basePath}.categoria_ped`, specs.categoria_ped)
+    }
+
+    if (specs.ptar !== undefined) {
+      setValue(`${basePath}.ptar`, specs.ptar)
+    }
+
+    console.log('✅ Fields populated from catalog')
+  }
+
   return (
     <>
       <Grid container spacing={2}>
@@ -100,6 +143,7 @@ export const CommonEquipmentFields = ({
                       onMarcaChange={marcaField.onChange}
                       onModelloChange={modelloField.onChange}
                       onAddToCatalog={handleAddToCatalog}
+                      onEquipmentSelected={handleEquipmentSelected}
                       readOnly={readOnly}
                       size="small"
                       fullWidth

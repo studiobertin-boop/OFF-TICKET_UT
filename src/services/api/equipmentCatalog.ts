@@ -83,6 +83,29 @@ export const equipmentCatalogApi = {
   },
 
   /**
+   * Ottiene i dati completi (con specs) di un'apparecchiatura specifica
+   * Usato per popolare i campi tecnici quando si seleziona dal catalogo
+   */
+  async getEquipmentByTipoMarcaModello(
+    tipo: EquipmentCatalogType,
+    marca: string,
+    modello: string
+  ): Promise<EquipmentCatalogItem | null> {
+    const { data, error } = await supabase
+      .from('equipment_catalog')
+      .select('*')
+      .eq('tipo_apparecchiatura', tipo)
+      .eq('marca', marca)
+      .eq('modello', modello)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (error) throw error
+
+    return data as EquipmentCatalogItem | null
+  },
+
+  /**
    * Aggiunge nuova associazione TIPO-MARCA-MODELLO al catalogo
    * Se esiste già, incrementa usage_count
    */

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Dialog,
   DialogTitle,
@@ -13,9 +13,11 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Autocomplete,
 } from '@mui/material'
 import { supabase } from '@/services/supabase'
-import type { CategoriaPED } from '@/types'
+import { equipmentCatalogApi } from '@/services/api/equipmentCatalog'
+import type { CategoriaPED, EquipmentCatalogType } from '@/types'
 
 interface AddEquipmentDialogProps {
   open: boolean
@@ -56,6 +58,55 @@ export const AddEquipmentDialog = ({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // ✅ Autocomplete options
+  const [marcheOptions, setMarcheOptions] = useState<string[]>([])
+  const [modelliOptions, setModelliOptions] = useState<string[]>([])
+  const [loadingMarche, setLoadingMarche] = useState(false)
+  const [loadingModelli, setLoadingModelli] = useState(false)
+
+  // ✅ Load marche when dialog opens
+  useEffect(() => {
+    if (!open || !equipmentType) return
+
+    const loadMarche = async () => {
+      setLoadingMarche(true)
+      try {
+        const marche = await equipmentCatalogApi.getMarcheByTipo(equipmentType as EquipmentCatalogType)
+        setMarcheOptions(marche)
+      } catch (error) {
+        console.error('Error loading marche:', error)
+        setMarcheOptions([])
+      } finally {
+        setLoadingMarche(false)
+      }
+    }
+
+    loadMarche()
+  }, [open, equipmentType])
+
+  // ✅ Load modelli when marca changes
+  useEffect(() => {
+    if (!equipmentType || !marca) {
+      setModelliOptions([])
+      return
+    }
+
+    const loadModelli = async () => {
+      setLoadingModelli(true)
+      try {
+        const modelli = await equipmentCatalogApi.getModelliByTipoMarca(equipmentType as EquipmentCatalogType, marca)
+        setModelliOptions(modelli)
+      } catch (error) {
+        console.error('Error loading modelli:', error)
+        setModelliOptions([])
+      } finally {
+        setLoadingModelli(false)
+      }
+    }
+
+    loadModelli()
+  }, [equipmentType, marca])
+
   const handleClose = () => {
     // Reset form
     setMarca('')
@@ -67,6 +118,8 @@ export const AddEquipmentDialog = ({
     setPtar('')
     setCategoriaPed('')
     setError(null)
+    setMarcheOptions([])
+    setModelliOptions([])
     onClose()
   }
 
@@ -139,7 +192,7 @@ export const AddEquipmentDialog = ({
 
       // Insert nel database
       const { error: insertError } = await supabase.from('equipment_catalog').insert({
-        equipment_type: equipmentType,
+        tipo_apparecchiatura: equipmentType, // ✅ Fix: era equipment_type
         marca,
         modello,
         specs: Object.keys(specs).length > 0 ? specs : null,
@@ -196,29 +249,77 @@ export const AddEquipmentDialog = ({
         )}
 
         <Grid container spacing={2} sx={{ mt: 1 }}>
-          {/* Marca - OBBLIGATORIO */}
+          {/* Marca - OBBLIGATORIO - CON AUTOCOMPLETE */}
           <Grid item xs={12} md={6}>
-            <TextField
-              label="Marca *"
-              value={marca}
-              onChange={(e) => setMarca(e.target.value)}
+            <Autocomplete
+              freeSolo
               fullWidth
-              required
+              value={marca}
+              onChange={(_event, newValue) => {
+                setMarca(newValue || '')
+                // Reset modello quando marca cambia
+                if (newValue !== marca) {
+                  setModello('')
+                }
+              }}
+              onInputChange={(_event, newInputValue) => {
+                setMarca(newInputValue)
+                // Reset modello quando marca cambia
+                if (newInputValue !== marca) {
+                  setModello('')
+                }
+              }}
+              options={marcheOptions}
+              loading={loadingMarche}
               disabled={loading}
-              placeholder="Es: Atlas Copco"
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Marca *"
+                  placeholder="Seleziona o digita..."
+                  required
+                  InputProps={{
+                    ...params.InputProps,
+                    endAdornment: (
+                      <>
+                        {loadingMarche ? <CircularProgress color="inherit" size={20} /> : null}
+                        {params.InputProps.endAdornment}
+                      </>
+                    ),
+                  }}
+                />
+              )}
             />
           </Grid>
 
-          {/* Modello - OBBLIGATORIO */}
+          {/* Modello - OBBLIGATORIO - CON AUTOCOMPLETE */}
           <Grid item xs={12} md={6}>
-            <TextField
-              label="Modello *"
-              value={modello}
-              onChange={(e) => setModello(e.target.value)}
+            <Autocomplete
+              freeSolo
               fullWidth
-              required
-              disabled={loading}
-              placeholder="Es: GA 11 VSD+"
+              value={modello}
+              onChange={(_event, newValue) => setModello(newValue || '')}
+              onInputChange={(_event, newInputValue) => setModello(newInputValue)}
+              options={modelliOptions}
+              loading={loadingModelli}
+              disabled={loading || !marca}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Modello *"
+                  placeholder={marca ? 'Seleziona o digita...' : 'Prima seleziona marca'}
+                  required
+                  InputProps={{
+                    ...params.InputProps,
+                    endAdornment: (
+                      <>
+                        {loadingModelli ? <CircularProgress color="inherit" size={20} /> : null}
+                        {params.InputProps.endAdornment}
+                      </>
+                    ),
+                  }}
+                />
+              )}
             />
           </Grid>
 

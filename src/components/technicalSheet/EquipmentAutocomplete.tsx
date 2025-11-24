@@ -30,6 +30,9 @@ interface EquipmentAutocompleteProps {
   // Callback quando utente vuole aggiungere al catalogo
   onAddToCatalog?: (marca: string, modello: string) => void
 
+  // ✅ NEW: Callback quando viene selezionata un'apparecchiatura esistente (con specs)
+  onEquipmentSelected?: (specs: Record<string, any>) => void
+
   // Props opzionali
   disabled?: boolean
   readOnly?: boolean
@@ -54,6 +57,7 @@ export const EquipmentAutocomplete = ({
   onMarcaChange,
   onModelloChange,
   onAddToCatalog,
+  onEquipmentSelected,
   disabled = false,
   readOnly = false,
   size = 'small',
@@ -161,9 +165,28 @@ export const EquipmentAutocomplete = ({
 
   /**
    * Handle modello change
+   * ✅ NEW: Carica specs quando modello viene selezionato
    */
-  const handleModelloChange = (_event: any, newValue: string | null) => {
+  const handleModelloChange = async (_event: any, newValue: string | null) => {
     onModelloChange(newValue || '')
+
+    // ✅ Se modello selezionato, carica specs dal database
+    if (newValue && marcaValue && onEquipmentSelected) {
+      try {
+        const equipment = await equipmentCatalogApi.getEquipmentByTipoMarcaModello(
+          equipmentType,
+          marcaValue,
+          newValue
+        )
+
+        if (equipment?.specs) {
+          console.log('✅ Equipment loaded from catalog:', equipment)
+          onEquipmentSelected(equipment.specs as Record<string, any>)
+        }
+      } catch (error) {
+        console.error('Error loading equipment specs:', error)
+      }
+    }
   }
 
   /**
