@@ -144,6 +144,14 @@ function SortableFieldItem({ field, index, register, errors, watch, onRemove, on
                 defaultValue={fieldType}
                 {...register(`fields_schema.${index}.type`, {
                   required: 'Tipo obbligatorio',
+                  onChange: (e) => {
+                    // Quando si seleziona autocomplete, imposta automaticamente dataSource
+                    if (e.target.value === 'autocomplete') {
+                      register(`fields_schema.${index}.dataSource`).onChange({
+                        target: { value: 'customers', name: `fields_schema.${index}.dataSource` }
+                      })
+                    }
+                  }
                 })}
               >
                 {FIELD_TYPES.map((type) => (
@@ -153,6 +161,14 @@ function SortableFieldItem({ field, index, register, errors, watch, onRemove, on
                 ))}
               </Select>
             </FormControl>
+
+            {fieldType === 'autocomplete' && (
+              <input
+                type="hidden"
+                value="customers"
+                {...register(`fields_schema.${index}.dataSource`)}
+              />
+            )}
 
             {showOptions && (
               <TextField

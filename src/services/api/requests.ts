@@ -351,7 +351,7 @@ export const requestsApi = {
     if (attachments && attachments.length > 0) {
       const filePaths = attachments.map(a => a.file_path)
       const { error: storageError } = await supabase.storage
-        .from('request-attachments')
+        .from('attachments')
         .remove(filePaths)
 
       if (storageError) {
