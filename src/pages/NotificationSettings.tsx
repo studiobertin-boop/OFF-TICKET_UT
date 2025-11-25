@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import {
-  Container,
   Paper,
   Typography,
   Box,
@@ -171,18 +170,15 @@ export default function NotificationSettings() {
   if (isLoading) {
     return (
       <Layout>
-        <Container maxWidth="md" sx={{ py: 4 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
-            <CircularProgress />
-          </Box>
-        </Container>
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
+          <CircularProgress />
+        </Box>
       </Layout>
     )
   }
 
   return (
     <Layout>
-      <Container maxWidth="md" sx={{ py: 4 }}>
       <Typography variant="h4" gutterBottom>
         Impostazioni Notifiche
       </Typography>
@@ -335,7 +331,6 @@ export default function NotificationSettings() {
           </AccordionDetails>
         </Accordion>
       </Paper>
-    </Container>
     </Layout>
   )
 }

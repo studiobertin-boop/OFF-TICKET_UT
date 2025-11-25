@@ -213,9 +213,25 @@ export const Layout = ({ children }: LayoutProps) => {
         </Toolbar>
       </AppBar>
 
-      <Container component="main" sx={{ flex: 1, py: 4 }}>
+      <Box
+        component="main"
+        sx={{
+          flex: 1,
+          py: 4,
+          px: {
+            xs: 1,    // 8px mobile
+            sm: 2,    // 16px tablet small
+            md: 3,    // 24px tablet/desktop
+            lg: 3,    // 24px desktop
+            xl: 3,    // 24px large desktop
+          },
+          maxWidth: '2560px',
+          mx: 'auto',
+          width: '100%',
+        }}
+      >
         {children}
-      </Container>
+      </Box>
 
       <Box
         component="footer"
