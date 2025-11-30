@@ -26,13 +26,19 @@ import {
   CheckBox as CheckBoxIcon,
   CheckBoxOutlineBlank as CheckBoxOutlineBlankIcon,
   Print as PrintIcon,
+  FileDownload as FileDownloadIcon,
 } from '@mui/icons-material'
-import { Request, DM329Status } from '@/types'
+import { Request, DM329Status, StatoFattura, STATO_FATTURA_OPTIONS, STATO_FATTURA_LABELS } from '@/types'
 import { getStatusColor, getStatusLabel } from '@/utils/workflow'
 import { usePersistedState } from '@/hooks/usePersistedState'
+import { useAuth } from '@/hooks/useAuth'
 import { BlockIndicator } from './BlockIndicator'
 import { UrgentIndicator } from './UrgentIndicator'
 import { TimerAlertIndicator } from './TimerAlertIndicator'
+import { EditableSelectCell } from './EditableSelectCell'
+import { requestsApi } from '@/services/api/requests'
+import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'react-hot-toast'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
 import {
@@ -43,6 +49,7 @@ import {
   formatBooleanField,
   createFilterDescription,
 } from '@/utils/print'
+import ExportRequestsDialog from './ExportRequestsDialog'
 
 interface DM329TableViewProps {
   requests: Request[]
@@ -54,7 +61,7 @@ interface DM329TableViewProps {
 }
 
 type OrderDirection = 'asc' | 'desc'
-type OrderBy = 'updated_at' | 'cliente' | 'status' | 'no_civa' | 'note' | 'is_urgent' | 'is_blocked' | 'has_timer_alert'
+type OrderBy = 'updated_at' | 'cliente' | 'status' | 'no_civa' | 'note' | 'is_urgent' | 'is_blocked' | 'has_timer_alert' | 'stato_fattura'
 
 const DM329_STATUSES: DM329Status[] = [
   '1-INCARICO_RICEVUTO',
@@ -66,6 +73,22 @@ const DM329_STATUSES: DM329Status[] = [
   '7-CHIUSA',
 ]
 
+// Validation function for stato_fattura
+const validateStatoFattura = (
+  value: StatoFattura,
+  status: string
+): { valid: boolean; error?: string } => {
+  if (value === 'SI') {
+    if (status !== '7-CHIUSA' && status !== 'ARCHIVIATA NON FINITA') {
+      return {
+        valid: false,
+        error: 'Stato "Sì" impostabile solo su richieste CHIUSE o ARCHIVIATE NON FINITE'
+      }
+    }
+  }
+  return { valid: true }
+}
+
 export const DM329TableView = ({
   requests,
   selectedRequests = new Set(),
@@ -75,6 +98,8 @@ export const DM329TableView = ({
   showPrintButton = true,
 }: DM329TableViewProps) => {
   const navigate = useNavigate()
+  const { isAdmin, isUserDM329 } = useAuth()
+  const queryClient = useQueryClient()
 
   // Stati persistiti nel sessionStorage
   const [orderBy, setOrderBy] = usePersistedState<OrderBy>('dm329Table_orderBy', 'updated_at')
@@ -89,11 +114,30 @@ export const DM329TableView = ({
   const [urgentFilter, setUrgentFilter] = usePersistedState<'all' | 'true' | 'false'>('dm329Table_urgentFilter', 'all')
   const [blockedFilter, setBlockedFilter] = usePersistedState<'all' | 'true' | 'false'>('dm329Table_blockedFilter', 'all')
   const [timerAlertFilter, setTimerAlertFilter] = usePersistedState<'all' | 'true' | 'false'>('dm329Table_timerAlertFilter', 'all')
+  const [statoFatturaFilter, setStatoFatturaFilter] = usePersistedState<StatoFattura[]>('dm329Table_statoFatturaFilter', [])
+
+  // State for export dialog
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
 
   const handleSort = (property: OrderBy) => {
     const isAsc = orderBy === property && order === 'asc'
     setOrder(isAsc ? 'desc' : 'asc')
     setOrderBy(property)
+  }
+
+  const handleSaveStatoFattura = async (
+    requestId: string,
+    newValue: StatoFattura,
+    requestStatus: string
+  ) => {
+    const validation = validateStatoFattura(newValue, requestStatus)
+    if (!validation.valid) {
+      throw new Error(validation.error)
+    }
+
+    await requestsApi.updateCustomField(requestId, 'stato_fattura', newValue)
+    await queryClient.invalidateQueries({ queryKey: ['requests'] })
+    toast.success('Stato fattura aggiornato')
   }
 
   // Estrai valori unici per i filtri
@@ -170,6 +214,12 @@ export const DM329TableView = ({
         return timerAlertFilter === 'true' ? hasTimerAlert : !hasTimerAlert
       })
     }
+    if (statoFatturaFilter.length > 0) {
+      filtered = filtered.filter(req => {
+        const statoFattura = (req.custom_fields?.stato_fattura as StatoFattura) || 'NO'
+        return statoFatturaFilter.includes(statoFattura)
+      })
+    }
 
     // Applica ordinamento
     filtered.sort((a, b) => {
@@ -219,6 +269,10 @@ export const DM329TableView = ({
           aValue = (a.custom_fields?.note as string) || ''
           bValue = (b.custom_fields?.note as string) || ''
           break
+        case 'stato_fattura':
+          aValue = (a.custom_fields?.stato_fattura as string) || 'NO'
+          bValue = (b.custom_fields?.stato_fattura as string) || 'NO'
+          break
         default:
           return 0
       }
@@ -233,7 +287,7 @@ export const DM329TableView = ({
     })
 
     return filtered
-  }, [requests, orderBy, order, clienteFilter, statoFilter, noCivaFilter, noteFilter, urgentFilter, blockedFilter, timerAlertFilter])
+  }, [requests, orderBy, order, clienteFilter, statoFilter, noCivaFilter, noteFilter, urgentFilter, blockedFilter, timerAlertFilter, statoFatturaFilter])
 
   const clearFilters = () => {
     setClienteFilter([])
@@ -244,9 +298,10 @@ export const DM329TableView = ({
     setUrgentFilter('all')
     setBlockedFilter('all')
     setTimerAlertFilter('all')
+    setStatoFatturaFilter([])
   }
 
-  const hasActiveFilters = clienteFilter.length > 0 || statoFilter.length > 0 || noCivaFilter !== 'all' || noteFilter || urgentFilter !== 'all' || blockedFilter !== 'all' || timerAlertFilter !== 'all'
+  const hasActiveFilters = clienteFilter.length > 0 || statoFilter.length > 0 || noCivaFilter !== 'all' || noteFilter || urgentFilter !== 'all' || blockedFilter !== 'all' || timerAlertFilter !== 'all' || statoFatturaFilter.length > 0
 
   // Check if all filteredAndSortedRequests are selected
   const allSelected = selectionEnabled &&
@@ -288,31 +343,42 @@ export const DM329TableView = ({
       noteFilter,
     })
 
+    const printColumns = [
+      {
+        header: 'Data Ultimo Cambio',
+        getValue: (req) => formatDateField(req.updated_at),
+      },
+      {
+        header: 'Cliente',
+        getValue: (req) => formatClienteField(req),
+      },
+      {
+        header: 'Stato',
+        getValue: (req) => getStatusLabel(req.status),
+      },
+      {
+        header: 'No CIVA',
+        getValue: (req) => formatBooleanField(req.custom_fields?.no_civa as boolean),
+        align: 'center' as const,
+      },
+      {
+        header: 'Note',
+        getValue: (req) => (req.custom_fields?.note as string) || '-',
+      },
+    ]
+
+    // Add stato_fattura column only for admin/userdm329
+    if (isAdmin || isUserDM329) {
+      printColumns.push({
+        header: 'Stato Fattura',
+        getValue: (req) =>
+          STATO_FATTURA_LABELS[(req.custom_fields?.stato_fattura as StatoFattura) || 'NO'],
+      })
+    }
+
     const html = generatePrintHTML({
       title: 'Richieste DM329',
-      columns: [
-        {
-          header: 'Data Ultimo Cambio',
-          getValue: (req) => formatDateField(req.updated_at),
-        },
-        {
-          header: 'Cliente',
-          getValue: (req) => formatClienteField(req),
-        },
-        {
-          header: 'Stato',
-          getValue: (req) => getStatusLabel(req.status),
-        },
-        {
-          header: 'No CIVA',
-          getValue: (req) => formatBooleanField(req.custom_fields?.no_civa as boolean),
-          align: 'center',
-        },
-        {
-          header: 'Note',
-          getValue: (req) => (req.custom_fields?.note as string) || '-',
-        },
-      ],
+      columns: printColumns,
       data: filteredAndSortedRequests,
       metadata: {
         totalRecords: requests.length,
@@ -326,9 +392,17 @@ export const DM329TableView = ({
 
   return (
     <Box>
-      {/* Print button */}
+      {/* Print and Export buttons */}
       {showPrintButton && (
-        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
+        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+          <Button
+            variant="outlined"
+            startIcon={<FileDownloadIcon />}
+            onClick={() => setExportDialogOpen(true)}
+            size="small"
+          >
+            Esporta
+          </Button>
           <Button
             variant="outlined"
             startIcon={<PrintIcon />}
@@ -339,6 +413,14 @@ export const DM329TableView = ({
           </Button>
         </Box>
       )}
+
+      {/* Export Dialog */}
+      <ExportRequestsDialog
+        open={exportDialogOpen}
+        onClose={() => setExportDialogOpen(false)}
+        requestType="DM329"
+        requestTypeId={requests[0]?.request_type_id}
+      />
 
       {hasActiveFilters && (
         <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -363,6 +445,9 @@ export const DM329TableView = ({
             )}
             {timerAlertFilter !== 'all' && (
               <Chip label={`Timer scaduto: ${timerAlertFilter === 'true' ? 'Sì' : 'No'}`} size="small" onDelete={() => setTimerAlertFilter('all')} />
+            )}
+            {statoFatturaFilter.length > 0 && (
+              <Chip label={`Stato Fattura: ${statoFatturaFilter.length}`} size="small" onDelete={() => setStatoFatturaFilter([])} />
             )}
           </Box>
           <IconButton size="small" onClick={clearFilters} color="primary" title="Cancella tutti i filtri">
@@ -608,6 +693,46 @@ export const DM329TableView = ({
                   sx={{ mt: 1 }}
                 />
               </TableCell>
+
+              {/* Stato Fattura - Solo per admin e userdm329 */}
+              {(isAdmin || isUserDM329) && (
+                <TableCell sx={{ minWidth: 140 }}>
+                  <TableSortLabel
+                    active={orderBy === 'stato_fattura'}
+                    direction={orderBy === 'stato_fattura' ? order : 'asc'}
+                    onClick={() => handleSort('stato_fattura')}
+                    sx={{ fontSize: '0.8rem' }}
+                  >
+                    Stato Fattura
+                  </TableSortLabel>
+                  <FormControl size="small" fullWidth sx={{ mt: 1 }}>
+                    <Select
+                      multiple
+                      displayEmpty
+                      value={statoFatturaFilter}
+                      onChange={(e) => setStatoFatturaFilter(e.target.value as StatoFattura[])}
+                      input={<OutlinedInput />}
+                      renderValue={(selected) =>
+                        selected.length === 0 ? <em>Tutti</em> : `${selected.length} selezionati`
+                      }
+                      MenuProps={{
+                        PaperProps: {
+                          style: {
+                            maxHeight: 300,
+                          },
+                        },
+                      }}
+                    >
+                      {STATO_FATTURA_OPTIONS.map((option) => (
+                        <MenuItem key={option} value={option}>
+                          <Checkbox checked={statoFatturaFilter.includes(option)} />
+                          <ListItemText primary={STATO_FATTURA_LABELS[option]} />
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </TableCell>
+              )}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -689,12 +814,31 @@ export const DM329TableView = ({
                     {(request.custom_fields?.note as string) || '-'}
                   </Box>
                 </TableCell>
+
+                {/* Stato Fattura - Solo per admin e userdm329 */}
+                {(isAdmin || isUserDM329) && (
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <EditableSelectCell
+                      value={(request.custom_fields?.stato_fattura as StatoFattura) || 'NO'}
+                      options={STATO_FATTURA_OPTIONS}
+                      optionLabels={STATO_FATTURA_LABELS}
+                      onSave={(newValue) =>
+                        handleSaveStatoFattura(request.id, newValue as StatoFattura, request.status)
+                      }
+                      validate={(value) => validateStatoFattura(value as StatoFattura, request.status)}
+                    />
+                  </TableCell>
+                )}
               </TableRow>
             ))}
 
             {filteredAndSortedRequests.length === 0 && (
               <TableRow>
-                <TableCell colSpan={selectionEnabled ? 9 : 8} align="center" sx={{ py: 3 }}>
+                <TableCell
+                  colSpan={(isAdmin || isUserDM329) ? (selectionEnabled ? 10 : 9) : (selectionEnabled ? 9 : 8)}
+                  align="center"
+                  sx={{ py: 3 }}
+                >
                   Nessuna richiesta DM329 trovata
                 </TableCell>
               </TableRow>

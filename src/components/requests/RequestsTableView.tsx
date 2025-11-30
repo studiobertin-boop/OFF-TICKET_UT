@@ -24,6 +24,7 @@ import {
 import {
   Clear as ClearIcon,
   Print as PrintIcon,
+  FileDownload as FileDownloadIcon,
 } from '@mui/icons-material'
 import { Request, RequestStatus } from '@/types'
 import { getStatusColor, getStatusLabel } from '@/utils/workflow'
@@ -41,6 +42,7 @@ import {
   formatDateField,
   createFilterDescription,
 } from '@/utils/print'
+import ExportRequestsDialog from './ExportRequestsDialog'
 
 interface RequestsTableViewProps {
   requests: Request[]
@@ -86,6 +88,9 @@ export const RequestsTableView = ({
 
   // State for unread message status
   const [unreadStatus, setUnreadStatus] = useState<Record<string, boolean>>({})
+
+  // State for export dialog
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
 
   // Fetch unread status for all requests
   useEffect(() => {
@@ -323,9 +328,17 @@ export const RequestsTableView = ({
 
   return (
     <Box>
-      {/* Print button */}
+      {/* Print and Export buttons */}
       {showPrintButton && (
-        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
+        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+          <Button
+            variant="outlined"
+            startIcon={<FileDownloadIcon />}
+            onClick={() => setExportDialogOpen(true)}
+            size="small"
+          >
+            Esporta
+          </Button>
           <Button
             variant="outlined"
             startIcon={<PrintIcon />}
@@ -336,6 +349,13 @@ export const RequestsTableView = ({
           </Button>
         </Box>
       )}
+
+      {/* Export Dialog */}
+      <ExportRequestsDialog
+        open={exportDialogOpen}
+        onClose={() => setExportDialogOpen(false)}
+        requestType="GENERALE"
+      />
 
       {hasActiveFilters && (
         <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

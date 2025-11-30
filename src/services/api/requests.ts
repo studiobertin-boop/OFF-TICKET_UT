@@ -1,6 +1,8 @@
 import { supabase, ensureValidSession } from '../supabase'
-import { Request, RequestStatus, DM329Status } from '@/types'
+import { Request, RequestStatus, DM329Status, StatoFattura, ExportFilters, ExportRequestData } from '@/types'
 import { emailNotificationsApi } from './emailNotifications'
+import { formatDateForExcel } from '../excelService'
+import { getStatusLabel } from '@/utils/workflow'
 
 export interface CreateRequestInput {
   request_type_id: string
@@ -403,5 +405,191 @@ export const requestsApi = {
     }
 
     return data
+  },
+
+  // Update a single custom field (for inline editing)
+  updateCustomField: async (
+    id: string,
+    fieldName: string,
+    fieldValue: any
+  ): Promise<Request> => {
+    const sessionValid = await ensureValidSession()
+    if (!sessionValid) {
+      throw new Error('Sessione non valida. Per favore, effettua nuovamente il login.')
+    }
+
+    // Fetch current custom_fields
+    const { data: current, error: fetchError } = await supabase
+      .from('requests')
+      .select('custom_fields')
+      .eq('id', id)
+      .single()
+
+    if (fetchError) throw fetchError
+
+    // Merge update
+    const updatedFields = {
+      ...current.custom_fields,
+      [fieldName]: fieldValue
+    }
+
+    // Update request
+    const { data, error } = await supabase
+      .from('requests')
+      .update({ custom_fields: updatedFields })
+      .eq('id', id)
+      .select(`
+        *,
+        request_type:request_types(*),
+        assigned_user:users!requests_assigned_to_fkey(id, email, full_name, role),
+        creator:users!requests_created_by_fkey(id, email, full_name, role),
+        customer:customers(*)
+      `)
+      .single()
+
+    if (error) {
+      if (error.code === '42501') {
+        throw new Error('Permessi insufficienti per modificare questo campo.')
+      }
+      throw error
+    }
+
+    return data
+  },
+
+  // Bulk update stato_fattura for multiple requests
+  bulkUpdateStatoFattura: async (
+    ids: string[],
+    statoFattura: StatoFattura
+  ): Promise<void> => {
+    const sessionValid = await ensureValidSession()
+    if (!sessionValid) {
+      throw new Error('Sessione non valida.')
+    }
+
+    // Validate if setting to "SI"
+    if (statoFattura === 'SI') {
+      const { data: requests, error: fetchError } = await supabase
+        .from('requests')
+        .select('id, status')
+        .in('id', ids)
+
+      if (fetchError) throw fetchError
+
+      const invalidRequests = requests.filter(
+        r => r.status !== '7-CHIUSA' && r.status !== 'ARCHIVIATA NON FINITA'
+      )
+
+      if (invalidRequests.length > 0) {
+        throw new Error(
+          `${invalidRequests.length} richiesta/e non possono essere impostate a "Sì" (stato non valido)`
+        )
+      }
+    }
+
+    // Fetch all requests to merge custom_fields
+    const { data: requests, error: fetchError } = await supabase
+      .from('requests')
+      .select('id, custom_fields')
+      .in('id', ids)
+
+    if (fetchError) throw fetchError
+
+    // Update in parallel
+    const updatePromises = requests.map(req =>
+      supabase
+        .from('requests')
+        .update({
+          custom_fields: {
+            ...req.custom_fields,
+            stato_fattura: statoFattura
+          }
+        })
+        .eq('id', req.id)
+    )
+
+    const results = await Promise.all(updatePromises)
+
+    const errors = results.filter(r => r.error)
+    if (errors.length > 0) {
+      throw new Error(`Errore nell'aggiornamento di ${errors.length} richiesta/e`)
+    }
+  },
+
+  // Get requests for export with date and status filters
+  getForExport: async (
+    filters: ExportFilters,
+    requestTypeId?: string
+  ): Promise<ExportRequestData[]> => {
+    const sessionValid = await ensureValidSession()
+    if (!sessionValid) {
+      throw new Error('Sessione non valida.')
+    }
+
+    console.log('Calling get_requests_for_export with params:', {
+      p_date_from: filters.dateFrom,
+      p_date_to: filters.dateTo,
+      p_statuses: filters.statuses,
+      p_request_type_id: requestTypeId || null
+    })
+
+    // Query per ottenere le richieste che hanno raggiunto gli stati selezionati nel periodo specificato
+    // Usa una subquery per trovare l'ultima volta che ogni richiesta è entrata in uno degli stati selezionati
+    const { data, error } = await supabase.rpc('get_requests_for_export', {
+      p_date_from: filters.dateFrom,
+      p_date_to: filters.dateTo,
+      p_statuses: filters.statuses,
+      p_request_type_id: requestTypeId || null
+    })
+
+    if (error) {
+      console.error('Error fetching export data:', error)
+      console.error('Error details:', JSON.stringify(error, null, 2))
+      throw new Error(`Errore nel recupero dati export: ${error.message || 'Errore sconosciuto'}`)
+    }
+
+    console.log('Export data received:', data?.length || 0, 'records')
+
+    // Trasforma i dati nel formato richiesto
+    const exportData: ExportRequestData[] = (data || []).map((row: any) => {
+      const nomeCliente = row.customer_ragione_sociale ||
+                         (typeof row.custom_fields?.cliente === 'string'
+                           ? row.custom_fields.cliente
+                           : row.custom_fields?.cliente?.ragione_sociale) ||
+                         'Non specificato'
+
+      return {
+        nomeCliente,
+        dataImpostazioneStato: formatDateForExcel(row.status_change_date),
+        statoImpostato: getStatusLabel(row.status_to),
+        tipoRichiesta: row.request_type_name || 'Non specificato',
+        noCiva: row.custom_fields?.no_civa || false,
+        offCac: row.custom_fields?.off_cac || '',
+        note: row.custom_fields?.note || '',
+      }
+    })
+
+    return exportData
+  },
+
+  // Preview count for export
+  getExportPreviewCount: async (
+    filters: ExportFilters,
+    requestTypeId?: string
+  ): Promise<number> => {
+    const sessionValid = await ensureValidSession()
+    if (!sessionValid) {
+      throw new Error('Sessione non valida.')
+    }
+
+    const { data, error } = await supabase.rpc('get_requests_for_export', {
+      p_date_from: filters.dateFrom,
+      p_date_to: filters.dateTo,
+      p_statuses: filters.statuses,
+      p_request_type_id: requestTypeId || null
+    })
+
+    if (error) throw error
+    return data?.length || 0
   },
 }

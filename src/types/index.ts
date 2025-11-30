@@ -19,6 +19,33 @@ export type DM329Status =
   | '7-CHIUSA'
   | 'ARCHIVIATA NON FINITA'
 
+export type StatoFattura = 'SI' | 'NO' | 'AVVISO' | 'NON SERVE'
+
+export const STATO_FATTURA_OPTIONS: StatoFattura[] = ['NO', 'SI', 'AVVISO', 'NON SERVE']
+
+export const STATO_FATTURA_LABELS: Record<StatoFattura, string> = {
+  'NO': 'No',
+  'SI': 'Sì',
+  'AVVISO': 'Avviso',
+  'NON SERVE': 'Non Serve'
+}
+
+export interface ExportFilters {
+  dateFrom: string // ISO date string
+  dateTo: string // ISO date string
+  statuses: string[] // Array of RequestStatus | DM329Status
+}
+
+export interface ExportRequestData {
+  nomeCliente: string
+  dataImpostazioneStato: string
+  statoImpostato: string
+  tipoRichiesta: string
+  noCiva?: boolean
+  offCac?: string
+  note?: string
+}
+
 export interface User {
   id: string
   email: string
