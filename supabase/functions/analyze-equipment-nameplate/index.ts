@@ -64,6 +64,21 @@ serve(async (req) => {
     // Prepare prompt based on equipment type
     const prompt = generatePromptForEquipmentType(equipment_type)
 
+    // Detect image format from base64 header (first few bytes)
+    // PNG starts with iVBOR, JPEG with /9j/
+    let imageFormat = 'jpeg' // default
+    if (image_base64.startsWith('iVBOR')) {
+      imageFormat = 'png'
+    } else if (image_base64.startsWith('/9j/')) {
+      imageFormat = 'jpeg'
+    } else if (image_base64.startsWith('R0lG')) {
+      imageFormat = 'gif'
+    } else if (image_base64.startsWith('UklG')) {
+      imageFormat = 'webp'
+    }
+
+    console.log(`Detected image format: ${imageFormat}`)
+
     // Call GPT-4o Vision API
     const gptResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -84,7 +99,7 @@ serve(async (req) => {
               {
                 type: 'image_url',
                 image_url: {
-                  url: `data:image/jpeg;base64,${image_base64}`
+                  url: `data:image/${imageFormat};base64,${image_base64}`
                 }
               }
             ]

@@ -134,12 +134,18 @@ export const NewRequest = () => {
       // Generate title based on request type
       let title = `${selectedType.name} - ${new Date().toLocaleDateString('it-IT')}`
 
-      // For DM329, include customer name in title
-      if (selectedType.name === 'DM329' && processedData.cliente) {
-        const clienteName = typeof processedData.cliente === 'string'
-          ? processedData.cliente
-          : processedData.cliente.ragione_sociale || processedData.cliente
-        title = `DM329 - ${clienteName} - ${new Date().toLocaleDateString('it-IT')}`
+      // For DM329, include customer name in title and set default stato_fattura
+      if (selectedType.name === 'DM329') {
+        // Set default stato_fattura
+        processedData.stato_fattura = 'NO'
+
+        // Include customer name in title
+        if (processedData.cliente) {
+          const clienteName = typeof processedData.cliente === 'string'
+            ? processedData.cliente
+            : processedData.cliente.ragione_sociale || processedData.cliente
+          title = `DM329 - ${clienteName} - ${new Date().toLocaleDateString('it-IT')}`
+        }
       }
 
       const request = await createRequest.mutateAsync({

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Box,
@@ -24,10 +24,11 @@ import { Layout } from '@/components/common/Layout'
 import { useRequest } from '@/hooks/useRequests'
 import { useAuth } from '@/hooks/useAuth'
 import { technicalDataApi } from '@/services/api/technicalData'
-import { TechnicalSheetForm } from '@/components/technicalSheet/TechnicalSheetForm'
+import { TechnicalSheetForm, type TechnicalSheetFormRef } from '@/components/technicalSheet/TechnicalSheetForm'
 import { OCRReviewDialog } from '@/components/technicalSheet/OCRReviewDialog'
 import { ShareDialog } from '@/components/technicalSheet/ShareDialog'
 import { GenerateReportDialog } from '@/components/reports/GenerateReportDialog'
+import { EquipmentCatalogProvider } from '@/components/technicalSheet/EquipmentCatalogContext'
 import type { DM329TechnicalData, SchedaDatiCompleta, OCRExtractedData, FuzzyMatch, OCRReviewData } from '@/types'
 
 /**
@@ -59,6 +60,7 @@ export const TechnicalDetails = () => {
   const [ocrReviewData, setOcrReviewData] = useState<OCRReviewData | null>(null)
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const [generateReportDialogOpen, setGenerateReportDialogOpen] = useState(false)
+  const formRef = useRef<TechnicalSheetFormRef>(null)
 
   // Carica scheda dati tecnici
   useEffect(() => {
@@ -162,14 +164,34 @@ export const TechnicalDetails = () => {
     }
   }
 
+  // Salva bozza usando i dati attuali del form
+  const handleSaveDraft = async () => {
+    if (!id || !formRef.current) return
+
+    try {
+      setSaving(true)
+      const currentData = formRef.current.getFormData()
+
+      // Salva i dati nel campo equipment_data (JSONB)
+      await technicalDataApi.updateEquipmentData(id, currentData)
+
+      setFormData(currentData)
+      setLastSaved(new Date())
+      setShowSaveSuccess(true)
+    } catch (err) {
+      console.error('Error saving draft:', err)
+      alert('Errore nel salvataggio della bozza')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleCompleteSheet = async () => {
-    if (!id) return
+    if (!id || !formRef.current) return
 
     // TODO: Validare campi obbligatori prima di completare
     const confirmed = window.confirm(
-      'Confermi di voler completare la scheda dati?\n\n' +
-      'Questa azione cambierà automaticamente lo stato della pratica a "2-SCHEDA_DATI_PRONTA".\n\n' +
-      'Assicurati che tutti i campi obbligatori siano compilati.'
+      'Confermi di voler completare la scheda dati?'
     )
 
     if (!confirmed) return
@@ -177,7 +199,12 @@ export const TechnicalDetails = () => {
     try {
       setSaving(true)
 
-      // Marca come completata (trigger cambio stato automatico)
+      // Prima salva i dati attuali del form
+      const currentData = formRef.current.getFormData()
+      await technicalDataApi.updateEquipmentData(id, currentData)
+      setFormData(currentData)
+
+      // Poi marca come completata (trigger cambio stato automatico)
       await technicalDataApi.markAsCompleted(id)
 
       alert('Scheda dati completata! Lo stato della pratica è stato aggiornato.')
@@ -287,8 +314,35 @@ export const TechnicalDetails = () => {
   }
 
   const isCompleted = technicalData.is_completed
-  const customerName = request.custom_fields?.cliente?.ragione_sociale || 'N/A'
+
+  // Estrai il nome cliente dai dati tecnici come fallback prioritario per i dati storici
+  const technicalDataClientName = technicalData?.equipment_data?.dati_generali?.cliente
+
+  const customerName =
+    request.custom_fields?.cliente?.ragione_sociale ||
+    request.customer?.ragione_sociale ||
+    technicalDataClientName ||
+    'N/A'
+
   const sedeLegale = request.custom_fields?.sede_legale || ''
+
+  // Use request.customer (joined relation) which has complete customer data
+  // FALLBACK: Se customer non esiste ma abbiamo dati cliente nei custom_fields O nei dati tecnici
+  const customerForReport = request.customer || (
+    (request.custom_fields?.cliente || technicalDataClientName) ? {
+      id: 'temp-' + request.id, // ID temporaneo
+      ragione_sociale: request.custom_fields?.cliente?.ragione_sociale || technicalDataClientName || '',
+      via: request.custom_fields?.cliente?.via || sedeLegale || null,
+      cap: request.custom_fields?.cliente?.cap || null,
+      citta: request.custom_fields?.cliente?.citta || null,
+      provincia: request.custom_fields?.cliente?.provincia || null,
+      external_id: null,
+      is_active: true,
+      created_at: request.created_at,
+      updated_at: request.updated_at,
+      created_by: null,
+    } : null
+  )
 
   // Determina se l'utente può gestire la condivisione
   const canManageSharing =
@@ -361,7 +415,23 @@ export const TechnicalDetails = () => {
                   variant="contained"
                   color="primary"
                   startIcon={<DescriptionIcon />}
-                  onClick={() => setGenerateReportDialogOpen(true)}
+                  onClick={() => {
+                    if (!customerForReport) {
+                      console.error('❌ Customer non trovato - customer_id:', request?.customer_id);
+                      alert(
+                        'Errore: Dati cliente non trovati.\n\n' +
+                        'La relazione tecnica richiede i dati del cliente.\n' +
+                        'Questa pratica non ha un cliente associato.\n\n' +
+                        'Per risolvere:\n' +
+                        '1. Torna alla richiesta\n' +
+                        '2. Modifica la richiesta e associa un cliente dalla lista\n' +
+                        '3. Riprova a generare la relazione'
+                      );
+                      return;
+                    }
+
+                    setGenerateReportDialogOpen(true);
+                  }}
                   disabled={saving}
                 >
                   Genera Relazione
@@ -380,13 +450,7 @@ export const TechnicalDetails = () => {
                 <Button
                   variant="outlined"
                   startIcon={<SaveIcon />}
-                  onClick={() => {
-                    // Trigger manual save via form submit
-                    const form = document.querySelector('form')
-                    if (form) {
-                      form.requestSubmit()
-                    }
-                  }}
+                  onClick={handleSaveDraft}
                   disabled={saving || autoSaving}
                 >
                   Salva Bozza
@@ -441,14 +505,18 @@ export const TechnicalDetails = () => {
               Dati Sala Compressori e Apparecchiature
             </Typography>
 
-            <TechnicalSheetForm
-              defaultValues={formData || undefined}
-              onSubmit={handleFormSubmit}
-              onAutoSave={handleAutoSave}
-              customerName={customerName}
-              sedeLegale={sedeLegale}
-              readOnly={isCompleted}
-            />
+            {/* ✅ Wrap form con EquipmentCatalogProvider per cache specs */}
+            <EquipmentCatalogProvider>
+              <TechnicalSheetForm
+                ref={formRef}
+                defaultValues={formData || undefined}
+                onSubmit={handleFormSubmit}
+                onAutoSave={handleAutoSave}
+                customerName={customerName}
+                sedeLegale={sedeLegale}
+                readOnly={isCompleted}
+              />
+            </EquipmentCatalogProvider>
           </CardContent>
         </Card>
 
@@ -471,13 +539,13 @@ export const TechnicalDetails = () => {
         )}
 
         {/* Generate Report Dialog */}
-        {technicalData && request.customer && (
+        {technicalData && customerForReport && (
           <GenerateReportDialog
             open={generateReportDialogOpen}
             onClose={() => setGenerateReportDialogOpen(false)}
             technicalData={technicalData}
             request={request}
-            customer={request.customer}
+            customer={customerForReport}
           />
         )}
 

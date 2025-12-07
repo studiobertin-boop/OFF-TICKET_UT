@@ -1,5 +1,5 @@
 import { useForm, FormProvider } from 'react-hook-form'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react'
 import {
   Box,
   Card,
@@ -26,6 +26,8 @@ import {
   AltriApparecchiSection,
 } from './AllEquipmentSections'
 import { BatchOCRDialog } from './BatchOCRDialog'
+import { UpdateCatalogDialog } from './UpdateCatalogDialog'
+import { useEquipmentCatalogUpdate } from '@/hooks/useEquipmentCatalogUpdate'
 import type { SchedaDatiCompleta } from '@/types'
 import type { BatchOCRResult, BatchOCRItem } from '@/types/ocr'
 import type { EquipmentCatalogType } from '@/types'
@@ -39,18 +41,23 @@ interface TechnicalSheetFormProps {
   readOnly?: boolean
 }
 
+export interface TechnicalSheetFormRef {
+  getFormData: () => SchedaDatiCompleta
+  submitForm: () => Promise<void>
+}
+
 /**
  * Form completo SCHEDA DATI DM329
  * Organizzato in sezioni collassabili (Accordion)
  */
-export const TechnicalSheetForm = ({
+export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalSheetFormProps>(({
   defaultValues,
   onSubmit,
   onAutoSave,
   customerName,
   sedeLegale,
   readOnly = false,
-}: TechnicalSheetFormProps) => {
+}, ref) => {
   const methods = useForm<SchedaDatiCompleta>({
     defaultValues: {
       stato: 'bozza',
@@ -87,6 +94,57 @@ export const TechnicalSheetForm = ({
 
   // State per Batch OCR Dialog
   const [batchOCRDialogOpen, setBatchOCRDialogOpen] = useState(false)
+
+  // ✅ Hook per gestione aggiornamenti catalogo
+  const catalogUpdate = useEquipmentCatalogUpdate()
+
+  // State per gestire submit dopo conferma catalog update
+  const [pendingSubmitData, setPendingSubmitData] = useState<SchedaDatiCompleta | null>(null)
+
+  // Esponi metodi al componente parent
+  useImperativeHandle(ref, () => ({
+    getFormData: () => methods.getValues() as SchedaDatiCompleta,
+    submitForm: async () => {
+      // Intercetta submit per check catalog updates
+      const formData = methods.getValues() as SchedaDatiCompleta
+
+      // Raccoglie updates necessari
+      const updates = catalogUpdate.collectUpdates(formData)
+
+      if (updates.length > 0) {
+        // Ci sono aggiornamenti da proporre
+        console.log('📋 Found catalog updates, showing dialog...')
+        setPendingSubmitData(formData)
+        catalogUpdate.promptUpdates(updates)
+        // NON chiamare onSubmit qui, aspettiamo conferma dialog
+      } else {
+        // Nessun update, procedi normalmente
+        await methods.handleSubmit(onSubmit)()
+      }
+    }
+  }))
+
+  // ✅ Callback per conferma aggiornamento catalogo
+  const handleCatalogUpdateConfirm = async () => {
+    await catalogUpdate.confirmUpdates()
+
+    // Dopo aggiornamento catalogo, procedi con save scheda
+    if (pendingSubmitData) {
+      await methods.handleSubmit(onSubmit)()
+      setPendingSubmitData(null)
+    }
+  }
+
+  // ✅ Callback per annullamento aggiornamento catalogo
+  const handleCatalogUpdateCancel = () => {
+    catalogUpdate.cancelUpdate()
+
+    // Procedi comunque con save scheda (senza aggiornare catalogo)
+    if (pendingSubmitData) {
+      onSubmit(pendingSubmitData)
+      setPendingSubmitData(null)
+    }
+  }
 
   // Autosave con debounce
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -435,7 +493,17 @@ export const TechnicalSheetForm = ({
           onClose={() => setBatchOCRDialogOpen(false)}
           onComplete={handleBatchOCRComplete}
         />
+
+        {/* ✅ Update Catalog Dialog */}
+        <UpdateCatalogDialog
+          open={catalogUpdate.dialogOpen}
+          updates={catalogUpdate.pendingUpdates}
+          onConfirm={handleCatalogUpdateConfirm}
+          onCancel={handleCatalogUpdateCancel}
+          loading={catalogUpdate.loading}
+          error={catalogUpdate.error}
+        />
       </Box>
     </FormProvider>
   )
-}
+})

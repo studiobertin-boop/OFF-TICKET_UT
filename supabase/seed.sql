@@ -143,6 +143,13 @@ INSERT INTO request_types (name, fields_schema, is_active) VALUES (
       "label": "OFF/CAC",
       "required": false,
       "options": ["", "off", "cac"]
+    },
+    {
+      "name": "stato_fattura",
+      "type": "select",
+      "label": "Stato Fattura",
+      "required": false,
+      "options": ["NO", "SI", "AVVISO", "NON SERVE"]
     }
   ]'::jsonb,
   true

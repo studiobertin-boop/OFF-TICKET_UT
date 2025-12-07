@@ -1,0 +1,478 @@
+﻿RELAZIONE TECNICA
+IMPIANTO ARIA COMPRESSA
+(Art.6, comma 1, lettera b – D.M. 329/2004)
+Cliente [ragione sociale]
+[sede legale: via], [sede legale: n. civico]
+[sede legale: CAP] [sedel legale: città] [(sede legale: provincia)]
+Sito produttivo in
+[sede impianto: via], [sede impianto: n. civico]
+[sede impianto: CAP] [sedel impianto: città] [(sede impianto: provincia)]
+Premessa
+La presente relazione tecnica si riferisce all’impianto a pressione installato presso il sito produttivo della ditta: [ragione sociale] con sede sociale in San Polo di Piave (VE), CCC n° X, c.a.p. 31020, esercente attività di [descrizione ateco – compilazione manuale], [**placeholder alternativo**: ubicato presso la medesima sede sociale (se sede impianto = sede legale) OPPURE  in (indirizzo sede impianto).
+Essa, coerentemente alla vigente normativa di settore (PED 68/2014/UE, 29/2014/UE e D.M. 329/2004) è finalizzata a descrivere le condizioni di installazione e di esercizio e le misure di sicurezza adottate.
+L’impianto in oggetto non costituisce “impianto” o “insieme” così come definiti dalla PED e pertanto non risulta necessario l’intervento di un Organismo Notificato per la certificazione delle attività previste dalla PED. Ogni componente installato risulta infatti dotato di marcatura CE all’origine.
+[**placeholder attivo solo quando attivato dall’utente**: L’attuale revisione del documento è conseguente alla (descrizione motivo revisione fornita dall’utente). Vengono verificati i requisiti di sicurezza nelle nuove condizioni operative, con particolare riferimento alle valvole di sicurezza montate al momento della stesura di questa revisione].
+[**placeholder attivo solo quando attivato dall’utente**: Ove previsto in base alla tipologia di apparecchiatura ed alla periodicità stabilita dall’ art.3 del D.lgs. 93/2000 (vedasi tabella all’ultima pagina del presente documento), sono state effettuate le verifiche di integrità tramite Controllo Ultrasonoro Spessimetrico, che in tutti i casi hanno fornito esito positivo.]
+Descrizione generale dell’impianto
+L’impianto in oggetto è finalizzato alla produzione e distribuzione di aria compressa a servizio delle utenze di produzione.
+Le apparecchiature che compongono l’impianto in oggetto sono state installate conformemente ai manuali d’uso e manutenzione forniti dai rispettivi fabbricanti ed in possesso della Ditta, ed utilizzate entro i limiti operativi indicati. 
+L’impianto è alloggiato entro un’area [**placeholder attivo quando flag su “locale dedicato”**: appositamente predisposta], [**placeholder attivo quando flag su “accesso al locale vietato”: accessibile solo al personale autorizzato], correttamente areata e lontana da sorgenti di calore. 
+[**placeholder attivo quando flag su “locale dedicato**: Il locale risulta interamente dedicato alla produzione, trattamento e stoccaggio dell’aria compressa e non vi è presenza, nelle vicinanze delle apparecchiature, di materiale infiammabile. In considerazione del luogo di installazione si escludono scenari incidentali per incendio esterno o riscaldamento incontrollato.]
+Esso è costituito dalle seguenti sezioni principali:
+Sezione di pompaggio costituita a n°[numero compressori C] [compressore rotativo o compressori rotativi] a vite a giri fissi / variabili tramite inverter
+Sezione di accumulo ed alimentazione delle linee aria compressa costituita da n°[numero serbatoi S] serbatoio polmone verticale
+Sezione trattamento aria costituita da n°[numero essiccatori] [essiccatore o essiccaoti] d’aria a ciclo frigorifero e n°[numero filtri]  [filtro o filtri] di linea
+[**placeholder attivo solo se esiste un separatore SEP**: Raccolta e trattamento delle condense tramite separatore acqua olio]
+Raccolta delle condense in tanica dedicata
+L’impianto è protetto contro i rischi da sovrappressione dalle valvole di sicurezza nel seguito descritte. La portata e la pressione di progetto sono state determinate a partire dalle effettive esigenze produttive della Ditta.
+Caratterizzazione delle apparecchiature
+Lo schema sotto riportato rappresenta i principali elementi che compongono l’impianto e la loro logica di assemblaggio:
+SCHEMA
+Con riferimento alla numerazione dello schema sopra riportato la tabella seguente riassume le caratteristiche delle principali apparecchiature che compongono l’impianto:
+**tabella di esempio con elenco delle apparecchiature e relative caratterisctiche**
+Pos.
+Descrizione
+Costruttore e Modello
+Capacità [l]
+Aria producibile [l/min]
+Portata scaricata [l/min]
+Pressione massima [bar]
+Pressione di taratura [bar]
+Tempera-tura [°C]
+Cate-goria
+Anno
+Num. fabbrica
+C1
+Compressore
+KAESER KOMPRESSOREN SE
+Modello: CSD 105 SFC 
+8350
+12
+2019
+CSD.5 / 5697
+C1.1
+Serbatoio disoleatore
+AIR COM S.r.l.
+Modello: 25ADK1
+75
+16
+-10 ÷ +120
+III
+2019
+6203
+C1.2
+Valvola di sicurezza
+PADOVAN VALERIO snc
+Modello: TW3 
+10518
+14
+-10 ÷ +200
+IV
+2024
+759924/6
+C2
+Compressore
+KAESER KOMPRESSOREN SE
+Modello: BSD 75 
+5600
+12
+2014
+101521.0 / 1102
+C2.1
+Serbatoio disoleatore
+AIR COM S.r.l.
+Modello: 25IK2
+55
+16
+-10 ÷ +120
+II
+2014
+93565
+C2.2
+Valvola di sicurezza
+PADOVAN VALERIO snc
+Modello: TW3 
+10518
+14,00
+-10 ÷ +200
+IV
+2024
+759924/2
+C3
+Compressore
+KAESER KOMPRESSOREN SE
+Modello: ASD 57 
+4440
+11,00
+2009
+100610.1 / 1468
+C3.1
+Serbatoio disoleatore
+AIR COM S.r.l.
+Modello: 25ZK1
+30
+16
+-10 ÷ +120
+II
+2009
+2930
+C3.2
+Valvola di sicurezza
+PADOVAN VALERIO snc
+Modello: TW3 
+10518
+14
+-10 ÷ +200
+IV
+2025
+484425/2
+S1
+Serbatoio aria verticale
+SICC TECH s.r.l.
+Modello: 2000 - 20011R2
+2000
+11,5
+-10 ÷ +120
+IV
+2019
+19.02986.025
+S1.1
+Valvola di sicurezza
+PADOVAN VALERIO snc
+Modello: TA21 
+32142
+10,80
+-10 ÷ +200
+IV
+2025
+484725/7
+S2
+Serbatoio aria verticale
+SICC TECH s.r.l.
+Modello: 270 - 12783
+270, 0
+11
+-10 ÷ +120
+III
+2021
+21.02478.192
+S2.1
+Valvola di sicurezza
+PADOVAN VALERIO snc
+Modello: TA21 
+32142
+10,80
+-10 ÷ +200
+IV
+2025
+484725/3
+E1
+Essiccatore frigorifero
+FRIULAIR S.r.l.
+Modello: ACT 160
+16000
+14
+70
+2024
+ACT160AM3M085 / 240031091
+E1.1
+Scambiatore di calore
+RAAL S.A.
+Modello:
+RACF 31000-0
+16000
+14
+-20 ÷ +120
+II
+2024
+La tabella che segue indentifica la procedura a cui sono soggette le apparecchiature ai sensi del DM 329/2004:
+**tabella di esempio con elenco delle apparecchiature ed indicazione dell’iter a cui vanno sottoposte. Regole: 
+se compressore NON ha disoleatore associato: nessun flag.
+Se compressore HA disoleatore associato: flag su Verifica messa in servizio (il flag include compressore Cx, disoleatore Cx.1 e valvola di sicurezza Cx.2)
+Se serbatoio ha caratteristiche per cui: Pressione massima * Capacità > 8000: flag su verifica messa in servizio
+Se serbatoio ha caratteristiche per cui: Pressione massima * Capacità < 8000: flag su verifica Dichiaraz. messa in servizio
+se essiccatore NON ha scambiatore associato: nessun flag.
+Se essiccatore HA scambiatore associato: flag su Verifica messa in servizio (il flag include essiccatore Ex e scambiatore Ex.1)
+se filtro NON ha recipiente associato: nessun flag.
+Se filtro HA recipiente associato: flag su Verifica messa in servizio (il flag include filtro Ex e recipiente Ex.1)
+Separatori e altri apparecchi: nessun flag **
+Pos.
+Descrizione
+Costruttore e Modello
+Num. fabbrica
+Dichiaraz. messa in servizio
+Verifica messa in servizio
+C1
+Compressore
+KAESER KOMPRESSOREN SE
+Modello: CSD 105 SFC 
+CSD.5 / 5697
+C1.1
+Serbatoio disoleatore
+AIR COM S.r.l.
+Modello: 25ADK1
+6203
+C1.2
+Valvola di sicurezza
+PADOVAN VALERIO snc
+Modello: TW3 
+759924/6
+C2
+Compressore
+KAESER KOMPRESSOREN SE
+Modello: BSD 75 
+101521.0 / 1102
+C2.1
+Serbatoio disoleatore
+AIR COM S.r.l.
+Modello: 25IK2
+93565
+C2.2
+Valvola di sicurezza
+PADOVAN VALERIO snc
+Modello: TW3 
+759924/2
+C3
+Compressore
+KAESER KOMPRESSOREN SE
+Modello: ASD 57 
+100610.1 / 1468
+C3.1
+Serbatoio disoleatore
+AIR COM S.r.l.
+Modello: 25ZK1
+2930
+C3.2
+Valvola di sicurezza
+PADOVAN VALERIO snc
+Modello: TW3 
+484425/2
+S1
+Serbatoio aria verticale
+SICC TECH s.r.l.
+Modello: 2000 - 20011R2
+19.02986.025
+S1.1
+Valvola di sicurezza
+PADOVAN VALERIO snc
+Modello: TA21 
+484725/7
+S2
+Serbatoio aria verticale
+SICC TECH s.r.l.
+Modello: 270 - 12783
+21.02478.192
+S2.1
+Valvola di sicurezza
+PADOVAN VALERIO snc
+Modello: TA21 
+484725/3
+E1
+Essiccatore frigorifero
+FRIULAIR S.r.l.
+Modello:
+ACT 160
+ACT160AM3M085 / 240031091
+E1.1
+Scambiatore di calore
+RAAL S.A.
+Modello:
+RACF 31000-0
+00117-19-24
+FLUIDI A CONTATTO CON LE APPARECCHIATURE
+Tutti i gas in contatto con gli apparecchi a pressione fanno parte del gruppo 2, non pericolosi e non aggressivi nei confronti dei materiali utilizzati per l’assemblaggio dell’impianto. Si tratta di aria aspirata dall’ambiente. [**placeholder attivo “quando aria aspirata dai compressori” = “Pulita”** Quest’ultima risulta priva di sostanze nocive] .
+CLASSIFICAZIONE DELLE APPARECCHIATURE E RELATIVI Sistemi di protezione e controllo
+Le apparecchiature che compongono l’impianto sono dotate sei seguenti sistemi di protezione e controllo a garanzia delle condizioni di sicurezza del sistema:
+[Compressori o Compressore]:
+La regolazione della pressione di esercizio è gestita mediante sonde di pressione e dalle valvole di sicurezza installate internamente per casi di eventuale sovrappressione.
+I compressori sono esclusi dal campo di applicazione del D.M. 329/2004 in base a quanto previsto dall’Art. 1, punto 3, lettera ”L” del D.L. 93/2000. 
+Nel caso in oggetto:
+[**placeholders alternativi a seconda del tipo di compressori presenti:
+ALTERNATIVA 1 Se presente un solo compressore senza disoleatore associato: il serbatoio disoleatore a servizio del compressore, individuato alla posizione [Id compressore (es. C1)], ha volume inferiore a 25 litri e pertanto escluso dal campo di applicazione del D.M. 329/2004 ai sensi dell’art. 2.i del medesimo decreto. 
+ALTERNATIVA 2 Se presente un solo compressore con disoleatore associato: il serbatoio disoleatore a servizio del compressore, individuato alla posizione [Id disoleatore (es. C1.1)], ha volume superiore a 25 litri  e pressione massima ammissibile superiore a 12 bar  e pertanto, secondo quanto disposto dal combinato degli artt. 4 e 5 del DM329/2004, risulta soggetto a verifica di messa in servizio.
+ALTERNATIVA 3 se presenti più compressori tutti senza disoleatore associato: i serbatoi disoleatori a servizio dei compressori individuati alle posizioni [Id compressori (es. C1 e C2)] hanno volume inferiore a 25 litri e pertanto sono esclusi dal campo di applicazione del D.M. 329/2004 ai sensi dell’art. 2.i del medesimo decreto.
+ALTERNATIVA 4 se presenti più compressori di cui alcuni senza disoleatore associato ed altri con disoleatore associato: 
+il serbatoio disoleatore a servizio del compressore, individuato alla posizione [Id compressore (es. C1)], ha volume inferiore a 25 litri e pertanto escluso dal campo di applicazione del D.M. 329/2004 ai sensi dell’art. 2.i del medesimo decreto.
+il serbatoio disoleatore a servizio del compressore, individuato alla posizione [Id disoleatore (es. C1.1)], ha volume superiore a 25 litri  e pressione massima ammissibile superiore a 12 bar  e pertanto, secondo quanto disposto dal combinato degli artt. 4 e 5 del DM329/2004, risulta soggetto a verifica di messa in servizio.
+ALTERNATIVA 5 se presenti più compressori tutti con disoleatore associato: i serbatoi disoleatori a servizio dei compressori, individuati alle posizioni [Id disoleatori (es. C1.1 e C2.1)], hanno volume superiore a 25 litri  e pressione massima ammissibile superiore a 12 bar  e pertanto, secondo quanto disposto dal combinato degli artt. 4 e 5 del DM329/2004, risultano soggetti a verifica di messa in servizio.
+[**placeholder attivo solo se l’utente ha fornito informazioni su compressori soggetti a spessimetrica**
+In considerazione della data di produzione e delle frequenze delle verifiche di integrità previste dall’ art.3 del D.lgs. 93/2000, il serbatoio disoleatore del compressore [id compressore]  è stato sottoposto a verifica spessimetrica, con esito positivo.
+Essiccatore a ciclo frigorifero:
+[**placeholders alternativi a seconda del tipo di essiccatori presenti:
+ALTERNATIVA 1 Se presente un solo essiccatore senza scambiatore associato: Si tratta di una apparecchiatura, individuata alla posizione [id essiccatore], priva di recipienti di volume superiore a 25 litri e pertanto escluso dal campo di applicazione del D.M. 329/2004 ai sensi dell’art. 2.i del medesimo decreto.
+ALTERNATIVA 2 Se presente un solo essiccatore con scambiatore associato: Si tratta di una apparecchiatura, individuata alla posizione [id essiccatore], dotata di uno scambiatore di calore in pressione, individuato alla posizione [id scambiatore], con volume superiore a 25 litri  e pressione massima ammissibile superiore a 12 bar  e pertanto, secondo quanto disposto dal combinato degli artt. 4 e 5 del DM329/2004, risulta soggetto a verifica di messa in servizio.
+ALTERNATIVA 3 se presenti più essiccatori tutti senza scambiatori associato: Si tratta di apparecchiature, individuate alle posizioni [id essiccatori], prive di recipienti di volume superiore a 25 litri e pertanto escluse dal campo di applicazione del D.M. 329/2004 ai sensi dell’art. 2.i del medesimo decreto.
+ALTERNATIVA 4 se presenti più essiccatori di cui alcuni senza scambiatore associato ed altri con scambiatore associato: 
+l’essiccatore [id essiccatore] è una apparecchiatura, individuata alla posizione [id essiccatore], priva di recipienti di volume superiore a 25 litri e pertanto escluso dal campo di applicazione del D.M. 329/2004 ai sensi dell’art. 2.i del medesimo decreto.
+l’essiccatore [id essiccatore] è una apparecchiatura, individuata alla posizione [id essiccatore], dotata di uno scambiatore di calore in pressione, individuato alla posizione [id scambiatore], con volume superiore a 25 litri  e pressione massima ammissibile superiore a 12 bar  e pertanto, secondo quanto disposto dal combinato degli artt. 4 e 5 del DM329/2004, risulta soggetto a verifica di messa in servizio.
+ALTERNATIVA 5 se presenti più essiccatori tutti con scambiatore associato: Si tratta di apparecchiature, individuate alle posizioni [id essiccatori], dotate di scambiatori di calore in pressione, individuati alle posizioni [id scambiatori], con volume superiore a 25 litri  e pressione massima ammissibile superiore a 12 bar  e pertanto, secondo quanto disposto dal combinato degli artt. 4 e 5 del DM329/2004, risulta soggetto a verifica di messa in servizio.]
+[Serbatoio di accumulo OPPURE Serbatoi di accumulo]:
+[**placeholders alternativi a seconda del tipo di essiccatori presenti:
+ALTERNATIVA 1 Se presente un solo serbatoio soggetto a Dichiarazione di messa in servizio: 
+Rientra nel campo di applicazione del D.M. 329/2004.
+In particolare, il serbatoio individuato alla posizione [id serbatoio] ha volume  pari a [Volume (litri)] litri e pressione massima ammissibile pari a [PS - pressione massima bar]. Il prodotto Ps x V è pari a [**calcolo PS – pressione massima * Volume] e quindi inferiore a 8000. Pertanto, secondo quanto disposto dal combinato degli artt. 4 e 5 del DM329/2004, non risulta soggetto a verifica di messa in servizio ma esclusivamente a dichiarazione di messa in servizio. 
+È completo di scaricatore di condensa [**placeholder alternativo**: “manuale” se campo scarico = manuale; “automatico” se campo scarico = automatico] per prevenire l’accumulo di acqua in grado di originare fenomeni di corrosione localizzata. [**placeholder presente solo se campo Finitura Interna = Zincato **: I fenomeni di corrosione sono inoltre minimizzati dalla finitura superficiale zincata.]  [**placeholder presente solo se campo Finitura Interna = Vitroflex **: I fenomeni di corrosione sono inoltre minimizzati dalla finitura superficiale vetrificata.]  
+Risulta inoltre [**placeholder presente solo se flag su campo Ancorato a terra** ancorato a terra], dotato di manometro di controllo della pressione [**placeholder presente solo se campi Manometro fondo scala e Segno rosso non vuoti** riportante fondo scala a 16 bar e segno rosso a 11 bar].
+ALTERNATIVA 2 Se presente un solo serbatoio soggetto a Verifica di messa in servizio:
+Rientra nel campo di applicazione del D.M. 329/2004.
+In particolare, il serbatoio individuato alla posizione [id serbatoio] ha volume  pari a [Volume (litri)] litri e pressione massima ammissibile pari a [PS - pressione massima bar]. Il prodotto Ps x V è pari a [**calcolo PS – pressione massima * Volume] e quindi superiore a 8000. Pertanto, secondo quanto disposto dal combinato degli artt. 4 e 5 del DM329/2004, risulta soggetto a verifica di messa in servizio. 
+È completo di scaricatore di condensa [**placeholder alternativo**: “manuale” se campo scarico = manuale; “automatico” se campo scarico = automatico] per prevenire l’accumulo di acqua in grado di originare fenomeni di corrosione localizzata. [**placeholder presente solo se campo Finitura Interna = Zincato **: I fenomeni di corrosione sono inoltre minimizzati dalla finitura superficiale zincata.]  [**placeholder presente solo se campo Finitura Interna = Vitroflex **: I fenomeni di corrosione sono inoltre minimizzati dalla finitura superficiale vetrificata.]  
+Risulta inoltre [**placeholder presente solo se flag su campo Ancorato a terra** ancorato a terra], dotato di manometro di controllo della pressione [**placeholder presente solo se campi Manometro fondo scala e Segno rosso non vuoti** riportante fondo scala a 16 bar e segno rosso a 11 bar].
+ALTERNATIVA 3 se presenti più serbatoi tutti soggetti a Dichiarazione di messa in servizio: 
+Rientrano nel campo di applicazione del D.M. 329/2004. 
+Tutti i serbatoi di accumulo presenti sono dotati di valvole di sicurezza opportunamente dimensionate, come dimostrato nel seguito del presente documento, hanno volume superiore a 50litri e pressione massima ammissibile inferiore a 12 bar. In particolare:
+il serbatoio individuato alla posizione [id serbatoio] ha volume  pari a [Volume (litri)] litri e pressione massima ammissibile pari a [PS - pressione massima bar]. Il prodotto Ps x V è pari a [**calcolo PS – pressione massima * Volume] e quindi inferiore a 8000. Pertanto, secondo quanto disposto dal combinato degli artt. 4 e 5 del DM329/2004, non risulta soggetto a verifica di messa in servizio ma esclusivamente a dichiarazione di messa in servizio. È completo di scaricatore di condensa [**placeholder alternativo**: “manuale” se campo scarico = manuale; “automatico” se campo scarico = automatico] per prevenire l’accumulo di acqua in grado di originare fenomeni di corrosione localizzata. [**placeholder presente solo se campo Finitura Interna = Zincato **: I fenomeni di corrosione sono inoltre minimizzati dalla finitura superficiale zincata.]  [**placeholder presente solo se campo Finitura Interna = Vitroflex **: I fenomeni di corrosione sono inoltre minimizzati dalla finitura superficiale vetrificata.]  Risulta inoltre [**placeholder presente solo se flag su campo Ancorato a terra** ancorato a terra], dotato di manometro di controllo della pressione [**placeholder presente solo se campi Manometro fondo scala e Segno rosso non vuoti** riportante fondo scala a 16 bar e segno rosso a 11 bar].
+[**Stesso paragrafo ma con dati relativi ad altro serbatoio**]
+ALTERNATIVA 4 se presenti più serbatoi di cui alcuni soggetti a Dichiarazione di messa in servizio ed altri soggetti a Verifica di messa in servizio: 
+Rientrano nel campo di applicazione del D.M. 329/2004. 
+Tutti i serbatoi di accumulo presenti sono dotati di valvole di sicurezza opportunamente dimensionate, come dimostrato nel seguito del presente documento.
+il serbatoio individuato alla posizione [id serbatoio] ha volume  pari a [Volume (litri)] litri e pressione massima ammissibile pari a [PS - pressione massima bar]. Il prodotto Ps x V è pari a [**calcolo PS – pressione massima * Volume] e quindi inferiore a 8000. Pertanto, secondo quanto disposto dal combinato degli artt. 4 e 5 del DM329/2004, non risulta soggetto a verifica di messa in servizio ma esclusivamente a dichiarazione di messa in servizio.  È completo di scaricatore di condensa [**placeholder alternativo**: “manuale” se campo scarico = manuale; “automatico” se campo scarico = automatico] per prevenire l’accumulo di acqua in grado di originare fenomeni di corrosione localizzata. [**placeholder presente solo se campo Finitura Interna = Zincato **: I fenomeni di corrosione sono inoltre minimizzati dalla finitura superficiale zincata.]  [**placeholder presente solo se campo Finitura Interna = Vitroflex **: I fenomeni di corrosione sono inoltre minimizzati dalla finitura superficiale vetrificata.]   Risulta inoltre [**placeholder presente solo se flag su campo Ancorato a terra** ancorato a terra], dotato di manometro di controllo della pressione [**placeholder presente solo se campi Manometro fondo scala e Segno rosso non vuoti** riportante fondo scala a 16 bar e segno rosso a 11 bar].
+il serbatoio individuato alla posizione [id serbatoio] ha volume  pari a [Volume (litri)] litri e pressione massima ammissibile pari a [PS - pressione massima bar]. Il prodotto Ps x V è pari a [**calcolo PS – pressione massima * Volume] e quindi superiore a 8000. Pertanto, secondo quanto disposto dal combinato degli artt. 4 e 5 del DM329/2004, risulta soggetto a verifica di messa in servizio.  È completo di scaricatore di condensa [**placeholder alternativo**: “manuale” se campo scarico = manuale; “automatico” se campo scarico = automatico] per prevenire l’accumulo di acqua in grado di originare fenomeni di corrosione localizzata. [**placeholder presente solo se campo Finitura Interna = Zincato **: I fenomeni di corrosione sono inoltre minimizzati dalla finitura superficiale zincata.]  [**placeholder presente solo se campo Finitura Interna = Vitroflex **: I fenomeni di corrosione sono inoltre minimizzati dalla finitura superficiale vetrificata.]   Risulta inoltre [**placeholder presente solo se flag su campo Ancorato a terra** ancorato a terra], dotato di manometro di controllo della pressione [**placeholder presente solo se campi Manometro fondo scala e Segno rosso non vuoti** riportante fondo scala a 16 bar e segno rosso a 11 bar].
+ALTERNATIVA 5 se presenti più serbatoi tutti soggetti a Verifica di messa in servizio: 
+Rientrano nel campo di applicazione del D.M. 329/2004. 
+Tutti i serbatoi di accumulo presenti sono dotati di valvole di sicurezza opportunamente dimensionate, come dimostrato nel seguito del presente documento, hanno volume  superiore a 50litri e pressione massima ammissibile inferiore a 12 bar. In particolare:
+il serbatoio individuato alla posizione [id serbatoio] ha volume  pari a [Volume (litri)] litri e pressione massima ammissibile pari a [PS - pressione massima bar]. Il prodotto Ps x V è pari a [**calcolo PS – pressione massima * Volume] e quindi superiore a 8000. Pertanto, secondo quanto disposto dal combinato degli artt. 4 e 5 del DM329/2004, risulta soggetto a verifica di messa in servizio.  È completo di scaricatore di condensa [**placeholder alternativo**: “manuale” se campo scarico = manuale; “automatico” se campo scarico = automatico] per prevenire l’accumulo di acqua in grado di originare fenomeni di corrosione localizzata. [**placeholder presente solo se campo Finitura Interna = Zincato **: I fenomeni di corrosione sono inoltre minimizzati dalla finitura superficiale zincata.]  [**placeholder presente solo se campo Finitura Interna = Vitroflex **: I fenomeni di corrosione sono inoltre minimizzati dalla finitura superficiale vetrificata.]   Risulta inoltre [**placeholder presente solo se flag su campo Ancorato a terra** ancorato a terra], dotato di manometro di controllo della pressione [**placeholder presente solo se campi Manometro fondo scala e Segno rosso non vuoti** riportante fondo scala a 16 bar e segno rosso a 11 bar].
+[**Stesso paragrafo ma con dati relativi ad altro serbatoio**]
+Tubazioni:
+Tutte le tubazioni destinate a contenere aria compressa hanno DN=80mm e pertanto escluse dal campo di applicazione del D.M. 329/2004 ai sensi dell’art. 3 comma bb) del medesimo decreto.
+Come desumibile dalle dichiarazioni di conformità le valvole di sicurezza a servizio dei recipienti a pressione sono in grado di scaricare, alla pressione di taratura, portate superiori alle massime portate elaborabili dai compressori, infatti:
+[**esempio di tabella di verifica della portata scaricata dalle valvole. Regole di compilazione della tabella: 
+il flag nella colonna “Adeguato” va inserito solo se il valore della Portata massima da elaborare è <= a Portata scaricata alla pressione di taratura
+Per valvole associate a essiccatori: portata massima da elaborare = portata massima del compressore a cui è associato il disoleatore (esempio: per C1.2 portata massima del compressore C1)
+Per valvole associate a serbatoi: portata massima da elaborare = somma delle massime portate dei compressori collegati al serbatoio. Il collegamento compressori – serbatoio viene dichiarato dall’utente prima della generazione della relazione**
+Pos. valvola
+n.f. valvola
+Apparecchiature
+connesse
+Portata massima da elaborare 
+Portata scaricata alla pressione di taratura 
+Adeguato
+C1.2
+759924/6
+Pos. C1 - Compressore
+KAESER KOMPRESSOREN SE
+Modello: CSD 105 SFC 
+8350
+10518
+C2.2
+759924/2
+Pos. C2 - Compressore
+KAESER KOMPRESSOREN SE
+Modello: BSD 75 
+5600
+10518
+C3.2
+484425/2
+Pos. C3 - Compressore
+KAESER KOMPRESSOREN SE
+Modello: ASD 57 
+4440
+10518
+S1.1
+484725/7
+Pos. C1 - Compressore
+KAESER KOMPRESSOREN SE
+Modello: CSD 105 SFC
++
+Pos. C2 - Compressore
+KAESER KOMPRESSOREN SE
+Modello: BSD 75
++
+Pos. C3 - Compressore
+KAESER KOMPRESSOREN SE
+Modello: ASD 57
+8350 +
+5600 +
+4440 =
+18390
+32142
+S2.1
+484725/3
+32142
+]
+La pressione di taratura delle valvole risulta adeguata alle massime pressioni ammissibili all’impianto, infatti:
+[**esempio di tabella di verifica della pressione delle valvole. Regole di compilazione della tabella: 
+Ogni riga corrisponde ad una valvola di sicurezza
+Il flag nella colonna “Adeguato” va compilato solo se la pressione di taratura della valvola è <= alla pressione massima del recipiente associato alla valvola**
+Pos. valvola
+n.f. valvola
+Apparecchiature
+connesse
+Pressione massima recipiente 
+PS 
+Pressione di taratura 
+Adeguato
+C1.2
+759924/6
+Pos. C1.1 - Serbatoio disoleatore
+AIR COM S.r.l.
+Modello: 25ADK1
+16
+14
+C2.2
+759924/2
+Pos. C2.1 - Serbatoio disoleatore
+AIR COM S.r.l.
+Modello: 25IK2
+16
+14,00
+C3.2
+484425/2
+Pos. C3.1 - Serbatoio disoleatore
+AIR COM S.r.l.
+Modello: 25ZK1
+16
+14
+S1.1
+484725/7
+Pos. S1 - Serbatoio aria verticale
+SICC TECH s.r.l.
+Modello: 2000 - 20011R2
+11,5
+10,80
+S2.1
+484725/3
+Pos. S2 - Serbatoio aria verticale
+SICC TECH s.r.l.
+Modello: 270 - 12783
+11
+10,80
+]
+Verifiche periodiche
+Le attrezzature rientranti nel campo di applicazione del D.M. 329/2004 sono soggette, in base all’art.10, commi 3 e 5 di detto decreto, all’obbligo di riqualificazione periodica.
+Nel caso specifico, poiché i fluidi in questione appartengono al gruppo 2 in base all’art.3 del D.Lgs.93/2000, le attrezzature saranno sottoposte alle attività di riqualificazione periodica secondo le frequenze indicate nell’Allegato B e qui sotto riportate, salvo frequenze più restrittive indicate nei manuali d’uso e manutenzione dei produttori:
+ATTREZZATURE/INSIEMI CONTENENTI FLUIDI DEL GRUPPO 2 
+Recipienti/insiemi contenenti gas compressi, liquefatti e disciolti o vapori diversi dal vapor d'acqua classificati in III e IV categoria e recipienti di vapore d'acqua e d'acqua surriscaldata appartenenti alle categorie dalla I alla IV
+Frequenza ispezioni:
+ogni 3 anni: verifica di funzionamento
+ogni 10 anni: verifica d'integrità
+Recipienti/insiemi contenenti gas compressi, liquefatti e disciolti o vapori diversi dal vapor d'acqua classificati in I e II categoria
+Frequenza ispezioni:
+ogni 4 anni: verifica di funzionamento
+ogni 10 anni: verifica d'integrità
+Generatori di vapor d'acqua.
+Frequenza ispezioni:
+ogni 2 anni: verifica di funzionamento e visita interna
+ogni 10 anni: verifica di integrità
+Tubazioni gas, vapori e liquidi surriscaldati classificati nella III categoria.
+Frequenza ispezioni:
+per TS < 350 °C, ogni 10 anni: verifica di integrità
+per TS > 350 °C
+ogni 5 anni: verifica di funzionamento
+ogni 10 anni: verifica di integrità
+Tubazioni per liquidi
+Nessuna verifica
+Recipienti per liquidi
+Nessuna verifica
+Bombole per apparecchi respiratori
+Per uso subacqueo:
+Revisione iniziale dopo 4 anni
+Revisioni successive ogni 2 anni
+Per uso non subacqueo: revisione ogni 10 anni.
+Estintori portatili
+Gas non corrosivi: revisione ogni 10 anni
+Gas corrosivi: revisione ogni 3 anni
+ALLEGATI:
+Attestazioni di conformità/Documenti di omologazione apparecchiature oggetto di verifica/denuncia e relativi organi di sicurezza
+Manuali d’uso e manutenzione apparecchiature oggetto di verifica/denuncia e relativi organi di sicurezza
+[**placeholder presente solo se almeno una apparecchiatura ha associata una verifica spessimetrica** : Verifiche di integrità , ove previste]

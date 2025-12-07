@@ -220,5 +220,233 @@ export const equipmentCatalogApi = {
     })
 
     if (error) throw error
+  },
+
+  // ============================================================================
+  // METODI PER COMPRESSORI (con pressione_max come chiave)
+  // ============================================================================
+
+  /**
+   * Per COMPRESSORI: ottiene pressioni disponibili per tipo + marca + modello
+   * Usato per popolare il terzo autocomplete (pressione)
+   */
+  async getPressioniByTipoMarcaModello(
+    tipo: EquipmentCatalogType,
+    marca: string,
+    modello: string
+  ): Promise<number[]> {
+    const { data, error } = await supabase
+      .from('equipment_catalog')
+      .select('specs')
+      .eq('tipo_apparecchiatura', tipo)
+      .eq('marca', marca)
+      .eq('modello', modello)
+      .eq('is_active', true)
+
+    if (error) throw error
+
+    // Estrai pressione_max da specs e rimuovi duplicati
+    const pressioni = data
+      .map(item => item.specs?.pressione_max)
+      .filter((p): p is number => typeof p === 'number' && !isNaN(p))
+
+    return [...new Set(pressioni)].sort((a, b) => a - b)
+  },
+
+  /**
+   * Per COMPRESSORI: ottiene specs dato marca, modello E pressione
+   */
+  async getEquipmentByTipoMarcaModelloPressione(
+    tipo: EquipmentCatalogType,
+    marca: string,
+    modello: string,
+    pressione: number
+  ): Promise<EquipmentCatalogItem | null> {
+    const { data, error } = await supabase
+      .from('equipment_catalog')
+      .select('*')
+      .eq('tipo_apparecchiatura', tipo)
+      .eq('marca', marca)
+      .eq('modello', modello)
+      .eq('is_active', true)
+
+    if (error) throw error
+
+    // Filtra per pressione_max negli specs
+    const match = data?.find(
+      item => item.specs?.pressione_max === pressione
+    )
+
+    return match as EquipmentCatalogItem | null
+  },
+
+  /**
+   * Verifica esistenza con pressione (per compressori)
+   */
+  async existsWithPressione(
+    tipo: EquipmentCatalogType,
+    marca: string,
+    modello: string,
+    pressione: number
+  ): Promise<boolean> {
+    const equipment = await this.getEquipmentByTipoMarcaModelloPressione(
+      tipo, marca, modello, pressione
+    )
+    return !!equipment
+  },
+
+  // ============================================================================
+  // METODI PER VALVOLE DI SICUREZZA (con ptar come chiave)
+  // ============================================================================
+
+  /**
+   * Per VALVOLE: ottiene Ptar disponibili per tipo + marca + modello
+   * Usato per popolare il terzo autocomplete (ptar)
+   */
+  async getPtarByTipoMarcaModello(
+    tipo: EquipmentCatalogType,
+    marca: string,
+    modello: string
+  ): Promise<number[]> {
+    const { data, error } = await supabase
+      .from('equipment_catalog')
+      .select('specs')
+      .eq('tipo_apparecchiatura', tipo)
+      .eq('marca', marca)
+      .eq('modello', modello)
+      .eq('is_active', true)
+
+    if (error) throw error
+
+    // Estrai ptar da specs e rimuovi duplicati
+    const ptarValues = data
+      .map(item => item.specs?.ptar)
+      .filter((p): p is number => typeof p === 'number' && !isNaN(p))
+
+    return [...new Set(ptarValues)].sort((a, b) => a - b)
+  },
+
+  /**
+   * Per VALVOLE: ottiene specs dato marca, modello E ptar
+   */
+  async getEquipmentByTipoMarcaModelloPtar(
+    tipo: EquipmentCatalogType,
+    marca: string,
+    modello: string,
+    ptar: number
+  ): Promise<EquipmentCatalogItem | null> {
+    const { data, error } = await supabase
+      .from('equipment_catalog')
+      .select('*')
+      .eq('tipo_apparecchiatura', tipo)
+      .eq('marca', marca)
+      .eq('modello', modello)
+      .eq('is_active', true)
+
+    if (error) throw error
+
+    // Filtra per ptar negli specs
+    const match = data?.find(
+      item => item.specs?.ptar === ptar
+    )
+
+    return match as EquipmentCatalogItem | null
+  },
+
+  /**
+   * Verifica esistenza con ptar (per valvole)
+   */
+  async existsWithPtar(
+    tipo: EquipmentCatalogType,
+    marca: string,
+    modello: string,
+    ptar: number
+  ): Promise<boolean> {
+    const equipment = await this.getEquipmentByTipoMarcaModelloPtar(
+      tipo, marca, modello, ptar
+    )
+    return !!equipment
+  },
+
+  // ============================================================================
+  // AGGIORNAMENTO SPECS (per completare informazioni mancanti)
+  // ============================================================================
+
+  /**
+   * Aggiorna specs di un'apparecchiatura esistente (merge parziale)
+   * Usato quando l'utente completa informazioni mancanti (FAD, PS, TS, etc.)
+   *
+   * @param tipo - Tipo apparecchiatura
+   * @param marca - Marca
+   * @param modello - Modello
+   * @param newSpecs - Nuovi specs da aggiungere/sovrascrivere
+   * @param options - Opzioni per compressori/valvole (pressione come chiave)
+   * @returns void (throws su errore)
+   */
+  async updateEquipmentSpecs(
+    tipo: EquipmentCatalogType,
+    marca: string,
+    modello: string,
+    newSpecs: Record<string, any>,
+    options?: {
+      pressione?: number  // Per compressori (chiave univoca)
+      ptar?: number       // Per valvole (chiave univoca)
+    }
+  ): Promise<void> {
+    // 1. Trova equipment esistente
+    let equipment: EquipmentCatalogItem | null = null
+
+    if (tipo === 'Compressori' && options?.pressione !== undefined) {
+      equipment = await this.getEquipmentByTipoMarcaModelloPressione(
+        tipo, marca, modello, options.pressione
+      )
+    } else if (tipo === 'Valvole di sicurezza' && options?.ptar !== undefined) {
+      equipment = await this.getEquipmentByTipoMarcaModelloPtar(
+        tipo, marca, modello, options.ptar
+      )
+    } else {
+      equipment = await this.getEquipmentByTipoMarcaModello(tipo, marca, modello)
+    }
+
+    // 2. Se non trovato, silenzioso (apparecchiatura potrebbe essere stata eliminata)
+    if (!equipment) {
+      console.warn('Equipment not found for update:', { tipo, marca, modello, options })
+      return
+    }
+
+    // 3. Pulisci newSpecs (rimuovi null/undefined/empty)
+    const cleanedNewSpecs = Object.fromEntries(
+      Object.entries(newSpecs).filter(([_, v]) =>
+        v !== null && v !== undefined && v !== ''
+      )
+    )
+
+    // 4. Merge specs (preserva specs esistenti, aggiunge/sovrascrive nuovi)
+    const mergedSpecs = {
+      ...(equipment.specs || {}),
+      ...cleanedNewSpecs
+    }
+
+    // 5. Update database
+    const { error } = await supabase
+      .from('equipment_catalog')
+      .update({
+        specs: mergedSpecs,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', equipment.id)
+
+    if (error) {
+      console.error('Error updating equipment specs:', error)
+      throw error
+    }
+
+    console.log('✅ Equipment specs updated:', {
+      id: equipment.id,
+      tipo,
+      marca,
+      modello,
+      updatedFields: Object.keys(cleanedNewSpecs)
+    })
   }
 }

@@ -36,7 +36,8 @@ import { useRequestTypes } from '@/hooks/useRequestTypes'
 import { useAuth } from '@/hooks/useAuth'
 import { usePersistedState } from '@/hooks/usePersistedState'
 import { getStatusColor, getStatusLabel } from '@/utils/workflow'
-import type { DM329Status } from '@/types'
+import type { DM329Status, StatoFattura } from '@/types'
+import { requestsApi } from '@/services/api/requests'
 import { RequestsTableView } from '@/components/requests/RequestsTableView'
 import { DM329TableView } from '@/components/requests/DM329TableView'
 import { HiddenRequestsView } from '@/components/requests/HiddenRequestsView'
@@ -313,6 +314,19 @@ export const Requests = () => {
     }
   }
 
+  const handleBulkUpdateStatoFattura = async (value: StatoFattura) => {
+    try {
+      const requestIds = Array.from(selectedRequests)
+      await requestsApi.bulkUpdateStatoFattura(requestIds, value)
+      await queryClient.invalidateQueries({ queryKey: ['requests'] })
+      toast.success(`${requestIds.length} richieste aggiornate`)
+      setSelectedRequests(new Set())
+    } catch (error: any) {
+      console.error('Errore aggiornamento batch stato fattura:', error)
+      toast.error(error.message || 'Errore durante l\'aggiornamento')
+    }
+  }
+
   // Get selected requests objects for dialog
   const selectedRequestsObjects = useMemo(() => {
     return displayRequests.filter(r => selectedRequests.has(r.id))
@@ -562,6 +576,8 @@ export const Requests = () => {
             selectedCount={selectedRequests.size}
             onBulkDelete={handleBulkDelete}
             onClearSelection={handleClearSelection}
+            onBulkUpdateStatoFattura={handleBulkUpdateStatoFattura}
+            showStatoFatturaUpdate={activeTab === 1 && (user?.role === 'admin' || user?.role === 'userdm329')}
             hasCompletedRequests={hasCompletedRequests}
           />
         )}

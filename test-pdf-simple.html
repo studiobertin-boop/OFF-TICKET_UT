@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test PDF OCR Simple</title>
+</head>
+<body>
+    <h1>Test PDF Conversion</h1>
+    <input type="file" id="pdfInput" accept=".pdf,application/pdf">
+    <div id="output"></div>
+    <div id="preview"></div>
+
+    <script type="module">
+        import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/+esm';
+
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.worker.min.mjs';
+
+        document.getElementById('pdfInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const output = document.getElementById('output');
+            const preview = document.getElementById('preview');
+
+            output.innerHTML = '<p>Loading PDF...</p>';
+            console.log('📄 File selected:', file.name, file.size, 'bytes');
+
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+                console.log('📄 PDF loaded:', pdf.numPages, 'pages');
+                output.innerHTML += '<p>PDF loaded: ' + pdf.numPages + ' pages</p>';
+
+                // Convert first page
+                const page = await pdf.getPage(1);
+                const viewport = page.getViewport({ scale: 1.5 });
+
+                const canvas = document.createElement('canvas');
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+                const ctx = canvas.getContext('2d');
+
+                await page.render({
+                    canvasContext: ctx,
+                    viewport: viewport
+                }).promise;
+
+                console.log('✅ Page 1 rendered');
+                output.innerHTML += '<p>Page 1 rendered</p>';
+
+                // Convert to PNG
+                const dataUrl = canvas.toDataURL('image/png');
+                const base64 = dataUrl.split(',')[1];
+
+                console.log('🔍 Base64 format:', base64.substring(0, 10));
+                console.log('📊 Base64 length:', base64.length, 'chars (~' + (base64.length * 0.75 / 1024 / 1024).toFixed(2) + ' MB)');
+
+                output.innerHTML += '<p>Format: ' + (base64.startsWith('iVBOR') ? 'PNG ✅' : 'NOT PNG ❌') + '</p>';
+                output.innerHTML += '<p>Base64 first chars: ' + base64.substring(0, 20) + '</p>';
+                output.innerHTML += '<p>Size: ~' + (base64.length * 0.75 / 1024 / 1024).toFixed(2) + ' MB</p>';
+
+                // Show preview
+                preview.innerHTML = '<img src="' + dataUrl + '" style="max-width: 500px; border: 1px solid black;">';
+
+                // Test sending to Edge Function
+                const button = document.createElement('button');
+                button.textContent = 'Send to Edge Function';
+                button.onclick = async () => {
+                    console.log('📤 Sending to Edge Function...');
+                    output.innerHTML += '<p>Sending to Edge Function...</p>';
+
+                    const response = await fetch('https://uphftgpwisdiubuhohnc.supabase.co/functions/v1/analyze-equipment-nameplate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVwaGZ0Z3B3aXNkaXVidWhvaG5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjY5MjIwNjIsImV4cCI6MjA0MjQ5ODA2Mn0.Fb7y5n4YfVK68V1NccVOQlVkrNOGgGFKMk8W7zPcnVk'
+                        },
+                        body: JSON.stringify({
+                            image_base64: base64,
+                            equipment_type: 'compressore'
+                        })
+                    });
+
+                    console.log('📥 Response status:', response.status);
+                    const data = await response.json();
+                    console.log('📥 Response data:', data);
+
+                    output.innerHTML += '<p>Response: ' + response.status + '</p>';
+                    output.innerHTML += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                };
+                output.appendChild(button);
+
+            } catch (error) {
+                console.error('❌ Error:', error);
+                output.innerHTML += '<p style="color: red;">Error: ' + error.message + '</p>';
+            }
+        });
+    </script>
+</body>
+</html>

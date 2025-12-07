@@ -3,6 +3,7 @@ import { IconButton, Tooltip, CircularProgress } from '@mui/material'
 import { PhotoCamera as PhotoCameraIcon } from '@mui/icons-material'
 import { useOCRAnalysis, requiresNormalizationConfirmation } from '@/hooks/useOCRAnalysis'
 import { NormalizationSuggestionDialog } from './NormalizationSuggestionDialog'
+import { convertPDFToImages, isPDFFile } from '@/utils/pdfToImage'
 import type { EquipmentCatalogType } from '@/types'
 import type { EquipmentType, OCRExtractedData, NormalizedField } from '@/types/ocr'
 
@@ -26,7 +27,8 @@ const CATALOG_TO_OCR_TYPE_MAP: Partial<Record<EquipmentCatalogType, EquipmentTyp
   'Essiccatori': 'essiccatore',
   'Scambiatori': 'scambiatore',
   'Filtri': 'filtro',
-  'Separatori': 'separatore'
+  'Separatori': 'separatore',
+  'Recipienti filtro': 'serbatoio' // Usa tipo serbatoio per similitudine (recipiente pressurizzato)
 }
 
 /**
@@ -90,6 +92,37 @@ export const SingleOCRButton = ({
     const file = event.target.files?.[0]
     if (!file) return
 
+    console.log('📸 File selezionato:', file.name, file.type, file.size, 'bytes')
+
+    // Gestione PDF: converti prima pagina in PNG
+    let fileToAnalyze = file
+    if (isPDFFile(file)) {
+      console.log('📄 PDF rilevato, conversione prima pagina in corso...')
+      try {
+        const result = await convertPDFToImages(file, 1.5, 1) // Solo prima pagina
+
+        if (result.pages.length === 0) {
+          console.error('❌ Nessuna pagina estratta dal PDF')
+          alert('Errore: impossibile convertire il PDF')
+          event.target.value = ''
+          return
+        }
+
+        const pngBlob = result.pages[0].blob
+        const pngFile = new File([pngBlob],
+          file.name.replace('.pdf', '_page1.png'),
+          { type: 'image/png' })
+
+        console.log('✅ PDF convertito in PNG:', pngFile.name, pngFile.type, pngFile.size, 'bytes')
+        fileToAnalyze = pngFile
+      } catch (error) {
+        console.error('❌ Errore conversione PDF:', error)
+        alert('Errore durante la conversione del PDF')
+        event.target.value = ''
+        return
+      }
+    }
+
     // Se componentType è presente, usa tipo OCR specifico per il componente
     let ocrType: EquipmentType | undefined
     if (componentType === 'valvola_sicurezza') {
@@ -101,9 +134,9 @@ export const SingleOCRButton = ({
 
     const code = generateEquipmentCode(equipmentType, equipmentIndex, parentIndex)
 
-    console.log('📸 Upload foto singola:', { equipmentType, ocrType, code, componentType, file: file.name })
+    console.log('📸 Upload foto singola:', { equipmentType, ocrType, code, componentType, file: fileToAnalyze.name })
 
-    const result = await analyzeImage(file, ocrType, code)
+    const result = await analyzeImage(fileToAnalyze, ocrType, code)
 
     if (result.success && result.data) {
       const { marca_normalized, modello_normalized } = result.data
@@ -175,7 +208,7 @@ export const SingleOCRButton = ({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,.pdf,application/pdf"
         style={{ display: 'none' }}
         onChange={handleFileChange}
       />

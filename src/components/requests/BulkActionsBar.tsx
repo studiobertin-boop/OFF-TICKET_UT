@@ -1,4 +1,4 @@
-import { Box, Button, Paper, Typography } from '@mui/material'
+import { Box, Button, Paper, Typography, FormControl, InputLabel, Select, MenuItem } from '@mui/material'
 import {
   VisibilityOff as VisibilityOffIcon,
   Delete as DeleteIcon,
@@ -6,6 +6,7 @@ import {
   Visibility as VisibilityIcon,
   DeleteForever as DeleteForeverIcon,
 } from '@mui/icons-material'
+import { StatoFattura, STATO_FATTURA_OPTIONS, STATO_FATTURA_LABELS } from '@/types'
 
 interface BulkActionsBarProps {
   selectedCount: number
@@ -14,6 +15,8 @@ interface BulkActionsBarProps {
   onBulkDelete?: () => void
   onUnhide?: () => void
   onClearSelection: () => void
+  onBulkUpdateStatoFattura?: (value: StatoFattura) => void
+  showStatoFatturaUpdate?: boolean
   isHiddenView?: boolean
   hasCompletedRequests?: boolean
 }
@@ -25,6 +28,8 @@ export const BulkActionsBar = ({
   onBulkDelete,
   onUnhide,
   onClearSelection,
+  onBulkUpdateStatoFattura,
+  showStatoFatturaUpdate = false,
   isHiddenView = false,
   hasCompletedRequests = false,
 }: BulkActionsBarProps) => {
@@ -48,6 +53,33 @@ export const BulkActionsBar = ({
       </Typography>
 
       <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
+        {showStatoFatturaUpdate && onBulkUpdateStatoFattura && (
+          <FormControl size="small" sx={{ minWidth: 200 }}>
+            <InputLabel sx={{ color: 'primary.contrastText' }}>Aggiorna Stato Fattura</InputLabel>
+            <Select
+              label="Aggiorna Stato Fattura"
+              onChange={(e) => onBulkUpdateStatoFattura(e.target.value as StatoFattura)}
+              value=""
+              displayEmpty
+              sx={{
+                backgroundColor: 'background.paper',
+                '& .MuiOutlinedInput-notchedOutline': {
+                  borderColor: 'primary.contrastText',
+                },
+              }}
+            >
+              <MenuItem value="" disabled>
+                Seleziona nuovo stato...
+              </MenuItem>
+              {STATO_FATTURA_OPTIONS.map(option => (
+                <MenuItem key={option} value={option}>
+                  {STATO_FATTURA_LABELS[option]}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        )}
+
         {isHiddenView ? (
           <>
             {onUnhide && (

@@ -1,8 +1,8 @@
-import { Control, Controller } from 'react-hook-form'
+import { Control, Controller, useFormContext } from 'react-hook-form'
 import { TextField, Grid, Typography, Box, Divider } from '@mui/material'
 import { Warning as WarningIcon } from '@mui/icons-material'
 import type { ReactNode } from 'react'
-import { EquipmentAutocomplete } from './EquipmentAutocomplete'
+import { EquipmentAutocompleteWithPressure } from './EquipmentAutocompleteWithPressure'
 import { useTecnicoDM329Visibility } from '@/hooks/useTecnicoDM329Visibility'
 
 interface ValvolaSicurezzaFieldsProps {
@@ -18,12 +18,16 @@ interface ValvolaSicurezzaFieldsProps {
  * Campi per Valvola di Sicurezza
  * Obbligatoria per serbatoi e disoleatori
  *
+ * AUTOCOMPLETAMENTO:
+ * - Seleziona MARCA + MODELLO + PTAR → autocompleta TS, QMAX, DIAMETRO
+ *
  * MODIFICHE:
  * - Aggiunto campo "Anno"
  * - Rinominato "Pressione" → "Pressione di Taratura" (pressione_taratura)
  * - Aggiunto "TS - Temperatura" (ts_temperatura) - NON visibile a tecnicoDM329
  * - Aggiunto "Volume aria scaricato" (volume_aria_scaricato) - NON visibile a tecnicoDM329
  * - Aggiunto "Categoria PED" (readonly "IV") - NON visibile a tecnicoDM329
+ * - Integrato EquipmentAutocompleteWithPressure per autocompletamento 3-step
  */
 export const ValvolaSicurezzaFields = ({
   control,
@@ -34,6 +38,29 @@ export const ValvolaSicurezzaFields = ({
   bgColor = 'rgba(255, 235, 132, 0.50)', // Default giallo più carico
 }: ValvolaSicurezzaFieldsProps) => {
   const { showAdvancedFields } = useTecnicoDM329Visibility()
+  const { setValue } = useFormContext()
+
+  // Handler per popolare campi quando viene selezionata apparecchiatura dal catalogo
+  const handleEquipmentSelected = (specs: Record<string, any>) => {
+    console.log('📦 Valvola: Populating fields from specs:', specs)
+
+    // TS - Temperatura
+    if (specs.ts !== undefined) {
+      setValue(`${basePath}.valvola_sicurezza.ts_temperatura`, specs.ts)
+    }
+
+    // QMAX - Volume aria scaricato
+    if (specs.qmax !== undefined) {
+      setValue(`${basePath}.valvola_sicurezza.volume_aria_scaricato`, specs.qmax)
+    }
+
+    // DIAMETRO
+    if (specs.diametro !== undefined) {
+      setValue(`${basePath}.valvola_sicurezza.diametro`, specs.diametro)
+    }
+
+    console.log('✅ Valvola: Fields populated from catalog')
+  }
 
   const getError = (fieldName: string) => {
     const parts = `${basePath}.valvola_sicurezza.${fieldName}`.split('.')
@@ -62,7 +89,7 @@ export const ValvolaSicurezzaFields = ({
       <Divider sx={{ mb: 2 }} />
 
       <Grid container spacing={2}>
-        {/* Marca e Modello con Autocomplete */}
+        {/* Marca, Modello e Ptar con Autocomplete 3-step */}
         <Grid item xs={12}>
           <Controller
             name={`${basePath}.valvola_sicurezza.marca`}
@@ -72,14 +99,25 @@ export const ValvolaSicurezzaFields = ({
                 name={`${basePath}.valvola_sicurezza.modello`}
                 control={control}
                 render={({ field: modelloField }) => (
-                  <EquipmentAutocomplete
-                    equipmentType="Valvole di sicurezza"
-                    marcaValue={marcaField.value || ''}
-                    modelloValue={modelloField.value || ''}
-                    onMarcaChange={marcaField.onChange}
-                    onModelloChange={modelloField.onChange}
-                    size="small"
-                    fullWidth
+                  <Controller
+                    name={`${basePath}.valvola_sicurezza.pressione_taratura`}
+                    control={control}
+                    render={({ field: ptarField }) => (
+                      <EquipmentAutocompleteWithPressure
+                        equipmentType="Valvole di sicurezza"
+                        marcaValue={marcaField.value || ''}
+                        modelloValue={modelloField.value || ''}
+                        pressioneValue={ptarField.value}
+                        onMarcaChange={marcaField.onChange}
+                        onModelloChange={modelloField.onChange}
+                        onPressioneChange={ptarField.onChange}
+                        onEquipmentSelected={handleEquipmentSelected}
+                        pressioneLabel="Ptar (bar)"
+                        pressioneField="ptar"
+                        size="small"
+                        fullWidth
+                      />
+                    )}
                   />
                 )}
               />
@@ -128,7 +166,7 @@ export const ValvolaSicurezzaFields = ({
           />
         </Grid>
 
-        {/* Diametro */}
+        {/* Diametro - Autocompletato dal catalogo */}
         <Grid item xs={12} md={4}>
           <Controller
             name={`${basePath}.valvola_sicurezza.diametro`}
@@ -140,29 +178,8 @@ export const ValvolaSicurezzaFields = ({
                 fullWidth
                 size="small"
                 error={!!getError('diametro')}
-                helperText={getError('diametro')?.message || 'Es: 1/2", 3/4"'}
+                helperText={getError('diametro')?.message || 'Autocompletato o Es: 1/2", 3/4"'}
                 placeholder='Es: 1/2", 3/4"'
-              />
-            )}
-          />
-        </Grid>
-
-        {/* Pressione di Taratura - RINOMINATO */}
-        <Grid item xs={12} md={6}>
-          <Controller
-            name={`${basePath}.valvola_sicurezza.pressione_taratura`}
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label="Ptar - Pressione di Taratura (bar)"
-                fullWidth
-                size="small"
-                type="number"
-                inputProps={{ min: 0, max: 100000, step: 0.1 }}
-                onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
-                error={!!getError('pressione_taratura') || !!getError('pressione')}
-                helperText={getError('pressione_taratura')?.message || 'Da 0 a 100.000 bar (1 decimale)'}
               />
             )}
           />

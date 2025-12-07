@@ -22,9 +22,11 @@ import {
   Error as ErrorIcon,
   Warning as WarningIcon,
   Pending as PendingIcon,
+  PictureAsPdf as PdfIcon,
 } from '@mui/icons-material'
 import { useOCRAnalysis } from '@/hooks/useOCRAnalysis'
 import { parseEquipmentFilename, formatParsedFilename } from '@/utils/filenameParser'
+import { convertPDFToImages, isPDFFile, convertImageToPNG } from '@/utils/pdfToImage'
 import type { BatchOCRItem, BatchOCRResult } from '@/types/ocr'
 import type { EquipmentType } from '@/types/ocr'
 import type { EquipmentCatalogType } from '@/types'
@@ -74,41 +76,113 @@ export const BatchOCRDialog = ({ open, onClose, onComplete }: BatchOCRDialogProp
   const [progress, setProgress] = useState(0)
   const { analyzeImage } = useOCRAnalysis()
 
-  // Handle file selection
-  const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle file selection (supporta immagini e PDF)
+  const handleFileChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || [])
 
-    const newItems: BatchOCRItem[] = files.map(file => {
-      const parsed = parseEquipmentFilename(file.name)
+    const newItems: BatchOCRItem[] = []
 
-      console.log(`🔍 PARSING ${file.name}:`, {
-        equipmentType: parsed.equipmentType,
-        index: parsed.index,
-        componentType: parsed.componentType,
-        parentIndex: parsed.parentIndex,
-        isValid: parsed.isValid
-      })
+    for (const file of files) {
+      try {
+        // Se è un PDF, convertilo in immagini
+        if (isPDFFile(file)) {
+          console.log(`📄 Rilevato PDF: ${file.name}`)
 
-      const item: BatchOCRItem = {
-        id: crypto.randomUUID(),
-        file,
-        filename: file.name,
-        preview: URL.createObjectURL(file),
-        parsedType: parsed.equipmentType,
-        parsedIndex: parsed.index,
-        parsedParentIndex: parsed.parentIndex,
-        parsedComponentType: parsed.componentType,
-        status: (parsed.isValid ? 'pending' : 'error') as 'pending' | 'processing' | 'completed' | 'error' | 'conflict',
-        error: parsed.error
+          // Usa scale 1.5 invece di 2.0 per ridurre dimensioni PNG (fix errore 500)
+          const result = await convertPDFToImages(file, 1.5, 10)
+
+          console.log(`✅ PDF convertito: ${result.pages.length} pagine`)
+
+          // Crea un BatchOCRItem per ogni pagina
+          result.pages.forEach((page) => {
+            // Crea un File dall'immagine blob
+            // IMPORTANTE: Mantieni il nome base del PDF senza suffissi per il parsing
+            // Es: "S1.pdf" → "S1.png" (non "S1_page1.png")
+            const imageFile = new File(
+              [page.blob],
+              `${file.name.replace('.pdf', '.png')}`,
+              { type: 'image/png' }
+            )
+
+            console.log(`📸 Pagina ${page.pageNumber}: ${imageFile.size} bytes (${(imageFile.size / 1024 / 1024).toFixed(2)} MB), type: ${imageFile.type}`)
+
+            // Validazione dimensione file PNG generato
+            if (imageFile.size > 10 * 1024 * 1024) {
+              console.warn(`⚠️ ATTENZIONE: Pagina ${page.pageNumber} è troppo grande (${(imageFile.size / 1024 / 1024).toFixed(2)} MB > 10 MB)`)
+              alert(`Pagina ${page.pageNumber} del PDF è troppo grande (${(imageFile.size / 1024 / 1024).toFixed(2)} MB). Usa un PDF con risoluzione inferiore.`)
+              return // Skip questa pagina
+            }
+
+            // Prova a parsare il nome (potrebbe non avere convenzione)
+            const parsed = parseEquipmentFilename(imageFile.name)
+
+            const item: BatchOCRItem = {
+              id: crypto.randomUUID(),
+              file: imageFile,
+              filename: `${file.name} - Pag. ${page.pageNumber}/${result.totalPages}`,
+              preview: page.dataUrl,
+              parsedType: parsed.equipmentType,
+              parsedIndex: parsed.index,
+              parsedParentIndex: parsed.parentIndex,
+              parsedComponentType: parsed.componentType,
+              status: 'pending',
+              error: undefined,
+              isPdfPage: true,
+              pdfPageNumber: page.pageNumber,
+              pdfTotalPages: result.totalPages,
+              pdfOriginalName: result.fileName
+            }
+
+            console.log(`✅ ITEM CREATO per pagina PDF ${page.pageNumber}:`, {
+              parsedType: item.parsedType,
+              parsedComponentType: item.parsedComponentType
+            })
+
+            newItems.push(item)
+          })
+        } else {
+          // Elabora immagine normale
+          console.log(`🖼️ Rilevata immagine: ${file.name}, type: ${file.type}, size: ${file.size} bytes`)
+
+          // Converti SEMPRE in PNG per compatibilità OpenAI
+          const pngFile = await convertImageToPNG(file)
+          console.log(`✅ Immagine convertita in PNG: ${pngFile.name}, type: ${pngFile.type}, size: ${pngFile.size} bytes`)
+
+          const parsed = parseEquipmentFilename(file.name)
+
+          console.log(`🔍 PARSING ${file.name}:`, {
+            equipmentType: parsed.equipmentType,
+            index: parsed.index,
+            componentType: parsed.componentType,
+            parentIndex: parsed.parentIndex,
+            isValid: parsed.isValid
+          })
+
+          const item: BatchOCRItem = {
+            id: crypto.randomUUID(),
+            file: pngFile,  // Usa il file PNG convertito
+            filename: file.name,
+            preview: URL.createObjectURL(pngFile),
+            parsedType: parsed.equipmentType,
+            parsedIndex: parsed.index,
+            parsedParentIndex: parsed.parentIndex,
+            parsedComponentType: parsed.componentType,
+            status: (parsed.isValid ? 'pending' : 'error') as 'pending' | 'processing' | 'completed' | 'error' | 'conflict',
+            error: parsed.error
+          }
+
+          console.log(`✅ ITEM CREATO per ${file.name}:`, {
+            parsedType: item.parsedType,
+            parsedComponentType: item.parsedComponentType
+          })
+
+          newItems.push(item)
+        }
+      } catch (error) {
+        console.error(`Errore elaborazione file ${file.name}:`, error)
+        alert(`Errore elaborazione ${file.name}: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`)
       }
-
-      console.log(`✅ ITEM CREATO per ${file.name}:`, {
-        parsedType: item.parsedType,
-        parsedComponentType: item.parsedComponentType
-      })
-
-      return item
-    })
+    }
 
     setItems(newItems)
   }, [])
@@ -237,11 +311,12 @@ export const BatchOCRDialog = ({ open, onClose, onComplete }: BatchOCRDialogProp
               <strong>Come funziona:</strong>
             </Typography>
             <Typography variant="body2" component="div">
-              1. Seleziona più foto di targhette<br />
-              2. Rinomina i file secondo la convenzione: <strong>S1.jpg, C2.jpg, E1.jpg, F1.jpg, SEP1.jpg</strong><br />
-              3. Per apparecchiature nested usa: <strong>C1.1.jpg</strong> (Disoleatore), <strong>E1.1.jpg</strong> (Scambiatore)<br />
-              4. Per componenti usa: <strong>S1.1.jpg</strong> (Valvola di sicurezza del serbatoio 1)<br />
-              5. L'OCR riconoscerà automaticamente marca, modello e altri dati
+              1. Seleziona più foto di targhette o PDF di schede tecniche<br />
+              2. I PDF multi-pagina verranno convertiti automaticamente in immagini<br />
+              3. Rinomina i file immagine secondo la convenzione: <strong>S1.jpg, C2.jpg, E1.jpg, F1.jpg, SEP1.jpg</strong><br />
+              4. Per apparecchiature nested usa: <strong>C1.1.jpg</strong> (Disoleatore), <strong>E1.1.jpg</strong> (Scambiatore)<br />
+              5. Per componenti usa: <strong>S1.1.jpg</strong> (Valvola di sicurezza del serbatoio 1)<br />
+              6. L'OCR riconoscerà automaticamente marca, modello e altri dati
             </Typography>
           </Alert>
         )}
@@ -260,7 +335,7 @@ export const BatchOCRDialog = ({ open, onClose, onComplete }: BatchOCRDialogProp
           >
             <input
               type="file"
-              accept="image/*"
+              accept="image/*,.pdf,application/pdf"
               multiple
               onChange={handleFileChange}
               style={{ display: 'none' }}
@@ -268,10 +343,10 @@ export const BatchOCRDialog = ({ open, onClose, onComplete }: BatchOCRDialogProp
             />
             <label htmlFor="batch-file-input" style={{ cursor: 'pointer' }}>
               <Typography variant="h6" gutterBottom>
-                Clicca per selezionare le foto
+                Clicca per selezionare foto o PDF
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Seleziona più file immagine
+                Seleziona più file immagine o PDF di schede tecniche
               </Typography>
             </label>
           </Paper>
@@ -302,7 +377,18 @@ export const BatchOCRDialog = ({ open, onClose, onComplete }: BatchOCRDialogProp
                       />
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2">{item.filename}</Typography>
+                      <Box>
+                        <Typography variant="body2">{item.filename}</Typography>
+                        {item.isPdfPage && (
+                          <Chip
+                            icon={<PdfIcon fontSize="small" />}
+                            label={`PDF Pag. ${item.pdfPageNumber}/${item.pdfTotalPages}`}
+                            color="info"
+                            size="small"
+                            sx={{ mt: 0.5 }}
+                          />
+                        )}
+                      </Box>
                     </TableCell>
                     <TableCell>
                       {item.parsedType && item.parsedIndex >= 0 ? (

@@ -12,7 +12,7 @@ import {
   TrendingUp as PopularIcon,
 } from '@mui/icons-material'
 import { equipmentCatalogApi } from '@/services/api/equipmentCatalog'
-import type { EquipmentCatalogType } from '@/types'
+import type { EquipmentCatalogType, EquipmentCatalogItem } from '@/types'
 import { AddEquipmentDialog } from './AddEquipmentDialog'
 
 interface EquipmentAutocompleteProps {
@@ -30,8 +30,8 @@ interface EquipmentAutocompleteProps {
   // Callback quando utente vuole aggiungere al catalogo
   onAddToCatalog?: (marca: string, modello: string) => void
 
-  // ✅ NEW: Callback quando viene selezionata un'apparecchiatura esistente (con specs)
-  onEquipmentSelected?: (specs: Record<string, any>) => void
+  // ✅ NEW: Callback quando viene selezionata un'apparecchiatura esistente (con dati completi)
+  onEquipmentSelected?: (specs: Record<string, any>, fullData: EquipmentCatalogItem) => void
 
   // Props opzionali
   disabled?: boolean
@@ -179,9 +179,10 @@ export const EquipmentAutocomplete = ({
           newValue
         )
 
-        if (equipment?.specs) {
+        if (equipment) {
           console.log('✅ Equipment loaded from catalog:', equipment)
-          onEquipmentSelected(equipment.specs as Record<string, any>)
+          // Passa sia specs che dati completi al callback
+          onEquipmentSelected(equipment.specs as Record<string, any> || {}, equipment)
         }
       } catch (error) {
         console.error('Error loading equipment specs:', error)

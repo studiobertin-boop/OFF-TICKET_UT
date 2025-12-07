@@ -160,6 +160,7 @@ export interface Scambiatore {
   ts_temperatura?: number // NUOVO - TS (°C) - intero (min 50, max 250) - NON visibile a tecnicoDM329
   temperatura_max?: number // DEPRECATED - mantenuto per retrocompatibilità - TS (°C) - Temperatura massima ammissibile - intero (min 0, max 500)
   volume?: number // litri (intero, min 50, max 5000) - NON visibile a tecnicoDM329
+  categoria_ped?: CategoriaPED // NUOVO - Select I/II/III/IV - NON visibile a tecnicoDM329 - Calcolato da PS × Volume
   note?: string
   foto_targhetta?: string
 }

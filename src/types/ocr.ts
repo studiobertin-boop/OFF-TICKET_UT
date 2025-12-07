@@ -117,6 +117,13 @@ export interface UploadedPhoto {
   ocr_status: 'pending' | 'processing' | 'completed' | 'error'
   ocr_result?: OCRExtractedData
   error_message?: string
+  // PDF support
+  is_pdf_page?: boolean
+  pdf_page_number?: number
+  pdf_total_pages?: number
+  pdf_original_name?: string
+  // Base64 data (per PDF già convertiti, evita riconversione)
+  base64Data?: string
 }
 
 export interface PhotoUploadState {
@@ -158,6 +165,11 @@ export interface BatchOCRItem {
   normalizedModello?: NormalizedField
   hasConflict?: boolean
   conflictFields?: string[]
+  // PDF support
+  isPdfPage?: boolean
+  pdfPageNumber?: number
+  pdfTotalPages?: number
+  pdfOriginalName?: string
 }
 
 export interface BatchOCRResult {

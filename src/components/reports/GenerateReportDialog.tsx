@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -51,25 +51,30 @@ export const GenerateReportDialog = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Estrai apparecchiature dai dati tecnici
+  // Estrai apparecchiature dai dati tecnici usando useMemo per evitare ricreazione ad ogni render
   const equipmentData = technicalData.equipment_data || {};
-  const compressori = equipmentData.compressori || [];
-  const serbatoi = equipmentData.serbatoi || [];
-  const disoleatori = equipmentData.disoleatori || [];
-  const scambiatori = equipmentData.scambiatori || [];
-  const recipientiFiltro = equipmentData.recipienti_filtro || [];
+  const compressori = useMemo(() => equipmentData.compressori || [], [equipmentData.compressori]);
+  const serbatoi = useMemo(() => equipmentData.serbatoi || [], [equipmentData.serbatoi]);
+  const disoleatori = useMemo(() => equipmentData.disoleatori || [], [equipmentData.disoleatori]);
+  const scambiatori = useMemo(() => equipmentData.scambiatori || [], [equipmentData.scambiatori]);
+  const recipientiFiltro = useMemo(() => equipmentData.recipienti_filtro || [], [equipmentData.recipienti_filtro]);
 
   // Lista apparecchiature disponibili per spessimetrica
-  const apparecchiaturePerSpessimetrica = [
+  const apparecchiaturePerSpessimetrica = useMemo(() => [
     ...serbatoi.map((s: any) => s.codice),
     ...disoleatori.map((d: any) => d.codice),
     ...scambiatori.map((s: any) => s.codice),
     ...recipientiFiltro.map((r: any) => r.codice),
-  ];
+  ], [serbatoi, disoleatori, scambiatori, recipientiFiltro]);
+
+  // Ref per tracciare se abbiamo già inizializzato per questo dialog open
+  const hasInitializedRef = useRef(false);
 
   // Inizializza compressoriGiri e collegamenti
   useEffect(() => {
-    if (open) {
+    if (open && !hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+
       // Inizializza compressori giri
       const initialGiri: Record<string, 'fissi' | 'variabili'> = {};
       compressori.forEach((c: any) => {
@@ -83,6 +88,11 @@ export const GenerateReportDialog = ({
         initialCollegamenti[c.codice] = []; // Default vuoto, utente seleziona
       });
       setCollegamentiCompressoriSerbatoi(initialCollegamenti);
+    }
+
+    // Reset ref quando dialog si chiude
+    if (!open) {
+      hasInitializedRef.current = false;
     }
   }, [open, compressori]);
 

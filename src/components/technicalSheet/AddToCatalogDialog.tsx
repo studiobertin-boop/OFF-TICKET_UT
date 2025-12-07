@@ -91,25 +91,25 @@ export const AddToCatalogDialog = ({
           Sarà disponibile per suggerimenti futuri.
         </Alert>
 
-        <Box sx={{ bgcolor: 'grey.100', p: 2, borderRadius: 1 }}>
+        <Box sx={{ bgcolor: 'background.paper', p: 2, borderRadius: 1, border: 1, borderColor: 'divider' }}>
           <Typography variant="subtitle2" color="text.secondary" gutterBottom>
             Tipo Apparecchiatura
           </Typography>
-          <Typography variant="body1" fontWeight="bold" gutterBottom>
+          <Typography variant="body1" fontWeight="bold" color="text.primary" gutterBottom>
             {equipmentType}
           </Typography>
 
           <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ mt: 2 }}>
             Marca
           </Typography>
-          <Typography variant="body1" fontWeight="bold" gutterBottom>
+          <Typography variant="body1" fontWeight="bold" color="text.primary" gutterBottom>
             {marca}
           </Typography>
 
           <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ mt: 2 }}>
             Modello
           </Typography>
-          <Typography variant="body1" fontWeight="bold">
+          <Typography variant="body1" fontWeight="bold" color="text.primary">
             {modello}
           </Typography>
         </Box>

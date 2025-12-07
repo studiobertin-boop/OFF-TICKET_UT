@@ -9,18 +9,77 @@
  * - Scambiatori: aggiunti PS, TS, Volume (nascosti a tecnicoDM329)
  */
 
+import { useEffect, useRef } from 'react'
 import { Control, Controller, useFieldArray, useFormContext, useWatch } from 'react-hook-form'
 import { Grid, FormControlLabel, Checkbox, TextField, Select, MenuItem, FormControl, InputLabel, Box, Typography } from '@mui/material'
 import { EquipmentSection } from './EquipmentSection'
 import { CommonEquipmentFields } from './CommonEquipmentFields'
+import { EquipmentAutocompleteWithPressure } from './EquipmentAutocompleteWithPressure'
 import { ValvolaSicurezzaFields } from './ValvolaSicurezzaFields'
 import { RecipienteFiltroFields } from './RecipienteFiltroFields'
 import { SingleOCRButton } from './SingleOCRButton'
 import { EQUIPMENT_LIMITS, generateEquipmentCode, type CategoriaPED } from '@/types'
 import type { OCRExtractedData } from '@/types/ocr'
 import { useTecnicoDM329Visibility } from '@/hooks/useTecnicoDM329Visibility'
+import { calculateCategoriaPED, getCategoriaPEDDescription } from '@/utils/categoriaPedCalculator'
 
 const CATEGORIA_PED_OPTIONS: CategoriaPED[] = ['I', 'II', 'III', 'IV']
+
+// Componente separato per Categoria PED con auto-calc per evitare loop infiniti
+const CategoriaPEDFieldWithAutoCalc = ({
+  control,
+  scambiatoreIndex,
+}: {
+  control: Control<any>
+  scambiatoreIndex: number
+}) => {
+  const psValue = useWatch({ control, name: `scambiatori.${scambiatoreIndex}.ps_pressione_max` })
+  const volumeValue = useWatch({ control, name: `scambiatori.${scambiatoreIndex}.volume` })
+  const calculatedCategoria = calculateCategoriaPED(psValue, volumeValue)
+  const { setValue, getValues } = useFormContext()
+  const lastAutoSetRef = useRef<string>('')
+
+  // Auto-popola categoria se calcolata e non già impostata
+  useEffect(() => {
+    if (!calculatedCategoria) return
+
+    const currentValue = getValues(`scambiatori.${scambiatoreIndex}.categoria_ped`)
+    const autoSetKey = `${scambiatoreIndex}-${calculatedCategoria}`
+
+    // Evita di sovrascrivere se già impostato o se abbiamo già settato questa combinazione
+    if (!currentValue && lastAutoSetRef.current !== autoSetKey) {
+      lastAutoSetRef.current = autoSetKey
+      setValue(`scambiatori.${scambiatoreIndex}.categoria_ped`, calculatedCategoria)
+    }
+  }, [calculatedCategoria, scambiatoreIndex, setValue, getValues])
+
+  return (
+    <Controller
+      name={`scambiatori.${scambiatoreIndex}.categoria_ped`}
+      control={control}
+      render={({ field }) => (
+        <FormControl fullWidth size="small">
+          <InputLabel>Categoria PED</InputLabel>
+          <Select
+            {...field}
+            label="Categoria PED"
+            value={field.value || ''}
+          >
+            <MenuItem value=""><em>Nessuna</em></MenuItem>
+            {CATEGORIA_PED_OPTIONS.map((option) => (
+              <MenuItem key={option} value={option}>{option}</MenuItem>
+            ))}
+          </Select>
+          {calculatedCategoria && (
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+              Calcolata: {getCategoriaPEDDescription(calculatedCategoria)}
+            </Typography>
+          )}
+        </FormControl>
+      )}
+    />
+  )
+}
 
 // ============================================================================
 // COMPRESSORI (C1-C5)
@@ -67,6 +126,53 @@ export const CompressoriSection = ({ control, errors }: CompressoriSectionProps)
     if (data.materiale_n) setValue(`${basePath}.materiale_n`, data.materiale_n)
 
     // Valida
+    trigger(basePath)
+  }
+
+  const handleDisoleatoreOCRComplete = (disoleatoreIndex: number, data: OCRExtractedData) => {
+    const basePath = `disoleatori.${disoleatoreIndex}`
+
+    console.log('📝 Applicazione dati OCR a Disoleatore #' + (disoleatoreIndex + 1), data)
+
+    // Popola campi comuni
+    if (data.marca) setValue(`${basePath}.marca`, data.marca)
+    if (data.modello) setValue(`${basePath}.modello`, data.modello)
+    if (data.n_fabbrica) setValue(`${basePath}.n_fabbrica`, data.n_fabbrica)
+    if (data.anno) setValue(`${basePath}.anno`, data.anno)
+    if (data.volume) setValue(`${basePath}.volume`, data.volume)
+
+    // Popola valvola di sicurezza (se presente nei dati OCR)
+    if (data.valvola_sicurezza) {
+      if (data.valvola_sicurezza.marca) {
+        setValue(`${basePath}.valvola_sicurezza.marca`, data.valvola_sicurezza.marca)
+      }
+      if (data.valvola_sicurezza.modello) {
+        setValue(`${basePath}.valvola_sicurezza.modello`, data.valvola_sicurezza.modello)
+      }
+      if (data.valvola_sicurezza.n_fabbrica) {
+        setValue(`${basePath}.valvola_sicurezza.n_fabbrica`, data.valvola_sicurezza.n_fabbrica)
+      }
+      if (data.valvola_sicurezza.diametro_pressione) {
+        setValue(`${basePath}.valvola_sicurezza.diametro_pressione`, data.valvola_sicurezza.diametro_pressione)
+      }
+    }
+
+    // Valida
+    trigger(basePath)
+  }
+
+  const handleDisoleatoreValvolaOCRComplete = (disoleatoreIndex: number, data: OCRExtractedData) => {
+    const basePath = `disoleatori.${disoleatoreIndex}.valvola_sicurezza`
+
+    console.log('📝 Applicazione dati OCR a Valvola di Sicurezza Disoleatore #' + (disoleatoreIndex + 1), data)
+
+    // Popola campi valvola da OCR
+    if (data.marca) setValue(`${basePath}.marca`, data.marca)
+    if (data.modello) setValue(`${basePath}.modello`, data.modello)
+    if (data.n_fabbrica) setValue(`${basePath}.n_fabbrica`, data.n_fabbrica)
+    if (data.diametro_pressione) setValue(`${basePath}.diametro_pressione`, data.diametro_pressione)
+
+    // Valida immediatamente
     trigger(basePath)
   }
 
@@ -129,26 +235,108 @@ export const CompressoriSection = ({ control, errors }: CompressoriSectionProps)
           (d: any) => d.compressore_associato === compressoreCodice
         )
 
+        // Handler per popolare FAD quando viene selezionata apparecchiatura dal catalogo
+        const handleCompressorEquipmentSelected = (specs: Record<string, any>) => {
+          console.log('📦 Compressore: Populating FAD from specs:', specs)
+          if (specs.fad !== undefined) {
+            setValue(`compressori.${index}.volume_aria_prodotto`, specs.fad)
+            setValue(`compressori.${index}.fad`, specs.fad) // Backward compatibility
+          }
+        }
+
         return (
           <Grid container spacing={2}>
+            {/* Marca, Modello e Pressione con Autocomplete 3-step */}
             <Grid item xs={12}>
-              <CommonEquipmentFields
+              <Controller
+                name={`compressori.${index}.marca`}
                 control={control}
-                basePath={`compressori.${index}`}
-                errors={errors}
-                equipmentType="Compressori"
-                fields={{
-                  marca: true,
-                  modello: true,
-                  n_fabbrica: true,
-                  materiale_n: true, // Solo compressori
-                  anno: true,
-                  pressione_max: true,
-                  note: true,
-                }}
+                render={({ field: marcaField }) => (
+                  <Controller
+                    name={`compressori.${index}.modello`}
+                    control={control}
+                    render={({ field: modelloField }) => (
+                      <Controller
+                        name={`compressori.${index}.pressione_max`}
+                        control={control}
+                        render={({ field: pressioneField }) => (
+                          <EquipmentAutocompleteWithPressure
+                            equipmentType="Compressori"
+                            marcaValue={marcaField.value || ''}
+                            modelloValue={modelloField.value || ''}
+                            pressioneValue={pressioneField.value}
+                            onMarcaChange={marcaField.onChange}
+                            onModelloChange={modelloField.onChange}
+                            onPressioneChange={pressioneField.onChange}
+                            onEquipmentSelected={handleCompressorEquipmentSelected}
+                            pressioneLabel="Pressione Max (bar)"
+                            pressioneField="pressione_max"
+                            size="small"
+                            fullWidth
+                          />
+                        )}
+                      />
+                    )}
+                  />
+                )}
               />
             </Grid>
-            {/* Volume aria prodotto - RINOMINATO - NASCOSTO a tecnicoDM329 */}
+
+            {/* N° di Fabbrica */}
+            <Grid item xs={12} md={4}>
+              <Controller
+                name={`compressori.${index}.n_fabbrica`}
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="N° di Fabbrica / Matricola"
+                    fullWidth
+                    size="small"
+                    placeholder="Numero seriale"
+                  />
+                )}
+              />
+            </Grid>
+
+            {/* Materiale N° - Solo compressori */}
+            <Grid item xs={12} md={4}>
+              <Controller
+                name={`compressori.${index}.materiale_n`}
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Materiale N°"
+                    fullWidth
+                    size="small"
+                    placeholder="Numero materiale"
+                  />
+                )}
+              />
+            </Grid>
+
+            {/* Anno */}
+            <Grid item xs={12} md={4}>
+              <Controller
+                name={`compressori.${index}.anno`}
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Anno"
+                    type="number"
+                    fullWidth
+                    size="small"
+                    placeholder="Es: 2015"
+                    inputProps={{ min: 1980, max: 2100 }}
+                    onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : '')}
+                  />
+                )}
+              />
+            </Grid>
+
+            {/* Volume aria prodotto - AUTOCOMPLETATO - NASCOSTO a tecnicoDM329 */}
             {showAdvancedFields && (
               <Grid item xs={12} md={6}>
                 <Controller
@@ -164,12 +352,31 @@ export const CompressoriSection = ({ control, errors }: CompressoriSectionProps)
                       placeholder="Es: 500"
                       inputProps={{ min: 0, max: 100000, step: 1 }}
                       onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
-                      helperText="Intero da 0 a 100.000 l/min"
+                      helperText="Autocompletato dal catalogo o inserire manualmente"
                     />
                   )}
                 />
               </Grid>
             )}
+
+            {/* Note */}
+            <Grid item xs={12} md={6}>
+              <Controller
+                name={`compressori.${index}.note`}
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Note"
+                    fullWidth
+                    size="small"
+                    multiline
+                    rows={2}
+                    placeholder="Note aggiuntive..."
+                  />
+                )}
+              />
+            </Grid>
 
             {/* FAD - DEPRECATED nascosto */}
             <Grid item xs={12} md={6} sx={{ display: 'none' }}>
@@ -185,7 +392,6 @@ export const CompressoriSection = ({ control, errors }: CompressoriSectionProps)
                     type="number"
                     inputProps={{ min: 0, max: 100000, step: 1 }}
                     onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
-                    helperText="Intero da 0 a 100.000 l/min"
                   />
                 )}
               />
@@ -215,9 +421,18 @@ export const CompressoriSection = ({ control, errors }: CompressoriSectionProps)
             {haDisoleatore && disoleatoreIndex !== -1 && (
               <Grid item xs={12}>
                 <Box sx={{ mt: 2, p: 2, bgcolor: 'rgba(255, 235, 132, 0.35)', borderRadius: 1 }}>
-                  <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-                    Disoleatore {compressoreCodice}.1 - Associato a {compressoreCodice}
-                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                    <Typography variant="subtitle2" fontWeight="bold">
+                      Disoleatore {compressoreCodice}.1 - Associato a {compressoreCodice}
+                    </Typography>
+                    <Box sx={{ ml: 'auto' }}>
+                      <SingleOCRButton
+                        equipmentType="Disoleatori"
+                        equipmentIndex={disoleatoreIndex}
+                        onOCRComplete={(data) => handleDisoleatoreOCRComplete(disoleatoreIndex, data)}
+                      />
+                    </Box>
+                  </Box>
                   <Grid container spacing={2}>
                     <Grid item xs={12}>
                       <CommonEquipmentFields
@@ -314,6 +529,14 @@ export const CompressoriSection = ({ control, errors }: CompressoriSectionProps)
                         errors={errors}
                         codiceValvola={`${compressoreCodice}.2`}
                         bgColor="rgba(255, 235, 132, 0.50)"
+                        renderOCRButton={
+                          <SingleOCRButton
+                            equipmentType="Disoleatori"
+                            equipmentIndex={disoleatoreIndex}
+                            componentType="valvola_sicurezza"
+                            onOCRComplete={(data) => handleDisoleatoreValvolaOCRComplete(disoleatoreIndex, data)}
+                          />
+                        }
                       />
                     </Grid>
                   </Grid>
@@ -369,6 +592,22 @@ export const EssiccatoriSection = ({ control, errors }: EssiccatoriSectionProps)
     if (data.n_fabbrica) setValue(`${basePath}.n_fabbrica`, data.n_fabbrica)
     if (data.anno) setValue(`${basePath}.anno`, data.anno)
     if (data.pressione_max) setValue(`${basePath}.pressione_max`, data.pressione_max)
+
+    // Valida
+    trigger(basePath)
+  }
+
+  const handleScambiatoreOCRComplete = (scambiatoreIndex: number, data: OCRExtractedData) => {
+    const basePath = `scambiatori.${scambiatoreIndex}`
+
+    console.log('📝 Applicazione dati OCR a Scambiatore #' + (scambiatoreIndex + 1), data)
+
+    // Popola campi comuni
+    if (data.marca) setValue(`${basePath}.marca`, data.marca)
+    if (data.modello) setValue(`${basePath}.modello`, data.modello)
+    if (data.n_fabbrica) setValue(`${basePath}.n_fabbrica`, data.n_fabbrica)
+    if (data.anno) setValue(`${basePath}.anno`, data.anno)
+    if (data.volume) setValue(`${basePath}.volume`, data.volume)
 
     // Valida
     trigger(basePath)
@@ -535,9 +774,18 @@ export const EssiccatoriSection = ({ control, errors }: EssiccatoriSectionProps)
             {haScambiatore && scambiatoreIndex !== -1 && (
               <Grid item xs={12}>
                 <Box sx={{ mt: 2, p: 2, bgcolor: 'rgba(200, 230, 201, 0.35)', borderRadius: 1 }}>
-                  <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-                    Scambiatore {essiccatoreCodice}.1 - Associato a {essiccatoreCodice}
-                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                    <Typography variant="subtitle2" fontWeight="bold">
+                      Scambiatore {essiccatoreCodice}.1 - Associato a {essiccatoreCodice}
+                    </Typography>
+                    <Box sx={{ ml: 'auto' }}>
+                      <SingleOCRButton
+                        equipmentType="Scambiatori"
+                        equipmentIndex={scambiatoreIndex}
+                        onOCRComplete={(data) => handleScambiatoreOCRComplete(scambiatoreIndex, data)}
+                      />
+                    </Box>
+                  </Box>
                   <Grid container spacing={2}>
                     <Grid item xs={12}>
                       <CommonEquipmentFields
@@ -622,6 +870,16 @@ export const EssiccatoriSection = ({ control, errors }: EssiccatoriSectionProps)
                         />
                       </Grid>
                     )}
+
+                    {/* Categoria PED - NUOVO - NASCOSTO a tecnicoDM329 - Calcolato da PS × Volume */}
+                    {showAdvancedFields && (
+                      <Grid item xs={12} md={4}>
+                        <CategoriaPEDFieldWithAutoCalc
+                          control={control}
+                          scambiatoreIndex={scambiatoreIndex}
+                        />
+                      </Grid>
+                    )}
                   </Grid>
                 </Box>
               </Grid>
@@ -674,6 +932,22 @@ export const FiltriSection = ({ control, errors }: FiltriSectionProps) => {
     if (data.modello) setValue(`${basePath}.modello`, data.modello)
     if (data.n_fabbrica) setValue(`${basePath}.n_fabbrica`, data.n_fabbrica)
     if (data.anno) setValue(`${basePath}.anno`, data.anno)
+
+    // Valida
+    trigger(basePath)
+  }
+
+  const handleRecipienteOCRComplete = (recipienteIndex: number, data: OCRExtractedData) => {
+    const basePath = `recipienti_filtro.${recipienteIndex}`
+
+    console.log('📝 Applicazione dati OCR a Recipiente Filtro #' + (recipienteIndex + 1), data)
+
+    // Popola campi comuni
+    if (data.marca) setValue(`${basePath}.marca`, data.marca)
+    if (data.modello) setValue(`${basePath}.modello`, data.modello)
+    if (data.n_fabbrica) setValue(`${basePath}.n_fabbrica`, data.n_fabbrica)
+    if (data.anno) setValue(`${basePath}.anno`, data.anno)
+    if (data.volume) setValue(`${basePath}.volume`, data.volume)
 
     // Valida
     trigger(basePath)
@@ -788,6 +1062,13 @@ export const FiltriSection = ({ control, errors }: FiltriSectionProps) => {
                   codiceRecipiente={`${filtroCodice}.1`}
                   filtroAssociato={filtroCodice}
                   bgColor="rgba(255, 204, 188, 0.35)"
+                  renderOCRButton={
+                    <SingleOCRButton
+                      equipmentType="Recipienti filtro"
+                      equipmentIndex={recipienteIndex}
+                      onOCRComplete={(data) => handleRecipienteOCRComplete(recipienteIndex, data)}
+                    />
+                  }
                 />
               </Grid>
             )}

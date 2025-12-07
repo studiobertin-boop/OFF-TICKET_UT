@@ -4,6 +4,7 @@ import { TextField, Grid } from '@mui/material'
 import { EquipmentAutocomplete } from './EquipmentAutocomplete'
 import { AddToCatalogDialog } from './AddToCatalogDialog'
 import type { EquipmentCatalogType } from '@/types'
+import { useEquipmentCatalogContext, generateCacheKey } from './EquipmentCatalogContext'
 
 interface CommonEquipmentFieldsProps {
   control: Control<any>
@@ -55,6 +56,9 @@ export const CommonEquipmentFields = ({
   // ✅ Hook per popolare campi da specs
   const { setValue } = useFormContext()
 
+  // ✅ Context per salvare dati catalogo (per confronto futuro)
+  const catalogContext = useEquipmentCatalogContext()
+
   // Helper per ottenere error path annidato
   const getError = (fieldName: string) => {
     const parts = `${basePath}.${fieldName}`.split('.')
@@ -83,40 +87,86 @@ export const CommonEquipmentFields = ({
   }
 
   // ✅ Handler per popolare campi quando viene selezionata apparecchiatura dal catalogo
-  const handleEquipmentSelected = (specs: Record<string, any>) => {
-    console.log('📦 Populating fields from specs:', specs)
+  const handleEquipmentSelected = (specs: Record<string, any>, fullData?: any) => {
+    console.log('📦 Populating fields from specs:', specs, 'for equipmentType:', equipmentType)
 
-    // Mappa specs → campi form
-    // Specs comuni: volume, fad, ps, ts, categoria_ped, ptar
+    // ✅ NUOVO: Salva dati completi nel context per confronto futuro
+    if (fullData && equipmentType) {
+      const marca = fullData.marca
+      const modello = fullData.modello
+      const cacheKey = generateCacheKey(equipmentType, marca, modello)
+      catalogContext.setCache(cacheKey, fullData)
+      console.log('💾 Saved to catalog cache:', { cacheKey, specs: fullData.specs })
+    }
 
-    if (specs.volume !== undefined && volume) {
+    // Mappa specs → campi form in base al tipo di apparecchiatura
+    // IMPORTANTE: NON autocompletare mai anno, n_fabbrica, materiale_n
+
+    // ========================================
+    // VOLUME (Serbatoi, Disoleatori, Scambiatori)
+    // ========================================
+    if (specs.volume !== undefined) {
       setValue(`${basePath}.volume`, specs.volume)
     }
 
+    // ========================================
+    // FAD - Volume d'aria prodotto (Compressori)
+    // ========================================
     if (specs.fad !== undefined) {
-      // FAD può essere salvato come "fad" o "volume_aria_prodotto"
       setValue(`${basePath}.volume_aria_prodotto`, specs.fad)
       setValue(`${basePath}.fad`, specs.fad) // Backward compatibility
     }
 
+    // ========================================
+    // Q - Volume d'aria trattata (Essiccatori)
+    // ========================================
+    if (specs.q !== undefined) {
+      setValue(`${basePath}.volume_aria_trattata`, specs.q)
+    }
+
+    // ========================================
+    // PS - Pressione massima (Serbatoi, Disoleatori, Essiccatori, Scambiatori)
+    // ========================================
     if (specs.ps !== undefined) {
-      // PS può essere nei campi: ps_pressione_max, pressione_max
       setValue(`${basePath}.ps_pressione_max`, specs.ps)
       if (pressione_max) {
         setValue(`${basePath}.pressione_max`, specs.ps)
       }
     }
 
+    // ========================================
+    // TS - Temperatura massima (Serbatoi, Disoleatori, Scambiatori, Valvole)
+    // ========================================
     if (specs.ts !== undefined) {
       setValue(`${basePath}.ts_temperatura`, specs.ts)
     }
 
+    // ========================================
+    // CATEGORIA PED (Serbatoi, Disoleatori, Scambiatori)
+    // ========================================
     if (specs.categoria_ped !== undefined) {
       setValue(`${basePath}.categoria_ped`, specs.categoria_ped)
     }
 
+    // ========================================
+    // PTAR - Pressione di taratura (Valvole di sicurezza)
+    // ========================================
     if (specs.ptar !== undefined) {
-      setValue(`${basePath}.ptar`, specs.ptar)
+      setValue(`${basePath}.pressione_taratura`, specs.ptar)
+    }
+
+    // ========================================
+    // QMAX - Volume aria scaricato (Valvole di sicurezza)
+    // ========================================
+    if (specs.qmax !== undefined) {
+      setValue(`${basePath}.volume_aria_scaricato`, specs.qmax)
+    }
+
+    // ========================================
+    // DIAMETRO (Valvole di sicurezza)
+    // ========================================
+    if (specs.diametro !== undefined) {
+      setValue(`${basePath}.diametro`, specs.diametro)
     }
 
     console.log('✅ Fields populated from catalog')

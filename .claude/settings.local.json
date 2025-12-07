@@ -7,7 +7,19 @@
       "Bash(git push:*)",
       "Bash(cd:*)",
       "Bash(psql:*)",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npx supabase:*)",
+      "Bash(npm install:*)",
+      "Bash(supabase functions deploy:*)",
+      "Bash(supabase functions list:*)",
+      "Bash(npx tsc:*)",
+      "Bash(taskkill:*)",
+      "Bash(node -e:*)",
+      "Bash(for version in 20251105000004 20251106000000 20251106000001 20251106000002 20251110000000 20251110000001 20251110000002 20251111000000 20251111000001 20251112000000 20251112000001 20251115120000 20251115130000 20251118000000 20251122000000 20251124000000 20251124000001 20251124000002 20251130000000)",
+      "Bash(do echo \"y\")",
+      "Bash(done)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []
