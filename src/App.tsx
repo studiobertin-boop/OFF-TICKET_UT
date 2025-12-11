@@ -14,6 +14,12 @@ import NotificationSettings from '@/pages/NotificationSettings'
 import AdminRequestTypes from '@/pages/admin/AdminRequestTypes'
 import AdminUsers from '@/pages/admin/AdminUsers'
 import CustomersManagement from '@/pages/admin/CustomersManagement'
+import ManufacturersManagement from '@/pages/ManufacturersManagement'
+import InstallersManagement from '@/pages/InstallersManagement'
+import { Templates } from '@/pages/Templates'
+import { TemplateEditor } from '@/pages/TemplateEditor'
+import { TemplateWizard } from '@/pages/TemplateWizard'
+import { CIVASummary } from '@/pages/CIVASummary'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -81,6 +87,14 @@ function App() {
                 }
               />
               <Route
+                path="/requests/:id/civa-summary"
+                element={
+                  <ProtectedRoute allowedRoles={['admin', 'userdm329']}>
+                    <CIVASummary />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/notification-settings"
                 element={
                   <ProtectedRoute>
@@ -113,10 +127,66 @@ function App() {
                 }
               />
               <Route
+                path="/admin/manufacturers"
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <ManufacturersManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/installers"
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <InstallersManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/admin/deletion-archives"
                 element={
                   <ProtectedRoute allowedRoles={['admin']}>
                     <DeletionArchives />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/templates"
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <Templates />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/templates/new"
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <TemplateEditor />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/templates/wizard"
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <TemplateWizard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/templates/wizard/:id"
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <TemplateWizard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/templates/:id"
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <TemplateEditor />
                   </ProtectedRoute>
                 }
               />

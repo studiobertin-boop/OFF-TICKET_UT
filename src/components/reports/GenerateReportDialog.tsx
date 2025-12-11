@@ -18,10 +18,15 @@ import {
   FormGroup,
   Typography,
   Divider,
+  RadioGroup,
+  Radio,
 } from '@mui/material';
 import { DM329TechnicalData, Request, Customer } from '@/types';
 import { ReportGenerationInput } from '@/types/report';
 import { generateRelazioneTecnica } from '@/services/reportGenerationService';
+import { listTemplates, renderTemplateAndDownload } from '@/services/templateService';
+import { buildDM329PlaceholderContext } from '@/utils/templateDataBuilder';
+import type { ReportTemplate } from '@/types/template';
 import toast from 'react-hot-toast';
 
 interface GenerateReportDialogProps {
@@ -42,6 +47,10 @@ export const GenerateReportDialog = ({
   request,
   customer,
 }: GenerateReportDialogProps) => {
+  const [generationMode, setGenerationMode] = useState<'legacy' | 'template'>('template');
+  const [templates, setTemplates] = useState<ReportTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [descrizioneAttivita, setDescrizioneAttivita] = useState('');
   const [compressoriGiri, setCompressoriGiri] = useState<Record<string, 'fissi' | 'variabili'>>({});
   const [spessimetrica, setSpessimetrica] = useState<string[]>([]);
@@ -69,6 +78,35 @@ export const GenerateReportDialog = ({
 
   // Ref per tracciare se abbiamo già inizializzato per questo dialog open
   const hasInitializedRef = useRef(false);
+
+  // Carica template disponibili quando dialog si apre
+  useEffect(() => {
+    if (open) {
+      loadAvailableTemplates();
+    }
+  }, [open]);
+
+  async function loadAvailableTemplates() {
+    setLoadingTemplates(true);
+    try {
+      const data = await listTemplates({
+        template_type: 'dm329_technical',
+        is_active: true
+      });
+      setTemplates(data);
+
+      // Seleziona automaticamente il primo template se disponibile
+      if (data.length > 0) {
+        setSelectedTemplateId(data[0].id);
+      }
+    } catch (err) {
+      console.error('Errore caricamento template:', err);
+      // Se non ci sono template, fallback a legacy mode
+      setGenerationMode('legacy');
+    } finally {
+      setLoadingTemplates(false);
+    }
+  }
 
   // Inizializza compressoriGiri e collegamenti
   useEffect(() => {
@@ -125,6 +163,11 @@ export const GenerateReportDialog = ({
       return;
     }
 
+    if (generationMode === 'template' && !selectedTemplateId) {
+      setError('Seleziona un template');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -136,14 +179,31 @@ export const GenerateReportDialog = ({
         collegamentiCompressoriSerbatoi,
       };
 
-      await generateRelazioneTecnica({
-        cliente: customer,
-        technicalData,
-        request,
-        additionalInfo: inputData,
-      });
+      if (generationMode === 'template') {
+        // Nuovo sistema basato su template
+        const fileName = `Relazione_Tecnica_${customer.ragione_sociale.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.docx`;
 
-      toast.success('Relazione tecnica generata con successo!');
+        // Costruisci contesto completo placeholder
+        const templateData = buildDM329PlaceholderContext(
+          customer,
+          technicalData,
+          request,
+          inputData
+        );
+
+        await renderTemplateAndDownload(selectedTemplateId, templateData, fileName);
+        toast.success('Relazione tecnica generata con successo (template)!');
+      } else {
+        // Sistema legacy
+        await generateRelazioneTecnica({
+          cliente: customer,
+          technicalData,
+          request,
+          additionalInfo: inputData,
+        });
+        toast.success('Relazione tecnica generata con successo (legacy)!');
+      }
+
       handleClose();
     } catch (err: any) {
       console.error('Errore generazione relazione:', err);
@@ -165,6 +225,67 @@ export const GenerateReportDialog = ({
         )}
 
         <Grid container spacing={3}>
+          {/* Selezione Modalità Generazione */}
+          <Grid item xs={12}>
+            <Typography variant="h6" gutterBottom>
+              Modalità Generazione
+            </Typography>
+            <FormControl component="fieldset">
+              <RadioGroup
+                value={generationMode}
+                onChange={(e) => setGenerationMode(e.target.value as 'legacy' | 'template')}
+              >
+                <FormControlLabel
+                  value="template"
+                  control={<Radio />}
+                  label="Template (nuovo sistema)"
+                  disabled={loadingTemplates || templates.length === 0}
+                />
+                <FormControlLabel
+                  value="legacy"
+                  control={<Radio />}
+                  label="Sistema legacy"
+                />
+              </RadioGroup>
+            </FormControl>
+          </Grid>
+
+          {/* Selezione Template */}
+          {generationMode === 'template' && (
+            <Grid item xs={12}>
+              <FormControl fullWidth>
+                <InputLabel>Seleziona Template *</InputLabel>
+                <Select
+                  value={selectedTemplateId}
+                  onChange={(e) => setSelectedTemplateId(e.target.value)}
+                  label="Seleziona Template *"
+                  disabled={loadingTemplates}
+                >
+                  {loadingTemplates ? (
+                    <MenuItem value="">
+                      <CircularProgress size={20} sx={{ mr: 1 }} />
+                      Caricamento template...
+                    </MenuItem>
+                  ) : templates.length === 0 ? (
+                    <MenuItem value="" disabled>
+                      Nessun template disponibile
+                    </MenuItem>
+                  ) : (
+                    templates.map((template) => (
+                      <MenuItem key={template.id} value={template.id}>
+                        {template.name} (v{template.version})
+                      </MenuItem>
+                    ))
+                  )}
+                </Select>
+              </FormControl>
+            </Grid>
+          )}
+
+          <Grid item xs={12}>
+            <Divider />
+          </Grid>
+
           {/* Descrizione Attività */}
           <Grid item xs={12}>
             <TextField

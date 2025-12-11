@@ -1,17 +1,32 @@
 import { supabase, SUPABASE_URL } from '../supabase'
-import { Customer } from '@/types'
+import { Customer, CustomerCompleteness } from '@/types'
+import { validateCustomerInput, normalizeTelefono, normalizePec, normalizeProvincia } from '@/utils/customerValidation'
 
 export interface CreateCustomerInput {
   ragione_sociale: string
+  identificativo?: string  // Optional, auto-generated if omitted
+  telefono?: string
+  pec?: string
+  descrizione_attivita?: string
+  via?: string
+  numero_civico?: string
+  cap?: string
+  comune?: string
+  provincia?: string
 }
 
 export interface UpdateCustomerInput {
   ragione_sociale?: string
-  is_active?: boolean
+  identificativo?: string
+  telefono?: string
+  pec?: string
+  descrizione_attivita?: string
   via?: string | null
+  numero_civico?: string | null
   cap?: string | null
-  citta?: string | null
+  comune?: string | null  // Renamed from 'citta'
   provincia?: string | null
+  is_active?: boolean
 }
 
 export interface CustomerFilters {
@@ -112,17 +127,25 @@ export const customersApi = {
 
   // Create new customer
   create: async (input: CreateCustomerInput): Promise<Customer> => {
-    // Trim and validate ragione_sociale
-    const ragione_sociale = input.ragione_sociale.trim()
-
-    if (!ragione_sociale || ragione_sociale.length === 0) {
-      throw new Error('La ragione sociale non può essere vuota')
+    // Validate input with Zod schema
+    const errors = validateCustomerInput(input)
+    if (errors.length > 0) {
+      throw new Error(`Dati cliente non validi:\n${errors.join('\n')}`)
     }
 
     const { data, error } = await supabase
       .from('customers')
       .insert({
-        ragione_sociale,
+        ragione_sociale: input.ragione_sociale.trim(),
+        identificativo: input.identificativo?.trim() || undefined, // Trigger generates if omitted
+        telefono: normalizeTelefono(input.telefono),
+        pec: normalizePec(input.pec),
+        descrizione_attivita: input.descrizione_attivita.trim(),
+        via: input.via.trim(),
+        numero_civico: input.numero_civico.trim(),
+        cap: input.cap.trim(),
+        comune: input.comune.trim(),
+        provincia: normalizeProvincia(input.provincia),
         is_active: true,
       })
       .select()
@@ -146,6 +169,42 @@ export const customersApi = {
         throw new Error('La ragione sociale non può essere vuota')
       }
       updateData.ragione_sociale = ragione_sociale
+    }
+
+    if (input.identificativo !== undefined) {
+      updateData.identificativo = input.identificativo.trim()
+    }
+
+    if (input.telefono !== undefined) {
+      updateData.telefono = normalizeTelefono(input.telefono)
+    }
+
+    if (input.pec !== undefined) {
+      updateData.pec = normalizePec(input.pec)
+    }
+
+    if (input.descrizione_attivita !== undefined) {
+      updateData.descrizione_attivita = input.descrizione_attivita.trim()
+    }
+
+    if (input.via !== undefined) {
+      updateData.via = input.via ? input.via.trim() : null
+    }
+
+    if (input.numero_civico !== undefined) {
+      updateData.numero_civico = input.numero_civico ? input.numero_civico.trim() : null
+    }
+
+    if (input.cap !== undefined) {
+      updateData.cap = input.cap ? input.cap.trim() : null
+    }
+
+    if (input.comune !== undefined) {
+      updateData.comune = input.comune ? input.comune.trim() : null
+    }
+
+    if (input.provincia !== undefined) {
+      updateData.provincia = input.provincia ? normalizeProvincia(input.provincia) : null
     }
 
     if (input.is_active !== undefined) {
@@ -251,5 +310,56 @@ export const customersApi = {
 
     const result = await response.json()
     return result
+  },
+
+  // Check if customer has all required fields populated
+  checkCompleteness: async (customerId: string): Promise<CustomerCompleteness> => {
+    const { data, error } = await supabase
+      .rpc('is_customer_complete', { customer_id: customerId })
+
+    if (error) {
+      console.error('Error checking customer completeness:', error)
+      throw new Error(`Errore verifica completezza: ${error.message}`)
+    }
+
+    if (data === true) {
+      return { isComplete: true, missingFields: [] }
+    }
+
+    // If not complete, fetch customer to identify missing fields
+    const customer = await customersApi.getById(customerId)
+    const { getMissingCustomerFields } = await import('@/utils/customerValidation')
+    const missingFields = getMissingCustomerFields(customer)
+
+    return { isComplete: false, missingFields }
+  },
+
+  // Format customer's complete address from separate fields
+  formatFullAddress: (customer: Customer): string => {
+    const parts: string[] = []
+
+    // Via + numero civico
+    if (customer.via) {
+      const address = customer.numero_civico
+        ? `${customer.via}, ${customer.numero_civico}`
+        : customer.via
+      parts.push(address)
+    }
+
+    // CAP + Comune
+    if (customer.cap && customer.comune) {
+      parts.push(`${customer.cap} ${customer.comune}`)
+    } else if (customer.comune) {
+      parts.push(customer.comune)
+    } else if (customer.cap) {
+      parts.push(customer.cap)
+    }
+
+    // Provincia (tra parentesi)
+    if (customer.provincia) {
+      parts.push(`(${customer.provincia})`)
+    }
+
+    return parts.join(', ')
   },
 }

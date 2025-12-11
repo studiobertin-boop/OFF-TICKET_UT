@@ -1,0 +1,230 @@
+/**
+ * CIVA Print Styles
+ *
+ * Stili ottimizzati per stampa landscape A4 del riepilogo CIVA
+ */
+
+/* ============================================================================
+   PRINT-ONLY STYLES
+   ============================================================================ */
+
+@media print {
+  /* Page Setup */
+  @page {
+    size: A4 landscape;
+    margin: 1cm 0.5cm;
+  }
+
+  /* Hide non-printable elements */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Show print-only elements */
+  .print-only {
+    display: block !important;
+  }
+
+  /* Reset body for print */
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  /* ============================================================================
+     LAYOUT
+     ============================================================================ */
+
+  /* Columns container - horizontal flex layout */
+  .civa-columns-container {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    page-break-inside: avoid;
+  }
+
+  /* Individual column card */
+  .civa-column {
+    width: 180px !important;
+    min-width: 180px !important;
+    max-width: 180px !important;
+    page-break-inside: avoid;
+    border: 1px solid #000 !important;
+    padding: 6px !important;
+    font-size: 8pt !important;
+    background: white !important;
+    margin: 0 !important;
+  }
+
+  /* ============================================================================
+     TYPOGRAPHY
+     ============================================================================ */
+
+  /* Headers */
+  h5, h6 {
+    font-size: 10pt !important;
+    margin: 4px 0 !important;
+    page-break-after: avoid;
+  }
+
+  /* Section headers */
+  .civa-section-header,
+  .MuiTypography-subtitle2 {
+    font-weight: 700 !important;
+    font-size: 8pt !important;
+    margin-top: 6px !important;
+    margin-bottom: 3px !important;
+    border-bottom: 1px solid #000 !important;
+    padding-bottom: 2px !important;
+    page-break-after: avoid;
+  }
+
+  /* Field labels */
+  .MuiTypography-caption {
+    font-weight: 600 !important;
+    font-size: 7pt !important;
+    color: #333 !important;
+  }
+
+  /* Field values - larger text */
+  .MuiTypography-body1 {
+    font-size: 9pt !important;
+    color: #000 !important;
+  }
+
+  .MuiTypography-body2 {
+    font-size: 8pt !important;
+    margin-bottom: 2px !important;
+    color: #000 !important;
+  }
+
+  /* ============================================================================
+     BADGES & CHIPS
+     ============================================================================ */
+
+  /* Tipo pratica badge */
+  .MuiChip-root {
+    font-size: 7pt !important;
+    height: 16px !important;
+    padding: 2px 4px !important;
+    border: 1px solid #000 !important;
+  }
+
+  /* Dichiarazione badge - light blue background */
+  .tipo-pratica-dichiarazione {
+    background-color: #e3f2fd !important;
+    color: #000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Verifica badge - light orange background */
+  .tipo-pratica-verifica {
+    background-color: #fff3e0 !important;
+    color: #000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* ============================================================================
+     CARDS & CONTAINERS
+     ============================================================================ */
+
+  /* MUI Card overrides */
+  .MuiCard-root {
+    box-shadow: none !important;
+    border: 1px solid #000 !important;
+    page-break-inside: avoid;
+  }
+
+  .MuiCardContent-root {
+    padding: 6px !important;
+  }
+
+  /* Paper containers */
+  .MuiPaper-root {
+    box-shadow: none !important;
+    border: 1px solid #000 !important;
+    margin-bottom: 8px !important;
+    padding: 8px !important;
+  }
+
+  /* ============================================================================
+     DIVIDERS
+     ============================================================================ */
+
+  .MuiDivider-root {
+    border-color: #000 !important;
+    margin: 4px 0 !important;
+  }
+
+  /* ============================================================================
+     SPACING & LAYOUT ADJUSTMENTS
+     ============================================================================ */
+
+  /* Reduce margins and padding */
+  .MuiBox-root {
+    margin: 0 !important;
+  }
+
+  /* Compact spacing for fields */
+  .civa-field {
+    margin-bottom: 2px !important;
+    line-height: 1.2 !important;
+  }
+
+  /* Ensure proper line breaks */
+  .civa-apparecchio-column h6 {
+    page-break-after: avoid;
+  }
+
+  /* ============================================================================
+     COLORS & BACKGROUNDS
+     ============================================================================ */
+
+  /* Force color printing for key elements */
+  .tipo-pratica-dichiarazione,
+  .tipo-pratica-verifica {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Ensure black text on white background */
+  * {
+    color: #000 !important;
+    background: white !important;
+  }
+
+  /* Preserve badge backgrounds */
+  .MuiChip-root {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* ============================================================================
+     PAGE BREAKS
+     ============================================================================ */
+
+  /* Avoid breaking inside important sections */
+  .civa-column,
+  .MuiCard-root,
+  .civa-section-header {
+    page-break-inside: avoid;
+  }
+
+  /* Section titles should stay with content */
+  h5, h6 {
+    page-break-after: avoid;
+  }
+}
+
+/* ============================================================================
+   SCREEN STYLES (optional - for preview)
+   ============================================================================ */
+
+@media screen {
+  /* Hide print-only elements on screen */
+  .print-only {
+    display: none !important;
+  }
+}

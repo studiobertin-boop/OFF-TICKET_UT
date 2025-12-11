@@ -23,8 +23,11 @@ import {
   Category as CategoryIcon,
   People as PeopleIcon,
   Business as BusinessIcon,
+  Factory as FactoryIcon,
+  Build as BuildIcon,
   Archive as ArchiveIcon,
   Notifications as NotificationsIcon,
+  Description as TemplateIcon,
 } from '@mui/icons-material'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -137,6 +140,24 @@ export const Layout = ({ children }: LayoutProps) => {
                       <BusinessIcon fontSize="small" />
                     </ListItemIcon>
                     <ListItemText>Gestione Clienti</ListItemText>
+                  </MenuItem>
+                  <MenuItem onClick={() => handleAdminNavigate('/admin/manufacturers')}>
+                    <ListItemIcon>
+                      <FactoryIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText>Gestione Costruttori</ListItemText>
+                  </MenuItem>
+                  <MenuItem onClick={() => handleAdminNavigate('/admin/installers')}>
+                    <ListItemIcon>
+                      <BuildIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText>Gestione Installatori</ListItemText>
+                  </MenuItem>
+                  <MenuItem onClick={() => handleAdminNavigate('/templates')}>
+                    <ListItemIcon>
+                      <TemplateIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText>Template Documenti</ListItemText>
                   </MenuItem>
                   <MenuItem onClick={() => handleAdminNavigate('/admin/deletion-archives')}>
                     <ListItemIcon>

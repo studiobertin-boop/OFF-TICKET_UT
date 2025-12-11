@@ -18,15 +18,21 @@ import {
 import { ArrowBack as ArrowBackIcon, Save as SaveIcon } from '@mui/icons-material'
 import { Layout } from '@/components/common/Layout'
 import { DynamicFormField } from '@/components/requests/DynamicFormField'
+import { CompleteCustomerDataDialog } from '@/components/customers/CompleteCustomerDataDialog'
 import { useRequestTypes } from '@/hooks/useRequestTypes'
 import { useCreateRequest } from '@/hooks/useRequests'
 import { useCustomer } from '@/hooks/useCustomers'
 import { generateZodSchemaWithValidations, getDefaultValues } from '@/utils/formSchema'
+import { isCustomerComplete } from '@/utils/customerValidation'
+import { customersApi } from '@/services/api/customers'
+import { Customer } from '@/types'
 
 export const NewRequest = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [selectedTypeId, setSelectedTypeId] = useState<string>('')
+  const [showCompleteDialog, setShowCompleteDialog] = useState(false)
+  const [selectedCustomerForComplete, setSelectedCustomerForComplete] = useState<Customer | null>(null)
   const { data: requestTypes = [], isLoading: loadingTypes } = useRequestTypes()
   const createRequest = useCreateRequest()
 
@@ -59,31 +65,42 @@ export const NewRequest = () => {
   const customerId = typeof clienteValue === 'object' && clienteValue?.id ? clienteValue.id : null
   const { data: customerData } = useCustomer(customerId || '')
 
-  // Auto-fill sede_legale when customer has address data
+  // Check customer completeness and auto-fill address for DM329
   useEffect(() => {
     if (selectedType?.name === 'DM329' && customerData) {
-      const { via, cap, citta, provincia } = customerData
-
-      // Format address only if at least one field is present
-      if (via || cap || citta || provincia) {
-        const addressParts = []
-        if (via) addressParts.push(via)
-        if (cap && citta) {
-          addressParts.push(`${cap} ${citta}`)
-        } else if (citta) {
-          addressParts.push(citta)
-        } else if (cap) {
-          addressParts.push(cap)
-        }
-        if (provincia) addressParts.push(`(${provincia})`)
-
-        const formattedAddress = addressParts.join(', ')
+      // Check if customer has all required fields
+      if (!isCustomerComplete(customerData)) {
+        // Show dialog to complete missing data
+        setSelectedCustomerForComplete(customerData)
+        setShowCompleteDialog(true)
+      } else {
+        // Customer is complete - auto-fill address
+        const formattedAddress = customersApi.formatFullAddress(customerData)
         if (formattedAddress) {
           setValue('sede_legale', formattedAddress)
         }
       }
     }
   }, [customerData, selectedType, setValue])
+
+  // Handle customer data completion
+  const handleCustomerComplete = (updatedCustomer: Customer) => {
+    setShowCompleteDialog(false)
+    setSelectedCustomerForComplete(null)
+
+    // Auto-fill address with updated data
+    const formattedAddress = customersApi.formatFullAddress(updatedCustomer)
+    if (formattedAddress) {
+      setValue('sede_legale', formattedAddress)
+    }
+  }
+
+  // Handle skip customer completion
+  const handleSkipComplete = () => {
+    setShowCompleteDialog(false)
+    setSelectedCustomerForComplete(null)
+    // Don't auto-fill address if user skips
+  }
 
   // Pre-seleziona il tipo se viene passato nella query string
   useEffect(() => {
@@ -250,6 +267,15 @@ export const NewRequest = () => {
           </CardContent>
         </Card>
       </Box>
+
+      {/* Dialog for completing customer data when missing fields detected */}
+      <CompleteCustomerDataDialog
+        open={showCompleteDialog}
+        customer={selectedCustomerForComplete}
+        onClose={handleSkipComplete}
+        onComplete={handleCustomerComplete}
+        allowSkip={true}
+      />
     </Layout>
   )
 }

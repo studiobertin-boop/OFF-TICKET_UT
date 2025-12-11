@@ -1,0 +1,166 @@
+/**
+ * CSS personalizzato per Quill Editor
+ * Font e line-height custom
+ */
+
+/* Font personalizzati */
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="cambria"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="cambria"]::before {
+  content: 'Cambria';
+  font-family: Cambria, serif;
+}
+
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="arial"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="arial"]::before {
+  content: 'Arial';
+  font-family: Arial, sans-serif;
+}
+
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="times"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="times"]::before {
+  content: 'Times New Roman';
+  font-family: 'Times New Roman', serif;
+}
+
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="courier"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="courier"]::before {
+  content: 'Courier New';
+  font-family: 'Courier New', monospace;
+}
+
+/* Applica font al contenuto */
+.ql-font-cambria {
+  font-family: Cambria, serif;
+}
+
+.ql-font-arial {
+  font-family: Arial, sans-serif;
+}
+
+.ql-font-times {
+  font-family: 'Times New Roman', serif;
+}
+
+.ql-font-courier {
+  font-family: 'Courier New', monospace;
+}
+
+/* Line height personalizzato */
+.ql-snow .ql-picker.ql-lineheight .ql-picker-label[data-value="1"]::before,
+.ql-snow .ql-picker.ql-lineheight .ql-picker-item[data-value="1"]::before {
+  content: 'Singola (1.0)';
+}
+
+.ql-snow .ql-picker.ql-lineheight .ql-picker-label[data-value="1.15"]::before,
+.ql-snow .ql-picker.ql-lineheight .ql-picker-item[data-value="1.15"]::before {
+  content: 'Stretta (1.15)';
+}
+
+.ql-snow .ql-picker.ql-lineheight .ql-picker-label[data-value="1.5"]::before,
+.ql-snow .ql-picker.ql-lineheight .ql-picker-item[data-value="1.5"]::before {
+  content: 'Media (1.5)';
+}
+
+.ql-snow .ql-picker.ql-lineheight .ql-picker-label[data-value="1.6"]::before,
+.ql-snow .ql-picker.ql-lineheight .ql-picker-item[data-value="1.6"]::before {
+  content: 'Standard (1.6)';
+}
+
+.ql-snow .ql-picker.ql-lineheight .ql-picker-label[data-value="2"]::before,
+.ql-snow .ql-picker.ql-lineheight .ql-picker-item[data-value="2"]::before {
+  content: 'Doppia (2.0)';
+}
+
+.ql-snow .ql-picker.ql-lineheight .ql-picker-label[data-value="2.5"]::before,
+.ql-snow .ql-picker.ql-lineheight .ql-picker-item[data-value="2.5"]::before {
+  content: 'Ampia (2.5)';
+}
+
+/* Icona per lineheight picker */
+.ql-snow .ql-picker.ql-lineheight::before {
+  content: '⇅';
+  font-size: 16px;
+}
+
+/* Stili per tabelle */
+.ql-editor table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 10px 0;
+}
+
+.ql-editor table td,
+.ql-editor table th {
+  border: 1px solid #ddd;
+  padding: 8px;
+  min-width: 50px;
+}
+
+.ql-editor table th {
+  background-color: #f5f5f5;
+  font-weight: bold;
+}
+
+/* Stile per visualizzare i marcatori tabella in modo compatto */
+.ql-editor p {
+  margin: 0;
+  padding: 4px 0;
+}
+
+/* Evidenzia i marcatori della tabella per facilitare l'identificazione */
+.ql-editor p:has-text("[TABLE_START]"),
+.ql-editor p:has-text("[TABLE_END]"),
+.ql-editor p:has-text("[HEADER_END]") {
+  background-color: #e3f2fd;
+  color: #1976d2;
+  font-family: monospace;
+  font-size: 0.85em;
+  padding: 2px 4px;
+  border-left: 3px solid #1976d2;
+  margin: 2px 0;
+}
+
+/* Stile per markup tabelle nel nuovo formato [[TABLE:...]] */
+.ql-editor p {
+  position: relative;
+}
+
+/* Evidenzia paragrafi contenenti markup tabella */
+.ql-editor p.table-markup {
+  background: linear-gradient(90deg, #e8f5e9 0%, #c8e6c9 100%);
+  color: #2e7d32;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+  padding: 12px;
+  border: 1px solid #66bb6a;
+  border-left: 4px solid #43a047;
+  border-radius: 4px;
+  margin: 8px 0 !important;
+  word-break: break-all;
+  display: block;
+}
+
+/* Menu contestuale tabelle */
+.qlbt-operation-menu {
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  z-index: 9999;
+}
+
+.qlbt-operation-menu-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.qlbt-operation-menu-item:hover {
+  background-color: #f5f5f5;
+}
+
+.qlbt-operation-menu-dividing {
+  height: 1px;
+  background-color: #e0e0e0;
+  margin: 4px 0;
+}

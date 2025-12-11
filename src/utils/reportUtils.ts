@@ -26,7 +26,7 @@ export function formatAddress(components: AddressComponents): {
   via: string;
   civico: string;
   cap: string;
-  citta: string;
+  comune: string;
   provincia: string;
 } {
   // Estrai via e civico dalla stringa street se presente
@@ -39,7 +39,7 @@ export function formatAddress(components: AddressComponents): {
     via,
     civico,
     cap: components.postal_code || '',
-    citta: components.city || '',
+    comune: components.city || '',
     provincia: components.province || '',
   };
 }
@@ -48,8 +48,8 @@ export function formatAddress(components: AddressComponents): {
  * Formatta indirizzo completo in stringa
  */
 export function formatFullAddress(components: AddressComponents): string {
-  const { via, civico, cap, citta, provincia } = formatAddress(components);
-  return `${via}${civico ? ', ' + civico : ''} - ${cap} ${citta} (${provincia})`;
+  const { via, civico, cap, comune, provincia } = formatAddress(components);
+  return `${via}${civico ? ', ' + civico : ''} - ${cap} ${comune} (${provincia})`;
 }
 
 /**

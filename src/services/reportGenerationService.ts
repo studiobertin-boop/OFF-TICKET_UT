@@ -100,17 +100,17 @@ function buildPlaceholderContext(data: RelazioneTecnicaData): PlaceholderContext
   const sedeLegale = cliente.via
     ? {
       via: cliente.via || '',
-      civico: '',
+      civico: cliente.numero_civico || '',
       cap: cliente.cap || '',
-      citta: cliente.citta || '',
+      comune: cliente.comune || '',
       provincia: cliente.provincia || '',
     }
-    : { via: '', civico: '', cap: '', citta: '', provincia: '' };
+    : { via: '', civico: '', cap: '', comune: '', provincia: '' };
 
   // Parsing indirizzo sede impianto
   const sedeImpianto = technicalData.indirizzo_impianto_formatted
     ? formatAddress(technicalData.indirizzo_impianto_formatted)
-    : { via: '', civico: '', cap: '', citta: '', provincia: '' };
+    : { via: '', civico: '', cap: '', comune: '', provincia: '' };
 
   // Apparecchiature
   const equipmentData = technicalData.equipment_data || {};
@@ -162,12 +162,12 @@ function buildPlaceholderContext(data: RelazioneTecnicaData): PlaceholderContext
     sedeLegaleVia: sedeLegale.via,
     sedeLegaleCivico: sedeLegale.civico,
     sedeLegaleCap: sedeLegale.cap,
-    sedeLegaleCitta: sedeLegale.citta,
+    sedeLegaleCitta: sedeLegale.comune,
     sedeLegaleProvincia: sedeLegale.provincia,
     sedeImpiantoVia: sedeImpianto.via,
     sedeImpiantoCivico: sedeImpianto.civico,
     sedeImpiantoCap: sedeImpianto.cap,
-    sedeImpiantoCitta: sedeImpianto.citta,
+    sedeImpiantoCitta: sedeImpianto.comune,
     sedeImpiantoProvincia: sedeImpianto.provincia,
     descrizioneAttivita: additionalInfo.descrizioneAttivita,
     numeroCompressori: compressori.length,

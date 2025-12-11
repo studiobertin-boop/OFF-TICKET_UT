@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
-import { Controller, Control } from 'react-hook-form'
+import { Controller, Control, useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import {
   Autocomplete,
   TextField,
@@ -11,11 +12,15 @@ import {
   Button,
   Box,
   Typography,
+  Alert,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import { FieldSchema, Customer } from '@/types'
 import { useCustomers, useCreateCustomer } from '@/hooks/useCustomers'
 import { debounce } from '@/utils/debounce'
+import { createCustomerSchema, checkCustomerCompleteness } from '@/utils/customerValidation'
+import { CustomerFormFields } from '@/components/customers/CustomerFormFields'
+import { CompleteCustomerDataDialog } from '@/components/customers/CompleteCustomerDataDialog'
 
 interface AutocompleteFieldProps {
   field: FieldSchema
@@ -27,7 +32,30 @@ export const AutocompleteField = ({ field, control, error }: AutocompleteFieldPr
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [openCreateDialog, setOpenCreateDialog] = useState(false)
-  const [newCustomerName, setNewCustomerName] = useState('')
+  const [customerToComplete, setCustomerToComplete] = useState<Customer | null>(null)
+  const [pendingCustomerCallback, setPendingCustomerCallback] = useState<((customer: Customer) => void) | null>(null)
+
+  // Form for creating new customer with all fields
+  const {
+    control: createControl,
+    handleSubmit: handleCreateSubmit,
+    formState: { errors: createErrors },
+    reset: resetCreateForm,
+  } = useForm({
+    resolver: zodResolver(createCustomerSchema),
+    defaultValues: {
+      ragione_sociale: '',
+      identificativo: '',
+      telefono: '',
+      pec: '',
+      descrizione_attivita: '',
+      via: '',
+      numero_civico: '',
+      cap: '',
+      comune: '',
+      provincia: '',
+    },
+  })
 
   // Fetch customers with debounced search
   const { data: customersResponse, isLoading } = useCustomers({
@@ -53,24 +81,37 @@ export const AutocompleteField = ({ field, control, error }: AutocompleteFieldPr
     debouncedSetSearch(newInputValue)
   }
 
-  // Handle create new customer
-  const handleCreateCustomer = async () => {
-    if (!newCustomerName.trim()) return
-
+  // Handle create new customer with complete data
+  const handleCreateCustomer = async (data: any) => {
     try {
-      const newCustomer = await createCustomer.mutateAsync({
-        ragione_sociale: newCustomerName,
-      })
+      const newCustomer = await createCustomer.mutateAsync(data)
 
-      // Close dialog
+      // Close dialog and reset form
       setOpenCreateDialog(false)
-      setNewCustomerName('')
+      resetCreateForm()
 
       // Return the newly created customer (will be set as value by onChange)
       return newCustomer
     } catch (error) {
       console.error('Error creating customer:', error)
     }
+  }
+
+  // When "+ Aggiungi" is clicked, pre-fill ragione sociale
+  const handleOpenCreateDialog = () => {
+    resetCreateForm({
+      ragione_sociale: searchTerm.trim(),
+      identificativo: '',
+      telefono: '',
+      pec: '',
+      descrizione_attivita: '',
+      via: '',
+      numero_civico: '',
+      cap: '',
+      comune: '',
+      provincia: '',
+    })
+    setOpenCreateDialog(true)
   }
 
   // Add "Create new" option if search term is entered
@@ -111,9 +152,19 @@ export const AutocompleteField = ({ field, control, error }: AutocompleteFieldPr
             onChange={(_event, newValue) => {
               // Handle "Create new" option
               if (newValue && newValue.id === 'CREATE_NEW') {
-                setNewCustomerName(searchTerm)
-                setOpenCreateDialog(true)
+                handleOpenCreateDialog()
                 return
+              }
+
+              // Check if selected customer has complete data
+              if (newValue) {
+                const completeness = checkCustomerCompleteness(newValue)
+                if (!completeness.isComplete) {
+                  // Show complete data dialog and save callback
+                  setCustomerToComplete(newValue)
+                  setPendingCustomerCallback(() => formField.onChange)
+                  return
+                }
               }
 
               formField.onChange(newValue)
@@ -174,51 +225,80 @@ export const AutocompleteField = ({ field, control, error }: AutocompleteFieldPr
         )}
       />
 
-      {/* Create New Customer Dialog */}
+      {/* Create New Customer Dialog - with ALL required fields */}
       <Dialog
         open={openCreateDialog}
         onClose={() => {
-          setOpenCreateDialog(false)
-          setNewCustomerName('')
+          if (!createCustomer.isPending) {
+            setOpenCreateDialog(false)
+            resetCreateForm()
+          }
         }}
-        maxWidth="sm"
+        maxWidth="md"
         fullWidth
+        disableEscapeKeyDown={createCustomer.isPending}
       >
         <DialogTitle>Aggiungi Nuovo Cliente</DialogTitle>
         <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Ragione Sociale"
-            fullWidth
-            value={newCustomerName}
-            onChange={(e) => setNewCustomerName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                handleCreateCustomer()
-              }
-            }}
-          />
+          <Alert severity="info" sx={{ mb: 2, mt: 1 }}>
+            Compila tutti i campi obbligatori per creare il nuovo cliente.
+          </Alert>
+
+          <Box component="form" sx={{ mt: 1 }}>
+            <CustomerFormFields
+              control={createControl}
+              errors={createErrors}
+              showAllFields={true}
+              highlightMissing={false}
+            />
+          </Box>
+
+          {createCustomer.isError && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              Errore durante la creazione: {createCustomer.error?.message}
+            </Alert>
+          )}
         </DialogContent>
         <DialogActions>
           <Button
             onClick={() => {
               setOpenCreateDialog(false)
-              setNewCustomerName('')
+              resetCreateForm()
             }}
+            disabled={createCustomer.isPending}
           >
             Annulla
           </Button>
           <Button
-            onClick={handleCreateCustomer}
+            onClick={handleCreateSubmit(handleCreateCustomer)}
             variant="contained"
-            disabled={!newCustomerName.trim() || createCustomer.isPending}
+            disabled={createCustomer.isPending}
           >
-            {createCustomer.isPending ? 'Creazione...' : 'Crea'}
+            {createCustomer.isPending ? 'Creazione...' : 'Crea Cliente'}
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Complete Customer Data Dialog */}
+      {customerToComplete && pendingCustomerCallback && (
+        <CompleteCustomerDataDialog
+          customer={customerToComplete}
+          open={true}
+          onClose={() => {
+            // User clicked "Skip for Now" - set customer anyway
+            pendingCustomerCallback(customerToComplete)
+            setCustomerToComplete(null)
+            setPendingCustomerCallback(null)
+          }}
+          onComplete={(updatedCustomer) => {
+            // Customer data has been completed, use the updated customer
+            pendingCustomerCallback(updatedCustomer)
+            setCustomerToComplete(null)
+            setPendingCustomerCallback(null)
+          }}
+          allowSkip={true}
+        />
+      )}
     </>
   )
 }

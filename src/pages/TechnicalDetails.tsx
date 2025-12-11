@@ -19,6 +19,7 @@ import {
   Edit as EditIcon,
   Share as ShareIcon,
   Description as DescriptionIcon,
+  Assessment as AssessmentIcon,
 } from '@mui/icons-material'
 import { Layout } from '@/components/common/Layout'
 import { useRequest } from '@/hooks/useRequests'
@@ -436,6 +437,17 @@ export const TechnicalDetails = () => {
                 >
                   Genera Relazione
                 </Button>
+                {(user?.role === 'admin' || user?.role === 'userdm329') && (
+                  <Button
+                    variant="outlined"
+                    color="primary"
+                    startIcon={<AssessmentIcon />}
+                    onClick={() => navigate(`/requests/${id}/civa-summary`)}
+                    disabled={saving}
+                  >
+                    Visualizza Dati CIVA
+                  </Button>
+                )}
                 <Button
                   variant="outlined"
                   startIcon={<EditIcon />}

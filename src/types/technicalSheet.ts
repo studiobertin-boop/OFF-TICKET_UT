@@ -11,6 +11,7 @@ export interface DatiGenerali {
   data_sopralluogo: string // Formato gg/mm/aaaa
   nome_tecnico: string
   cliente: string // Suggerimento da DB
+  installatore?: string // Nome installatore (suggerimento da DB)
   note_generali?: string
 }
 

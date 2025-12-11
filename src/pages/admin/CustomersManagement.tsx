@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import {
   Box,
   Paper,
@@ -42,6 +44,9 @@ import type { Customer } from '@/types'
 import { Layout } from '@/components/common/Layout'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
+import { isCustomerComplete, createCustomerSchema, updateCustomerSchema } from '@/utils/customerValidation'
+import { customersApi } from '@/services/api/customers'
+import { CustomerFormFields } from '@/components/customers/CustomerFormFields'
 
 export default function CustomersManagement() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -53,13 +58,37 @@ export default function CustomersManagement() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null)
-  const [newCustomerName, setNewCustomerName] = useState('')
-  const [editCustomerName, setEditCustomerName] = useState('')
-  const [editCustomerAddress, setEditCustomerAddress] = useState({
-    via: '',
-    cap: '',
-    citta: '',
-    provincia: '',
+
+  // Form per creazione nuovo cliente
+  const {
+    control: createControl,
+    handleSubmit: handleCreateSubmit,
+    formState: { errors: createErrors },
+    reset: resetCreateForm,
+  } = useForm({
+    resolver: zodResolver(createCustomerSchema),
+    defaultValues: {
+      ragione_sociale: '',
+      identificativo: '',
+      telefono: '',
+      pec: '',
+      descrizione_attivita: '',
+      via: '',
+      numero_civico: '',
+      cap: '',
+      comune: '',
+      provincia: '',
+    },
+  })
+
+  // Form per modifica cliente
+  const {
+    control: editControl,
+    handleSubmit: handleEditSubmit,
+    formState: { errors: editErrors },
+    reset: resetEditForm,
+  } = useForm({
+    resolver: zodResolver(updateCustomerSchema),
   })
 
   // Hooks
@@ -124,17 +153,15 @@ export default function CustomersManagement() {
   }
 
   const handleCreateClick = () => {
-    setNewCustomerName('')
+    resetCreateForm()
     setCreateDialogOpen(true)
   }
 
-  const handleCreateConfirm = async () => {
-    if (!newCustomerName.trim()) return
-
+  const handleCreateConfirm = async (data: any) => {
     try {
-      await createCustomer.mutateAsync({ ragione_sociale: newCustomerName })
+      await createCustomer.mutateAsync(data)
       setCreateDialogOpen(false)
-      setNewCustomerName('')
+      resetCreateForm()
     } catch (err) {
       console.error('Error creating customer:', err)
     }
@@ -142,34 +169,32 @@ export default function CustomersManagement() {
 
   const handleEditClick = (customer: Customer) => {
     setSelectedCustomer(customer)
-    setEditCustomerName(customer.ragione_sociale)
-    setEditCustomerAddress({
+    resetEditForm({
+      ragione_sociale: customer.ragione_sociale,
+      identificativo: customer.identificativo || '',
+      telefono: customer.telefono || '',
+      pec: customer.pec || '',
+      descrizione_attivita: customer.descrizione_attivita || '',
       via: customer.via || '',
+      numero_civico: customer.numero_civico || '',
       cap: customer.cap || '',
-      citta: customer.citta || '',
+      comune: customer.comune || '',
       provincia: customer.provincia || '',
     })
     setEditDialogOpen(true)
   }
 
-  const handleEditConfirm = async () => {
-    if (!selectedCustomer || !editCustomerName.trim()) return
+  const handleEditConfirm = async (data: any) => {
+    if (!selectedCustomer) return
 
     try {
       await updateCustomer.mutateAsync({
         id: selectedCustomer.id,
-        updates: {
-          ragione_sociale: editCustomerName,
-          via: editCustomerAddress.via || null,
-          cap: editCustomerAddress.cap || null,
-          citta: editCustomerAddress.citta || null,
-          provincia: editCustomerAddress.provincia || null,
-        },
+        updates: data,
       })
       setEditDialogOpen(false)
       setSelectedCustomer(null)
-      setEditCustomerName('')
-      setEditCustomerAddress({ via: '', cap: '', citta: '', provincia: '' })
+      resetEditForm()
     } catch (err) {
       console.error('Error updating customer:', err)
     }
@@ -260,89 +285,96 @@ export default function CustomersManagement() {
           <Table>
             <TableHead>
               <TableRow>
+                <TableCell>Identificativo</TableCell>
                 <TableCell>Ragione Sociale</TableCell>
-                <TableCell>Indirizzo</TableCell>
-                <TableCell>Città</TableCell>
-                <TableCell>ID Esterno</TableCell>
+                <TableCell>Telefono</TableCell>
+                <TableCell>PEC</TableCell>
+                <TableCell>Indirizzo Completo</TableCell>
+                <TableCell>Completezza</TableCell>
                 <TableCell>Stato</TableCell>
-                <TableCell>Data Creazione</TableCell>
                 <TableCell align="right">Azioni</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {customers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
+                  <TableCell colSpan={8} align="center">
                     <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
                       Nessun cliente trovato
                     </Typography>
                   </TableCell>
                 </TableRow>
               ) : (
-                customers.map((customer) => (
-                  <TableRow key={customer.id} hover>
-                    <TableCell>
-                      <Typography variant="body1">{customer.ragione_sociale}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      {customer.via ? (
-                        <Typography variant="body2">
-                          {customer.via}
-                          {customer.cap && ` - ${customer.cap}`}
-                          {customer.provincia && ` (${customer.provincia})`}
-                        </Typography>
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">
-                          -
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {customer.citta ? (
-                        <Typography variant="body2">{customer.citta}</Typography>
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">
-                          -
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {customer.external_id ? (
-                        <Chip label={customer.external_id} size="small" variant="outlined" />
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">
-                          -
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={customer.is_active ? 'Attivo' : 'Inattivo'}
-                        color={customer.is_active ? 'success' : 'default'}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {format(new Date(customer.created_at), 'dd MMM yyyy', { locale: it })}
-                    </TableCell>
-                    <TableCell align="right">
-                      <Tooltip title="Modifica">
-                        <IconButton size="small" onClick={() => handleEditClick(customer)}>
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Elimina">
-                        <IconButton
+                customers.map((customer) => {
+                  const completeness = isCustomerComplete(customer)
+                  const fullAddress = customersApi.formatFullAddress(customer)
+
+                  return (
+                    <TableRow key={customer.id} hover>
+                      <TableCell>
+                        {customer.identificativo ? (
+                          <Chip label={customer.identificativo} size="small" color="primary" variant="outlined" />
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">-</Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body1">{customer.ragione_sociale}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        {customer.telefono ? (
+                          <Typography variant="body2">{customer.telefono}</Typography>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">-</Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {customer.pec ? (
+                          <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>{customer.pec}</Typography>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">-</Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {fullAddress ? (
+                          <Typography variant="body2">{fullAddress}</Typography>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">-</Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={completeness ? 'Completo' : 'Incompleto'}
+                          color={completeness ? 'success' : 'warning'}
                           size="small"
-                          color="error"
-                          onClick={() => handleDeleteClick(customer)}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                  </TableRow>
-                ))
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={customer.is_active ? 'Attivo' : 'Inattivo'}
+                          color={customer.is_active ? 'success' : 'default'}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell align="right">
+                        <Tooltip title="Modifica">
+                          <IconButton size="small" onClick={() => handleEditClick(customer)}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Elimina">
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleDeleteClick(customer)}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
               )}
             </TableBody>
           </Table>
@@ -394,101 +426,75 @@ export default function CustomersManagement() {
       </Box>
 
       {/* Create Dialog */}
-      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={createDialogOpen} onClose={() => !createCustomer.isPending && setCreateDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>Nuovo Cliente</DialogTitle>
         <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Ragione Sociale"
-            fullWidth
-            value={newCustomerName}
-            onChange={(e) => setNewCustomerName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                handleCreateConfirm()
-              }
-            }}
-          />
+          <Alert severity="info" sx={{ mb: 2, mt: 1 }}>
+            Compila tutti i campi obbligatori per creare il nuovo cliente.
+          </Alert>
+
+          <Box component="form" sx={{ mt: 1 }}>
+            <CustomerFormFields
+              control={createControl}
+              errors={createErrors}
+              showAllFields={true}
+              highlightMissing={false}
+            />
+          </Box>
+
+          {createCustomer.isError && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              Errore durante la creazione: {createCustomer.error?.message}
+            </Alert>
+          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCreateDialogOpen(false)}>Annulla</Button>
+          <Button onClick={() => setCreateDialogOpen(false)} disabled={createCustomer.isPending}>
+            Annulla
+          </Button>
           <Button
-            onClick={handleCreateConfirm}
+            onClick={handleCreateSubmit(handleCreateConfirm)}
             variant="contained"
-            disabled={!newCustomerName.trim() || createCustomer.isPending}
+            disabled={createCustomer.isPending}
           >
-            {createCustomer.isPending ? 'Creazione...' : 'Crea'}
+            {createCustomer.isPending ? 'Creazione...' : 'Crea Cliente'}
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="md" fullWidth>
+      <Dialog open={editDialogOpen} onClose={() => !updateCustomer.isPending && setEditDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>Modifica Cliente</DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-            <TextField
-              autoFocus
-              label="Ragione Sociale"
-              fullWidth
-              value={editCustomerName}
-              onChange={(e) => setEditCustomerName(e.target.value)}
-              required
+          <Alert severity="info" sx={{ mb: 2, mt: 1 }}>
+            Modifica i dati del cliente <strong>{selectedCustomer?.ragione_sociale}</strong>.
+          </Alert>
+
+          <Box component="form" sx={{ mt: 1 }}>
+            <CustomerFormFields
+              control={editControl}
+              errors={editErrors}
+              showAllFields={true}
+              highlightMissing={false}
             />
-
-            <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 1 }}>
-              Sede Legale
-            </Typography>
-
-            <TextField
-              label="Indirizzo (Via)"
-              fullWidth
-              value={editCustomerAddress.via}
-              onChange={(e) => setEditCustomerAddress({ ...editCustomerAddress, via: e.target.value })}
-              placeholder="Via Roma, 123"
-            />
-
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <TextField
-                label="CAP"
-                value={editCustomerAddress.cap}
-                onChange={(e) => setEditCustomerAddress({ ...editCustomerAddress, cap: e.target.value })}
-                placeholder="20100"
-                sx={{ width: '30%' }}
-              />
-
-              <TextField
-                label="Città"
-                fullWidth
-                value={editCustomerAddress.citta}
-                onChange={(e) => setEditCustomerAddress({ ...editCustomerAddress, citta: e.target.value })}
-                placeholder="Milano"
-              />
-
-              <TextField
-                label="Provincia"
-                value={editCustomerAddress.provincia}
-                onChange={(e) => {
-                  const value = e.target.value.toUpperCase().substring(0, 2)
-                  setEditCustomerAddress({ ...editCustomerAddress, provincia: value })
-                }}
-                placeholder="MI"
-                inputProps={{ maxLength: 2 }}
-                sx={{ width: '20%' }}
-              />
-            </Box>
           </Box>
+
+          {updateCustomer.isError && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              Errore durante l'aggiornamento: {updateCustomer.error?.message}
+            </Alert>
+          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)}>Annulla</Button>
+          <Button onClick={() => setEditDialogOpen(false)} disabled={updateCustomer.isPending}>
+            Annulla
+          </Button>
           <Button
-            onClick={handleEditConfirm}
+            onClick={handleEditSubmit(handleEditConfirm)}
             variant="contained"
-            disabled={!editCustomerName.trim() || updateCustomer.isPending}
+            disabled={updateCustomer.isPending}
           >
-            {updateCustomer.isPending ? 'Salvataggio...' : 'Salva'}
+            {updateCustomer.isPending ? 'Salvataggio...' : 'Salva Modifiche'}
           </Button>
         </DialogActions>
       </Dialog>

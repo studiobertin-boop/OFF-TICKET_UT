@@ -96,11 +96,23 @@ export interface RequestType {
 export interface Customer {
   id: string
   ragione_sociale: string
+  identificativo?: string | null  // Auto-generated format: CLI-XXXX
   external_id?: string | null
+
+  // Contact information
+  telefono?: string | null
+  pec?: string | null
+
+  // Business description
+  descrizione_attivita?: string | null
+
+  // Complete address
   via?: string | null
+  numero_civico?: string | null
   cap?: string | null
-  citta?: string | null
+  comune?: string | null  // Renamed from 'citta'
   provincia?: string | null
+
   is_active: boolean
   created_at: string
   updated_at: string
@@ -360,3 +372,6 @@ declare module './index' {
 // Re-export technical sheet types
 export * from './technicalSheet'
 export * from './ocr'
+export * from './customer'
+export * from './manufacturer'
+export * from './installer'
