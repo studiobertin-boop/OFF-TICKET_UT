@@ -18,7 +18,6 @@ import ManufacturersManagement from '@/pages/ManufacturersManagement'
 import InstallersManagement from '@/pages/InstallersManagement'
 import { Templates } from '@/pages/Templates'
 import { TemplateEditor } from '@/pages/TemplateEditor'
-import { TemplateWizard } from '@/pages/TemplateWizard'
 import { CIVASummary } from '@/pages/CIVASummary'
 
 const queryClient = new QueryClient({
@@ -163,22 +162,6 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={['admin']}>
                     <TemplateEditor />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/templates/wizard"
-                element={
-                  <ProtectedRoute allowedRoles={['admin']}>
-                    <TemplateWizard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/templates/wizard/:id"
-                element={
-                  <ProtectedRoute allowedRoles={['admin']}>
-                    <TemplateWizard />
                   </ProtectedRoute>
                 }
               />

@@ -215,22 +215,13 @@ export function Templates() {
         <Typography variant="h4" fontWeight="bold">
           Template Documenti
         </Typography>
-        <Box display="flex" gap={2}>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => navigate('/templates/wizard')}
-          >
-            Crea con Wizard
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<AddIcon />}
-            onClick={handleNew}
-          >
-            Modalità Avanzata
-          </Button>
-        </Box>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={handleNew}
+        >
+          Nuovo Template
+        </Button>
       </Box>
 
       {/* Filters */}
