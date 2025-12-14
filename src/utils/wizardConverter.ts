@@ -53,6 +53,10 @@ export function convertWizardSection(wizardSection: WizardSection): TemplateSect
         );
       }
 
+      // Converti newline in HTML per Quill editor
+      // Quill usa <p> tag per paragrafi, quindi convertiamo \n in </p><p>
+      handlebarsTemplate = handlebarsTemplate.replace(/\n/g, '<br>');
+
       templateContent = handlebarsTemplate;
       break;
     }
