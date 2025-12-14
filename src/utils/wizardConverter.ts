@@ -31,14 +31,27 @@ export function convertWizardSection(wizardSection: WizardSection): TemplateSect
       const dynamicConfig = config as DynamicTextConfig;
       // Converti template visuale in template Handlebars
       let handlebarsTemplate = dynamicConfig.template_visual;
-      
+
       // Sostituisci i placeholder visuali con sintassi Handlebars
-      dynamicConfig.field_mappings.forEach(mapping => {
+      // I placeholder sono nella forma {campo} e vanno convertiti in {{campo}}
+      if (dynamicConfig.field_mappings && dynamicConfig.field_mappings.length > 0) {
+        dynamicConfig.field_mappings.forEach(mapping => {
+          // Escape special regex characters except {}
+          const escapedPlaceholder = mapping.placeholder
+            .replace(/[.*+?^$|[\]\\()]/g, '\\$&');
+
+          handlebarsTemplate = handlebarsTemplate.replace(
+            new RegExp(escapedPlaceholder, 'g'),
+            `{{${mapping.path}}}`
+          );
+        });
+      } else {
+        // Se non ci sono field_mappings, cerca tutti i {campo} e convertili in {{campo}}
         handlebarsTemplate = handlebarsTemplate.replace(
-          new RegExp(mapping.placeholder.replace(/[{}]/g, '\$&'), 'g'),
-          `{{${mapping.path}}}`
+          /\{([^}]+)\}/g,
+          '{{$1}}'
         );
-      });
+      }
 
       templateContent = handlebarsTemplate;
       break;

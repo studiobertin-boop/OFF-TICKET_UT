@@ -25,7 +25,9 @@ import {
   ArrowBack as ArrowBackIcon,
   Visibility as PreviewIcon,
   Download as DownloadIcon,
-  LibraryBooks as BrowserIcon
+  LibraryBooks as BrowserIcon,
+  ChevronLeft as ChevronLeftIcon,
+  ChevronRight as ChevronRightIcon
 } from '@mui/icons-material';
 import { WYSIWYGEditor } from '../components/templates/WYSIWYGEditor';
 import { LivePreviewPanel, SAMPLE_DM329_DATA } from '../components/templates/LivePreviewPanel';
@@ -69,6 +71,7 @@ export function TemplateEditor() {
   const [description, setDescription] = useState('');
   const [templateType, setTemplateType] = useState<TemplateType>('dm329_technical');
   const [editorValue, setEditorValue] = useState('');
+  const [currentSectionIndex, setCurrentSectionIndex] = useState(0); // NEW: Track current section
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -107,13 +110,15 @@ export function TemplateEditor() {
       setDescription(data.description || '');
       setTemplateType(data.template_type);
 
-      // Load first section
+      // Load current section (or first if currentSectionIndex is out of bounds)
       if (data.content.sections.length > 0) {
-        const firstSection = data.content.sections[0];
+        const sectionIndex = Math.min(currentSectionIndex, data.content.sections.length - 1);
+        const section = data.content.sections[sectionIndex];
+        setCurrentSectionIndex(sectionIndex);
         setEditorValue(
-          typeof firstSection.template === 'string'
-            ? firstSection.template
-            : JSON.stringify(firstSection.template, null, 2)
+          typeof section.template === 'string'
+            ? section.template
+            : JSON.stringify(section.template, null, 2)
         );
       }
     } catch (err) {
@@ -121,6 +126,41 @@ export function TemplateEditor() {
     } finally {
       setLoading(false);
     }
+  }
+
+  // NEW: Handle section change
+  function handleSectionChange(newIndex: number) {
+    if (!template) return;
+
+    // Save current section content before switching
+    const updatedSections = [...template.content.sections];
+    if (updatedSections[currentSectionIndex]) {
+      updatedSections[currentSectionIndex] = {
+        ...updatedSections[currentSectionIndex],
+        template: editorValue
+      };
+    }
+
+    // Update template with saved sections
+    setTemplate({
+      ...template,
+      content: {
+        ...template.content,
+        sections: updatedSections
+      }
+    });
+
+    // Load new section content
+    const newSection = updatedSections[newIndex];
+    if (newSection) {
+      setEditorValue(
+        typeof newSection.template === 'string'
+          ? newSection.template
+          : JSON.stringify(newSection.template, null, 2)
+      );
+    }
+
+    setCurrentSectionIndex(newIndex);
   }
 
   async function handleSave() {
@@ -136,16 +176,23 @@ export function TemplateEditor() {
       // Build content
       const content: TemplateContent = template?.content || EMPTY_TEMPLATE;
 
-      // Update first section with editor value
-      if (content.sections[0]) {
-        content.sections[0].template = editorValue;
+      // Update current section with editor value before saving
+      const updatedSections = [...content.sections];
+      if (updatedSections[currentSectionIndex]) {
+        updatedSections[currentSectionIndex] = {
+          ...updatedSections[currentSectionIndex],
+          template: editorValue
+        };
       }
 
       const templateData = {
         name,
         description,
         template_type: templateType,
-        content
+        content: {
+          ...content,
+          sections: updatedSections
+        }
       };
 
       if (isNew) {
@@ -398,12 +445,46 @@ export function TemplateEditor() {
           {/* WYSIWYG Editor */}
           <Box sx={{ flex: showPreview ? 1 : 2, display: 'flex', flexDirection: 'column' }}>
             <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-              <Typography variant="subtitle2" fontWeight="bold">
-                Editor Template
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Usa il pulsante "Inserisci Placeholder" per aggiungere dati dinamici
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Box>
+                  <Typography variant="subtitle2" fontWeight="bold">
+                    Editor Template
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Usa il pulsante "Inserisci Placeholder" per aggiungere dati dinamici
+                  </Typography>
+                </Box>
+
+                {/* Section Navigator */}
+                {template && template.content.sections.length > 1 && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleSectionChange(currentSectionIndex - 1)}
+                      disabled={currentSectionIndex === 0}
+                    >
+                      <ChevronLeftIcon />
+                    </IconButton>
+
+                    <Box sx={{ textAlign: 'center', minWidth: 200 }}>
+                      <Typography variant="caption" display="block" color="text.secondary">
+                        Sezione {currentSectionIndex + 1} di {template.content.sections.length}
+                      </Typography>
+                      <Typography variant="body2" fontWeight="medium">
+                        {template.content.sections[currentSectionIndex]?.title || 'Senza titolo'}
+                      </Typography>
+                    </Box>
+
+                    <IconButton
+                      size="small"
+                      onClick={() => handleSectionChange(currentSectionIndex + 1)}
+                      disabled={currentSectionIndex >= template.content.sections.length - 1}
+                    >
+                      <ChevronRightIcon />
+                    </IconButton>
+                  </Box>
+                )}
+              </Box>
             </Box>
             <Box sx={{ flex: 1 }}>
               <WYSIWYGEditor
