@@ -43,7 +43,7 @@ import {
 } from '@mui/icons-material';
 import {
   listTemplates,
-  deleteTemplate,
+  hardDeleteTemplate,
   duplicateTemplate,
   exportTemplateToJSON,
   getTemplateVersions
@@ -139,8 +139,8 @@ export function Templates() {
     if (!selectedTemplate) return;
 
     try {
-      await deleteTemplate(selectedTemplate.id);
-      setSuccessMessage('Template eliminato con successo!');
+      await hardDeleteTemplate(selectedTemplate.id);
+      setSuccessMessage('Template eliminato definitivamente!');
       await loadTemplates();
       setDeleteDialogOpen(false);
       setSelectedTemplate(null);
@@ -372,19 +372,19 @@ export function Templates() {
 
       {/* Delete Dialog */}
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>Conferma Eliminazione</DialogTitle>
+        <DialogTitle>Conferma Eliminazione Permanente</DialogTitle>
         <DialogContent>
           <Typography>
-            Sei sicuro di voler eliminare il template "{selectedTemplate?.name}"?
+            Sei sicuro di voler eliminare permanentemente il template "{selectedTemplate?.name}"?
           </Typography>
-          <Typography variant="body2" color="text.secondary" mt={1}>
-            Il template verrà disattivato ma non eliminato permanentemente.
+          <Typography variant="body2" color="error.main" mt={1}>
+            ⚠️ Questa azione è irreversibile. Il template sarà eliminato definitivamente dal database.
           </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteDialogOpen(false)}>Annulla</Button>
           <Button onClick={handleDeleteConfirm} color="error" variant="contained">
-            Elimina
+            Elimina Definitivamente
           </Button>
         </DialogActions>
       </Dialog>
