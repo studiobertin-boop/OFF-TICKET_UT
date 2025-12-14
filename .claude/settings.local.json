@@ -38,7 +38,8 @@
       "Bash(manufacturer)",
       "Bash(installer:*)",
       "Bash(customer \")",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []

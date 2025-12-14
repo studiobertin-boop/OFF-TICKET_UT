@@ -5,6 +5,7 @@
 
 import { useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
 import {
   Box,
   Container,
@@ -28,6 +29,8 @@ import { BaseConfigStep } from '../components/wizard/steps/BaseConfigStep';
 import { SectionSelectionStep } from '../components/wizard/steps/SectionSelectionStep';
 import { PreviewStep } from '../components/wizard/steps/PreviewStep';
 import { getPredefinedSectionsByType } from '../utils/predefinedSections';
+import { convertWizardToTemplateContent, extractRequiredDataFromWizardSections } from '../utils/wizardConverter';
+import { createTemplate } from '../services/templateService';
 import toast from 'react-hot-toast';
 
 const STEPS = [
@@ -40,6 +43,7 @@ const STEPS = [
 export function TemplateWizard() {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const isEditMode = !!id;
 
   const wizard = useWizardState({
@@ -147,7 +151,6 @@ export function TemplateWizard() {
     }
 
     try {
-      // TODO: Implementare salvataggio template
       console.log('Saving template:', {
         name: wizard.state.name,
         description: wizard.state.description,
@@ -155,12 +158,36 @@ export function TemplateWizard() {
         sections: wizard.state.sections
       });
 
+      // Converti sezioni wizard in contenuto template
+      const templateContent = convertWizardToTemplateContent(wizard.state.sections);
+
+      // Estrai schema dati richiesti
+      const requiredFields = extractRequiredDataFromWizardSections(wizard.state.sections);
+      const requiredDataSchema = requiredFields.reduce((schema, field) => {
+        schema[field] = { required: true };
+        return schema;
+      }, {} as Record<string, any>);
+
+      console.log('Template content:', templateContent);
+      console.log('Required data schema:', requiredDataSchema);
+
+      // Crea template nel database
+      const savedTemplate = await createTemplate({
+        name: wizard.state.name,
+        description: wizard.state.description || '',
+        template_type: wizard.state.template_type,
+        content: templateContent,
+        required_data_schema: requiredDataSchema
+      }, user?.id);
+
+      console.log('Template saved successfully:', savedTemplate);
       toast.success('Template salvato con successo!');
       wizard.markClean();
       navigate('/templates');
     } catch (error) {
       console.error('Error saving template:', error);
-      toast.error('Errore durante il salvataggio');
+      const errorMessage = error instanceof Error ? error.message : 'Errore sconosciuto';
+      toast.error(`Errore durante il salvataggio: ${errorMessage}`);
     }
   };
 
