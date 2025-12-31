@@ -24,7 +24,12 @@
     "find-duplicates": "tsx scripts/find-duplicate-customers.ts",
     "cleanup-duplicates": "tsx scripts/cleanup-duplicate-customers.ts",
     "delete-all-customers": "tsx scripts/delete-all-customers.ts",
-    "smart-cleanup": "tsx scripts/smart-cleanup-customers.ts"
+    "smart-cleanup": "tsx scripts/smart-cleanup-customers.ts",
+    "test:carbone": "tsx scripts/test-carbone-render.ts",
+    "test:carbone:real": "tsx scripts/test-carbone-real-case.ts",
+    "create-template": "tsx scripts/create-minimal-template.ts",
+    "server": "tsx server/index.ts",
+    "server:dev": "tsx watch server/index.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -40,8 +45,14 @@
     "@mui/x-tree-view": "^8.21.0",
     "@supabase/supabase-js": "^2.48.1",
     "@tanstack/react-query": "^5.62.8",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "carbone": "^3.5.6",
+    "carbone-sdk": "^1.6.0",
+    "cors": "^2.8.5",
     "date-fns": "^4.1.0",
     "docx": "^9.5.1",
+    "express": "^5.2.1",
     "file-saver": "^2.0.5",
     "handlebars": "^4.7.8",
     "html2pdf.js": "^0.12.1",

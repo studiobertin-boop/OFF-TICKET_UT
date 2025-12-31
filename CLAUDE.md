@@ -74,3 +74,6 @@ Accesso libero a tutti stati inclusi SOSPESA, ABORTITA
 Dettagli setup: SETUP.md
 Processo sviluppo: WORKFLOW.md
 Docs: supabase.com/docs | mui.com | tanstack.com/query
+
+## PREFERENZE
+preferisco sempre caricare manualmente le migrations supabase tramite dashboard web

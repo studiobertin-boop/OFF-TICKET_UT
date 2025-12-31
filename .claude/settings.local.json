@@ -39,7 +39,17 @@
       "Bash(installer:*)",
       "Bash(customer \")",
       "Bash(python:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(wc:*)",
+      "Bash(git checkout:*)",
+      "Bash(node:*)",
+      "Bash(bash scripts/fix-template-conditionals.sh:*)",
+      "Bash(npm run test:carbone:real:*)",
+      "Bash(npm run server:*)",
+      "Bash(curl:*)",
+      "Bash(ls:*)",
+      "Bash(git stash push:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nchore: Add dependencies and configuration for future features\n\n- Add Carbone SDK and related dependencies for document generation\n- Add environment variable for Carbone server URL\n- Update Claude settings with new command permissions\n- Add user preference for manual Supabase migrations\n\nNote: Template system features are still in development and not included in this release.\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ],
     "deny": [],
     "ask": []
