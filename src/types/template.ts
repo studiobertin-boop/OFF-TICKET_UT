@@ -2,7 +2,7 @@
  * Types per il sistema di template per documenti (relazioni tecniche, etc.)
  */
 
-import type { WizardConfig } from './wizard';
+// import type { WizardConfig } from './wizard'; // Wizard rimosso temporaneamente
 
 // Tipologie di template supportate
 export type TemplateType = 'dm329_technical' | 'inail' | 'custom';
@@ -139,7 +139,7 @@ export interface ReportTemplate {
   required_data_schema?: Record<string, any>;
   // Campi wizard
   editor_mode?: TemplateEditorMode;
-  wizard_config?: WizardConfig;
+  wizard_config?: any; // WizardConfig temporaneamente rimosso
 }
 
 /**
