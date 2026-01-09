@@ -25,6 +25,15 @@ export const CustomerFormFields = ({
   const isMissing = (field: string) => highlightMissing && missingFields.includes(field)
   const isReadonly = (field: string) => readonlyFields.includes(field)
 
+  // Helper to check if ANY address field is missing
+  const hasAnyAddressMissing = () => {
+    if (!highlightMissing || showAllFields) return false
+    const addressFields = ['via', 'numero_civico', 'cap', 'comune', 'provincia']
+    return addressFields.some(field => missingFields.includes(field))
+  }
+
+  const showAddressFields = showAllFields || hasAnyAddressMissing()
+
   // Helper to render missing badge
   const MissingBadge = () => (
     <Chip label="Mancante" color="warning" size="small" sx={{ ml: 1 }} />
@@ -92,7 +101,6 @@ export const CustomerFormFields = ({
                 {...field}
                 label="Telefono"
                 fullWidth
-                required
                 disabled={isReadonly('telefono')}
                 error={!!errors.telefono}
                 helperText={errors.telefono?.message}
@@ -160,12 +168,7 @@ export const CustomerFormFields = ({
       )}
 
       {/* Sede Legale Section Header */}
-      {(showAllFields ||
-        isMissing('via') ||
-        isMissing('numero_civico') ||
-        isMissing('cap') ||
-        isMissing('comune') ||
-        isMissing('provincia')) && (
+      {showAddressFields && (
         <Grid item xs={12}>
           <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 1 }}>
             Sede Legale
@@ -174,7 +177,7 @@ export const CustomerFormFields = ({
       )}
 
       {/* Via */}
-      {(showAllFields || isMissing('via')) && (
+      {showAddressFields && (
         <Grid item xs={12} sm={8}>
           <Controller
             name="via"
@@ -184,7 +187,6 @@ export const CustomerFormFields = ({
                 {...field}
                 label="Via"
                 fullWidth
-                required
                 disabled={isReadonly('via')}
                 error={!!errors.via}
                 helperText={errors.via?.message}
@@ -199,7 +201,7 @@ export const CustomerFormFields = ({
       )}
 
       {/* Numero Civico */}
-      {(showAllFields || isMissing('numero_civico')) && (
+      {showAddressFields && (
         <Grid item xs={12} sm={4}>
           <Controller
             name="numero_civico"
@@ -209,7 +211,6 @@ export const CustomerFormFields = ({
                 {...field}
                 label="Numero Civico"
                 fullWidth
-                required
                 disabled={isReadonly('numero_civico')}
                 error={!!errors.numero_civico}
                 helperText={errors.numero_civico?.message}
@@ -224,7 +225,7 @@ export const CustomerFormFields = ({
       )}
 
       {/* CAP */}
-      {(showAllFields || isMissing('cap')) && (
+      {showAddressFields && (
         <Grid item xs={12} sm={3}>
           <Controller
             name="cap"
@@ -234,7 +235,6 @@ export const CustomerFormFields = ({
                 {...field}
                 label="CAP"
                 fullWidth
-                required
                 disabled={isReadonly('cap')}
                 error={!!errors.cap}
                 helperText={errors.cap?.message}
@@ -250,7 +250,7 @@ export const CustomerFormFields = ({
       )}
 
       {/* Comune */}
-      {(showAllFields || isMissing('comune')) && (
+      {showAddressFields && (
         <Grid item xs={12} sm={6}>
           <Controller
             name="comune"
@@ -260,7 +260,6 @@ export const CustomerFormFields = ({
                 {...field}
                 label="Comune"
                 fullWidth
-                required
                 disabled={isReadonly('comune')}
                 error={!!errors.comune}
                 helperText={errors.comune?.message}
@@ -275,7 +274,7 @@ export const CustomerFormFields = ({
       )}
 
       {/* Provincia */}
-      {(showAllFields || isMissing('provincia')) && (
+      {showAddressFields && (
         <Grid item xs={12} sm={3}>
           <Controller
             name="provincia"
@@ -285,7 +284,6 @@ export const CustomerFormFields = ({
                 {...field}
                 label="Provincia"
                 fullWidth
-                required
                 disabled={isReadonly('provincia')}
                 error={!!errors.provincia}
                 helperText={errors.provincia?.message}

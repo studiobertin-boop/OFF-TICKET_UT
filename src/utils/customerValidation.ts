@@ -4,11 +4,14 @@ import { Customer, CustomerCompleteness } from '@/types'
 /**
  * Zod schema for Italian phone number validation
  * Accepts: +39, 0039, or direct format with flexible spacing/dashes
+ * Optional field - validates format only when provided
  */
 export const telefonoSchema = z.string()
-  .min(1, 'Il numero di telefono è obbligatorio')
+  .optional()
   .refine(
     (val) => {
+      // Allow empty/undefined
+      if (!val || val.trim() === '') return true
       // Remove all spaces, dashes, and parentheses for validation
       const cleaned = val.replace(/[\s\-\(\)]/g, '')
       // Accept +39..., 0039..., or direct number (6-11 digits after prefix)
@@ -27,46 +30,71 @@ export const pecSchema = z.string()
   .refine(
     (val) => {
       const lower = val.toLowerCase()
-      return (
-        lower.endsWith('.pec.it') ||
-        lower.endsWith('.legalmail.it') ||
-        lower.endsWith('.arubapec.it') ||
-        lower.endsWith('.postacert.it') ||
-        lower.endsWith('.sicurezzapostale.it') ||
-        lower.endsWith('.cert.agenziaentrate.it')
+      // Match either @domain.it or @subdomain.domain.it for common PEC providers
+      const pecDomains = [
+        'pec.it',
+        'legalmail.it',
+        'arubapec.it',
+        'postacert.it',
+        'sicurezzapostale.it',
+        'cert.agenziaentrate.it'
+      ]
+      return pecDomains.some(domain =>
+        lower.endsWith('@' + domain) || lower.endsWith('.' + domain)
       )
     },
-    { message: 'La PEC deve terminare con un dominio certificato valido (es: .pec.it, .legalmail.it, .arubapec.it)' }
+    { message: 'La PEC deve terminare con un dominio certificato valido (es: @pec.it, @legalmail.it, @arubapec.it)' }
   )
 
 /**
  * Zod schema for Italian CAP (postal code) validation
- * Must be exactly 5 digits
+ * Must be exactly 5 digits when provided (optional field)
  */
 export const capSchema = z.string()
-  .regex(/^[0-9]{5}$/, 'Il CAP deve essere di 5 cifre')
+  .optional()
+  .refine(
+    (val) => {
+      // Allow empty/undefined
+      if (!val || val.trim() === '') return true
+      // Must be exactly 5 digits when provided
+      return /^[0-9]{5}$/.test(val)
+    },
+    { message: 'Il CAP deve essere di 5 cifre' }
+  )
 
 /**
  * Zod schema for Italian provincia (province) validation
- * Must be exactly 2 uppercase letters
+ * Must be exactly 2 uppercase letters when provided (optional field)
  */
 export const provinciaSchema = z.string()
-  .length(2, 'La provincia deve essere di 2 caratteri')
-  .regex(/^[A-Z]{2}$/, 'La provincia deve essere in maiuscolo (es: MI, RM, TO)')
+  .optional()
+  .refine(
+    (val) => {
+      // Allow empty/undefined
+      if (!val || val.trim() === '') return true
+      // Must be exactly 2 uppercase letters when provided
+      return /^[A-Z]{2}$/.test(val) && val.length === 2
+    },
+    { message: 'La provincia deve essere di 2 caratteri in maiuscolo (es: MI, RM, TO)' }
+  )
 
 /**
  * Complete Zod schema for creating a customer with all required fields
+ * Note: telefono and address fields (via, numero_civico, cap, comune, provincia) are optional
  */
 export const createCustomerSchema = z.object({
   ragione_sociale: z.string().min(1, 'La ragione sociale è obbligatoria'),
-  identificativo: z.string().regex(/^CLI-[0-9]{4}$/, 'Formato identificativo non valido (CLI-XXXX)').optional(),
+  identificativo: z.union([
+    z.string().regex(/^CLI-[0-9]{4}$/, 'Formato identificativo non valido (CLI-XXXX)'),
+    z.literal(''), // Allow empty string for auto-generation
+  ]).optional(),
   telefono: telefonoSchema,
   pec: pecSchema,
   descrizione_attivita: z.string().min(1, 'La descrizione attività è obbligatoria'),
-  via: z.string().min(1, 'L\'indirizzo è obbligatorio'),
-  numero_civico: z.string().min(1, 'Il numero civico è obbligatorio'),
+  via: z.string().optional(),
+  numero_civico: z.string().optional(),
   cap: capSchema,
-  comune: z.string().min(1, 'Il comune è obbligatorio'),
+  comune: z.string().optional(),
   provincia: provinciaSchema,
 })
 
@@ -118,19 +146,14 @@ function isEmpty(value: any): boolean {
 /**
  * Identifies which required fields are missing from a customer record
  * Returns array of missing field identifiers with their labels
+ * Note: telefono and address fields are no longer required
  */
 export function getMissingCustomerFields(customer: Customer): Array<{ field: keyof Customer; label: string }> {
   const requiredFields: Array<keyof Customer> = [
     'ragione_sociale',
     'identificativo',
-    'telefono',
     'pec',
     'descrizione_attivita',
-    'via',
-    'numero_civico',
-    'cap',
-    'comune',
-    'provincia',
   ]
 
   return requiredFields
