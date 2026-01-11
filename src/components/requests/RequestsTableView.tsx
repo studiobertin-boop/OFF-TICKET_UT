@@ -26,13 +26,18 @@ import {
   Print as PrintIcon,
   FileDownload as FileDownloadIcon,
 } from '@mui/icons-material'
-import { Request, RequestStatus } from '@/types'
+import { Request, RequestStatus, StatoFattura, STATO_FATTURA_OPTIONS, STATO_FATTURA_LABELS } from '@/types'
 import { getStatusColor, getStatusLabel } from '@/utils/workflow'
 import { usePersistedState } from '@/hooks/usePersistedState'
 import { BlockIndicator } from './BlockIndicator'
 import { UrgentIndicator } from './UrgentIndicator'
 import { NewMessageIndicator } from './NewMessageIndicator'
+import { EditableSelectCell } from './EditableSelectCell'
 import { requestMessageViewsApi } from '@/services/api/requestMessageViews'
+import { requestsApi } from '@/services/api/requests'
+import { useAuth } from '@/hooks/useAuth'
+import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'react-hot-toast'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
 import {
@@ -54,7 +59,7 @@ interface RequestsTableViewProps {
 }
 
 type OrderDirection = 'asc' | 'desc'
-type OrderBy = 'updated_at' | 'request_type' | 'cliente' | 'status' | 'created_by' | 'is_urgent'
+type OrderBy = 'updated_at' | 'request_type' | 'cliente' | 'status' | 'created_by' | 'is_urgent' | 'stato_fattura'
 
 const GENERAL_STATUSES: RequestStatus[] = [
   'APERTA',
@@ -74,6 +79,8 @@ export const RequestsTableView = ({
   showPrintButton = true,
 }: RequestsTableViewProps) => {
   const navigate = useNavigate()
+  const { isAdmin } = useAuth()
+  const queryClient = useQueryClient()
 
   // Stati persistiti nel sessionStorage
   const [orderBy, setOrderBy] = usePersistedState<OrderBy>('requestsTable_orderBy', 'updated_at')
@@ -85,6 +92,7 @@ export const RequestsTableView = ({
   const [clienteSearchText, setClienteSearchText] = useState('')
   const [statoFilter, setStatoFilter] = usePersistedState<RequestStatus[]>('requestsTable_statoFilter', [])
   const [creatorFilter, setCreatorFilter] = usePersistedState<string[]>('requestsTable_creatorFilter', [])
+  const [statoFatturaFilter, setStatoFatturaFilter] = usePersistedState<StatoFattura[]>('requestsTable_statoFatturaFilter', [])
 
   // State for unread message status
   const [unreadStatus, setUnreadStatus] = useState<Record<string, boolean>>({})
@@ -104,6 +112,38 @@ export const RequestsTableView = ({
       fetchUnreadStatus()
     }
   }, [requests])
+
+  // Validation for stato_fattura
+  const validateStatoFatturaGeneral = (
+    value: StatoFattura,
+    status: string
+  ): { valid: boolean; error?: string } => {
+    if (value === 'SI') {
+      if (status !== 'COMPLETATA' && status !== 'ABORTITA') {
+        return {
+          valid: false,
+          error: 'Stato "Sì" impostabile solo su richieste COMPLETATE o ABORTITE'
+        }
+      }
+    }
+    return { valid: true }
+  }
+
+  // Handler for saving stato_fattura
+  const handleSaveStatoFattura = async (
+    requestId: string,
+    newValue: StatoFattura,
+    requestStatus: string
+  ) => {
+    const validation = validateStatoFatturaGeneral(newValue, requestStatus)
+    if (!validation.valid) {
+      throw new Error(validation.error)
+    }
+
+    await requestsApi.updateCustomField(requestId, 'stato_fattura', newValue)
+    await queryClient.invalidateQueries({ queryKey: ['requests'] })
+    toast.success('Stato fattura aggiornato')
+  }
 
   const handleSort = (property: OrderBy) => {
     const isAsc = orderBy === property && order === 'asc'
@@ -179,6 +219,12 @@ export const RequestsTableView = ({
         creatorFilter.includes(req.creator?.full_name || '')
       )
     }
+    if (statoFatturaFilter.length > 0) {
+      filtered = filtered.filter(req => {
+        const statoFattura = (req.custom_fields?.stato_fattura as StatoFattura) || 'NO'
+        return statoFatturaFilter.includes(statoFattura)
+      })
+    }
 
     // Applica ordinamento
     filtered.sort((a, b) => {
@@ -225,6 +271,10 @@ export const RequestsTableView = ({
           aValue = a.is_urgent ? 1 : 0
           bValue = b.is_urgent ? 1 : 0
           break
+        case 'stato_fattura':
+          aValue = (a.custom_fields?.stato_fattura as string) || 'NO'
+          bValue = (b.custom_fields?.stato_fattura as string) || 'NO'
+          break
         default:
           return 0
       }
@@ -247,9 +297,10 @@ export const RequestsTableView = ({
     setClienteSearchText('')
     setStatoFilter([])
     setCreatorFilter([])
+    setStatoFatturaFilter([])
   }
 
-  const hasActiveFilters = tipoFilter.length > 0 || clienteFilter.length > 0 || statoFilter.length > 0 || creatorFilter.length > 0
+  const hasActiveFilters = tipoFilter.length > 0 || clienteFilter.length > 0 || statoFilter.length > 0 || creatorFilter.length > 0 || statoFatturaFilter.length > 0
 
   // Check if all filteredAndSortedRequests are selected
   const allSelected = selectionEnabled &&
@@ -291,30 +342,40 @@ export const RequestsTableView = ({
       creatorFilter,
     })
 
+    const printColumns = [
+      {
+        header: 'Data Ultimo Cambio',
+        getValue: (req: Request) => formatDateField(req.updated_at),
+      },
+      {
+        header: 'Tipo',
+        getValue: (req: Request) => req.request_type?.name || 'N/A',
+      },
+      {
+        header: 'Cliente',
+        getValue: (req: Request) => formatClienteField(req),
+      },
+      {
+        header: 'Stato',
+        getValue: (req: Request) => getStatusLabel(req.status),
+      },
+      {
+        header: 'Creata da',
+        getValue: (req: Request) => req.creator?.full_name || 'N/A',
+      },
+    ]
+
+    if (isAdmin) {
+      printColumns.push({
+        header: 'Stato Fattura',
+        getValue: (req: Request) =>
+          STATO_FATTURA_LABELS[(req.custom_fields?.stato_fattura as StatoFattura) || 'NO'],
+      })
+    }
+
     const html = generatePrintHTML({
       title: 'Richieste Generali',
-      columns: [
-        {
-          header: 'Data Ultimo Cambio',
-          getValue: (req) => formatDateField(req.updated_at),
-        },
-        {
-          header: 'Tipo',
-          getValue: (req) => req.request_type?.name || 'N/A',
-        },
-        {
-          header: 'Cliente',
-          getValue: (req) => formatClienteField(req),
-        },
-        {
-          header: 'Stato',
-          getValue: (req) => getStatusLabel(req.status),
-        },
-        {
-          header: 'Creata da',
-          getValue: (req) => req.creator?.full_name || 'N/A',
-        },
-      ],
+      columns: printColumns,
       data: filteredAndSortedRequests,
       metadata: {
         totalRecords: requests.length,
@@ -371,6 +432,9 @@ export const RequestsTableView = ({
             )}
             {creatorFilter.length > 0 && (
               <Chip label={`Creatori: ${creatorFilter.length}`} size="small" onDelete={() => setCreatorFilter([])} />
+            )}
+            {statoFatturaFilter.length > 0 && (
+              <Chip label={`Stato Fattura: ${statoFatturaFilter.length}`} size="small" onDelete={() => setStatoFatturaFilter([])} />
             )}
           </Box>
           <IconButton size="small" onClick={clearFilters} color="primary" title="Cancella tutti i filtri">
@@ -600,6 +664,48 @@ export const RequestsTableView = ({
                   </Select>
                 </FormControl>
               </TableCell>
+
+              {/* Stato Fattura - solo per admin */}
+              {isAdmin && (
+                <TableCell sx={{ minWidth: 160 }}>
+                  <TableSortLabel
+                    active={orderBy === 'stato_fattura'}
+                    direction={orderBy === 'stato_fattura' ? order : 'asc'}
+                    onClick={() => handleSort('stato_fattura')}
+                  >
+                    Stato Fattura
+                  </TableSortLabel>
+                  <FormControl size="small" fullWidth sx={{ mt: 1 }}>
+                    <Select
+                      multiple
+                      displayEmpty
+                      value={statoFatturaFilter}
+                      onChange={(e) => setStatoFatturaFilter(e.target.value as StatoFattura[])}
+                      input={<OutlinedInput />}
+                      renderValue={(selected) => {
+                        if (selected.length === 0) {
+                          return <em>Tutti</em>
+                        }
+                        return `${selected.length} selezionati`
+                      }}
+                      MenuProps={{
+                        PaperProps: {
+                          style: {
+                            maxHeight: 300,
+                          },
+                        },
+                      }}
+                    >
+                      {STATO_FATTURA_OPTIONS.map((option) => (
+                        <MenuItem key={option} value={option}>
+                          <Checkbox checked={statoFatturaFilter.indexOf(option) > -1} />
+                          <ListItemText primary={STATO_FATTURA_LABELS[option]} />
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </TableCell>
+              )}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -669,12 +775,33 @@ export const RequestsTableView = ({
                   />
                 </TableCell>
                 <TableCell>{request.creator?.full_name || 'N/A'}</TableCell>
+
+                {/* Stato Fattura - solo per admin */}
+                {isAdmin && (
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <EditableSelectCell
+                      value={(request.custom_fields?.stato_fattura as StatoFattura) || 'NO'}
+                      options={STATO_FATTURA_OPTIONS}
+                      optionLabels={STATO_FATTURA_LABELS}
+                      onSave={(newValue) =>
+                        handleSaveStatoFattura(request.id, newValue as StatoFattura, request.status)
+                      }
+                      validate={(value) =>
+                        validateStatoFatturaGeneral(value as StatoFattura, request.status)
+                      }
+                    />
+                  </TableCell>
+                )}
               </TableRow>
             ))}
 
             {filteredAndSortedRequests.length === 0 && (
               <TableRow>
-                <TableCell colSpan={selectionEnabled ? 9 : 8} align="center" sx={{ py: 3 }}>
+                <TableCell
+                  colSpan={selectionEnabled ? (isAdmin ? 10 : 9) : (isAdmin ? 9 : 8)}
+                  align="center"
+                  sx={{ py: 3 }}
+                >
                   Nessuna richiesta trovata
                 </TableCell>
               </TableRow>

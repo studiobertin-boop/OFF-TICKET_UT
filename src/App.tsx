@@ -19,6 +19,7 @@ import InstallersManagement from '@/pages/InstallersManagement'
 import { Templates } from '@/pages/Templates'
 import { TemplateEditor } from '@/pages/TemplateEditor'
 import { CIVASummary } from '@/pages/CIVASummary'
+import BillingReport from '@/pages/BillingReport'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -170,6 +171,14 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={['admin']}>
                     <TemplateEditor />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/reports/billing"
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <BillingReport />
                   </ProtectedRoute>
                 }
               />

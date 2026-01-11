@@ -317,6 +317,31 @@ export const Requests = () => {
   const handleBulkUpdateStatoFattura = async (value: StatoFattura) => {
     try {
       const requestIds = Array.from(selectedRequests)
+
+      // Validazione preventiva se stato = "SI"
+      if (value === 'SI') {
+        const requestsToUpdate = displayRequests.filter(r => requestIds.includes(r.id))
+        const isDM329Tab = activeTab === 1
+
+        const invalidRequests = requestsToUpdate.filter(r => {
+          if (isDM329Tab) {
+            return r.status !== '7-CHIUSA' && r.status !== 'ARCHIVIATA NON FINITA'
+          } else {
+            return r.status !== 'COMPLETATA' && r.status !== 'ABORTITA'
+          }
+        })
+
+        if (invalidRequests.length > 0) {
+          const statiRichiesti = isDM329Tab
+            ? 'CHIUSE o ARCHIVIATE NON FINITE'
+            : 'COMPLETATE o ABORTITE'
+          throw new Error(
+            `${invalidRequests.length} richiesta/e non possono essere impostate a "Sì". ` +
+            `Devono essere ${statiRichiesti}.`
+          )
+        }
+      }
+
       await requestsApi.bulkUpdateStatoFattura(requestIds, value)
       await queryClient.invalidateQueries({ queryKey: ['requests'] })
       toast.success(`${requestIds.length} richieste aggiornate`)
@@ -577,7 +602,10 @@ export const Requests = () => {
             onBulkDelete={handleBulkDelete}
             onClearSelection={handleClearSelection}
             onBulkUpdateStatoFattura={handleBulkUpdateStatoFattura}
-            showStatoFatturaUpdate={activeTab === 1 && (user?.role === 'admin' || user?.role === 'userdm329')}
+            showStatoFatturaUpdate={
+              (activeTab === 0 && user?.role === 'admin') ||
+              (activeTab === 1 && (user?.role === 'admin' || user?.role === 'userdm329'))
+            }
             hasCompletedRequests={hasCompletedRequests}
           />
         )}

@@ -6,7 +6,6 @@ import {
   Chip,
   CircularProgress,
   Tooltip,
-  ClickAwayListener,
 } from '@mui/material'
 
 interface EditableSelectCellProps {
@@ -99,30 +98,35 @@ export const EditableSelectCell = ({
 
   if (isEditing) {
     return (
-      <ClickAwayListener onClickAway={handleCancel}>
-        <Box ref={selectRef} onKeyDown={handleKeyDown}>
-          <Select
-            value={currentValue}
-            onChange={(e) => handleChange(e.target.value)}
-            size="small"
-            fullWidth
-            autoFocus
-            error={!!error}
-            sx={{ minWidth: 120 }}
-          >
-            {options.map((option) => (
-              <MenuItem key={option} value={option}>
-                {getLabel(option)}
-              </MenuItem>
-            ))}
-          </Select>
-          {error && (
-            <Box sx={{ color: 'error.main', fontSize: '0.75rem', mt: 0.5 }}>
-              {error}
-            </Box>
-          )}
-        </Box>
-      </ClickAwayListener>
+      <Box ref={selectRef} onKeyDown={handleKeyDown}>
+        <Select
+          value={currentValue}
+          onChange={(e) => handleChange(e.target.value)}
+          onClose={(e) => {
+            // Close the select but keep editing mode if there's an error
+            if (!error) {
+              handleCancel()
+            }
+          }}
+          open={isEditing}
+          size="small"
+          fullWidth
+          autoFocus
+          error={!!error}
+          sx={{ minWidth: 120 }}
+        >
+          {options.map((option) => (
+            <MenuItem key={option} value={option}>
+              {getLabel(option)}
+            </MenuItem>
+          ))}
+        </Select>
+        {error && (
+          <Box sx={{ color: 'error.main', fontSize: '0.75rem', mt: 0.5 }}>
+            {error}
+          </Box>
+        )}
+      </Box>
     )
   }
 

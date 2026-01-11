@@ -28,6 +28,7 @@ import {
   Archive as ArchiveIcon,
   Notifications as NotificationsIcon,
   Description as TemplateIcon,
+  Receipt as ReceiptIcon,
 } from '@mui/icons-material'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -164,6 +165,12 @@ export const Layout = ({ children }: LayoutProps) => {
                       <ArchiveIcon fontSize="small" />
                     </ListItemIcon>
                     <ListItemText>Archivio Eliminazioni</ListItemText>
+                  </MenuItem>
+                  <MenuItem onClick={() => handleAdminNavigate('/reports/billing')}>
+                    <ListItemIcon>
+                      <ReceiptIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText>Report Fatturazione</ListItemText>
                   </MenuItem>
                 </Menu>
               </>

@@ -148,14 +148,14 @@ export const NewRequest = () => {
         }
       })
 
+      // Set default stato_fattura for all request types
+      processedData.stato_fattura = 'NO'
+
       // Generate title based on request type
       let title = `${selectedType.name} - ${new Date().toLocaleDateString('it-IT')}`
 
-      // For DM329, include customer name in title and set default stato_fattura
+      // For DM329, include customer name in title
       if (selectedType.name === 'DM329') {
-        // Set default stato_fattura
-        processedData.stato_fattura = 'NO'
-
         // Include customer name in title
         if (processedData.cliente) {
           const clienteName = typeof processedData.cliente === 'string'
