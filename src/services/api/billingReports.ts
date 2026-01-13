@@ -24,6 +24,7 @@ export const billingReportsApi = {
     dateTo: string
   ): Promise<BillingReportData> => {
     // Query Supabase per richieste chiuse nel periodo
+    // NOTA: escluso "ARCHIVIATA NON FINITA" dal report
     const { data, error } = await supabase
       .from('requests')
       .select(`
@@ -34,7 +35,7 @@ export const billingReportsApi = {
         updated_at,
         request_type:request_types(id, name)
       `)
-      .or('status.eq.COMPLETATA,status.eq.ABORTITA,status.eq.7-CHIUSA,status.eq.ARCHIVIATA NON FINITA')
+      .or('status.eq.COMPLETATA,status.eq.ABORTITA,status.eq.7-CHIUSA')
       .gte('updated_at', `${dateFrom}T00:00:00`)
       .lte('updated_at', `${dateTo}T23:59:59`)
       .order('updated_at', { ascending: false })
@@ -84,13 +85,21 @@ export const billingReportsApi = {
         request_type: {
           name: r.request_type?.name || 'N/A',
         },
+        off_cac: r.custom_fields?.off_cac as string | undefined,
       }
     })
 
     // Group by request_type
+    // Per DM329, dividi in DM329-OFF e DM329-CAC basato sul campo off_cac
     const grouped: BillingReportData = {}
     items.forEach(item => {
-      const typeName = item.request_type.name
+      let typeName = item.request_type.name
+
+      // Se è una pratica DM329, aggiungi il suffisso OFF o CAC
+      if (typeName === 'DM329' && item.off_cac) {
+        typeName = `DM329-${item.off_cac.toUpperCase()}`
+      }
+
       if (!grouped[typeName]) {
         grouped[typeName] = []
       }

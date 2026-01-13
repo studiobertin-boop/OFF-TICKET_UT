@@ -18,6 +18,7 @@ export interface BillingRequestItem {
   request_type: {
     name: string
   }
+  off_cac?: string // Per pratiche DM329: 'off' o 'cac'
 }
 
 export interface BillingReportFilters {
