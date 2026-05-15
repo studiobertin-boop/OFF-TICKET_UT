@@ -101,8 +101,8 @@ export const generalAnalyticsApi = {
       .from('requests')
       .select('status, request_type:request_types!inner(name)', { count: 'exact' });
 
-    // ESCLUDI DM329
-    query = query.neq('request_type.name', 'DM329');
+    // ESCLUDI DM329 e DM329-Integrazioni
+    query = query.neq('request_type.name', 'DM329').neq('request_type.name', 'DM329-Integrazioni');
 
     // Filtri data
     if (filters.dateFrom) {
@@ -147,6 +147,7 @@ export const generalAnalyticsApi = {
       .from('request_completions')
       .select('*', { count: 'exact', head: true })
       .neq('request_type_name', 'DM329')
+      .neq('request_type_name', 'DM329-Integrazioni')
       .eq('status', 'COMPLETATA');
 
     if (filters.dateFrom) {
@@ -177,8 +178,8 @@ export const generalAnalyticsApi = {
       .from('requests')
       .select('status, request_type:request_types!inner(name)');
 
-    // ESCLUDI DM329
-    query = query.neq('request_type.name', 'DM329');
+    // ESCLUDI DM329 e DM329-Integrazioni
+    query = query.neq('request_type.name', 'DM329').neq('request_type.name', 'DM329-Integrazioni');
 
     // Filtri
     if (filters.dateFrom) query = query.gte('created_at', filters.dateFrom);
@@ -216,8 +217,8 @@ export const generalAnalyticsApi = {
       .from('requests')
       .select('request_type_id, request_type:request_types!inner(id, name)');
 
-    // ESCLUDI DM329
-    query = query.neq('request_type.name', 'DM329');
+    // ESCLUDI DM329 e DM329-Integrazioni
+    query = query.neq('request_type.name', 'DM329').neq('request_type.name', 'DM329-Integrazioni');
 
     // Filtri
     if (filters.dateFrom) query = query.gte('created_at', filters.dateFrom);
@@ -258,8 +259,8 @@ export const generalAnalyticsApi = {
       .select('assigned_to, assigned_user:users!requests_assigned_to_fkey(id, full_name), request_type:request_types!inner(name)')
       .not('assigned_to', 'is', null);
 
-    // ESCLUDI DM329
-    query = query.neq('request_type.name', 'DM329');
+    // ESCLUDI DM329 e DM329-Integrazioni
+    query = query.neq('request_type.name', 'DM329').neq('request_type.name', 'DM329-Integrazioni');
 
     // Filtri
     if (filters.dateFrom) query = query.gte('created_at', filters.dateFrom);
@@ -301,8 +302,8 @@ export const generalAnalyticsApi = {
       .from('requests')
       .select('created_at, request_type:request_types!inner(name)');
 
-    // ESCLUDI DM329
-    query = query.neq('request_type.name', 'DM329');
+    // ESCLUDI DM329 e DM329-Integrazioni
+    query = query.neq('request_type.name', 'DM329').neq('request_type.name', 'DM329-Integrazioni');
 
     // Filtri
     if (filters.dateFrom) query = query.gte('created_at', filters.dateFrom);
@@ -356,8 +357,8 @@ export const generalAnalyticsApi = {
       .from('requests')
       .select('created_by, creator:users!requests_created_by_fkey(id, full_name), request_type:request_types!inner(name)');
 
-    // ESCLUDI DM329
-    query = query.neq('request_type.name', 'DM329');
+    // ESCLUDI DM329 e DM329-Integrazioni
+    query = query.neq('request_type.name', 'DM329').neq('request_type.name', 'DM329-Integrazioni');
 
     // Filtri
     if (filters.dateFrom) query = query.gte('created_at', filters.dateFrom);

@@ -44,7 +44,7 @@ import { ConfirmHideDialog } from '@/components/requests/ConfirmHideDialog'
 import { ConfirmDeleteDialog } from '@/components/requests/ConfirmDeleteDialog'
 import { AttachmentsSection } from '@/components/requests/AttachmentsSection'
 import { useActiveBlock } from '@/hooks/useRequestBlocks'
-import { getStatusColor, getStatusLabel } from '@/utils/workflow'
+import { getStatusColor, getStatusLabel, isDM329Family } from '@/utils/workflow'
 
 export const RequestDetail = () => {
   const { id } = useParams<{ id: string }>()
@@ -154,14 +154,14 @@ export const RequestDetail = () => {
   // Only admin and userdm329 (on DM329 requests) can block
   const canBlock =
     user?.role === 'admin' ||
-    (user?.role === 'userdm329' && request.request_type?.name === 'DM329')
+    (user?.role === 'userdm329' && isDM329Family(request.request_type?.name))
 
   // Determine if user can unblock
   // Admin: always
   // Tecnico: only on general requests (not DM329)
   // Userdm329: only on DM329 requests
   // Utente: only on general requests (not DM329)
-  const isDM329 = request.request_type?.name === 'DM329'
+  const isDM329 = isDM329Family(request.request_type?.name)
   const canUnblock =
     user?.role === 'admin' ||
     (user?.role === 'tecnico' && !isDM329) ||
@@ -252,18 +252,22 @@ export const RequestDetail = () => {
               </Button>
             )}
 
+            {/* Attribuisci: admin sempre, userdm329 su pratiche DM329-family */}
+            {(user?.role === 'admin' || (user?.role === 'userdm329' && isDM329)) && (
+              <Button
+                variant="outlined"
+                color="primary"
+                startIcon={<PersonAddIcon />}
+                onClick={() => setAttributeDialogOpen(true)}
+                size="small"
+              >
+                Attribuisci
+              </Button>
+            )}
+
             {/* Admin actions */}
             {user?.role === 'admin' && (
               <>
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  startIcon={<PersonAddIcon />}
-                  onClick={() => setAttributeDialogOpen(true)}
-                  size="small"
-                >
-                  Attribuisci
-                </Button>
                 <Button
                   variant="outlined"
                   color="warning"

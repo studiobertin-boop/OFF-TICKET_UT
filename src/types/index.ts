@@ -127,6 +127,7 @@ export interface Request {
   status: RequestStatus | DM329Status
   assigned_to?: string
   assigned_user?: User
+  attributed_to?: string
   created_by: string
   creator?: User
   customer_id?: string | null

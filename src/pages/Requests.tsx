@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Box,
@@ -12,6 +12,7 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Menu,
   CircularProgress,
   Alert,
   ToggleButton,
@@ -35,7 +36,7 @@ import { useRequests } from '@/hooks/useRequests'
 import { useRequestTypes } from '@/hooks/useRequestTypes'
 import { useAuth } from '@/hooks/useAuth'
 import { usePersistedState } from '@/hooks/usePersistedState'
-import { getStatusColor, getStatusLabel } from '@/utils/workflow'
+import { getStatusColor, getStatusLabel, isDM329Family } from '@/utils/workflow'
 import type { DM329Status, StatoFattura } from '@/types'
 import { requestsApi } from '@/services/api/requests'
 import { RequestsTableView } from '@/components/requests/RequestsTableView'
@@ -93,6 +94,9 @@ export const Requests = () => {
   const [dm329NoCivaFilter, setDm329NoCivaFilter] = usePersistedState<'all' | 'true' | 'false'>('requests_dm329NoCivaFilter', 'all')
   const [dm329NoteFilter, setDm329NoteFilter] = usePersistedState<string>('requests_dm329NoteFilter', '')
 
+  // Anchor per il menu "Nuova Richiesta" (userdm329 con più tipi DM329)
+  const [newRequestMenuAnchor, setNewRequestMenuAnchor] = useState<null | HTMLElement>(null)
+
   // Selection state
   const [selectedRequests, setSelectedRequests] = useState<Set<string>>(new Set())
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false)
@@ -124,14 +128,18 @@ export const Requests = () => {
 
   const hiddenRequests = hiddenRequestsQuery.data || []
 
-  // Trova l'ID del tipo DM329
-  const dm329Type = requestTypes.find(t => t.name === 'DM329')
+  // Tipi della famiglia DM329 (DM329 + DM329-Integrazioni)
+  const dm329Types = useMemo(() => requestTypes.filter(t => isDM329Family(t.name)), [requestTypes])
+  const dm329TypeIds = useMemo(() => new Set(dm329Types.map(t => t.id)), [dm329Types])
 
   // Handler per il pulsante Nuova Richiesta
-  const handleNewRequest = () => {
-    // Se è userdm329, va direttamente al form DM329
-    if (user?.role === 'userdm329' && dm329Type) {
-      navigate(`/requests/new?type=${dm329Type.id}`)
+  const handleNewRequest = (event: React.MouseEvent<HTMLElement>) => {
+    if (user?.role === 'userdm329') {
+      if (dm329Types.length === 1) {
+        navigate(`/requests/new?type=${dm329Types[0].id}`)
+      } else if (dm329Types.length > 1) {
+        setNewRequestMenuAnchor(event.currentTarget)
+      }
     } else {
       navigate('/requests/new')
     }
@@ -139,17 +147,17 @@ export const Requests = () => {
 
   // Separa le richieste visibili DM329 dalle altre
   const { dm329Requests, otherRequests } = useMemo(() => {
-    const dm329 = visibleRequests.filter(r => r.request_type_id === dm329Type?.id)
-    const other = visibleRequests.filter(r => r.request_type_id !== dm329Type?.id)
+    const dm329 = visibleRequests.filter(r => dm329TypeIds.has(r.request_type_id))
+    const other = visibleRequests.filter(r => !dm329TypeIds.has(r.request_type_id))
     return { dm329Requests: dm329, otherRequests: other }
-  }, [visibleRequests, dm329Type])
+  }, [visibleRequests, dm329TypeIds])
 
   // Separa le richieste nascoste DM329 dalle altre
   const { hiddenDM329Requests, hiddenOtherRequests } = useMemo(() => {
-    const dm329 = hiddenRequests.filter(r => r.request_type_id === dm329Type?.id)
-    const other = hiddenRequests.filter(r => r.request_type_id !== dm329Type?.id)
+    const dm329 = hiddenRequests.filter(r => dm329TypeIds.has(r.request_type_id))
+    const other = hiddenRequests.filter(r => !dm329TypeIds.has(r.request_type_id))
     return { hiddenDM329Requests: dm329, hiddenOtherRequests: other }
-  }, [hiddenRequests, dm329Type])
+  }, [hiddenRequests, dm329TypeIds])
 
   // Solo userdm329 non può vedere il tab generale
   const canViewGeneralTab = user?.role !== 'userdm329'
@@ -414,6 +422,23 @@ export const Requests = () => {
             >
               Nuova Richiesta
             </Button>
+            <Menu
+              anchorEl={newRequestMenuAnchor}
+              open={Boolean(newRequestMenuAnchor)}
+              onClose={() => setNewRequestMenuAnchor(null)}
+            >
+              {dm329Types.map(type => (
+                <MenuItem
+                  key={type.id}
+                  onClick={() => {
+                    setNewRequestMenuAnchor(null)
+                    navigate(`/requests/new?type=${type.id}`)
+                  }}
+                >
+                  {type.name}
+                </MenuItem>
+              ))}
+            </Menu>
           </Box>
         </Box>
 

@@ -31,6 +31,7 @@ import { ShareDialog } from '@/components/technicalSheet/ShareDialog'
 import { GenerateReportDialog } from '@/components/reports/GenerateReportDialog'
 import { EquipmentCatalogProvider } from '@/components/technicalSheet/EquipmentCatalogContext'
 import type { DM329TechnicalData, SchedaDatiCompleta, OCRExtractedData, FuzzyMatch, OCRReviewData } from '@/types'
+import { isDM329Family } from '@/utils/workflow'
 
 /**
  * Pagina SCHEDA DATI - Gestione dati tecnici pratiche DM329
@@ -303,7 +304,7 @@ export const TechnicalDetails = () => {
     )
   }
 
-  const isDM329 = request.request_type?.name === 'DM329'
+  const isDM329 = isDM329Family(request.request_type?.name)
   if (!isDM329) {
     return (
       <Layout>

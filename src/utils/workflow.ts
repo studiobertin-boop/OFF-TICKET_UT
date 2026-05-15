@@ -1,5 +1,9 @@
 import { RequestStatus, DM329Status, UserRole } from '@/types'
 
+export function isDM329Family(requestTypeName?: string | null): boolean {
+  return requestTypeName === 'DM329' || requestTypeName === 'DM329-Integrazioni'
+}
+
 /**
  * Standard workflow transitions map
  * Key: current status
@@ -61,7 +65,7 @@ export function getAllowedNextStatuses(
 ): (RequestStatus | DM329Status)[] {
   // Admin has unrestricted access
   if (userRole === 'admin') {
-    if (requestTypeName === 'DM329') {
+    if (isDM329Family(requestTypeName)) {
       return ALL_DM329_STATUSES
     }
     return ALL_STANDARD_STATUSES
@@ -73,7 +77,7 @@ export function getAllowedNextStatuses(
   }
 
   // DM329 workflow (userdm329 and admin can modify)
-  if (requestTypeName === 'DM329') {
+  if (isDM329Family(requestTypeName)) {
     if (userRole === 'userdm329') {
       // userdm329 has full access to all DM329 statuses (like admin)
       return ALL_DM329_STATUSES

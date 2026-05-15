@@ -24,6 +24,7 @@ import { useCreateRequest } from '@/hooks/useRequests'
 import { useCustomer } from '@/hooks/useCustomers'
 import { generateZodSchemaWithValidations, getDefaultValues } from '@/utils/formSchema'
 import { isCustomerComplete } from '@/utils/customerValidation'
+import { isDM329Family } from '@/utils/workflow'
 import { customersApi } from '@/services/api/customers'
 import { Customer } from '@/types'
 
@@ -67,7 +68,7 @@ export const NewRequest = () => {
 
   // Check customer completeness and auto-fill address for DM329
   useEffect(() => {
-    if (selectedType?.name === 'DM329' && customerData) {
+    if (isDM329Family(selectedType?.name) && customerData) {
       // Check if customer has all required fields
       if (!isCustomerComplete(customerData)) {
         // Show dialog to complete missing data
@@ -154,14 +155,13 @@ export const NewRequest = () => {
       // Generate title based on request type
       let title = `${selectedType.name} - ${new Date().toLocaleDateString('it-IT')}`
 
-      // For DM329, include customer name in title
-      if (selectedType.name === 'DM329') {
-        // Include customer name in title
+      // Per DM329 e DM329-Integrazioni, include il nome cliente nel titolo
+      if (isDM329Family(selectedType.name)) {
         if (processedData.cliente) {
           const clienteName = typeof processedData.cliente === 'string'
             ? processedData.cliente
             : processedData.cliente.ragione_sociale || processedData.cliente
-          title = `DM329 - ${clienteName} - ${new Date().toLocaleDateString('it-IT')}`
+          title = `${selectedType.name} - ${clienteName} - ${new Date().toLocaleDateString('it-IT')}`
         }
       }
 

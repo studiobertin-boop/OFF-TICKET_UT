@@ -1,6 +1,7 @@
 import { supabase } from '@/services/supabase'
 import { BillingReportData, BillingRequestItem } from '@/types/billingReport'
 import { StatoFattura } from '@/types'
+import { isDM329Family } from '@/utils/workflow'
 
 // Helper function to get customer name
 const getCustomerName = (customer: any): string => {
@@ -95,9 +96,9 @@ export const billingReportsApi = {
     items.forEach(item => {
       let typeName = item.request_type.name
 
-      // Se è una pratica DM329, aggiungi il suffisso OFF o CAC
-      if (typeName === 'DM329' && item.off_cac) {
-        typeName = `DM329-${item.off_cac.toUpperCase()}`
+      // Per pratiche DM329-family, aggiungi il suffisso OFF o CAC se presente
+      if (isDM329Family(typeName) && item.off_cac) {
+        typeName = `${typeName}-${item.off_cac.toUpperCase()}`
       }
 
       if (!grouped[typeName]) {

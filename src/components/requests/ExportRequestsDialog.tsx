@@ -21,6 +21,7 @@ import FileDownloadIcon from '@mui/icons-material/FileDownload'
 import { ExportFilters, RequestStatus, DM329Status } from '@/types'
 import { requestsApi } from '@/services/api/requests'
 import { exportRequestsToExcel } from '@/services/excelService'
+import { isDM329Family } from '@/utils/workflow'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
 
@@ -92,8 +93,8 @@ export default function ExportRequestsDialog({
   const [exporting, setExporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const availableStatuses = requestType === 'DM329' ? DM329_STATUSES : GENERAL_STATUSES
-  const statusLabels = requestType === 'DM329' ? DM329_STATUS_LABELS : GENERAL_STATUS_LABELS
+  const availableStatuses = isDM329Family(requestType) ? DM329_STATUSES : GENERAL_STATUSES
+  const statusLabels = isDM329Family(requestType) ? DM329_STATUS_LABELS : GENERAL_STATUS_LABELS
 
   // Fetch preview count when filters change
   useEffect(() => {
@@ -177,7 +178,7 @@ export default function ExportRequestsDialog({
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Esporta Richieste {requestType === 'DM329' ? 'DM329' : 'Generali'}</DialogTitle>
+      <DialogTitle>Esporta Richieste {isDM329Family(requestType) ? requestType : 'Generali'}</DialogTitle>
       <DialogContent dividers>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>

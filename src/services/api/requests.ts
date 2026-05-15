@@ -2,7 +2,7 @@ import { supabase, ensureValidSession } from '../supabase'
 import { Request, RequestStatus, DM329Status, StatoFattura, ExportFilters, ExportRequestData } from '@/types'
 import { emailNotificationsApi } from './emailNotifications'
 import { formatDateForExcel } from '../excelService'
-import { getStatusLabel } from '@/utils/workflow'
+import { getStatusLabel, isDM329Family } from '@/utils/workflow'
 
 export interface CreateRequestInput {
   request_type_id: string
@@ -105,8 +105,8 @@ export const requestsApi = {
       .eq('id', input.request_type_id)
       .single()
 
-    // Per DM329: stato iniziale è '1-INCARICO_RICEVUTO', per altri tipi: 'APERTA'
-    const initialStatus = requestType?.name === 'DM329' ? '1-INCARICO_RICEVUTO' : 'APERTA'
+    // Per DM329/DM329-Integrazioni: stato iniziale è '1-INCARICO_RICEVUTO', per altri tipi: 'APERTA'
+    const initialStatus = isDM329Family(requestType?.name) ? '1-INCARICO_RICEVUTO' : 'APERTA'
 
     const { data, error } = await supabase
       .from('requests')

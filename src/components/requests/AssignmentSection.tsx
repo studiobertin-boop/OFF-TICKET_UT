@@ -17,6 +17,7 @@ import { PersonAdd as PersonAddIcon, PersonRemove as PersonRemoveIcon } from '@m
 import { User } from '@/types'
 import { getTechnicians, assignRequest, unassignRequest } from '@/services/requestService'
 import { getDM329Technicians } from '@/services/api/users'
+import { isDM329Family } from '@/utils/workflow'
 import { useAuth } from '@/hooks/useAuth'
 import { useQueryClient } from '@tanstack/react-query'
 import { REQUESTS_QUERY_KEY } from '@/hooks/useRequests'
@@ -44,7 +45,7 @@ export const AssignmentSection = ({
   const [error, setError] = useState<string | null>(null)
   const [loadingTechnicians, setLoadingTechnicians] = useState(true)
 
-  const isDM329 = requestTypeName === 'DM329'
+  const isDM329 = isDM329Family(requestTypeName)
 
   // Admin e userdm329 possono assegnare richieste DM329
   // Solo admin può assegnare richieste standard

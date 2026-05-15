@@ -13,6 +13,7 @@ import { useRequestTypes } from '../../hooks/useRequestTypes';
 import { supabase } from '../../services/supabase';
 import type { GeneralAnalyticsFilters } from '../../services/api/analytics';
 import type { RequestStatus, User } from '../../types';
+import { isDM329Family } from '../../utils/workflow';
 
 interface GeneralDashboardFiltersProps {
   onFilterChange: (filters: GeneralAnalyticsFilters) => void;
@@ -34,8 +35,8 @@ export function GeneralDashboardFilters({
   const { data: requestTypes } = useRequestTypes();
   const [users, setUsers] = useState<User[]>([]);
 
-  // Filtra solo tipi NON DM329
-  const generalTypes = requestTypes?.filter(type => type.name !== 'DM329') || [];
+  // Filtra solo tipi NON DM329-family
+  const generalTypes = requestTypes?.filter(type => !isDM329Family(type.name)) || [];
 
   const [filters, setFilters] = useState<GeneralAnalyticsFilters>({});
 

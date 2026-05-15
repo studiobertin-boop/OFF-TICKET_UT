@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Box,
@@ -30,6 +30,7 @@ import {
 } from '@mui/icons-material'
 import { Request, DM329Status, StatoFattura, STATO_FATTURA_OPTIONS, STATO_FATTURA_LABELS } from '@/types'
 import { getStatusColor, getStatusLabel } from '@/utils/workflow'
+import { getAllUsers } from '@/services/requestService'
 import { usePersistedState } from '@/hooks/usePersistedState'
 import { useAuth } from '@/hooks/useAuth'
 import { BlockIndicator } from './BlockIndicator'
@@ -101,6 +102,23 @@ export const DM329TableView = ({
   const { isAdmin, isUserDM329 } = useAuth()
   const queryClient = useQueryClient()
 
+  // Tutti gli utenti per il filtro "Attribuzione"
+  const [allUsers, setAllUsers] = useState<{ id: string; full_name: string; email: string; role: string }[]>([])
+  useEffect(() => {
+    getAllUsers()
+      .then(data => setAllUsers(data as any))
+      .catch(() => setAllUsers([]))
+  }, [])
+  const usersMap = useMemo(() =>
+    Object.fromEntries(allUsers.map(u => [u.id, u.full_name])),
+    [allUsers]
+  )
+  // Utenti unici presenti nelle pratiche come attributed_to
+  const attributedUsers = useMemo(() => {
+    const ids = new Set(requests.map(r => r.attributed_to).filter(Boolean) as string[])
+    return allUsers.filter(u => ids.has(u.id))
+  }, [requests, allUsers])
+
   // Stati persistiti nel sessionStorage
   const [orderBy, setOrderBy] = usePersistedState<OrderBy>('dm329Table_orderBy', 'updated_at')
   const [order, setOrder] = usePersistedState<OrderDirection>('dm329Table_order', 'desc')
@@ -115,6 +133,8 @@ export const DM329TableView = ({
   const [blockedFilter, setBlockedFilter] = usePersistedState<'all' | 'true' | 'false'>('dm329Table_blockedFilter', 'all')
   const [timerAlertFilter, setTimerAlertFilter] = usePersistedState<'all' | 'true' | 'false'>('dm329Table_timerAlertFilter', 'all')
   const [statoFatturaFilter, setStatoFatturaFilter] = usePersistedState<StatoFattura[]>('dm329Table_statoFatturaFilter', [])
+  const [tipoPraticaFilter, setTipoPraticaFilter] = usePersistedState<string>('dm329Table_tipoPraticaFilter', '')
+  const [attributedToFilter, setAttributedToFilter] = usePersistedState<string[]>('dm329Table_attributedToFilter', [])
 
   // State for export dialog
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
@@ -220,6 +240,15 @@ export const DM329TableView = ({
         return statoFatturaFilter.includes(statoFattura)
       })
     }
+    if (tipoPraticaFilter) {
+      filtered = filtered.filter(req => req.request_type?.name === tipoPraticaFilter)
+    }
+    if (attributedToFilter.length > 0) {
+      filtered = filtered.filter(req => {
+        if (attributedToFilter.includes('__unattributed__') && !req.attributed_to) return true
+        return req.attributed_to ? attributedToFilter.includes(req.attributed_to) : false
+      })
+    }
 
     // Applica ordinamento
     filtered.sort((a, b) => {
@@ -287,7 +316,7 @@ export const DM329TableView = ({
     })
 
     return filtered
-  }, [requests, orderBy, order, clienteFilter, statoFilter, noCivaFilter, noteFilter, urgentFilter, blockedFilter, timerAlertFilter, statoFatturaFilter])
+  }, [requests, orderBy, order, clienteFilter, statoFilter, noCivaFilter, noteFilter, urgentFilter, blockedFilter, timerAlertFilter, statoFatturaFilter, tipoPraticaFilter, attributedToFilter])
 
   const clearFilters = () => {
     setClienteFilter([])
@@ -299,9 +328,11 @@ export const DM329TableView = ({
     setBlockedFilter('all')
     setTimerAlertFilter('all')
     setStatoFatturaFilter([])
+    setTipoPraticaFilter('')
+    setAttributedToFilter([])
   }
 
-  const hasActiveFilters = clienteFilter.length > 0 || statoFilter.length > 0 || noCivaFilter !== 'all' || noteFilter || urgentFilter !== 'all' || blockedFilter !== 'all' || timerAlertFilter !== 'all' || statoFatturaFilter.length > 0
+  const hasActiveFilters = clienteFilter.length > 0 || statoFilter.length > 0 || noCivaFilter !== 'all' || noteFilter || urgentFilter !== 'all' || blockedFilter !== 'all' || timerAlertFilter !== 'all' || statoFatturaFilter.length > 0 || !!tipoPraticaFilter || attributedToFilter.length > 0
 
   // Check if all filteredAndSortedRequests are selected
   const allSelected = selectionEnabled &&
@@ -449,6 +480,12 @@ export const DM329TableView = ({
             {statoFatturaFilter.length > 0 && (
               <Chip label={`Stato Fattura: ${statoFatturaFilter.length}`} size="small" onDelete={() => setStatoFatturaFilter([])} />
             )}
+            {tipoPraticaFilter && (
+              <Chip label={`Tipo: ${tipoPraticaFilter === 'DM329-Integrazioni' ? 'Integrazioni' : tipoPraticaFilter}`} size="small" onDelete={() => setTipoPraticaFilter('')} />
+            )}
+            {attributedToFilter.length > 0 && (
+              <Chip label={`Attribuzione: ${attributedToFilter.length}`} size="small" onDelete={() => setAttributedToFilter([])} />
+            )}
           </Box>
           <IconButton size="small" onClick={clearFilters} color="primary" title="Cancella tutti i filtri">
             <ClearIcon fontSize="small" />
@@ -536,6 +573,52 @@ export const DM329TableView = ({
                     <MenuItem value="all">Tutti</MenuItem>
                     <MenuItem value="true">Sì</MenuItem>
                     <MenuItem value="false">No</MenuItem>
+                  </Select>
+                </FormControl>
+              </TableCell>
+
+              {/* Tipo pratica */}
+              <TableCell sx={{ minWidth: 120 }}>
+                <Box sx={{ fontSize: '0.8rem', fontWeight: 500, mb: 0.5 }}>Tipo</Box>
+                <FormControl size="small" fullWidth>
+                  <Select
+                    value={tipoPraticaFilter}
+                    onChange={(e) => setTipoPraticaFilter(e.target.value)}
+                    sx={{ fontSize: '0.75rem' }}
+                    displayEmpty
+                  >
+                    <MenuItem value=""><em>Tutti</em></MenuItem>
+                    <MenuItem value="DM329">DM329</MenuItem>
+                    <MenuItem value="DM329-Integrazioni">Integrazioni</MenuItem>
+                  </Select>
+                </FormControl>
+              </TableCell>
+
+              {/* Attribuzione */}
+              <TableCell sx={{ minWidth: 150 }}>
+                <Box sx={{ fontSize: '0.8rem', fontWeight: 500, mb: 0.5 }}>Attribuzione</Box>
+                <FormControl size="small" fullWidth>
+                  <Select
+                    multiple
+                    displayEmpty
+                    value={attributedToFilter}
+                    onChange={(e) => setAttributedToFilter(e.target.value as string[])}
+                    input={<OutlinedInput />}
+                    renderValue={(selected) =>
+                      selected.length === 0 ? <em>Tutti</em> : `${selected.length} selezionati`
+                    }
+                    MenuProps={{ PaperProps: { style: { maxHeight: 300 } } }}
+                  >
+                    <MenuItem value="__unattributed__">
+                      <Checkbox checked={attributedToFilter.includes('__unattributed__')} />
+                      <ListItemText primary="— Non attribuita" />
+                    </MenuItem>
+                    {attributedUsers.map((u) => (
+                      <MenuItem key={u.id} value={u.id}>
+                        <Checkbox checked={attributedToFilter.includes(u.id)} />
+                        <ListItemText primary={u.full_name} />
+                      </MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
               </TableCell>
@@ -775,6 +858,16 @@ export const DM329TableView = ({
                 <TableCell sx={{ padding: 1, textAlign: 'center' }}>
                   {request.has_timer_alert && <TimerAlertIndicator hasAlert={true} />}
                 </TableCell>
+                {/* Tipo pratica */}
+                <TableCell sx={{ fontSize: '0.8rem' }}>
+                  {request.request_type?.name === 'DM329-Integrazioni' ? 'Integrazioni' : 'DM329'}
+                </TableCell>
+
+                {/* Attribuzione */}
+                <TableCell sx={{ fontSize: '0.8rem' }}>
+                  {request.attributed_to ? (usersMap[request.attributed_to] || '—') : '—'}
+                </TableCell>
+
                 <TableCell>
                   {format(new Date(request.updated_at), 'dd/MM/yyyy HH:mm', { locale: it })}
                 </TableCell>
@@ -835,7 +928,7 @@ export const DM329TableView = ({
             {filteredAndSortedRequests.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={(isAdmin || isUserDM329) ? (selectionEnabled ? 10 : 9) : (selectionEnabled ? 9 : 8)}
+                  colSpan={(isAdmin || isUserDM329) ? (selectionEnabled ? 12 : 11) : (selectionEnabled ? 11 : 10)}
                   align="center"
                   sx={{ py: 3 }}
                 >

@@ -3,6 +3,7 @@ import { saveAs } from 'file-saver'
 import { ExportRequestData } from '../types'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
+import { isDM329Family } from '@/utils/workflow'
 
 /**
  * Genera e scarica un file Excel con i dati delle richieste esportate
@@ -26,7 +27,7 @@ export function exportRequestsToExcel(
     }
 
     // Aggiungi colonne specifiche per DM329
-    if (requestType === 'DM329') {
+    if (isDM329Family(requestType)) {
       return {
         ...baseRow,
         'NO CIVA': row.noCiva ? 'Sì' : 'No',
@@ -53,7 +54,7 @@ export function exportRequestsToExcel(
     { wch: 25 }, // TIPO DI RICHIESTA
   ]
 
-  if (requestType === 'DM329') {
+  if (isDM329Family(requestType)) {
     columnWidths.push(
       { wch: 10 }, // NO CIVA
       { wch: 10 }, // OFF/CAC
