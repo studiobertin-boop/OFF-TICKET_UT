@@ -164,12 +164,13 @@ export const Requests = () => {
   // Solo admin e userdm329 possono vedere il tab DM329
   const canViewDM329Tab = user?.role === 'admin' || user?.role === 'userdm329'
 
-  // Forza la vista tabella quando si accede ai tab delle richieste nascoste
+  // Forza la vista tabella per DM329 (tab 1), richieste nascoste (tab 2+) e userdm329
   useEffect(() => {
-    if (activeTab >= 2 && viewMode !== 'table') {
+    const isDM329View = (activeTab === 1 && canViewDM329Tab) || !canViewGeneralTab
+    if ((isDM329View || activeTab >= 2) && viewMode !== 'table') {
       setViewMode('table')
     }
-  }, [activeTab, viewMode])
+  }, [activeTab, viewMode, canViewDM329Tab, canViewGeneralTab])
 
   // Richieste da visualizzare in base al tab attivo
   // Se è userdm329, mostra sempre DM329, altrimenti usa activeTab
@@ -406,7 +407,7 @@ export const Requests = () => {
               exclusive
               onChange={(_, newMode) => newMode && setViewMode(newMode)}
               size="small"
-              disabled={activeTab >= 2}
+              disabled={activeTab >= 2 || (activeTab === 1 && canViewDM329Tab) || !canViewGeneralTab}
             >
               <ToggleButton value="grid">
                 <GridViewIcon />

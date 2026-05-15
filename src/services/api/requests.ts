@@ -75,6 +75,7 @@ export const requestsApi = {
         *,
         request_type:request_types(*),
         assigned_user:users!requests_assigned_to_fkey(id, email, full_name, role),
+        attributed_user:users!requests_attributed_to_fkey(id, email, full_name, role),
         creator:users!requests_created_by_fkey(id, email, full_name, role),
         customer:customers(*)
       `)

@@ -128,6 +128,7 @@ export interface Request {
   assigned_to?: string
   assigned_user?: User
   attributed_to?: string
+  attributed_user?: User
   created_by: string
   creator?: User
   customer_id?: string | null

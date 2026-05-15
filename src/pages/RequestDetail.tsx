@@ -13,6 +13,9 @@ import {
   Divider,
   TextField,
   IconButton,
+  Select,
+  MenuItem,
+  FormControl,
 } from '@mui/material'
 import {
   ArrowBack as ArrowBackIcon,
@@ -45,6 +48,7 @@ import { ConfirmDeleteDialog } from '@/components/requests/ConfirmDeleteDialog'
 import { AttachmentsSection } from '@/components/requests/AttachmentsSection'
 import { useActiveBlock } from '@/hooks/useRequestBlocks'
 import { getStatusColor, getStatusLabel, isDM329Family } from '@/utils/workflow'
+import { useRequestTypes } from '@/hooks/useRequestTypes'
 
 export const RequestDetail = () => {
   const { id } = useParams<{ id: string }>()
@@ -53,9 +57,11 @@ export const RequestDetail = () => {
   const { data: request, isLoading, error, refetch } = useRequest(id!)
   const { data: activeBlock } = useActiveBlock(id)
   const { isEnabled: dm329FullWorkflowEnabled } = useFeatureFlag('dm329_full_workflow')
+  const { data: requestTypes = [] } = useRequestTypes()
   const hideRequest = useHideRequest()
   const deleteRequest = useDeleteRequest()
   const updateRequest = useUpdateRequest()
+  const [changingType, setChangingType] = useState(false)
 
   const [hideDialogOpen, setHideDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -261,7 +267,7 @@ export const RequestDetail = () => {
                 onClick={() => setAttributeDialogOpen(true)}
                 size="small"
               >
-                Attribuisci
+                {request.attributed_to ? 'Modifica Attribuzione' : 'Attribuisci'}
               </Button>
             )}
 
@@ -309,12 +315,45 @@ export const RequestDetail = () => {
 
             <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
-                <Typography variant="subtitle2" color="text.secondary">
+                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
                   Tipo Richiesta
                 </Typography>
-                <Typography variant="body1" gutterBottom>
-                  {request.request_type?.name || 'N/A'}
-                </Typography>
+                {(user?.role === 'admin' || user?.role === 'userdm329') && isDM329 ? (
+                  <FormControl size="small" sx={{ minWidth: 220 }}>
+                    <Select
+                      value={request.request_type_id}
+                      disabled={changingType}
+                      onChange={async (e) => {
+                        const newTypeId = e.target.value
+                        if (newTypeId === request.request_type_id) return
+                        const newType = requestTypes.find(t => t.id === newTypeId)
+                        if (!newType) return
+                        setChangingType(true)
+                        try {
+                          const newTitle = request.title.replace(
+                            /^(DM329-Integrazioni|DM329)/,
+                            newType.name
+                          )
+                          await updateRequest.mutateAsync({
+                            id: request.id,
+                            updates: { request_type_id: newTypeId, title: newTitle },
+                          })
+                          refetch()
+                        } finally {
+                          setChangingType(false)
+                        }
+                      }}
+                    >
+                      {requestTypes.filter(t => isDM329Family(t.name)).map(t => (
+                        <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                ) : (
+                  <Typography variant="body1" gutterBottom>
+                    {request.request_type?.name || 'N/A'}
+                  </Typography>
+                )}
               </Grid>
 
               <Grid item xs={12} md={6}>
@@ -345,13 +384,30 @@ export const RequestDetail = () => {
               </Grid>
 
               {request.assigned_user && (
-                <Grid item xs={12}>
+                <Grid item xs={12} md={6}>
                   <Typography variant="subtitle2" color="text.secondary">
                     Assegnata a
                   </Typography>
                   <Typography variant="body1" gutterBottom>
                     {request.assigned_user.full_name} ({request.assigned_user.email})
                   </Typography>
+                </Grid>
+              )}
+
+              {isDM329 && (
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Attribuita a
+                  </Typography>
+                  {request.attributed_user ? (
+                    <Typography variant="body1" gutterBottom>
+                      {request.attributed_user.full_name} ({request.attributed_user.email})
+                    </Typography>
+                  ) : (
+                    <Typography variant="body1" color="text.disabled" gutterBottom>
+                      Non attribuita
+                    </Typography>
+                  )}
                 </Grid>
               )}
             </Grid>
