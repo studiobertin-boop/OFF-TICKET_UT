@@ -508,7 +508,7 @@ export async function unblockRequest(
  */
 export async function attributeRequest(
   requestId: string,
-  attributedToUserId: string,
+  attributedToUserId: string | null,
   attributedBy: string,
   notes?: string
 ): Promise<{ success: boolean; message: string }> {

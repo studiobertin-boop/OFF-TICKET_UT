@@ -27,7 +27,7 @@ export function useAttributeRequest() {
       notes,
     }: {
       requestId: string
-      attributedToUserId: string
+      attributedToUserId: string | null
       notes?: string
     }) => {
       if (!user?.id) {

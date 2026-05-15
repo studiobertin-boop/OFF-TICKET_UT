@@ -19,6 +19,7 @@ interface AttributeRequestDialogProps {
   onClose: () => void
   requestId: string
   requestTitle: string
+  currentAttributedTo?: string | null
 }
 
 interface UserOption {
@@ -37,6 +38,7 @@ export function AttributeRequestDialog({
   onClose,
   requestId,
   requestTitle,
+  currentAttributedTo,
 }: AttributeRequestDialogProps) {
   const [selectedUser, setSelectedUser] = useState<UserOption | null>(null)
   const [notes, setNotes] = useState('')
@@ -66,6 +68,25 @@ export function AttributeRequestDialog({
     } catch (err) {
       setError('Errore durante l\'attribuzione della richiesta')
       console.error('Attribution error:', err)
+    }
+  }
+
+  const handleRevoke = async () => {
+    try {
+      const result = await attributeMutation.mutateAsync({
+        requestId,
+        attributedToUserId: null,
+        notes: 'Attribuzione revocata',
+      })
+
+      if (result.success) {
+        handleClose()
+      } else {
+        setError(result.message)
+      }
+    } catch (err) {
+      setError('Errore durante la revoca dell\'attribuzione')
+      console.error('Revoke error:', err)
     }
   }
 
@@ -181,19 +202,33 @@ export function AttributeRequestDialog({
           helperText="Aggiungi eventuali note sulla motivazione dell'attribuzione"
         />
       </DialogContent>
-      <DialogActions>
-        <Button onClick={handleClose} disabled={attributeMutation.isPending}>
-          Annulla
-        </Button>
-        <Button
-          onClick={handleAttribute}
-          variant="contained"
-          color="primary"
-          disabled={attributeMutation.isPending || !selectedUser}
-          startIcon={attributeMutation.isPending ? <CircularProgress size={16} /> : undefined}
-        >
-          {attributeMutation.isPending ? 'Attribuzione...' : 'Attribuisci'}
-        </Button>
+      <DialogActions sx={{ justifyContent: 'space-between' }}>
+        <Box>
+          {currentAttributedTo && (
+            <Button
+              onClick={handleRevoke}
+              color="error"
+              variant="outlined"
+              disabled={attributeMutation.isPending}
+            >
+              Rimuovi attribuzione
+            </Button>
+          )}
+        </Box>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button onClick={handleClose} disabled={attributeMutation.isPending}>
+            Annulla
+          </Button>
+          <Button
+            onClick={handleAttribute}
+            variant="contained"
+            color="primary"
+            disabled={attributeMutation.isPending || !selectedUser}
+            startIcon={attributeMutation.isPending ? <CircularProgress size={16} /> : undefined}
+          >
+            {attributeMutation.isPending ? 'Attribuzione...' : 'Attribuisci'}
+          </Button>
+        </Box>
       </DialogActions>
     </Dialog>
   )

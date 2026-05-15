@@ -578,6 +578,7 @@ export const RequestDetail = () => {
         onClose={() => setAttributeDialogOpen(false)}
         requestId={request.id}
         requestTitle={request.title}
+        currentAttributedTo={request.attributed_to}
       />
 
       <ConfirmHideDialog
