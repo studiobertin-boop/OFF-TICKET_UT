@@ -30,7 +30,7 @@ export interface DatiImpianto {
   locale_dedicato?: boolean
   locale_condiviso_con?: string
   aria_aspirata?: AriaAspirataOption[]
-  raccolta_condense: RaccoltaCondenserOption[] // Obbligatorio
+  raccolta_condense: RaccoltaCondenserOption // Obbligatorio - SELEZIONE SINGOLA
   accesso_locale_vietato?: boolean
   lontano_fonti_calore?: boolean
   lontano_materiale_infiammabile?: boolean // NUOVO - Obbligatorio

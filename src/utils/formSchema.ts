@@ -58,9 +58,7 @@ export const generateZodSchema = (fields: FieldSchema[]) => {
         }
         break
 
-      case 'file':
-        fieldSchema = z.any() // File handling will be done separately
-        break
+      // case 'file' removed - use AttachmentsSection instead
 
       case 'date':
         if (field.required) {
@@ -185,9 +183,7 @@ export const getDefaultValues = (fields: FieldSchema[]): Record<string, any> => 
       case 'multiselect':
         defaults[field.name] = []
         break
-      case 'file':
-        defaults[field.name] = null
-        break
+      // case 'file' removed - use AttachmentsSection instead
       case 'autocomplete':
         defaults[field.name] = null
         break
@@ -213,28 +209,6 @@ export const generateZodSchemaWithValidations = (
   requestTypeName?: string
 ) => {
   const baseSchema = generateZodSchema(fields)
-
-  // Apply custom validations based on request type
-  if (requestTypeName === 'DISEGNO_SALA_SCHEMA' || requestTypeName === 'DISEGNO_SALA_LAYOUT') {
-    // Obbligatorietà alternativa: file_attachment OR lista_apparecchi
-    return baseSchema.refine(
-      data => {
-        const hasFile = data.file_attachment && (
-          (Array.isArray(data.file_attachment) && data.file_attachment.length > 0) ||
-          (!Array.isArray(data.file_attachment) && data.file_attachment !== null)
-        )
-        const hasListaApparecchi = data.lista_apparecchi &&
-          typeof data.lista_apparecchi === 'string' &&
-          data.lista_apparecchi.trim().length > 0
-
-        return hasFile || hasListaApparecchi
-      },
-      {
-        message: 'Compilare almeno uno tra File Attachment e Lista Apparecchi',
-        path: ['file_attachment'],
-      }
-    )
-  }
 
   // Validazione cross-field per date
   return baseSchema.refine(

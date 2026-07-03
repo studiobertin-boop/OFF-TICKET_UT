@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Box,
@@ -16,6 +16,7 @@ import {
   Select,
   MenuItem,
   FormControl,
+  InputLabel,
 } from '@mui/material'
 import {
   ArrowBack as ArrowBackIcon,
@@ -32,9 +33,12 @@ import {
 } from '@mui/icons-material'
 import { Layout } from '@/components/common/Layout'
 import { useRequest, useHideRequest, useDeleteRequest, useUpdateRequest } from '@/hooks/useRequests'
+import { useCustomer, useCustomers } from '@/hooks/useCustomers'
 import { useAuth } from '@/hooks/useAuth'
 import { useFeatureFlag } from '@/hooks/useFeatureFlag'
 import { requestsApi } from '@/services/api/requests'
+import { customersApi } from '@/services/api/customers'
+import { technicalDataApi } from '@/services/api/technicalData'
 import { StatusTransitionButtons } from '@/components/requests/StatusTransitionButtons'
 import { AssignmentSection } from '@/components/requests/AssignmentSection'
 import { RequestHistoryPanel } from '@/components/requests/RequestHistoryPanel'
@@ -46,9 +50,13 @@ import { AttributeRequestDialog } from '@/components/requests/AttributeRequestDi
 import { ConfirmHideDialog } from '@/components/requests/ConfirmHideDialog'
 import { ConfirmDeleteDialog } from '@/components/requests/ConfirmDeleteDialog'
 import { AttachmentsSection } from '@/components/requests/AttachmentsSection'
+import { RequestDetailsEditForm } from '@/components/requests/RequestDetailsEditForm'
+import { CompleteCustomerDataDialog } from '@/components/customers/CompleteCustomerDataDialog'
 import { useActiveBlock } from '@/hooks/useRequestBlocks'
 import { getStatusColor, getStatusLabel, isDM329Family } from '@/utils/workflow'
 import { useRequestTypes } from '@/hooks/useRequestTypes'
+import { hasIncompleteCustomerData } from '@/utils/customerValidation'
+import { STATO_FATTURA_OPTIONS, STATO_FATTURA_LABELS, type StatoFattura, type Customer } from '@/types'
 
 export const RequestDetail = () => {
   const { id } = useParams<{ id: string }>()
@@ -58,6 +66,32 @@ export const RequestDetail = () => {
   const { data: activeBlock } = useActiveBlock(id)
   const { isEnabled: dm329FullWorkflowEnabled } = useFeatureFlag('dm329_full_workflow')
   const { data: requestTypes = [] } = useRequestTypes()
+
+  // Fetch full customer data if custom_fields.cliente.id exists (legacy DM329 requests)
+  const legacyCustomerId = request?.custom_fields?.cliente && typeof request.custom_fields.cliente === 'object'
+    ? (request.custom_fields.cliente as any).id
+    : null
+  const { data: legacyCustomer } = useCustomer(legacyCustomerId)
+
+  // Fetch customer by ragione_sociale if cliente is a string (CSV imported data)
+  const clienteString = request?.custom_fields?.cliente && typeof request.custom_fields.cliente === 'string'
+    ? request.custom_fields.cliente
+    : null
+
+  // Only fetch customers if we have a clienteString to search for
+  const shouldFetchByName = !!clienteString && !legacyCustomerId && !request?.customer
+  const { data: customersSearchResult } = useCustomers(
+    shouldFetchByName ? { search: clienteString } : undefined,
+    { enabled: shouldFetchByName }
+  )
+
+  const customerByName = useMemo(() => {
+    if (!shouldFetchByName || !customersSearchResult?.data) return null
+    return customersSearchResult.data.find(
+      c => c.ragione_sociale.toLowerCase() === clienteString?.toLowerCase()
+    )
+  }, [customersSearchResult, clienteString, shouldFetchByName])
+
   const hideRequest = useHideRequest()
   const deleteRequest = useDeleteRequest()
   const updateRequest = useUpdateRequest()
@@ -70,7 +104,109 @@ export const RequestDetail = () => {
   const [attributeDialogOpen, setAttributeDialogOpen] = useState(false)
   const [isEditingNote, setIsEditingNote] = useState(false)
   const [noteValue, setNoteValue] = useState('')
+  const [isEditingDetails, setIsEditingDetails] = useState(false)
+  const [noCivaValue, setNoCivaValue] = useState(false)
+  const [offCacValue, setOffCacValue] = useState<'off' | 'cac' | ''>('')
+  const [statoFatturaValue, setStatoFatturaValue] = useState<StatoFattura>('NO')
   const [togglingUrgent, setTogglingUrgent] = useState(false)
+  const [sedeImpianto, setSedeImpianto] = useState<string | null>(null)
+
+  // Load technical data for DM329 requests to get sede_impianto
+  // (famiglia DM329: include anche DM329-Integrazioni)
+  const isDM329 = isDM329Family(request?.request_type?.name)
+  useEffect(() => {
+    if (isDM329 && id) {
+      technicalDataApi.getByRequestId(id)
+        .then(data => {
+          const sede = data?.equipment_data?.dati_impianto?.sede_impianto
+          setSedeImpianto(sede || null)
+        })
+        .catch(() => setSedeImpianto(null))
+    }
+  }, [id, isDM329])
+
+  // Extract client information from request - use useMemo to recalculate when dependencies change
+  const clientInfo = useMemo(() => {
+    if (!request) return null
+
+    // Priority 1: Use joined customer relation (new requests)
+    if (request.customer) {
+      return {
+        ragione_sociale: request.customer.ragione_sociale,
+        telefono: request.customer.telefono || 'N/A',
+        pec: request.customer.pec || 'N/A',
+        descrizione_attivita: request.customer.descrizione_attivita || 'N/A',
+        sede_legale: customersApi.formatFullAddress(request.customer),
+      }
+    }
+
+    // Priority 2: Use legacyCustomer fetched by ID (legacy DM329 with customer object in autocomplete)
+    if (legacyCustomer) {
+      return {
+        ragione_sociale: legacyCustomer.ragione_sociale,
+        telefono: legacyCustomer.telefono || 'N/A',
+        pec: legacyCustomer.pec || 'N/A',
+        descrizione_attivita: legacyCustomer.descrizione_attivita || 'N/A',
+        sede_legale: customersApi.formatFullAddress(legacyCustomer),
+      }
+    }
+
+    // Priority 2.5: Use customerByName found by search (CSV imported - cliente as string, but customer exists in DB)
+    if (customerByName) {
+      return {
+        ragione_sociale: customerByName.ragione_sociale,
+        telefono: customerByName.telefono || 'N/A',
+        pec: customerByName.pec || 'N/A',
+        descrizione_attivita: customerByName.descrizione_attivita || 'N/A',
+        sede_legale: customersApi.formatFullAddress(customerByName),
+      }
+    }
+
+    // Priority 3: Use custom_fields (CSV imported data - cliente as string, no customer in DB)
+    const cliente = request.custom_fields?.cliente
+    const sedeLegale = request.custom_fields?.sede_legale
+
+    // Handle both object and string formats
+    if (cliente) {
+      let ragioneSociale = ''
+
+      if (typeof cliente === 'string') {
+        ragioneSociale = cliente
+      } else if (typeof cliente === 'object') {
+        ragioneSociale = (cliente as any).ragione_sociale || (cliente as any).label || ''
+      }
+
+      if (ragioneSociale) {
+        return {
+          ragione_sociale: ragioneSociale,
+          telefono: 'N/A',
+          pec: 'N/A',
+          descrizione_attivita: 'N/A',
+          // Use sede_legale from custom_fields if available (CSV imported data stores it here)
+          sede_legale: sedeLegale && typeof sedeLegale === 'string' ? sedeLegale : 'N/A',
+        }
+      }
+    }
+
+    return null
+  }, [request, legacyCustomer, customerByName])
+
+  // Record cliente reale (con id) collegato alla pratica, per completare l'anagrafica.
+  // È null per pratiche importate da CSV senza cliente registrato a DB (nulla da completare).
+  const customerRecord = useMemo<Customer | null>(() => {
+    if (request?.customer) return request.customer as Customer
+    if (legacyCustomer) return legacyCustomer
+    if (customerByName) return customerByName
+    return null
+  }, [request, legacyCustomer, customerByName])
+
+  const [showCompleteCustomerDialog, setShowCompleteCustomerDialog] = useState(false)
+
+  const handleCustomerDataComplete = () => {
+    setShowCompleteCustomerDialog(false)
+    // Aggiorna la pratica per riflettere il cliente joinato aggiornato
+    refetch()
+  }
 
   const handleHide = async () => {
     try {
@@ -138,6 +274,65 @@ export const RequestDetail = () => {
     setNoteValue('')
   }
 
+  const handleEditDetails = () => {
+    const cf = request?.custom_fields || {}
+    setNoCivaValue(cf.no_civa === true)
+    setOffCacValue((cf.off_cac as 'off' | 'cac' | '') || '')
+    setStatoFatturaValue((cf.stato_fattura as StatoFattura) || 'NO')
+    setIsEditingDetails(true)
+  }
+
+  const handleSaveDetails = async () => {
+    if (!request) return
+    // Regola coerente con la tabella DM329: "Sì" impostabile solo su richieste CHIUSE o ARCHIVIATE NON FINITE
+    if (
+      statoFatturaValue === 'SI' &&
+      request.status !== '7-CHIUSA' &&
+      request.status !== 'ARCHIVIATA NON FINITA'
+    ) {
+      alert('Stato fattura "Sì" impostabile solo su richieste CHIUSE o ARCHIVIATE NON FINITE')
+      return
+    }
+    try {
+      await updateRequest.mutateAsync({
+        id: request.id,
+        updates: {
+          custom_fields: {
+            ...request.custom_fields,
+            no_civa: noCivaValue,
+            off_cac: offCacValue,
+            stato_fattura: statoFatturaValue,
+          },
+        },
+      })
+      setIsEditingDetails(false)
+      refetch()
+    } catch (error) {
+      console.error('Error updating request details:', error)
+      alert('Errore nel salvataggio dei dettagli')
+    }
+  }
+
+  // Salvataggio campi dinamici (richieste non-DM329) dal form generato sul fields_schema
+  const handleSaveDynamicDetails = async (customFields: Record<string, any>) => {
+    if (!request) return
+    try {
+      await updateRequest.mutateAsync({
+        id: request.id,
+        updates: { custom_fields: customFields },
+      })
+      setIsEditingDetails(false)
+      refetch()
+    } catch (error) {
+      console.error('Error updating request details:', error)
+      alert('Errore nel salvataggio dei dettagli')
+    }
+  }
+
+  const handleCancelDetails = () => {
+    setIsEditingDetails(false)
+  }
+
   if (isLoading) {
     return (
       <Layout>
@@ -167,7 +362,7 @@ export const RequestDetail = () => {
   // Tecnico: only on general requests (not DM329)
   // Userdm329: only on DM329 requests
   // Utente: only on general requests (not DM329)
-  const isDM329 = isDM329Family(request.request_type?.name)
+  // isDM329 already declared above for technical data loading
   const canUnblock =
     user?.role === 'admin' ||
     (user?.role === 'tecnico' && !isDM329) ||
@@ -182,6 +377,20 @@ export const RequestDetail = () => {
     user?.role === 'admin' ||
     (user?.role === 'userdm329' && isDM329) ||
     (user?.role === 'tecnico' && !isDM329)
+
+  // Determine if user can edit the "Dettagli Richiesta" fields
+  // DM329: campi fissi (No CIVA, Off/Cac, Stato fattura) → admin o userdm329
+  // Normali: campi dinamici del fields_schema → admin, tecnico, o l'utente creatore
+  const canEditDetails =
+    user?.role === 'admin' ||
+    (user?.role === 'userdm329' && isDM329) ||
+    (user?.role === 'tecnico' && !isDM329) ||
+    (user?.role === 'utente' && !isDM329 && request.created_by === user?.id)
+
+  // Determine if user can delete the request
+  // Admin: qualsiasi richiesta; userdm329: pratiche DM329 (in qualsiasi stato, come admin lato RLS)
+  const canDelete =
+    user?.role === 'admin' || (user?.role === 'userdm329' && isDM329)
 
   // Determine if user can access technical details
   // Admin, userdm329, and tecnicoDM329 (if assigned) can access technical details for DM329 requests
@@ -283,16 +492,20 @@ export const RequestDetail = () => {
                 >
                   Nascondi
                 </Button>
-                <Button
-                  variant="outlined"
-                  color="error"
-                  startIcon={<DeleteIcon />}
-                  onClick={() => setDeleteDialogOpen(true)}
-                  size="small"
-                >
-                  Elimina
-                </Button>
               </>
+            )}
+
+            {/* Elimina: admin (qualsiasi) + userdm329 (pratiche DM329) */}
+            {canDelete && (
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<DeleteIcon />}
+                onClick={() => setDeleteDialogOpen(true)}
+                size="small"
+              >
+                Elimina
+              </Button>
             )}
           </Box>
         </Box>
@@ -412,15 +625,201 @@ export const RequestDetail = () => {
               )}
             </Grid>
 
+            {/* Informazioni Cliente - NEW SECTION */}
+            {clientInfo && (
+              <>
+                <Divider sx={{ my: 3 }} />
+
+                <Typography variant="h6" gutterBottom>
+                  Informazioni Cliente
+                </Typography>
+
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 2 }}>
+                  {/* Left column */}
+                  <Box>
+                    <Typography variant="subtitle2" color="text.secondary">
+                      Cliente
+                    </Typography>
+                    <Typography variant="body1" gutterBottom>
+                      {clientInfo.ragione_sociale}
+                    </Typography>
+                  </Box>
+
+                  {/* Right column */}
+                  <Box>
+                    <Typography variant="subtitle2" color="text.secondary">
+                      Sede Legale
+                    </Typography>
+                    <Typography variant="body1" gutterBottom>
+                      {clientInfo.sede_legale}
+                    </Typography>
+                  </Box>
+
+                  <Box>
+                    <Typography variant="subtitle2" color="text.secondary">
+                      Telefono
+                    </Typography>
+                    <Typography variant="body1" gutterBottom>
+                      {clientInfo.telefono}
+                    </Typography>
+                  </Box>
+
+                  {/* Sede Impianto - only for DM329 requests, in right column under Sede Legale */}
+                  {isDM329 && sedeImpianto && (
+                    <Box>
+                      <Typography variant="subtitle2" color="text.secondary">
+                        Sede Impianto
+                      </Typography>
+                      <Typography variant="body1" gutterBottom>
+                        {sedeImpianto}
+                      </Typography>
+                    </Box>
+                  )}
+
+                  <Box>
+                    <Typography variant="subtitle2" color="text.secondary">
+                      PEC
+                    </Typography>
+                    <Typography variant="body1" gutterBottom>
+                      {clientInfo.pec}
+                    </Typography>
+                  </Box>
+
+                  <Box>
+                    <Typography variant="subtitle2" color="text.secondary">
+                      Descrizione Attività
+                    </Typography>
+                    <Typography variant="body1" gutterBottom>
+                      {clientInfo.descrizione_attivita}
+                    </Typography>
+                  </Box>
+                </Box>
+
+                {customerRecord && hasIncompleteCustomerData(customerRecord) && (
+                  <Alert
+                    severity="info"
+                    sx={{ mt: 2 }}
+                    action={
+                      <Button
+                        color="inherit"
+                        size="small"
+                        onClick={() => setShowCompleteCustomerDialog(true)}
+                      >
+                        Completa dati
+                      </Button>
+                    }
+                  >
+                    Alcuni dati anagrafici del cliente sono incompleti. Puoi integrarli ora.
+                  </Alert>
+                )}
+              </>
+            )}
+
             <Divider sx={{ my: 3 }} />
 
-            <Typography variant="h6" gutterBottom>
-              Dettagli Richiesta
-            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+              <Typography variant="h6">
+                Dettagli Richiesta
+              </Typography>
+              {canEditDetails && !isEditingDetails && (
+                <IconButton size="small" onClick={handleEditDetails} color="primary">
+                  <EditIcon />
+                </IconButton>
+              )}
+            </Box>
+
+            {isEditingDetails && (isDM329 ? (
+              <Box sx={{ mb: 3, p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={4}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel id="no-civa-label">No CIVA</InputLabel>
+                      <Select
+                        labelId="no-civa-label"
+                        label="No CIVA"
+                        value={noCivaValue ? 'true' : 'false'}
+                        onChange={(e) => setNoCivaValue(e.target.value === 'true')}
+                      >
+                        <MenuItem value="false">No</MenuItem>
+                        <MenuItem value="true">Sì</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel id="off-cac-label">Off / Cac</InputLabel>
+                      <Select
+                        labelId="off-cac-label"
+                        label="Off / Cac"
+                        value={offCacValue}
+                        onChange={(e) => setOffCacValue(e.target.value as 'off' | 'cac' | '')}
+                      >
+                        <MenuItem value=""><em>Nessuno</em></MenuItem>
+                        <MenuItem value="off">OFF</MenuItem>
+                        <MenuItem value="cac">CAC</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel id="stato-fattura-label">Stato Fattura</InputLabel>
+                      <Select
+                        labelId="stato-fattura-label"
+                        label="Stato Fattura"
+                        value={statoFatturaValue}
+                        onChange={(e) => setStatoFatturaValue(e.target.value as StatoFattura)}
+                      >
+                        {STATO_FATTURA_OPTIONS.map((opt) => (
+                          <MenuItem key={opt} value={opt}>{STATO_FATTURA_LABELS[opt]}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                </Grid>
+                <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                  <Button
+                    variant="contained"
+                    startIcon={<SaveIcon />}
+                    onClick={handleSaveDetails}
+                    disabled={updateRequest.isPending}
+                  >
+                    Salva
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<CloseIcon />}
+                    onClick={handleCancelDetails}
+                    disabled={updateRequest.isPending}
+                  >
+                    Annulla
+                  </Button>
+                </Box>
+              </Box>
+            ) : (
+              <RequestDetailsEditForm
+                request={request}
+                saving={updateRequest.isPending}
+                onSave={handleSaveDynamicDetails}
+                onCancel={handleCancelDetails}
+              />
+            ))}
 
             <Grid container spacing={2}>
               {Object.entries(request.custom_fields)
-                .filter(([key]) => key !== 'note') // Escludi note dal loop, verrà visualizzato separatamente
+                .filter(([key]) => {
+                  // Escludi note (mostrata separatamente)
+                  if (key === 'note') return false
+
+                  // Escludi campi cliente (mostrati in sezione dedicata)
+                  const clientFields = ['cliente', 'sede_legale', 'telefono', 'pec', 'descrizione_attivita', 'indirizzo_immobile']
+                  if (clientFields.includes(key)) return false
+
+                  // Escludi campi tecnici/interni
+                  const technicalFields = ['original_csv_row', 'assignment_category', 'workflow_dates']
+                  if (technicalFields.includes(key)) return false
+
+                  return true
+                })
                 .map(([key, value]) => {
                 // Determina come visualizzare il valore
                 let displayValue: string
@@ -595,6 +994,14 @@ export const RequestDetail = () => {
         onConfirm={handleDelete}
         onCancel={() => setDeleteDialogOpen(false)}
         isLoading={deleteRequest.isPending}
+      />
+
+      <CompleteCustomerDataDialog
+        open={showCompleteCustomerDialog}
+        customer={customerRecord}
+        onClose={() => setShowCompleteCustomerDialog(false)}
+        onComplete={handleCustomerDataComplete}
+        allowSkip={true}
       />
     </Layout>
   )

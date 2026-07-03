@@ -58,7 +58,7 @@ export interface User {
 
 export interface FieldSchema {
   name: string
-  type: 'text' | 'textarea' | 'boolean' | 'select' | 'multiselect' | 'file' | 'date' | 'autocomplete' | 'number' | 'datetime-local' | 'repeatable_group' | 'address-autocomplete'
+  type: 'text' | 'textarea' | 'boolean' | 'select' | 'multiselect' | 'date' | 'autocomplete' | 'number' | 'datetime-local' | 'repeatable_group' | 'address-autocomplete'
   label: string
   required: boolean
   options?: string[]
@@ -74,10 +74,6 @@ export interface FieldSchema {
   // Properties for text/textarea fields
   maxLength?: number
   placeholder?: string
-  // Properties for file fields
-  accept?: string
-  maxFiles?: number
-  maxFileSize?: number  // in MB
   // Properties for repeatable_group fields
   groupFields?: FieldSchema[]
   minItems?: number

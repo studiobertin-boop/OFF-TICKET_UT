@@ -4,6 +4,7 @@ interface StatusTile {
   label: string;
   count: number;
   color?: string;
+  onClick?: () => void;
 }
 
 interface StatusTilesProps {
@@ -39,6 +40,7 @@ export const StatusTiles = ({ tiles, isLoading }: StatusTilesProps) => {
           key={index}
         >
           <Paper
+            onClick={tile.onClick}
             sx={{
               p: 2,
               height: '100%',
@@ -46,6 +48,7 @@ export const StatusTiles = ({ tiles, isLoading }: StatusTilesProps) => {
               flexDirection: 'column',
               justifyContent: 'center',
               borderLeft: tile.color ? `4px solid ${tile.color}` : undefined,
+              cursor: tile.onClick ? 'pointer' : 'default',
               transition: 'transform 0.2s, box-shadow 0.2s',
               '&:hover': {
                 transform: 'translateY(-4px)',

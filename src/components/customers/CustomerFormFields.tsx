@@ -125,7 +125,6 @@ export const CustomerFormFields = ({
                 {...field}
                 label="PEC"
                 fullWidth
-                required
                 type="email"
                 disabled={isReadonly('pec')}
                 error={!!errors.pec}
@@ -151,7 +150,6 @@ export const CustomerFormFields = ({
                 {...field}
                 label="Descrizione Attività"
                 fullWidth
-                required
                 multiline
                 rows={2}
                 disabled={isReadonly('descrizione_attivita')}

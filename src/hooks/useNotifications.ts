@@ -11,7 +11,7 @@ export function useNotifications() {
   const { data: notifications = [], isLoading } = useQuery({
     queryKey: ['notifications', 'unread'],
     queryFn: notificationsApi.getUnreadNotifications,
-    refetchInterval: false, // Usiamo Realtime invece di polling
+    refetchInterval: 5000, // Polling ogni 5 secondi (Realtime ha problemi WebSocket)
   })
 
   // Aggiorna count quando cambia la lista
@@ -30,8 +30,11 @@ export function useNotifications() {
   // Mutation per marcare tutte come lette
   const markAllAsReadMutation = useMutation({
     mutationFn: notificationsApi.markAllAsRead,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    onSuccess: async () => {
+      // Resetta completamente la cache delle notifiche per forzare il refetch
+      queryClient.setQueryData<Notification[]>(['notifications', 'unread'], [])
+      // Poi invalida per ricaricare dal server (nel caso ci siano nuove notifiche nel frattempo)
+      await queryClient.invalidateQueries({ queryKey: ['notifications'] })
     },
   })
 
@@ -64,16 +67,18 @@ export function useNotifications() {
     [queryClient]
   )
 
-  // Sottoscrizione Realtime
+  // Sottoscrizione Realtime (temporaneamente disabilitata causa errori WebSocket)
   useEffect(() => {
-    const unsubscribe = notificationsApi.subscribeToNotifications(handleNewNotification)
+    // DISABILITATO: Realtime causa errori WebSocket continui
+    // const unsubscribe = notificationsApi.subscribeToNotifications(handleNewNotification)
 
     // Richiedi permesso notifiche browser al primo caricamento
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission()
     }
 
-    return unsubscribe
+    // return unsubscribe
+    return () => {} // No-op cleanup
   }, [handleNewNotification])
 
   return {
@@ -82,6 +87,8 @@ export function useNotifications() {
     isLoading,
     markAsRead: markAsReadMutation.mutate,
     markAllAsRead: markAllAsReadMutation.mutate,
+    markAllAsReadAsync: markAllAsReadMutation.mutateAsync,
+    isMarkingAllAsRead: markAllAsReadMutation.isPending,
     deleteNotification: deleteNotificationMutation.mutate,
     deleteNotificationAsync: deleteNotificationMutation.mutateAsync,
   }

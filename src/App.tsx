@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ThemeProvider } from '@/theme'
-import { AuthProvider } from '@/hooks/useAuth'
+import { AuthProvider, useAuth } from '@/hooks/useAuth'
 import { ProtectedRoute } from '@/components/common/ProtectedRoute'
 import { Login } from '@/pages/Login'
 import { Dashboard } from '@/pages/Dashboard'
@@ -16,8 +16,6 @@ import AdminUsers from '@/pages/admin/AdminUsers'
 import CustomersManagement from '@/pages/admin/CustomersManagement'
 import ManufacturersManagement from '@/pages/ManufacturersManagement'
 import InstallersManagement from '@/pages/InstallersManagement'
-import { Templates } from '@/pages/Templates'
-import { TemplateEditor } from '@/pages/TemplateEditor'
 import { CIVASummary } from '@/pages/CIVASummary'
 import BillingReport from '@/pages/BillingReport'
 
@@ -29,6 +27,17 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+// Vista iniziale per la rotta "/":
+// - admin: dashboard DM329
+// - altri ruoli: lista richieste
+function HomeRoute() {
+  const { user } = useAuth()
+  if (user?.role === 'admin') {
+    return <Navigate to="/dashboard?tab=dm329" replace />
+  }
+  return <Requests />
+}
 
 function App() {
   return (
@@ -42,7 +51,7 @@ function App() {
                 path="/"
                 element={
                   <ProtectedRoute>
-                    <Requests />
+                    <HomeRoute />
                   </ProtectedRoute>
                 }
               />
@@ -147,30 +156,6 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={['admin']}>
                     <DeletionArchives />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/templates"
-                element={
-                  <ProtectedRoute allowedRoles={['admin']}>
-                    <Templates />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/templates/new"
-                element={
-                  <ProtectedRoute allowedRoles={['admin']}>
-                    <TemplateEditor />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/templates/:id"
-                element={
-                  <ProtectedRoute allowedRoles={['admin']}>
-                    <TemplateEditor />
                   </ProtectedRoute>
                 }
               />

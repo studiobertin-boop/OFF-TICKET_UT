@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Box,
@@ -18,17 +18,18 @@ import {
   CheckCircle as CheckCircleIcon,
   Edit as EditIcon,
   Share as ShareIcon,
-  Description as DescriptionIcon,
   Assessment as AssessmentIcon,
 } from '@mui/icons-material'
 import { Layout } from '@/components/common/Layout'
 import { useRequest } from '@/hooks/useRequests'
 import { useAuth } from '@/hooks/useAuth'
+import { useCustomers } from '@/hooks/useCustomers'
 import { technicalDataApi } from '@/services/api/technicalData'
+import { requestsApi } from '@/services/api/requests'
+import { customersApi } from '@/services/api/customers'
 import { TechnicalSheetForm, type TechnicalSheetFormRef } from '@/components/technicalSheet/TechnicalSheetForm'
 import { OCRReviewDialog } from '@/components/technicalSheet/OCRReviewDialog'
 import { ShareDialog } from '@/components/technicalSheet/ShareDialog'
-import { GenerateReportDialog } from '@/components/reports/GenerateReportDialog'
 import { EquipmentCatalogProvider } from '@/components/technicalSheet/EquipmentCatalogContext'
 import type { DM329TechnicalData, SchedaDatiCompleta, OCRExtractedData, FuzzyMatch, OCRReviewData } from '@/types'
 import { isDM329Family } from '@/utils/workflow'
@@ -61,7 +62,6 @@ export const TechnicalDetails = () => {
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [ocrReviewData, setOcrReviewData] = useState<OCRReviewData | null>(null)
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
-  const [generateReportDialogOpen, setGenerateReportDialogOpen] = useState(false)
   const formRef = useRef<TechnicalSheetFormRef>(null)
 
   // Carica scheda dati tecnici
@@ -145,6 +145,27 @@ export const TechnicalDetails = () => {
     }
   }, [id])
 
+  // Sync sede_impianto to request.custom_fields.indirizzo_immobile
+  const syncIndirizzoImmobile = async (sedeImpianto: string) => {
+    if (!id || !request) {
+      return
+    }
+
+    try {
+      const updatedFields = {
+        ...request.custom_fields,
+        indirizzo_immobile: sedeImpianto,
+      }
+
+      await requestsApi.update(id, {
+        custom_fields: updatedFields,
+      })
+    } catch (err) {
+      console.error('[syncIndirizzoImmobile] Errore sync indirizzo immobile:', err)
+      // Non-blocking, logged only
+    }
+  }
+
   // Manual save function (con feedback)
   const handleFormSubmit = async (data: SchedaDatiCompleta) => {
     if (!id) return
@@ -154,6 +175,12 @@ export const TechnicalDetails = () => {
 
       // Salva i dati nel campo equipment_data (JSONB)
       await technicalDataApi.updateEquipmentData(id, data)
+
+      // Sync sede_impianto to indirizzo_immobile
+      const sedeImpianto = data?.dati_impianto?.sede_impianto
+      if (sedeImpianto) {
+        await syncIndirizzoImmobile(sedeImpianto)
+      }
 
       setFormData(data)
       setLastSaved(new Date())
@@ -176,6 +203,12 @@ export const TechnicalDetails = () => {
 
       // Salva i dati nel campo equipment_data (JSONB)
       await technicalDataApi.updateEquipmentData(id, currentData)
+
+      // Sync sede_impianto to indirizzo_immobile
+      const sedeImpianto = currentData?.dati_impianto?.sede_impianto
+      if (sedeImpianto) {
+        await syncIndirizzoImmobile(sedeImpianto)
+      }
 
       setFormData(currentData)
       setLastSaved(new Date())
@@ -204,6 +237,13 @@ export const TechnicalDetails = () => {
       // Prima salva i dati attuali del form
       const currentData = formRef.current.getFormData()
       await technicalDataApi.updateEquipmentData(id, currentData)
+
+      // Sync sede_impianto to indirizzo_immobile
+      const sedeImpianto = currentData?.dati_impianto?.sede_impianto
+      if (sedeImpianto) {
+        await syncIndirizzoImmobile(sedeImpianto)
+      }
+
       setFormData(currentData)
 
       // Poi marca come completata (trigger cambio stato automatico)
@@ -276,6 +316,61 @@ export const TechnicalDetails = () => {
     setOcrReviewData(null)
   }, [])
 
+  // IMPORTANT: Load customer data for legacy CSV imports BEFORE early returns
+  // Extract cliente string if it exists
+  const clienteString = request?.custom_fields?.cliente && typeof request.custom_fields.cliente === 'string'
+    ? request.custom_fields.cliente
+    : null
+  const shouldFetchByName = !request?.customer && !!clienteString
+
+  // Search for customer by name for CSV imported requests
+  const { data: customersSearchResult } = useCustomers(
+    clienteString ? { search: clienteString } : undefined,
+    { enabled: shouldFetchByName }
+  )
+
+  const customerByName = useMemo(() => {
+    if (!customersSearchResult?.data || !clienteString) return undefined
+    return customersSearchResult.data.find(
+      c => c.ragione_sociale.toLowerCase() === clienteString.toLowerCase()
+    )
+  }, [customersSearchResult, clienteString])
+
+  // Auto-sync customer_id when customerByName is found
+  useEffect(() => {
+    if (!id || !customerByName || request?.customer_id) return
+
+    const syncCustomerId = async () => {
+      try {
+        await requestsApi.update(id, {
+          customer_id: customerByName.id
+        })
+
+        // Force re-fetch request data
+        window.location.reload()
+      } catch (err) {
+        console.error('[TechnicalDetails] Error syncing customer_id:', err)
+      }
+    }
+
+    syncCustomerId()
+  }, [id, customerByName, request?.customer_id])
+
+  // IMPORTANT: Calculate sedeLegale BEFORE early returns to avoid React Hook ordering issues
+  // Get sede legale from customer data using formatFullAddress
+  // Priority: request.customer > customerByName > custom_fields.sede_legale
+  const sedeLegale = useMemo(() => {
+    if (request?.customer) {
+      const addr = customersApi.formatFullAddress(request.customer)
+      return addr
+    }
+    if (customerByName) {
+      const addr = customersApi.formatFullAddress(customerByName)
+      return addr
+    }
+    return request?.custom_fields?.sede_legale || ''
+  }, [request, customerByName, clienteString])
+
   if (requestLoading || loading) {
     return (
       <Layout>
@@ -325,26 +420,6 @@ export const TechnicalDetails = () => {
     request.customer?.ragione_sociale ||
     technicalDataClientName ||
     'N/A'
-
-  const sedeLegale = request.custom_fields?.sede_legale || ''
-
-  // Use request.customer (joined relation) which has complete customer data
-  // FALLBACK: Se customer non esiste ma abbiamo dati cliente nei custom_fields O nei dati tecnici
-  const customerForReport = request.customer || (
-    (request.custom_fields?.cliente || technicalDataClientName) ? {
-      id: 'temp-' + request.id, // ID temporaneo
-      ragione_sociale: request.custom_fields?.cliente?.ragione_sociale || technicalDataClientName || '',
-      via: request.custom_fields?.cliente?.via || sedeLegale || null,
-      cap: request.custom_fields?.cliente?.cap || null,
-      citta: request.custom_fields?.cliente?.citta || null,
-      provincia: request.custom_fields?.cliente?.provincia || null,
-      external_id: null,
-      is_active: true,
-      created_at: request.created_at,
-      updated_at: request.updated_at,
-      created_by: null,
-    } : null
-  )
 
   // Determina se l'utente può gestire la condivisione
   const canManageSharing =
@@ -413,31 +488,6 @@ export const TechnicalDetails = () => {
 
             {isCompleted ? (
               <>
-                <Button
-                  variant="contained"
-                  color="primary"
-                  startIcon={<DescriptionIcon />}
-                  onClick={() => {
-                    if (!customerForReport) {
-                      console.error('❌ Customer non trovato - customer_id:', request?.customer_id);
-                      alert(
-                        'Errore: Dati cliente non trovati.\n\n' +
-                        'La relazione tecnica richiede i dati del cliente.\n' +
-                        'Questa pratica non ha un cliente associato.\n\n' +
-                        'Per risolvere:\n' +
-                        '1. Torna alla richiesta\n' +
-                        '2. Modifica la richiesta e associa un cliente dalla lista\n' +
-                        '3. Riprova a generare la relazione'
-                      );
-                      return;
-                    }
-
-                    setGenerateReportDialogOpen(true);
-                  }}
-                  disabled={saving}
-                >
-                  Genera Relazione
-                </Button>
                 {(user?.role === 'admin' || user?.role === 'userdm329') && (
                   <Button
                     variant="outlined"
@@ -548,17 +598,6 @@ export const TechnicalDetails = () => {
             onClose={() => setShareDialogOpen(false)}
             technicalDataId={technicalData.id}
             requestId={request.id}
-          />
-        )}
-
-        {/* Generate Report Dialog */}
-        {technicalData && customerForReport && (
-          <GenerateReportDialog
-            open={generateReportDialogOpen}
-            onClose={() => setGenerateReportDialogOpen(false)}
-            technicalData={technicalData}
-            request={request}
-            customer={customerForReport}
           />
         )}
 

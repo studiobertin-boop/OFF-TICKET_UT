@@ -13,7 +13,7 @@ import {
 } from '@mui/material';
 import { Layout } from '@/components/common/Layout';
 import { useAuth } from '@/hooks/useAuth';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 
 // Analytics hooks
 import {
@@ -47,8 +47,21 @@ import type { GeneralAnalyticsFilters, DM329AnalyticsFilters } from '@/services/
 
 export const Dashboard = () => {
   const { user } = useAuth();
-  // Se è userdm329, parte dal tab DM329 (tab 1), altrimenti dal tab generale (tab 0)
-  const [activeTab, setActiveTab] = useState(user?.role === 'userdm329' ? 1 : 0);
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // Tab iniziale: ?tab=dm329 / ?tab=generale hanno precedenza,
+  // altrimenti userdm329 parte dal tab DM329 (tab 1), gli altri dal generale (tab 0)
+  const tabParam = searchParams.get('tab');
+  const initialTab =
+    tabParam === 'dm329' ? 1 : tabParam === 'generale' ? 0 : user?.role === 'userdm329' ? 1 : 0;
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  // Naviga alla lista richieste già filtrata per lo stato cliccato
+  const goToRequestsList = (listTab: 'generale' | 'dm329', stato?: string) => {
+    const params = new URLSearchParams({ listTab, view: 'table' });
+    if (stato) params.set('stato', stato);
+    navigate(`/requests?${params.toString()}`);
+  };
   const [trendRange, setTrendRange] = useState<'week' | 'month' | 'year'>('month');
 
   // Filtri
@@ -150,26 +163,31 @@ export const Dashboard = () => {
                     label: 'Aperte',
                     count: generalOverview.data?.openRequests || 0,
                     color: '#2196f3',
+                    onClick: () => goToRequestsList('generale', 'APERTA'),
                   },
                   {
                     label: 'In Lavorazione',
                     count: generalOverview.data?.inProgressRequests || 0,
                     color: '#ff9800',
+                    onClick: () => goToRequestsList('generale', 'IN_LAVORAZIONE'),
                   },
                   {
                     label: 'Completate',
                     count: generalOverview.data?.completedRequests || 0,
                     color: '#4caf50',
+                    onClick: () => goToRequestsList('generale', 'COMPLETATA'),
                   },
                   {
                     label: 'Bloccate',
                     count: generalOverview.data?.blockedRequests || 0,
                     color: '#f44336',
+                    onClick: () => goToRequestsList('generale', 'BLOCCATA'),
                   },
                   {
                     label: 'Attive',
                     count: generalOverview.data?.activeRequests || 0,
                     color: '#9c27b0',
+                    onClick: () => goToRequestsList('generale'),
                   },
                 ]}
                 isLoading={generalOverview.isLoading}
@@ -281,46 +299,55 @@ export const Dashboard = () => {
                     label: '1 - Incarico Ricevuto',
                     count: dm329Overview.data?.status1 || 0,
                     color: '#2196f3',
+                    onClick: () => goToRequestsList('dm329', '1-INCARICO_RICEVUTO'),
                   },
                   {
                     label: '2 - Scheda Dati Pronta',
                     count: dm329Overview.data?.status2 || 0,
                     color: '#9c27b0',
+                    onClick: () => goToRequestsList('dm329', '2-SCHEDA_DATI_PRONTA'),
                   },
                   {
                     label: '3 - Mail Cliente Inviata',
                     count: dm329Overview.data?.status3 || 0,
                     color: '#9c27b0',
+                    onClick: () => goToRequestsList('dm329', '3-MAIL_CLIENTE_INVIATA'),
                   },
                   {
                     label: '4 - Documenti Pronti',
                     count: dm329Overview.data?.status4 || 0,
                     color: '#ff9800',
+                    onClick: () => goToRequestsList('dm329', '4-DOCUMENTI_PRONTI'),
                   },
                   {
                     label: '5 - Attesa Firma',
                     count: dm329Overview.data?.status5 || 0,
                     color: '#ff9800',
+                    onClick: () => goToRequestsList('dm329', '5-ATTESA_FIRMA'),
                   },
                   {
                     label: '6 - Pronta per CIVA',
                     count: dm329Overview.data?.status6 || 0,
                     color: '#4caf50',
+                    onClick: () => goToRequestsList('dm329', '6-PRONTA_PER_CIVA'),
                   },
                   {
                     label: '7 - Chiusa',
                     count: dm329Overview.data?.status7 || 0,
                     color: '#4caf50',
+                    onClick: () => goToRequestsList('dm329', '7-CHIUSA'),
                   },
                   {
                     label: 'Archiviata Non Finita',
                     count: dm329Overview.data?.statusArchived || 0,
                     color: '#757575',
+                    onClick: () => goToRequestsList('dm329', 'ARCHIVIATA NON FINITA'),
                   },
                   {
                     label: 'Totali Attive',
                     count: dm329Overview.data?.totalActive || 0,
                     color: '#673ab7',
+                    onClick: () => goToRequestsList('dm329'),
                   },
                 ]}
                 isLoading={dm329Overview.isLoading}

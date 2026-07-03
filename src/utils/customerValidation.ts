@@ -2,48 +2,26 @@ import { z } from 'zod'
 import { Customer, CustomerCompleteness } from '@/types'
 
 /**
- * Zod schema for Italian phone number validation
- * Accepts: +39, 0039, or direct format with flexible spacing/dashes
- * Optional field - validates format only when provided
+ * Zod schema for phone number (optional, no format constraint)
+ * Any value is accepted.
  */
-export const telefonoSchema = z.string()
+export const telefonoSchema = z.string().optional()
+
+/**
+ * Zod schema for PEC validation
+ * Optional field - when provided, must be a valid email
+ * (contains @ and a domain with a dot). No certified-domain restriction.
+ */
+export const pecSchema = z.string()
   .optional()
   .refine(
     (val) => {
       // Allow empty/undefined
       if (!val || val.trim() === '') return true
-      // Remove all spaces, dashes, and parentheses for validation
-      const cleaned = val.replace(/[\s\-\(\)]/g, '')
-      // Accept +39..., 0039..., or direct number (6-11 digits after prefix)
-      return /^(\+39|0039)?[0-9]{6,11}$/.test(cleaned)
+      // Must be a valid email: something@domain.tld
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim())
     },
-    { message: 'Formato telefono non valido (es: +39 02 1234567 o 02 1234567)' }
-  )
-
-/**
- * Zod schema for PEC (Certified Email) validation
- * Must be a valid email ending with common Italian certified email domains
- */
-export const pecSchema = z.string()
-  .min(1, 'La PEC è obbligatoria')
-  .email('Formato email non valido')
-  .refine(
-    (val) => {
-      const lower = val.toLowerCase()
-      // Match either @domain.it or @subdomain.domain.it for common PEC providers
-      const pecDomains = [
-        'pec.it',
-        'legalmail.it',
-        'arubapec.it',
-        'postacert.it',
-        'sicurezzapostale.it',
-        'cert.agenziaentrate.it'
-      ]
-      return pecDomains.some(domain =>
-        lower.endsWith('@' + domain) || lower.endsWith('.' + domain)
-      )
-    },
-    { message: 'La PEC deve terminare con un dominio certificato valido (es: @pec.it, @legalmail.it, @arubapec.it)' }
+    { message: 'Formato PEC non valido (inserire un indirizzo email valido, es: nome@dominio.it)' }
   )
 
 /**
@@ -90,7 +68,7 @@ export const createCustomerSchema = z.object({
   ]).optional(),
   telefono: telefonoSchema,
   pec: pecSchema,
-  descrizione_attivita: z.string().min(1, 'La descrizione attività è obbligatoria'),
+  descrizione_attivita: z.string().optional(),
   via: z.string().optional(),
   numero_civico: z.string().optional(),
   cap: capSchema,
@@ -149,11 +127,9 @@ function isEmpty(value: any): boolean {
  * Note: telefono and address fields are no longer required
  */
 export function getMissingCustomerFields(customer: Customer): Array<{ field: keyof Customer; label: string }> {
+  // Solo la ragione sociale è obbligatoria; tutti gli altri campi sono facoltativi
   const requiredFields: Array<keyof Customer> = [
     'ragione_sociale',
-    'identificativo',
-    'pec',
-    'descrizione_attivita',
   ]
 
   return requiredFields
@@ -170,6 +146,46 @@ export function getMissingCustomerFields(customer: Customer): Array<{ field: key
  */
 export function isCustomerComplete(customer: Customer): boolean {
   return getMissingCustomerFields(customer).length === 0
+}
+
+/**
+ * Campi facoltativi che l'utente può "integrare" tramite il dialog di completamento.
+ * NON sono obbligatori per il salvataggio (per quelli vedi getMissingCustomerFields),
+ * ma se vuoti offrono l'opportunità di completare il profilo del cliente.
+ * Nota: `identificativo` è escluso perché viene auto-generato quando lasciato vuoto.
+ */
+const COMPLETABLE_CUSTOMER_FIELDS: Array<keyof Customer> = [
+  'telefono',
+  'pec',
+  'descrizione_attivita',
+  'via',
+  'numero_civico',
+  'cap',
+  'comune',
+  'provincia',
+]
+
+/**
+ * Restituisce i campi facoltativi attualmente vuoti che l'utente può integrare.
+ * Usato dal dialog "Completa Dati Cliente" e per decidere se proporlo.
+ */
+export function getIncompleteCustomerFields(
+  customer: Customer
+): Array<{ field: keyof Customer; label: string }> {
+  return COMPLETABLE_CUSTOMER_FIELDS
+    .filter(field => isEmpty(customer[field]))
+    .map(field => ({
+      field,
+      label: FIELD_LABELS[field] || field,
+    }))
+}
+
+/**
+ * True se il cliente ha almeno un campo facoltativo che può essere integrato.
+ * Non implica che il cliente sia "non valido": serve solo a proporre il completamento.
+ */
+export function hasIncompleteCustomerData(customer: Customer): boolean {
+  return getIncompleteCustomerFields(customer).length > 0
 }
 
 /**

@@ -76,4 +76,4 @@ Processo sviluppo: WORKFLOW.md
 Docs: supabase.com/docs | mui.com | tanstack.com/query
 
 ## PREFERENZE
-preferisco sempre caricare manualmente le migrations supabase tramite dashboard web
+Claude applica direttamente le modifiche al database Supabase (schema, migrations, query) tramite Management API con access token, senza richiedere caricamento manuale dalla dashboard.

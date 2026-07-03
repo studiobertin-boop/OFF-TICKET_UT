@@ -21,6 +21,7 @@ import type { Notification } from '../../types'
 import { formatDistanceToNow } from 'date-fns'
 import { it } from 'date-fns/locale'
 import { getEventIconConfig, mapNotificationEventType } from '@/utils/eventIcons'
+import { toast } from 'react-hot-toast'
 
 interface NotificationDrawerProps {
   open: boolean
@@ -108,7 +109,7 @@ function NotificationItem({ notification, onClose }: { notification: Notificatio
 }
 
 export default function NotificationDrawer({ open, onClose }: NotificationDrawerProps) {
-  const { notifications, unreadCount, markAllAsRead, isLoading } = useNotifications()
+  const { notifications, unreadCount, markAllAsReadAsync, isMarkingAllAsRead, isLoading } = useNotifications()
 
   return (
     <Drawer anchor="right" open={open} onClose={onClose}>
@@ -140,11 +141,20 @@ export default function NotificationDrawer({ open, onClose }: NotificationDrawer
           <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
             <Button
               size="small"
-              onClick={() => markAllAsRead()}
+              onClick={async () => {
+                try {
+                  await markAllAsReadAsync()
+                  toast.success('Tutte le notifiche sono state segnate come lette')
+                } catch (error) {
+                  console.error('Errore nel marcare tutte come lette:', error)
+                  toast.error('Errore durante l\'operazione. Riprova.')
+                }
+              }}
               variant="outlined"
               fullWidth
+              disabled={isMarkingAllAsRead}
             >
-              Segna tutte come lette
+              {isMarkingAllAsRead ? 'Elaborazione...' : 'Segna tutte come lette'}
             </Button>
           </Box>
         )}

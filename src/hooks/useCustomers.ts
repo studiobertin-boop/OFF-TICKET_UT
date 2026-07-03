@@ -4,10 +4,11 @@ import { customersApi, CreateCustomerInput, UpdateCustomerInput, CustomerFilters
 export const CUSTOMERS_QUERY_KEY = ['customers']
 
 // Get all customers with optional search filter
-export const useCustomers = (filters?: CustomerFilters) => {
+export const useCustomers = (filters?: CustomerFilters, options?: { enabled?: boolean }) => {
   return useQuery({
     queryKey: [...CUSTOMERS_QUERY_KEY, filters],
     queryFn: () => customersApi.getAll(filters),
+    enabled: options?.enabled !== undefined ? options.enabled : true,
     staleTime: 5 * 60 * 1000, // 5 minutes - customers don't change frequently
     gcTime: 10 * 60 * 1000, // 10 minutes cache (previously cacheTime)
   })

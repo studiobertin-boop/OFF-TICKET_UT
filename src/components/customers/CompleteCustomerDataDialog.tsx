@@ -15,7 +15,7 @@ import { Warning as WarningIcon } from '@mui/icons-material'
 import { Customer } from '@/types'
 import { useUpdateCustomer } from '@/hooks/useCustomers'
 import { updateCustomerSchema } from '@/utils/customerValidation'
-import { getMissingCustomerFields } from '@/utils/customerValidation'
+import { getIncompleteCustomerFields } from '@/utils/customerValidation'
 import { CustomerFormFields } from './CustomerFormFields'
 
 interface CompleteCustomerDataDialogProps {
@@ -52,7 +52,7 @@ export const CompleteCustomerDataDialog = ({
 
   useEffect(() => {
     if (customer && open) {
-      const missing = getMissingCustomerFields(customer)
+      const missing = getIncompleteCustomerFields(customer)
       setMissingFieldNames(missing.map((f) => f.field))
 
       // Pre-fill form with existing data
@@ -109,9 +109,9 @@ export const CompleteCustomerDataDialog = ({
       </DialogTitle>
 
       <DialogContent>
-        <Alert severity="warning" sx={{ mb: 3 }}>
-          Il cliente "<strong>{customer.ragione_sociale}</strong>" ha dei dati mancanti. Compila i
-          campi evidenziati per completare il profilo.
+        <Alert severity="info" sx={{ mb: 3 }}>
+          Il cliente "<strong>{customer.ragione_sociale}</strong>" ha alcuni dati facoltativi non
+          compilati. Puoi integrarne alcuni o tutti, oppure procedere comunque.
         </Alert>
 
         {missingFieldNames.length === 0 ? (

@@ -18,7 +18,7 @@ import AddIcon from '@mui/icons-material/Add'
 import { FieldSchema, Customer } from '@/types'
 import { useCustomers, useCreateCustomer } from '@/hooks/useCustomers'
 import { debounce } from '@/utils/debounce'
-import { createCustomerSchema, checkCustomerCompleteness } from '@/utils/customerValidation'
+import { createCustomerSchema, hasIncompleteCustomerData } from '@/utils/customerValidation'
 import { CustomerFormFields } from '@/components/customers/CustomerFormFields'
 import { CompleteCustomerDataDialog } from '@/components/customers/CompleteCustomerDataDialog'
 
@@ -145,6 +145,7 @@ export const AutocompleteField = ({ field, control, error }: AutocompleteFieldPr
         name={field.name}
         control={control}
         render={({ field: formField }) => (
+          <>
           <Autocomplete
             options={optionsWithCreate}
             loading={isLoading}
@@ -156,15 +157,11 @@ export const AutocompleteField = ({ field, control, error }: AutocompleteFieldPr
                 return
               }
 
-              // Check if selected customer has complete data
-              if (newValue) {
-                const completeness = checkCustomerCompleteness(newValue)
-                if (!completeness.isComplete) {
-                  // Show complete data dialog and save callback
-                  setCustomerToComplete(newValue)
-                  setPendingCustomerCallback(() => formField.onChange)
-                  return
-                }
+              // Offer to complete missing optional data before confirming selection
+              if (newValue && hasIncompleteCustomerData(newValue)) {
+                setCustomerToComplete(newValue)
+                setPendingCustomerCallback(() => formField.onChange)
+                return
               }
 
               formField.onChange(newValue)
@@ -222,6 +219,31 @@ export const AutocompleteField = ({ field, control, error }: AutocompleteFieldPr
               )
             }}
           />
+
+          {/* Non-blocking prompt to complete an already-selected customer */}
+          {formField.value &&
+            typeof formField.value === 'object' &&
+            hasIncompleteCustomerData(formField.value) && (
+              <Alert
+                severity="info"
+                sx={{ mt: 1 }}
+                action={
+                  <Button
+                    color="inherit"
+                    size="small"
+                    onClick={() => {
+                      setCustomerToComplete(formField.value)
+                      setPendingCustomerCallback(() => formField.onChange)
+                    }}
+                  >
+                    Completa dati
+                  </Button>
+                }
+              >
+                Alcuni dati del cliente sono incompleti. Puoi integrarli oppure procedere comunque.
+              </Alert>
+            )}
+          </>
         )}
       />
 

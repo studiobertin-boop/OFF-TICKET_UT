@@ -138,14 +138,15 @@ export const customersApi = {
       .insert({
         ragione_sociale: input.ragione_sociale.trim(),
         identificativo: input.identificativo?.trim() || undefined, // Trigger generates if omitted
-        telefono: normalizeTelefono(input.telefono),
-        pec: normalizePec(input.pec),
-        descrizione_attivita: input.descrizione_attivita.trim(),
-        via: input.via.trim(),
-        numero_civico: input.numero_civico.trim(),
-        cap: input.cap.trim(),
-        comune: input.comune.trim(),
-        provincia: normalizeProvincia(input.provincia),
+        // Campi opzionali: converti stringhe vuote/undefined in NULL per non violare i CHECK constraint
+        telefono: input.telefono?.trim() ? normalizeTelefono(input.telefono) : null,
+        pec: input.pec?.trim() ? normalizePec(input.pec) : null,
+        descrizione_attivita: input.descrizione_attivita?.trim() || null,
+        via: input.via?.trim() || null,
+        numero_civico: input.numero_civico?.trim() || null,
+        cap: input.cap?.trim() || null,
+        comune: input.comune?.trim() || null,
+        provincia: input.provincia?.trim() ? normalizeProvincia(input.provincia) : null,
         is_active: true,
       })
       .select()
@@ -171,20 +172,22 @@ export const customersApi = {
       updateData.ragione_sociale = ragione_sociale
     }
 
-    if (input.identificativo !== undefined) {
+    // Non sovrascrivere l'identificativo (auto-generato) con una stringa vuota
+    if (input.identificativo !== undefined && input.identificativo.trim()) {
       updateData.identificativo = input.identificativo.trim()
     }
 
+    // Campi opzionali: converti stringhe vuote in NULL per non violare i CHECK constraint
     if (input.telefono !== undefined) {
-      updateData.telefono = normalizeTelefono(input.telefono)
+      updateData.telefono = input.telefono.trim() ? normalizeTelefono(input.telefono) : null
     }
 
     if (input.pec !== undefined) {
-      updateData.pec = normalizePec(input.pec)
+      updateData.pec = input.pec.trim() ? normalizePec(input.pec) : null
     }
 
     if (input.descrizione_attivita !== undefined) {
-      updateData.descrizione_attivita = input.descrizione_attivita.trim()
+      updateData.descrizione_attivita = input.descrizione_attivita.trim() || null
     }
 
     if (input.via !== undefined) {

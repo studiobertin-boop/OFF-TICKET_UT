@@ -124,26 +124,41 @@ export const AddressAutocompleteField = ({
           ? { required: `${field.label} è obbligatorio` }
           : undefined
       }
-      render={({ field: formField }) => (
-        <Autocomplete
-          freeSolo // Permette input libero
-          options={options}
-          loading={loading}
-          inputValue={inputValue}
-          onInputChange={(_, newInputValue) => {
-            setInputValue(newInputValue)
-          }}
-          onChange={(_, newValue) => {
-            if (typeof newValue === 'string') {
-              // Input libero (testo)
-              formField.onChange(newValue)
-            } else if (newValue) {
-              // Selezione da autocomplete - salviamo l'indirizzo formattato
-              formField.onChange(newValue.description)
-            } else {
-              formField.onChange('')
-            }
-          }}
+      render={({ field: formField }) => {
+        // Sync formField value with inputValue on mount/change
+        useEffect(() => {
+          if (formField.value && !inputValue) {
+            setInputValue(formField.value)
+          }
+        }, [formField.value])
+
+        return (
+          <Autocomplete
+            freeSolo // Permette input libero
+            options={options}
+            loading={loading}
+            value={formField.value || null}
+            inputValue={inputValue}
+            onInputChange={(_, newInputValue) => {
+              setInputValue(newInputValue)
+            }}
+            onChange={(_, newValue) => {
+              if (typeof newValue === 'string') {
+                // Input libero (testo)
+                formField.onChange(newValue)
+              } else if (newValue) {
+                // Selezione da autocomplete - salviamo l'indirizzo formattato
+                formField.onChange(newValue.description)
+              } else {
+                formField.onChange('')
+              }
+            }}
+            onBlur={() => {
+              // Quando l'utente esce dal campo, salva il testo digitato anche se non ha selezionato
+              if (inputValue && inputValue !== formField.value) {
+                formField.onChange(inputValue)
+              }
+            }}
           getOptionLabel={(option) => {
             if (typeof option === 'string') {
               return option
@@ -193,8 +208,9 @@ export const AddressAutocompleteField = ({
               : 'Nessun indirizzo trovato'
           }
           filterOptions={(x) => x} // Non filtrare localmente, usiamo i risultati dell'API
-        />
-      )}
+          />
+        )
+      }}
     />
   )
 }

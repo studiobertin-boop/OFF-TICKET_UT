@@ -69,7 +69,7 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
       },
       dati_impianto: {
         indirizzo_impianto: '',
-        raccolta_condense: [],
+        raccolta_condense: 'Nessuna',
       },
       serbatoi: [],
       compressori: [],

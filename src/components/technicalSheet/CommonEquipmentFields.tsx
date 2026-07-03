@@ -221,6 +221,9 @@ export const CommonEquipmentFields = ({
                       error={!!getError('marca')}
                       helperText={getError('marca')?.message || 'Compilabile da OCR'}
                       placeholder="Es: Atlas Copco, Kaeser..."
+                      InputLabelProps={{
+                        shrink: true,
+                      }}
                     />
                   )}
                 />
@@ -242,6 +245,9 @@ export const CommonEquipmentFields = ({
                       error={!!getError('modello')}
                       helperText={getError('modello')?.message || 'Compilabile da OCR'}
                       placeholder="Es: GA 30, BSD 72..."
+                      InputLabelProps={{
+                        shrink: true,
+                      }}
                     />
                   )}
                 />
@@ -261,9 +267,13 @@ export const CommonEquipmentFields = ({
                 {...field}
                 label="N° di Fabbrica / Matricola"
                 fullWidth
+                size="small"
                 error={!!getError('n_fabbrica')}
                 helperText={getError('n_fabbrica')?.message || 'Compilabile da OCR'}
                 placeholder="Numero seriale"
+                InputLabelProps={{
+                  shrink: true,
+                }}
               />
             )}
           />
@@ -281,9 +291,13 @@ export const CommonEquipmentFields = ({
                 {...field}
                 label="Materiale N°"
                 fullWidth
+                size="small"
                 error={!!getError('materiale_n')}
                 helperText={getError('materiale_n')?.message || 'Compilabile da OCR'}
                 placeholder="Numero materiale"
+                InputLabelProps={{
+                  shrink: true,
+                }}
               />
             )}
           />
@@ -306,11 +320,15 @@ export const CommonEquipmentFields = ({
                 label="Anno"
                 type="number"
                 fullWidth
+                size="small"
                 error={!!getError('anno')}
                 helperText={getError('anno')?.message || 'Compilabile da OCR'}
                 placeholder="Es: 2015"
                 inputProps={{ min: 1980, max: 2100 }}
                 onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : '')}
+                InputLabelProps={{
+                  shrink: true,
+                }}
               />
             )}
           />
@@ -333,11 +351,15 @@ export const CommonEquipmentFields = ({
                 label="Pressione Max (bar)"
                 type="number"
                 fullWidth
+                size="small"
                 error={!!getError('pressione_max')}
                 helperText={getError('pressione_max')?.message || 'Compilabile da OCR (1 decimale)'}
                 placeholder="Es: 13,0"
                 inputProps={{ min: 10, max: 30, step: 0.1 }}
                 onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : '')}
+                InputLabelProps={{
+                  shrink: true,
+                }}
               />
             )}
           />
@@ -360,11 +382,15 @@ export const CommonEquipmentFields = ({
                 label="Volume (litri)"
                 type="number"
                 fullWidth
+                size="small"
                 error={!!getError('volume')}
                 helperText={getError('volume')?.message}
                 placeholder="Es: 500"
                 inputProps={{ min: 50, max: 5000 }}
                 onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : '')}
+                InputLabelProps={{
+                  shrink: true,
+                }}
               />
             )}
           />
@@ -382,11 +408,15 @@ export const CommonEquipmentFields = ({
                 {...field}
                 label="Note"
                 fullWidth
+                size="small"
                 multiline
                 rows={2}
                 error={!!getError('note')}
                 helperText={getError('note')?.message}
                 placeholder="Note aggiuntive..."
+                InputLabelProps={{
+                  shrink: true,
+                }}
               />
             )}
           />

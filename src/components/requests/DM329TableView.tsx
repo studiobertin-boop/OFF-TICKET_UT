@@ -29,8 +29,7 @@ import {
   FileDownload as FileDownloadIcon,
 } from '@mui/icons-material'
 import { Request, DM329Status, StatoFattura, STATO_FATTURA_OPTIONS, STATO_FATTURA_LABELS } from '@/types'
-import { getStatusColor, getStatusLabel } from '@/utils/workflow'
-import { getAllUsers } from '@/services/requestService'
+import { getStatusColor, getStatusLabel, ALL_DM329_STATUSES, DM329_STATUS_LABELS } from '@/utils/workflow'
 import { usePersistedState } from '@/hooks/usePersistedState'
 import { useAuth } from '@/hooks/useAuth'
 import { BlockIndicator } from './BlockIndicator'
@@ -38,6 +37,7 @@ import { UrgentIndicator } from './UrgentIndicator'
 import { TimerAlertIndicator } from './TimerAlertIndicator'
 import { EditableSelectCell } from './EditableSelectCell'
 import { requestsApi } from '@/services/api/requests'
+import { getAllUsers, updateRequestStatus } from '@/services/requestService'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
 import { format } from 'date-fns'
@@ -59,6 +59,8 @@ interface DM329TableViewProps {
   onSelectAll?: (selected: boolean) => void
   selectionEnabled?: boolean
   showPrintButton?: boolean
+  // Stato da preselezionare nel filtro (deep-link da tile dashboard)
+  initialStatoFilter?: string
 }
 
 type OrderDirection = 'asc' | 'desc'
@@ -97,9 +99,10 @@ export const DM329TableView = ({
   onSelectAll,
   selectionEnabled = false,
   showPrintButton = true,
+  initialStatoFilter,
 }: DM329TableViewProps) => {
   const navigate = useNavigate()
-  const { isAdmin, isUserDM329 } = useAuth()
+  const { user, isAdmin, isUserDM329 } = useAuth()
   const queryClient = useQueryClient()
 
   // Tutti gli utenti per il filtro "Attribuzione"
@@ -118,6 +121,9 @@ export const DM329TableView = ({
     const ids = new Set(requests.map(r => r.attributed_to).filter(Boolean) as string[])
     return allUsers.filter(u => ids.has(u.id))
   }, [requests, allUsers])
+
+  // Chi può modificare lo stato direttamente dalla lista DM329
+  const canEditStatus = isAdmin || isUserDM329
 
   // Stati persistiti nel sessionStorage
   const [orderBy, setOrderBy] = usePersistedState<OrderBy>('dm329Table_orderBy', 'updated_at')
@@ -139,6 +145,13 @@ export const DM329TableView = ({
   // State for export dialog
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
 
+  // Applica il filtro stato in arrivo da deep-link (tile dashboard)
+  useEffect(() => {
+    if (initialStatoFilter === undefined) return
+    setStatoFilter(initialStatoFilter ? [initialStatoFilter as DM329Status] : [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialStatoFilter])
+
   const handleSort = (property: OrderBy) => {
     const isAsc = orderBy === property && order === 'asc'
     setOrder(isAsc ? 'desc' : 'asc')
@@ -159,6 +172,18 @@ export const DM329TableView = ({
     await queryClient.invalidateQueries({ queryKey: ['requests'] })
     toast.success('Stato fattura aggiornato')
   }
+
+  // Handler per il cambio stato inline (validazione DB + storico via updateRequestStatus)
+  const handleSaveStatus = async (requestId: string, newStatus: string) => {
+    if (!user) throw new Error('Utente non autenticato')
+    const result = await updateRequestStatus(requestId, newStatus, user.id, user.role)
+    if (!result.success) {
+      throw new Error(result.message)
+    }
+    await queryClient.invalidateQueries({ queryKey: ['requests'] })
+    toast.success('Stato aggiornato')
+  }
+
 
   // Estrai valori unici per i filtri
   const uniqueClients = useMemo(() => {
@@ -881,12 +906,22 @@ export const DM329TableView = ({
                     return '-'
                   })()}
                 </TableCell>
-                <TableCell>
-                  <Chip
-                    label={getStatusLabel(request.status)}
-                    color={getStatusColor(request.status)}
-                    size="small"
-                  />
+                <TableCell onClick={canEditStatus ? (e) => e.stopPropagation() : undefined}>
+                  {canEditStatus ? (
+                    <EditableSelectCell
+                      value={request.status}
+                      options={ALL_DM329_STATUSES}
+                      optionLabels={DM329_STATUS_LABELS}
+                      getColor={getStatusColor}
+                      onSave={(newValue) => handleSaveStatus(request.id, newValue)}
+                    />
+                  ) : (
+                    <Chip
+                      label={getStatusLabel(request.status)}
+                      color={getStatusColor(request.status)}
+                      size="small"
+                    />
+                  )}
                 </TableCell>
                 <TableCell sx={{ textAlign: 'center' }}>
                   {request.custom_fields?.no_civa ? (

@@ -340,6 +340,9 @@ export const EquipmentAutocompleteWithPressure = ({
             {...params}
             label="Marca"
             placeholder="Seleziona o digita..."
+            InputLabelProps={{
+              shrink: true,
+            }}
             InputProps={{
               ...params.InputProps,
               endAdornment: (
@@ -381,6 +384,9 @@ export const EquipmentAutocompleteWithPressure = ({
             {...params}
             label="Modello"
             placeholder={marcaValue ? 'Seleziona o digita...' : 'Prima seleziona marca'}
+            InputLabelProps={{
+              shrink: true,
+            }}
             InputProps={{
               ...params.InputProps,
               endAdornment: (
@@ -425,6 +431,9 @@ export const EquipmentAutocompleteWithPressure = ({
             label={pressioneLabel}
             type="number"
             placeholder={modelloValue ? 'Seleziona o digita...' : 'Prima seleziona modello'}
+            InputLabelProps={{
+              shrink: true,
+            }}
             InputProps={{
               ...params.InputProps,
               endAdornment: (

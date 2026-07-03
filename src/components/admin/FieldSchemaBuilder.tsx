@@ -64,7 +64,6 @@ const FIELD_TYPES = [
   { value: 'boolean', label: 'Checkbox' },
   { value: 'select', label: 'Selezione singola' },
   { value: 'multiselect', label: 'Selezione multipla' },
-  { value: 'file', label: 'File upload' },
   { value: 'date', label: 'Data' },
   { value: 'autocomplete', label: 'Selezione con ricerca (Clienti)' },
 ] as const

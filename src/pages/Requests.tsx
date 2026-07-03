@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Box,
   Typography,
@@ -76,8 +76,13 @@ const getDM329StatusLabel = (status: DM329Status): string => {
 
 export const Requests = () => {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const { user } = useAuth()
+
+  // Stato in ingresso da un deep-link (es. click su una tile della dashboard).
+  // undefined = nessuna navigazione con filtro; stringa (anche vuota) = filtro da applicare.
+  const [incomingStato, setIncomingStato] = useState<string | undefined>(undefined)
 
   // Stati persistiti nel sessionStorage
   const [statusFilter, setStatusFilter] = usePersistedState<string>('requests_statusFilter', '')
@@ -163,6 +168,29 @@ export const Requests = () => {
   const canViewGeneralTab = user?.role !== 'userdm329'
   // Solo admin e userdm329 possono vedere il tab DM329
   const canViewDM329Tab = user?.role === 'admin' || user?.role === 'userdm329'
+
+  // Consuma i parametri di deep-link (es. click su una tile della dashboard):
+  // ?listTab=generale|dm329 &view=table &stato=<STATO>
+  useEffect(() => {
+    const listTab = searchParams.get('listTab')
+    const view = searchParams.get('view')
+    const stato = searchParams.get('stato')
+    if (!listTab && !view && stato === null) return
+
+    if (view === 'table') setViewMode('table')
+    if (listTab === 'dm329') {
+      setActiveTab(canViewDM329Tab ? 1 : 0)
+    } else if (listTab === 'generale') {
+      setActiveTab(0)
+    }
+    // stato presente => applica quel filtro; listTab senza stato (tile aggregata) => pulisce il filtro
+    if (listTab || stato !== null) {
+      setIncomingStato(stato ?? '')
+    }
+    // Pulisce i parametri dall'URL dopo averli applicati
+    setSearchParams({}, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Forza la vista tabella per DM329 (tab 1), richieste nascoste (tab 2+) e userdm329
   useEffect(() => {
@@ -648,6 +676,7 @@ export const Requests = () => {
                     onSelectRequest={handleSelectRequest}
                     onSelectAll={handleSelectAll}
                     selectionEnabled={selectionEnabled}
+                    initialStatoFilter={incomingStato}
                   />
                 )}
                 {activeTab === 1 && canViewDM329Tab && (
@@ -657,6 +686,7 @@ export const Requests = () => {
                     onSelectRequest={handleSelectRequest}
                     onSelectAll={handleSelectAll}
                     selectionEnabled={selectionEnabled}
+                    initialStatoFilter={incomingStato}
                   />
                 )}
                 {activeTab === 2 && user?.role === 'admin' && (
@@ -673,6 +703,7 @@ export const Requests = () => {
                 onSelectRequest={handleSelectRequest}
                 onSelectAll={handleSelectAll}
                 selectionEnabled={selectionEnabled}
+                initialStatoFilter={incomingStato}
               />
             )}
           </>

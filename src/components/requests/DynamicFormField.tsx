@@ -155,36 +155,7 @@ export const DynamicFormField = ({ field, control, error }: DynamicFormFieldProp
           />
         )
 
-      case 'file':
-        return (
-          <Controller
-            name={field.name}
-            control={control}
-            render={({ field: formField }) => (
-              <FormControl fullWidth margin="normal" required={field.required} error={!!error}>
-                <FormLabel>{field.label}</FormLabel>
-                <TextField
-                  type="file"
-                  onChange={e => {
-                    const target = e.target as HTMLInputElement
-                    const files = target.files
-                    if (field.maxFiles && field.maxFiles > 1) {
-                      formField.onChange(files ? Array.from(files) : [])
-                    } else {
-                      formField.onChange(files?.[0] || null)
-                    }
-                  }}
-                  inputProps={{
-                    accept: field.accept || '*/*',
-                    multiple: field.maxFiles ? field.maxFiles > 1 : false
-                  }}
-                  error={!!error}
-                  helperText={error?.message || (field.maxFileSize ? `Max ${field.maxFileSize}MB per file` : '')}
-                />
-              </FormControl>
-            )}
-          />
-        )
+      // case 'file' removed - use AttachmentsSection instead
 
       case 'date':
         return (

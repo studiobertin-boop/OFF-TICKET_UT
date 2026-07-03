@@ -1,3 +1,4 @@
+import React from 'react'
 import { Control, Controller, useWatch, useFormContext } from 'react-hook-form'
 import {
   TextField,
@@ -76,11 +77,19 @@ export const DatiImpiantoSection = ({
                   <Checkbox
                     checked={field.value || false}
                     onChange={(e) => {
-                      field.onChange(e.target.checked)
-                      // Se checked, copia automaticamente la sede legale dalla richiesta principale
-                      if (e.target.checked && sedeLegale) {
-                        setValue('dati_impianto.sede_impianto', sedeLegale)
+                      const isChecked = e.target.checked
+
+                      // Se checked, imposta prima la sede impianto poi il checkbox
+                      if (isChecked && sedeLegale) {
+                        setValue('dati_impianto.sede_impianto', sedeLegale, {
+                          shouldDirty: true,
+                          shouldValidate: true,
+                          shouldTouch: true
+                        })
                       }
+
+                      // Poi aggiorna il checkbox - importante farlo DOPO setValue
+                      field.onChange(isChecked)
                     }}
                   />
                 }
@@ -102,7 +111,6 @@ export const DatiImpiantoSection = ({
                   {...field}
                   label="Sede Impianto"
                   fullWidth
-                  value={sedeLegale}
                   disabled
                   helperText="Copiato automaticamente da Sede Legale"
                 />
@@ -226,28 +234,19 @@ export const DatiImpiantoSection = ({
           />
         </Grid>
 
-        {/* Raccolta Condense - OBBLIGATORIO */}
+        {/* Raccolta Condense - OBBLIGATORIO - SELEZIONE SINGOLA */}
         <Grid item xs={12} md={6}>
           <Controller
             name="dati_impianto.raccolta_condense"
             control={control}
-            rules={{ required: 'Campo obbligatorio', validate: (value) => (value && value.length > 0) || 'Selezionare almeno un\'opzione' }}
-            defaultValue={[]}
+            rules={{ required: 'Campo obbligatorio' }}
+            defaultValue=""
             render={({ field }) => (
               <FormControl fullWidth required error={!!errors?.dati_impianto?.raccolta_condense}>
                 <FormLabel>Raccolta Condense *</FormLabel>
                 <Select
                   {...field}
-                  multiple
-                  value={field.value || []}
-                  input={<OutlinedInput />}
-                  renderValue={(selected) => (
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {(selected as string[]).map((value) => (
-                        <Chip key={value} label={value} size="small" />
-                      ))}
-                    </Box>
-                  )}
+                  value={field.value || ''}
                 >
                   {RACCOLTA_CONDENSE_OPTIONS.map((option) => (
                     <MenuItem key={option} value={option}>

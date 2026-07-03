@@ -103,8 +103,9 @@ export const DatiGeneraliSection = ({
                 label="Cliente"
                 fullWidth
                 required
+                disabled
                 error={!!errors?.dati_generali?.cliente}
-                helperText={errors?.dati_generali?.cliente?.message}
+                helperText={errors?.dati_generali?.cliente?.message || 'Auto-sincronizzato con il cliente associato alla pratica'}
                 placeholder="Ragione sociale cliente"
               />
             )}

@@ -27,7 +27,6 @@ import {
   Build as BuildIcon,
   Archive as ArchiveIcon,
   Notifications as NotificationsIcon,
-  Description as TemplateIcon,
   Receipt as ReceiptIcon,
 } from '@mui/icons-material'
 import { useState } from 'react'
@@ -153,12 +152,6 @@ export const Layout = ({ children }: LayoutProps) => {
                       <BuildIcon fontSize="small" />
                     </ListItemIcon>
                     <ListItemText>Gestione Installatori</ListItemText>
-                  </MenuItem>
-                  <MenuItem onClick={() => handleAdminNavigate('/templates')}>
-                    <ListItemIcon>
-                      <TemplateIcon fontSize="small" />
-                    </ListItemIcon>
-                    <ListItemText>Template Documenti</ListItemText>
                   </MenuItem>
                   <MenuItem onClick={() => handleAdminNavigate('/admin/deletion-archives')}>
                     <ListItemIcon>

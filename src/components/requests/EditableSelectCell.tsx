@@ -8,6 +8,8 @@ import {
   Tooltip,
 } from '@mui/material'
 
+type ChipColor = 'default' | 'primary' | 'secondary' | 'error' | 'warning' | 'info' | 'success'
+
 interface EditableSelectCellProps {
   value: string
   options: string[]
@@ -15,6 +17,7 @@ interface EditableSelectCellProps {
   onSave: (newValue: string) => Promise<void>
   validate?: (value: string) => { valid: boolean; error?: string }
   disabled?: boolean
+  getColor?: (value: string) => ChipColor
 }
 
 export const EditableSelectCell = ({
@@ -24,6 +27,7 @@ export const EditableSelectCell = ({
   onSave,
   validate,
   disabled = false,
+  getColor,
 }: EditableSelectCellProps) => {
   const [isEditing, setIsEditing] = useState(false)
   const [currentValue, setCurrentValue] = useState(value)
@@ -141,7 +145,7 @@ export const EditableSelectCell = ({
           backgroundColor: 'action.hover',
         },
       }}
-      color={error ? 'error' : 'default'}
+      color={error ? 'error' : getColor ? getColor(currentValue) : 'default'}
     />
   )
 

@@ -17,6 +17,7 @@ export const notificationsApi = {
       `)
       .eq('read', false)
       .order('created_at', { ascending: false })
+      .limit(1000) // Limite esplicito per ottenere tutte le notifiche non lette
 
     if (error) throw error
     return data || []
@@ -68,10 +69,11 @@ export const notificationsApi = {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('User not authenticated')
 
+    // Non filtriamo per user_id: ci affidiamo alle RLS policy
+    // (gestisce anche eventuali notifiche legacy con user_id non allineato)
     const { error } = await supabase
       .from('notifications')
       .update({ read: true })
-      .eq('user_id', user.id)
       .eq('read', false)
 
     if (error) throw error

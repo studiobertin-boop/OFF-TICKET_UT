@@ -27,7 +27,7 @@ import {
   FileDownload as FileDownloadIcon,
 } from '@mui/icons-material'
 import { Request, RequestStatus, StatoFattura, STATO_FATTURA_OPTIONS, STATO_FATTURA_LABELS } from '@/types'
-import { getStatusColor, getStatusLabel } from '@/utils/workflow'
+import { getStatusColor, getStatusLabel, ALL_STANDARD_STATUSES, STANDARD_STATUS_LABELS } from '@/utils/workflow'
 import { usePersistedState } from '@/hooks/usePersistedState'
 import { BlockIndicator } from './BlockIndicator'
 import { UrgentIndicator } from './UrgentIndicator'
@@ -35,6 +35,7 @@ import { NewMessageIndicator } from './NewMessageIndicator'
 import { EditableSelectCell } from './EditableSelectCell'
 import { requestMessageViewsApi } from '@/services/api/requestMessageViews'
 import { requestsApi } from '@/services/api/requests'
+import { updateRequestStatus } from '@/services/requestService'
 import { useAuth } from '@/hooks/useAuth'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
@@ -56,6 +57,8 @@ interface RequestsTableViewProps {
   onSelectAll?: (selected: boolean) => void
   selectionEnabled?: boolean
   showPrintButton?: boolean
+  // Stato da preselezionare nel filtro (deep-link da tile dashboard)
+  initialStatoFilter?: string
 }
 
 type OrderDirection = 'asc' | 'desc'
@@ -77,10 +80,14 @@ export const RequestsTableView = ({
   onSelectAll,
   selectionEnabled = false,
   showPrintButton = true,
+  initialStatoFilter,
 }: RequestsTableViewProps) => {
   const navigate = useNavigate()
-  const { isAdmin } = useAuth()
+  const { user, isAdmin, isTecnico } = useAuth()
   const queryClient = useQueryClient()
+
+  // Chi può modificare lo stato direttamente dalla lista generale
+  const canEditStatus = isAdmin || isTecnico
 
   // Stati persistiti nel sessionStorage
   const [orderBy, setOrderBy] = usePersistedState<OrderBy>('requestsTable_orderBy', 'updated_at')
@@ -99,6 +106,13 @@ export const RequestsTableView = ({
 
   // State for export dialog
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
+
+  // Applica il filtro stato in arrivo da deep-link (tile dashboard)
+  useEffect(() => {
+    if (initialStatoFilter === undefined) return
+    setStatoFilter(initialStatoFilter ? [initialStatoFilter as RequestStatus] : [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialStatoFilter])
 
   // Fetch unread status for all requests
   useEffect(() => {
@@ -143,6 +157,17 @@ export const RequestsTableView = ({
     await requestsApi.updateCustomField(requestId, 'stato_fattura', newValue)
     await queryClient.invalidateQueries({ queryKey: ['requests'] })
     toast.success('Stato fattura aggiornato')
+  }
+
+  // Handler per il cambio stato inline (validazione DB + storico via updateRequestStatus)
+  const handleSaveStatus = async (requestId: string, newStatus: string) => {
+    if (!user) throw new Error('Utente non autenticato')
+    const result = await updateRequestStatus(requestId, newStatus, user.id, user.role)
+    if (!result.success) {
+      throw new Error(result.message)
+    }
+    await queryClient.invalidateQueries({ queryKey: ['requests'] })
+    toast.success('Stato aggiornato')
   }
 
   const handleSort = (property: OrderBy) => {
@@ -767,12 +792,22 @@ export const RequestsTableView = ({
                     return '-'
                   })()}
                 </TableCell>
-                <TableCell>
-                  <Chip
-                    label={getStatusLabel(request.status)}
-                    color={getStatusColor(request.status)}
-                    size="small"
-                  />
+                <TableCell onClick={canEditStatus ? (e) => e.stopPropagation() : undefined}>
+                  {canEditStatus ? (
+                    <EditableSelectCell
+                      value={request.status}
+                      options={ALL_STANDARD_STATUSES}
+                      optionLabels={STANDARD_STATUS_LABELS}
+                      getColor={getStatusColor}
+                      onSave={(newValue) => handleSaveStatus(request.id, newValue)}
+                    />
+                  ) : (
+                    <Chip
+                      label={getStatusLabel(request.status)}
+                      color={getStatusColor(request.status)}
+                      size="small"
+                    />
+                  )}
                 </TableCell>
                 <TableCell>{request.creator?.full_name || 'N/A'}</TableCell>
 
