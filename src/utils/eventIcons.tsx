@@ -6,11 +6,12 @@ import {
   Cancel as CancelIcon,
   TaskAlt as TaskAltIcon,
   HighlightOff as HighlightOffIcon,
+  PriorityHigh as PriorityHighIcon,
 } from '@mui/icons-material'
 import { ReactElement } from 'react'
 import type { NotificationEventType } from '@/types'
 
-export type EventType = 'status_change' | 'block' | 'unblock' | 'created' | 'completed' | 'aborted' | 'archived_unfinished'
+export type EventType = 'status_change' | 'block' | 'unblock' | 'created' | 'completed' | 'aborted' | 'archived_unfinished' | 'urgent'
 export type EventColor = 'primary' | 'warning' | 'success' | 'info' | 'grey' | 'error'
 
 interface EventIconConfig {
@@ -61,6 +62,12 @@ export function getEventIconConfig(eventType: EventType): EventIconConfig {
         color: 'grey',
         label: 'Archiviata Non Finita',
       }
+    case 'urgent':
+      return {
+        icon: <PriorityHighIcon fontSize="small" />,
+        color: 'error',
+        label: 'Segnata Urgente',
+      }
     case 'status_change':
     default:
       return {
@@ -85,11 +92,10 @@ export function mapNotificationEventType(
       return 'created'
     case 'request_blocked':
       return 'block'
-    case 'request_suspended':
-      // request_suspended usa il sistema di blocco (SOSPESA stato)
-      return 'block'
-    case 'request_unsuspended':
+    case 'block_resolved':
       return 'unblock'
+    case 'request_urgent':
+      return 'urgent'
     case 'status_change':
       // Per i cambi stato, controlla lo stato finale
       if (statusTo === 'COMPLETATA' || statusTo === '7-CHIUSA') {
