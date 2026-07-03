@@ -4,6 +4,12 @@ import type { Notification, UserNotificationPreferences } from '../../types'
 export const notificationsApi = {
   // Ottieni notifiche non lette dell'utente corrente
   async getUnreadNotifications(): Promise<Notification[]> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
+    // La campanella è la casella PERSONALE: filtriamo esplicitamente per user_id.
+    // Senza questo filtro, un admin (la cui RLS SELECT vede tutte le notifiche)
+    // riceverebbe nella propria campanella anche le notifiche di altri utenti.
     const { data, error } = await supabase
       .from('notifications')
       .select(`
@@ -15,6 +21,7 @@ export const notificationsApi = {
           request_type:request_types(name)
         )
       `)
+      .eq('user_id', user.id)
       .eq('read', false)
       .order('created_at', { ascending: false })
       .limit(1000) // Limite esplicito per ottenere tutte le notifiche non lette
@@ -25,6 +32,9 @@ export const notificationsApi = {
 
   // Ottieni tutte le notifiche dell'utente corrente (con paginazione)
   async getNotifications(limit = 50, offset = 0): Promise<Notification[]> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
     const { data, error } = await supabase
       .from('notifications')
       .select(`
@@ -36,6 +46,7 @@ export const notificationsApi = {
           request_type:request_types(name)
         )
       `)
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
 
@@ -45,9 +56,13 @@ export const notificationsApi = {
 
   // Conta notifiche non lette
   async getUnreadCount(): Promise<number> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
     const { count, error } = await supabase
       .from('notifications')
       .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
       .eq('read', false)
 
     if (error) throw error
@@ -56,10 +71,16 @@ export const notificationsApi = {
 
   // Marca notifica come letta
   async markAsRead(notificationId: string): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
+    // Filtriamo anche per user_id: la RLS UPDATE ha WITH CHECK (auth.uid() = user_id),
+    // quindi aggiornare la notifica di un altro utente farebbe fallire lo statement.
     const { error } = await supabase
       .from('notifications')
       .update({ read: true })
       .eq('id', notificationId)
+      .eq('user_id', user.id)
 
     if (error) throw error
   },
@@ -69,11 +90,13 @@ export const notificationsApi = {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('User not authenticated')
 
-    // Non filtriamo per user_id: ci affidiamo alle RLS policy
-    // (gestisce anche eventuali notifiche legacy con user_id non allineato)
+    // Filtriamo per user_id: senza questo filtro, per un admin l'UPDATE toccherebbe
+    // anche le notifiche di altri utenti e la RLS WITH CHECK (auth.uid() = user_id)
+    // farebbe abortire l'INTERO statement (errore 42501), senza segnare nulla come letto.
     const { error } = await supabase
       .from('notifications')
       .update({ read: true })
+      .eq('user_id', user.id)
       .eq('read', false)
 
     if (error) throw error
@@ -81,10 +104,14 @@ export const notificationsApi = {
 
   // Elimina notifica (dopo visualizzazione)
   async deleteNotification(notificationId: string): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
     const { error } = await supabase
       .from('notifications')
       .delete()
       .eq('id', notificationId)
+      .eq('user_id', user.id)
 
     if (error) throw error
   },
