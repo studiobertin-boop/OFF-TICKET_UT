@@ -135,3 +135,120 @@ BEGIN
   END LOOP;
 END;
 $function$;
+
+-- 5) notify_request_status_change: broadcast, niente piu' get_notification_recipients ne' SOSPESA
+CREATE OR REPLACE FUNCTION public.notify_request_status_change()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $function$
+DECLARE
+  v_message TEXT;
+  v_request_title TEXT;
+  v_request_type_name TEXT;
+  v_customer_name TEXT;
+  v_event_type TEXT;
+  v_is_dm329 BOOLEAN := false;
+  v_actor UUID;
+  v_prefix TEXT;
+  v_action TEXT;
+BEGIN
+  SELECT r.title, rt.name, c.ragione_sociale,
+         CASE WHEN rt.name LIKE '%DM329%' THEN true ELSE false END
+  INTO v_request_title, v_request_type_name, v_customer_name, v_is_dm329
+  FROM requests r
+  LEFT JOIN request_types rt ON r.request_type_id = rt.id
+  LEFT JOIN customers c ON r.customer_id = c.id
+  WHERE r.id = NEW.id;
+
+  IF v_customer_name IS NOT NULL THEN
+    v_prefix := v_customer_name || ' - ' || v_request_type_name;
+  ELSE
+    v_prefix := v_request_type_name;
+  END IF;
+
+  IF OLD.status IS NULL THEN
+    v_event_type := 'request_created';
+    v_action := 'richiesta creata';
+    v_actor := NEW.created_by;
+  ELSIF NEW.status = 'ABORTITA' THEN
+    v_event_type := 'status_change';
+    v_action := 'richiesta abortita';
+    v_actor := COALESCE(auth.uid(), NEW.created_by);
+  ELSIF NEW.status = 'COMPLETATA' THEN
+    v_event_type := 'status_change';
+    v_action := 'richiesta completata';
+    v_actor := COALESCE(auth.uid(), NEW.created_by);
+  ELSE
+    v_event_type := 'status_change';
+    v_action := 'cambiata da ' || OLD.status || ' a ' || NEW.status;
+    v_actor := COALESCE(auth.uid(), NEW.created_by);
+  END IF;
+
+  v_message := v_prefix || ' - ' || v_action;
+
+  PERFORM notify_event_subscribers(
+    v_event_type, NEW.id, v_message, v_actor, OLD.status, NEW.status,
+    jsonb_build_object('request_title', v_request_title, 'request_type_name', v_request_type_name,
+                       'customer_name', v_customer_name, 'is_dm329', v_is_dm329)
+  );
+  RETURN NEW;
+END;
+$function$;
+
+-- 6) Blocco/sblocco: broadcast invece di INSERT diretto (messaggi invariati)
+CREATE OR REPLACE FUNCTION public.notify_on_request_blocked()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $function$
+DECLARE
+  v_request requests;
+  v_blocked_by_user users;
+  v_message TEXT;
+BEGIN
+  IF NEW.is_active = true AND (TG_OP = 'INSERT' OR OLD.is_active = false) THEN
+    SELECT * INTO v_request FROM requests WHERE id = NEW.request_id;
+    SELECT * INTO v_blocked_by_user FROM users WHERE id = NEW.blocked_by;
+    v_message := 'La richiesta "' || v_request.title || '" è stata bloccata da ' ||
+                 COALESCE(v_blocked_by_user.full_name, v_blocked_by_user.email) || ': ' || NEW.reason;
+    PERFORM notify_event_subscribers('request_blocked', NEW.request_id, v_message, NEW.blocked_by);
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.notify_on_block_resolved()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $function$
+DECLARE
+  v_request requests;
+  v_unblocked_by_user users;
+  v_message TEXT;
+BEGIN
+  IF OLD.is_active = true AND NEW.is_active = false AND NEW.unblocked_by IS NOT NULL THEN
+    SELECT * INTO v_request FROM requests WHERE id = NEW.request_id;
+    SELECT * INTO v_unblocked_by_user FROM users WHERE id = NEW.unblocked_by;
+    v_message := 'Il blocco sulla richiesta "' || v_request.title || '" è stato risolto da ' ||
+                 COALESCE(v_unblocked_by_user.full_name, v_unblocked_by_user.email) ||
+                 CASE WHEN NEW.resolution_notes IS NOT NULL AND NEW.resolution_notes != ''
+                      THEN ': ' || NEW.resolution_notes ELSE '' END;
+    PERFORM notify_event_subscribers('block_resolved', NEW.request_id, v_message, NEW.unblocked_by);
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+
+-- 7) Urgente: nuovo trigger su is_urgent false->true
+CREATE OR REPLACE FUNCTION public.notify_on_request_urgent()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $function$
+DECLARE
+  v_message TEXT;
+BEGIN
+  IF NEW.is_urgent = true AND COALESCE(OLD.is_urgent, false) = false THEN
+    v_message := 'La richiesta "' || NEW.title || '" è stata segnata come URGENTE';
+    PERFORM notify_event_subscribers('request_urgent', NEW.id, v_message, auth.uid());
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+
+DROP TRIGGER IF EXISTS trigger_notify_request_urgent ON requests;
+CREATE TRIGGER trigger_notify_request_urgent
+  AFTER UPDATE OF is_urgent ON requests
+  FOR EACH ROW EXECUTE FUNCTION notify_on_request_urgent();
+
+COMMIT;
