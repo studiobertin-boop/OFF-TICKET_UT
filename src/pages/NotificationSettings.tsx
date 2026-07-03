@@ -12,7 +12,6 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Chip,
 } from '@mui/material'
 import {
   ExpandMore as ExpandMoreIcon,
@@ -62,6 +61,12 @@ export default function NotificationSettings() {
   const [inApp, setInApp] = useState(true)
   const [email, setEmail] = useState(false)
   const [statusTransitions, setStatusTransitions] = useState<Record<string, boolean>>({})
+  const [eventPrefs, setEventPrefs] = useState({
+    notify_request_created: false,
+    notify_request_blocked: false,
+    notify_block_resolved: false,
+    notify_request_urgent: false,
+  })
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [testEmailLoading, setTestEmailLoading] = useState(false)
   const [testEmailResult, setTestEmailResult] = useState<{ success: boolean; message: string } | null>(null)
@@ -72,6 +77,12 @@ export default function NotificationSettings() {
       setInApp(preferences.in_app)
       setEmail(preferences.email)
       setStatusTransitions(preferences.status_transitions || {})
+      setEventPrefs({
+        notify_request_created: preferences.notify_request_created ?? false,
+        notify_request_blocked: preferences.notify_request_blocked ?? false,
+        notify_block_resolved: preferences.notify_block_resolved ?? false,
+        notify_request_urgent: preferences.notify_request_urgent ?? false,
+      })
     }
   }, [preferences])
 
@@ -100,6 +111,26 @@ export default function NotificationSettings() {
           // Ripristina lo stato locale in caso di errore
           setStatusTransitions((prev) => ({ ...prev, [key]: !enabled }))
         }
+      }
+    )
+  }
+
+  const handleToggleEvent = (
+    field:
+      | 'notify_request_created'
+      | 'notify_request_blocked'
+      | 'notify_block_resolved'
+      | 'notify_request_urgent',
+    enabled: boolean
+  ) => {
+    setEventPrefs((prev) => ({ ...prev, [field]: enabled }))
+    updatePreferences(
+      { [field]: enabled },
+      {
+        onError: (error: unknown) => {
+          console.error('Errore salvataggio preferenza evento:', error)
+          setEventPrefs((prev) => ({ ...prev, [field]: !enabled }))
+        },
       }
     )
   }
@@ -254,17 +285,55 @@ export default function NotificationSettings() {
 
       <Paper sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" gutterBottom>
-          Notifiche Automatiche
+          Eventi pratica
         </Typography>
         <Typography variant="body2" color="text.secondary" paragraph>
-          Queste notifiche sono sempre attive e non possono essere disabilitate:
+          Ricevi una notifica quando accade uno di questi eventi su una qualsiasi pratica
+          (non ricevi la notifica per le azioni che compi tu).
         </Typography>
 
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <Chip label="Creazione nuove richieste" color="info" variant="outlined" />
-          <Chip label="Blocco richieste (→ SOSPESA)" color="error" variant="outlined" />
-          <Chip label="Sblocco richieste (SOSPESA →)" color="success" variant="outlined" />
-        </Box>
+        <FormGroup>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={eventPrefs.notify_request_created}
+                onChange={(e) => handleToggleEvent('notify_request_created', e.target.checked)}
+                disabled={isUpdating}
+              />
+            }
+            label="Creazione nuova richiesta"
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={eventPrefs.notify_request_blocked}
+                onChange={(e) => handleToggleEvent('notify_request_blocked', e.target.checked)}
+                disabled={isUpdating}
+              />
+            }
+            label="Pratica bloccata"
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={eventPrefs.notify_block_resolved}
+                onChange={(e) => handleToggleEvent('notify_block_resolved', e.target.checked)}
+                disabled={isUpdating}
+              />
+            }
+            label="Pratica sbloccata"
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={eventPrefs.notify_request_urgent}
+                onChange={(e) => handleToggleEvent('notify_request_urgent', e.target.checked)}
+                disabled={isUpdating}
+              />
+            }
+            label="Pratica urgente"
+          />
+        </FormGroup>
       </Paper>
 
       <Paper sx={{ p: 3 }}>
