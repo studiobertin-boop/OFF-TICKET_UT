@@ -18,6 +18,7 @@ export interface UpdateRequestInput {
   custom_fields?: Record<string, any>
   customer_id?: string | null
   is_urgent?: boolean
+  request_type_id?: string
 }
 
 export interface RequestFilters {
