@@ -178,10 +178,10 @@ export interface Attachment {
 
 export type NotificationEventType =
   | 'request_created'
-  | 'request_suspended'
-  | 'request_unsuspended'
-  | 'request_blocked'
   | 'status_change'
+  | 'request_blocked'
+  | 'block_resolved'
+  | 'request_urgent'
 
 export interface Notification {
   id: string
@@ -204,6 +204,10 @@ export interface UserNotificationPreferences {
   in_app: boolean
   email: boolean
   status_transitions: Record<string, boolean> // "STATUS_FROM_STATUS_TO": boolean
+  notify_request_created: boolean
+  notify_request_blocked: boolean
+  notify_block_resolved: boolean
+  notify_request_urgent: boolean
   created_at: string
   updated_at: string
 }
