@@ -1,6 +1,5 @@
 import { supabase, ensureValidSession } from '../supabase'
 import { Request, RequestStatus, DM329Status, StatoFattura, ExportFilters, ExportRequestData } from '@/types'
-import { emailNotificationsApi } from './emailNotifications'
 import { formatDateForExcel } from '../excelService'
 import { getStatusLabel, isDM329Family } from '@/utils/workflow'
 
@@ -136,30 +135,6 @@ export const requestsApi = {
       throw error
     }
 
-    // CRITICAL DEBUG: Log BEFORE email notification call
-    console.log('[REQUEST_CREATE] Request created successfully, ID:', data.id)
-    console.log('[REQUEST_CREATE] About to call emailNotificationsApi.notifyRequestCreated')
-    console.log('[REQUEST_CREATE] emailNotificationsApi object:', emailNotificationsApi)
-    console.log('[REQUEST_CREATE] notifyRequestCreated function:', emailNotificationsApi.notifyRequestCreated)
-
-    // Invia notifiche email in background (non blocca se fallisce)
-    // IMPORTANTE: usiamo void per indicare che ignoriamo intenzionalmente la Promise
-    // ma la Promise DEVE essere eseguita
-    try {
-      console.log('[REQUEST_CREATE] Calling notifyRequestCreated with ID:', data.id)
-      const emailPromise = emailNotificationsApi.notifyRequestCreated(data.id)
-      console.log('[REQUEST_CREATE] Promise created:', emailPromise)
-
-      // Assicuriamo che la Promise venga eseguita anche se non aspettiamo il risultato
-      void emailPromise.then(
-        () => console.log('[REQUEST_CREATE] Email notification completed successfully'),
-        (err) => console.error('[REQUEST_CREATE] Failed to send email notifications for new request:', err)
-      )
-    } catch (syncError) {
-      console.error('[REQUEST_CREATE] SYNCHRONOUS ERROR calling email notification:', syncError)
-    }
-
-    console.log('[REQUEST_CREATE] Returning request data')
     return data
   },
 
@@ -169,17 +144,6 @@ export const requestsApi = {
     const sessionValid = await ensureValidSession()
     if (!sessionValid) {
       throw new Error('Sessione non valida. Per favore, effettua nuovamente il login.')
-    }
-
-    // Se viene aggiornato lo stato, recupera lo stato precedente per le notifiche
-    let oldStatus: string | undefined
-    if (updates.status) {
-      const { data: oldData } = await supabase
-        .from('requests')
-        .select('status')
-        .eq('id', id)
-        .single()
-      oldStatus = oldData?.status
     }
 
     const { data, error } = await supabase
@@ -207,13 +171,6 @@ export const requestsApi = {
         throw new Error('Sessione scaduta. Ricarica la pagina ed effettua nuovamente il login.')
       }
       throw error
-    }
-
-    // Invia notifiche email se lo stato è cambiato
-    if (updates.status && oldStatus && oldStatus !== updates.status) {
-      emailNotificationsApi.notifyStatusChange(id, oldStatus, updates.status).catch((err) => {
-        console.error('Failed to send email notifications for status change:', err)
-      })
     }
 
     return data
