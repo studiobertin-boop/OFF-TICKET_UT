@@ -119,6 +119,16 @@ async function findMatchingCustomer(ragioneSociale: string): Promise<Customer | 
 }
 
 /**
+ * Converte un valore Excel (numerico "90" o legacy "CLI-0090") nel codice cliente
+ * canonico: sole cifre, senza over-padding, minimo 3 cifre (es. "090", "521", "1000").
+ * Restituisce '' se non contiene cifre valide.
+ */
+function toNumericCode(raw: string): string {
+  const digits = raw.trim().replace(/^CLI-/i, '').replace(/\D/g, '').replace(/^0+/, '')
+  return digits ? digits.padStart(3, '0') : ''
+}
+
+/**
  * Determina quali campi aggiornare (solo NULL/vuoti)
  */
 function getFieldsToUpdate(customer: Customer, excelRow: ExcelRow): Partial<Customer> {
@@ -127,15 +137,11 @@ function getFieldsToUpdate(customer: Customer, excelRow: ExcelRow): Partial<Cust
   // Helper per verificare se campo è vuoto
   const isEmpty = (value: any) => !value || (typeof value === 'string' && value.trim() === '')
 
-  // Identificativo - converti numero in formato CLI-XXXX
+  // Identificativo - codice cliente numerico canonico (zero-pad min 3 cifre)
   if (isEmpty(customer.identificativo) && excelRow.IDENTIFICATIVO) {
-    const rawId = String(excelRow.IDENTIFICATIVO).trim()
-    // Se è un numero, converti in formato CLI-XXXX con padding a 4 cifre
-    if (/^\d+$/.test(rawId)) {
-      updates.identificativo = 'CLI-' + rawId.padStart(4, '0')
-    } else if (rawId.startsWith('CLI-')) {
-      // Se è già nel formato corretto, usa così com'è
-      updates.identificativo = rawId
+    const code = toNumericCode(String(excelRow.IDENTIFICATIVO))
+    if (code) {
+      updates.identificativo = code
     }
     // Altrimenti ignora (formato non valido)
   }
@@ -194,16 +200,10 @@ function createCustomerFromExcel(excelRow: ExcelRow): Omit<Customer, 'id'> | nul
     return null
   }
 
-  // Prepara identificativo
-  let identificativo: string | null = null
-  if (excelRow.IDENTIFICATIVO) {
-    const rawId = String(excelRow.IDENTIFICATIVO).trim()
-    if (/^\d+$/.test(rawId)) {
-      identificativo = 'CLI-' + rawId.padStart(4, '0')
-    } else if (rawId.startsWith('CLI-')) {
-      identificativo = rawId
-    }
-  }
+  // Prepara identificativo (codice cliente numerico canonico)
+  const identificativo: string | null = excelRow.IDENTIFICATIVO
+    ? toNumericCode(String(excelRow.IDENTIFICATIVO)) || null
+    : null
 
   return {
     ragione_sociale: denominazione,

@@ -1,6 +1,6 @@
 import { supabase, SUPABASE_URL } from '../supabase'
 import { Customer, CustomerCompleteness } from '@/types'
-import { validateCustomerInput, normalizeTelefono, normalizePec, normalizeProvincia } from '@/utils/customerValidation'
+import { validateCustomerInput, normalizeTelefono, normalizePec, normalizeProvincia, normalizeIdentificativo } from '@/utils/customerValidation'
 
 export interface CreateCustomerInput {
   ragione_sociale: string
@@ -34,6 +34,7 @@ export interface CustomerFilters {
   is_active?: boolean
   page?: number
   pageSize?: number
+  sortBy?: 'nome' | 'codice'
 }
 
 export interface CustomersResponse {
@@ -74,11 +75,16 @@ export const customersApi = {
       throw new Error(`Errore nel conteggio dei clienti: ${countError.message}`)
     }
 
-    // Then, get the paginated data
+    // Then, get the paginated data.
+    // Sort by numeric client code (codice_cliente_num) when requested; default by name so the
+    // ~22k code-less MAGO anagrafica rows aren't pushed to the bottom of the default view.
     let query = supabase
       .from('customers')
       .select('*')
-      .order('ragione_sociale')
+
+    query = filters?.sortBy === 'codice'
+      ? query.order('codice_cliente_num', { ascending: true, nullsFirst: false })
+      : query.order('ragione_sociale')
 
     query = query.eq('is_active', isActive)
 
@@ -137,7 +143,11 @@ export const customersApi = {
       .from('customers')
       .insert({
         ragione_sociale: input.ragione_sociale.trim(),
-        identificativo: input.identificativo?.trim() || undefined, // Trigger generates if omitted
+        // Managed (app-UI) create: send an explicit normalized code if typed, otherwise the
+        // 'AUTO' sentinel so the DB trigger assigns the next numeric code. Blank -> auto.
+        identificativo: input.identificativo?.trim()
+          ? normalizeIdentificativo(input.identificativo)
+          : 'AUTO',
         // Campi opzionali: converti stringhe vuote/undefined in NULL per non violare i CHECK constraint
         telefono: input.telefono?.trim() ? normalizeTelefono(input.telefono) : null,
         pec: input.pec?.trim() ? normalizePec(input.pec) : null,
@@ -172,9 +182,10 @@ export const customersApi = {
       updateData.ragione_sociale = ragione_sociale
     }
 
-    // Non sovrascrivere l'identificativo (auto-generato) con una stringa vuota
+    // Non sovrascrivere l'identificativo (auto-generato) con una stringa vuota.
+    // Quando valorizzato, normalizza al formato numerico canonico (zero-pad min 3 cifre).
     if (input.identificativo !== undefined && input.identificativo.trim()) {
-      updateData.identificativo = input.identificativo.trim()
+      updateData.identificativo = normalizeIdentificativo(input.identificativo)
     }
 
     // Campi opzionali: converti stringhe vuote in NULL per non violare i CHECK constraint

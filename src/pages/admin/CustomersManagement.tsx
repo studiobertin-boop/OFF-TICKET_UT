@@ -26,6 +26,7 @@ import {
   Chip,
   Stack,
   TablePagination,
+  TableSortLabel,
 } from '@mui/material'
 import {
   Add as AddIcon,
@@ -50,6 +51,7 @@ import { CustomerFormFields } from '@/components/customers/CustomerFormFields'
 
 export default function CustomersManagement() {
   const [searchTerm, setSearchTerm] = useState('')
+  const [sortBy, setSortBy] = useState<'nome' | 'codice'>('nome')
   const [page, setPage] = useState(0)
   const [rowsPerPage, setRowsPerPage] = useState(50)
   const [pageInputValue, setPageInputValue] = useState('')
@@ -94,9 +96,16 @@ export default function CustomersManagement() {
   // Hooks
   const { data: customersResponse, isLoading, error } = useCustomers({
     search: searchTerm,
+    sortBy,
     page,
     pageSize: rowsPerPage,
   })
+
+  // Toggle ordering by client code (numeric) vs by name; reset to first page on change
+  const handleToggleSortByCodice = () => {
+    setSortBy((prev) => (prev === 'codice' ? 'nome' : 'codice'))
+    setPage(0)
+  }
   const createCustomer = useCreateCustomer()
   const updateCustomer = useUpdateCustomer()
   const deleteCustomer = useDeleteCustomer()
@@ -285,7 +294,15 @@ export default function CustomersManagement() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Identificativo</TableCell>
+                <TableCell sortDirection={sortBy === 'codice' ? 'asc' : false}>
+                  <TableSortLabel
+                    active={sortBy === 'codice'}
+                    direction="asc"
+                    onClick={handleToggleSortByCodice}
+                  >
+                    Identificativo
+                  </TableSortLabel>
+                </TableCell>
                 <TableCell>Ragione Sociale</TableCell>
                 <TableCell>Telefono</TableCell>
                 <TableCell>PEC</TableCell>
