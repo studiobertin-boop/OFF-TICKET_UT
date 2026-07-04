@@ -78,9 +78,9 @@ export const CustomerFormFields = ({
                 error={!!errors.identificativo}
                 helperText={
                   errors.identificativo?.message ||
-                  (!field.value ? 'Auto-generato se vuoto (formato CLI-XXXX)' : undefined)
+                  (!field.value ? 'Auto-generato se vuoto (codice numerico, es. 585)' : undefined)
                 }
-                placeholder="CLI-0001"
+                placeholder="585"
                 InputProps={{
                   endAdornment: isMissing('identificativo') ? <MissingBadge /> : null,
                 }}

@@ -92,7 +92,8 @@ export interface RequestType {
 export interface Customer {
   id: string
   ragione_sociale: string
-  identificativo?: string | null  // Auto-generated format: CLI-XXXX
+  identificativo?: string | null  // Client code: zero-padded numeric (min 3 digits). Auto-assigned to managed (app-UI) creates.
+  codice_cliente_num?: number | null  // Derived integer form of identificativo (numeric sorting)
   external_id?: string | null
 
   // Contact information

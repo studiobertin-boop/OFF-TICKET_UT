@@ -63,7 +63,7 @@ export const provinciaSchema = z.string()
 export const createCustomerSchema = z.object({
   ragione_sociale: z.string().min(1, 'La ragione sociale è obbligatoria'),
   identificativo: z.union([
-    z.string().regex(/^CLI-[0-9]{4}$/, 'Formato identificativo non valido (CLI-XXXX)'),
+    z.string().regex(/^[0-9]+$/, 'Solo cifre (es. 585)'),
     z.literal(''), // Allow empty string for auto-generation
   ]).optional(),
   telefono: telefonoSchema,
@@ -86,6 +86,17 @@ export const updateCustomerSchema = createCustomerSchema.partial()
  */
 export type CreateCustomerSchemaType = z.infer<typeof createCustomerSchema>
 export type UpdateCustomerSchemaType = z.infer<typeof updateCustomerSchema>
+
+/**
+ * Normalizes a client code (identificativo) to its canonical zero-padded numeric form:
+ * digits only, no over-padding, minimum 3 digits (001–999, natural 4+ from 1000).
+ * Returns '' when there is no numeric content (e.g. blank -> auto-generation).
+ * Examples: '90' -> '090', '0585' -> '585', '521' -> '521', '1000' -> '1000'.
+ */
+export function normalizeIdentificativo(value: string): string {
+  const digits = value.trim().replace(/\D/g, '').replace(/^0+/, '')
+  return digits ? digits.padStart(3, '0') : ''
+}
 
 /**
  * Validates customer input data and returns array of error messages
