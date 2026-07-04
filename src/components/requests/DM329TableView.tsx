@@ -898,6 +898,13 @@ export const DM329TableView = ({
                 </TableCell>
                 <TableCell>
                   {(() => {
+                    // Preferisci il cliente collegato (con codice); fallback al nome in custom_fields
+                    const linked = request.customer
+                    if (linked?.ragione_sociale) {
+                      return linked.identificativo
+                        ? `${linked.identificativo} — ${linked.ragione_sociale}`
+                        : linked.ragione_sociale
+                    }
                     const cliente = request.custom_fields?.cliente
                     if (typeof cliente === 'string') return cliente
                     if (cliente && typeof cliente === 'object' && 'ragione_sociale' in cliente) {

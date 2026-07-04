@@ -133,6 +133,7 @@ export const RequestDetail = () => {
     if (request.customer) {
       return {
         ragione_sociale: request.customer.ragione_sociale,
+        identificativo: request.customer.identificativo || null,
         telefono: request.customer.telefono || 'N/A',
         pec: request.customer.pec || 'N/A',
         descrizione_attivita: request.customer.descrizione_attivita || 'N/A',
@@ -144,6 +145,7 @@ export const RequestDetail = () => {
     if (legacyCustomer) {
       return {
         ragione_sociale: legacyCustomer.ragione_sociale,
+        identificativo: legacyCustomer.identificativo || null,
         telefono: legacyCustomer.telefono || 'N/A',
         pec: legacyCustomer.pec || 'N/A',
         descrizione_attivita: legacyCustomer.descrizione_attivita || 'N/A',
@@ -155,6 +157,7 @@ export const RequestDetail = () => {
     if (customerByName) {
       return {
         ragione_sociale: customerByName.ragione_sociale,
+        identificativo: customerByName.identificativo || null,
         telefono: customerByName.telefono || 'N/A',
         pec: customerByName.pec || 'N/A',
         descrizione_attivita: customerByName.descrizione_attivita || 'N/A',
@@ -179,6 +182,7 @@ export const RequestDetail = () => {
       if (ragioneSociale) {
         return {
           ragione_sociale: ragioneSociale,
+          identificativo: (typeof cliente === 'object' && (cliente as any).identificativo) || null,
           telefono: 'N/A',
           pec: 'N/A',
           descrizione_attivita: 'N/A',
@@ -641,7 +645,9 @@ export const RequestDetail = () => {
                       Cliente
                     </Typography>
                     <Typography variant="body1" gutterBottom>
-                      {clientInfo.ragione_sociale}
+                      {clientInfo.identificativo
+                        ? `${clientInfo.identificativo} — ${clientInfo.ragione_sociale}`
+                        : clientInfo.ragione_sociale}
                     </Typography>
                   </Box>
 
