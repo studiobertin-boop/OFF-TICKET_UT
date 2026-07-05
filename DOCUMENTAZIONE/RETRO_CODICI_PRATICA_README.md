@@ -33,4 +33,8 @@ Assegnazione dei codici pratica alle pratiche DM329 create prima della funzione 
 ## Fuori scope (non presenti nell'Excel)
 - Pratiche in stato `7-CHIUSA` o `ARCHIVIATA NON FINITA`.
 - Pratiche senza cliente o con cliente privo di codice cliente.
+- Pratiche già codificate (`sala_lettera` già valorizzato, es. dal flusso di creazione in-app):
+  escluse automaticamente dall'export; il dry-run dell'import segnala inoltre eventuali
+  collisioni tra i codici proposti nel batch e codici già presenti in DB per lo stesso
+  cliente+sala+progressivo.
 Questi casi si gestiranno più avanti dal pannello in-app (Fase 2).

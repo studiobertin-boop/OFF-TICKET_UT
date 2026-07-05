@@ -33,6 +33,7 @@ async function main() {
     `)
     .in('request_type.name', ['DM329', 'DM329-Integrazioni'])
     .not('customer_id', 'is', null)
+    .is('sala_lettera', null)
     .not('status', 'in', `(${EXCLUDED_STATUSES.map(s => `"${s}"`).join(',')})`)
     .order('customer_id', { ascending: true })
     .order('created_at', { ascending: true })

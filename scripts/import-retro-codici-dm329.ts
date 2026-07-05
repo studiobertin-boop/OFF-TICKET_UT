@@ -54,6 +54,42 @@ async function main() {
 
   const report = validateAssignments(rows)
 
+  // Rileva collisioni con codici già presenti in DB (pratiche già codificate dal flusso in-app).
+  const batchPrimaryCustomerIds = [...new Set(
+    report.valid.filter(r => !r.pratica_padre).map(r => r.customer_id)
+  )]
+  let collisionCount = 0
+  if (batchPrimaryCustomerIds.length > 0) {
+    const { data: codedRows, error: codedErr } = await supabase
+      .from('requests')
+      .select('id, customer_id, sala_lettera, progressivo')
+      .in('customer_id', batchPrimaryCustomerIds)
+      .not('sala_lettera', 'is', null)
+      .is('pratica_padre_id', null)
+    if (codedErr) { console.error('❌ Errore lettura codici già in DB:', codedErr); process.exit(1) }
+
+    const batchRequestIds = new Set(rows.map(r => r.request_id))
+    const codedKeys = new Set(
+      (codedRows || [])
+        .filter((d: any) => !batchRequestIds.has(d.id))
+        .map((d: any) => `${d.customer_id}|${d.sala_lettera}|${d.progressivo}`)
+    )
+
+    const collidingIds = new Set<string>()
+    for (const r of report.valid.filter(r => !r.pratica_padre)) {
+      const key = `${r.customer_id}|${r.sala_lettera}|${r.progressivo}`
+      if (codedKeys.has(key)) {
+        report.errors.push({ request_id: r.request_id, message: 'codice già presente in DB per questo cliente+sala+progressivo' })
+        collidingIds.add(r.request_id)
+        collisionCount++
+      }
+    }
+    if (collidingIds.size > 0) {
+      report.valid = report.valid.filter(r => !collidingIds.has(r.request_id))
+    }
+  }
+  console.log(`🔎 Collisioni con codici già in DB: ${collisionCount}`)
+
   console.log(`\n📊 Validazione: ${report.valid.length} valide, ${report.errors.length} errori`)
   for (const e of report.errors) console.log(`  ❌ ${e.request_id}: ${e.message}`)
 
