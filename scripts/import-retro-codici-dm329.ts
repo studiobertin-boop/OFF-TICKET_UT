@@ -21,6 +21,10 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
 
 const IN_PATH = resolve(__dirname, '../DOCUMENTAZIONE/RETRO_CODICI_PRATICA_DM329.xlsx')
 const isApply = process.argv.includes('--apply')
+// --apply-valid: applica SOLO le righe valide, saltando (ed elencando) quelle in errore.
+// Utile quando alcune righe si completano altrove (es. integrazioni gestite dal pannello in-app).
+const isApplyValid = process.argv.includes('--apply-valid')
+const willWrite = isApply || isApplyValid
 
 function toNumber(v: any): number {
   const n = typeof v === 'number' ? v : parseInt(String(v ?? '').trim(), 10)
@@ -28,7 +32,7 @@ function toNumber(v: any): number {
 }
 
 async function main() {
-  console.log(`📋 Leggo ${IN_PATH} (${isApply ? 'APPLY' : 'DRY-RUN'})`)
+  console.log(`📋 Leggo ${IN_PATH} (${willWrite ? (isApplyValid && !isApply ? 'APPLY-VALID' : 'APPLY') : 'DRY-RUN'})`)
   const wb = XLSX.readFile(IN_PATH)
   const raw: any[] = XLSX.utils.sheet_to_json(wb.Sheets['Pratiche'], { defval: '' })
 
@@ -94,10 +98,14 @@ async function main() {
   for (const e of report.errors) console.log(`  ❌ ${e.request_id}: ${e.message}`)
 
   if (report.errors.length > 0) {
-    console.log('\n⚠️  Correggi gli errori nell\'Excel prima di applicare. Nessuna scrittura.')
-    process.exit(1)
+    if (!isApplyValid) {
+      console.log('\n⚠️  Correggi gli errori nell\'Excel prima di applicare. Nessuna scrittura.')
+      console.log('    (Usa --apply-valid per applicare comunque solo le righe valide e saltare quelle in errore.)')
+      process.exit(1)
+    }
+    console.log(`\n⚠️  --apply-valid: SALTO le ${report.errors.length} righe in errore, applico solo le ${report.valid.length} valide.`)
   }
-  if (!isApply) {
+  if (!willWrite) {
     console.log('\n✅ Dry-run OK. Rilancia con --apply per scrivere.')
     return
   }

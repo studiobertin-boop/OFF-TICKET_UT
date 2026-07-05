@@ -28,7 +28,12 @@ Assegnazione dei codici pratica alle pratiche DM329 create prima della funzione 
 
 4. **Applica in produzione**
    `npm run retro-codici:import:apply`
-   Scrive i codici su `requests`.
+   Scrive i codici su `requests`. Rifiuta di scrivere se resta anche un solo errore.
+
+   In alternativa, per applicare **solo le righe valide** lasciando indietro quelle
+   ancora in errore (es. integrazioni da completare dal pannello in-app):
+   `npx tsx scripts/import-retro-codici-dm329.ts --apply-valid`
+   Elenca e salta le righe in errore, scrive solo le valide.
 
 ## Fuori scope (non presenti nell'Excel)
 - Pratiche in stato `7-CHIUSA` o `ARCHIVIATA NON FINITA`.
