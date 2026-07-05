@@ -29,6 +29,8 @@ import {
 import { Request, RequestStatus, StatoFattura, STATO_FATTURA_OPTIONS, STATO_FATTURA_LABELS } from '@/types'
 import { getStatusColor, getStatusLabel, ALL_STANDARD_STATUSES, STANDARD_STATUS_LABELS } from '@/utils/workflow'
 import { StatusChip } from '@/components/common'
+import { getStatusChipColors } from '@/theme/statusColors'
+import { useThemeMode } from '@/theme'
 import { usePersistedState } from '@/hooks/usePersistedState'
 import { BlockIndicator } from './BlockIndicator'
 import { UrgentIndicator } from './UrgentIndicator'
@@ -85,6 +87,7 @@ export const RequestsTableView = ({
 }: RequestsTableViewProps) => {
   const navigate = useNavigate()
   const { user, isAdmin, isTecnico } = useAuth()
+  const { mode } = useThemeMode()
   const queryClient = useQueryClient()
 
   // Chi può modificare lo stato direttamente dalla lista generale
@@ -800,6 +803,10 @@ export const RequestsTableView = ({
                       options={ALL_STANDARD_STATUSES}
                       optionLabels={STANDARD_STATUS_LABELS}
                       getColor={getStatusColor}
+                      getChipColors={(v) => {
+                        const c = getStatusChipColors(v, mode)
+                        return { color: c.main, bgcolor: c.bg }
+                      }}
                       onSave={(newValue) => handleSaveStatus(request.id, newValue)}
                     />
                   ) : (

@@ -18,6 +18,12 @@ interface EditableSelectCellProps {
   validate?: (value: string) => { valid: boolean; error?: string }
   disabled?: boolean
   getColor?: (value: string) => ChipColor
+  /**
+   * Colori espliciti (dalla palette/token) per la chip. Se fornito, ha
+   * precedenza su getColor: la chip usa questi hex invece dei colori-intent MUI,
+   * così lo stato modificabile ha gli stessi colori concordati di StatusChip.
+   */
+  getChipColors?: (value: string) => { color: string; bgcolor: string }
 }
 
 export const EditableSelectCell = ({
@@ -28,6 +34,7 @@ export const EditableSelectCell = ({
   validate,
   disabled = false,
   getColor,
+  getChipColors,
 }: EditableSelectCellProps) => {
   const [isEditing, setIsEditing] = useState(false)
   const [currentValue, setCurrentValue] = useState(value)
@@ -134,6 +141,7 @@ export const EditableSelectCell = ({
     )
   }
 
+  const custom = !error && getChipColors ? getChipColors(currentValue) : null
   const chipContent = (
     <Chip
       label={getLabel(currentValue)}
@@ -141,11 +149,13 @@ export const EditableSelectCell = ({
       onClick={handleClick}
       sx={{
         cursor: disabled ? 'default' : 'pointer',
+        ...(custom ? { color: custom.color, bgcolor: custom.bgcolor, fontWeight: 600 } : {}),
         '&:hover': disabled ? {} : {
-          backgroundColor: 'action.hover',
+          backgroundColor: custom ? custom.bgcolor : 'action.hover',
+          filter: disabled ? 'none' : 'brightness(1.08)',
         },
       }}
-      color={error ? 'error' : getColor ? getColor(currentValue) : 'default'}
+      color={error ? 'error' : custom ? 'default' : getColor ? getColor(currentValue) : 'default'}
     />
   )
 

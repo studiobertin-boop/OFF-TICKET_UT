@@ -38,6 +38,8 @@ import {
 import { Request, DM329Status, StatoFattura, STATO_FATTURA_OPTIONS, STATO_FATTURA_LABELS } from '@/types'
 import { getStatusColor, getStatusLabel, ALL_DM329_STATUSES, DM329_STATUS_LABELS } from '@/utils/workflow'
 import { StatusChip } from '@/components/common'
+import { getStatusChipColors } from '@/theme/statusColors'
+import { useThemeMode } from '@/theme'
 import { usePersistedState } from '@/hooks/usePersistedState'
 import { useAuth } from '@/hooks/useAuth'
 import { EditableSelectCell } from './EditableSelectCell'
@@ -180,6 +182,7 @@ export const DM329TableView = ({
 }: DM329TableViewProps) => {
   const navigate = useNavigate()
   const { user, isAdmin, isUserDM329 } = useAuth()
+  const { mode } = useThemeMode()
   const queryClient = useQueryClient()
 
   // Chi può modificare lo stato direttamente dalla lista DM329
@@ -697,6 +700,10 @@ export const DM329TableView = ({
                         options={ALL_DM329_STATUSES}
                         optionLabels={DM329_STATUS_LABELS}
                         getColor={getStatusColor}
+                        getChipColors={(v) => {
+                          const c = getStatusChipColors(v, mode)
+                          return { color: c.main, bgcolor: c.bg }
+                        }}
                         onSave={newValue => handleSaveStatus(request.id, newValue)}
                       />
                     ) : (
