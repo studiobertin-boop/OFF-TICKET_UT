@@ -20,24 +20,17 @@ import { Layout } from '@/components/common/Layout'
 import { DynamicFormField } from '@/components/requests/DynamicFormField'
 import { DM329PraticaSection, Dm329PraticaValue } from '@/components/requests/DM329PraticaSection'
 import { DM329IntegrazioneSection, Dm329IntegrazioneValue } from '@/components/requests/DM329IntegrazioneSection'
-import { CompleteCustomerDataDialog } from '@/components/customers/CompleteCustomerDataDialog'
 import { useRequestTypes } from '@/hooks/useRequestTypes'
 import { useCreateRequest } from '@/hooks/useRequests'
 import { useCustomer } from '@/hooks/useCustomers'
 import { generateZodSchemaWithValidations, getDefaultValues } from '@/utils/formSchema'
-import { hasIncompleteCustomerData } from '@/utils/customerValidation'
 import { isDM329Family } from '@/utils/workflow'
 import { customersApi } from '@/services/api/customers'
-import { Customer } from '@/types'
 
 export const NewRequest = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [selectedTypeId, setSelectedTypeId] = useState<string>('')
-  const [showCompleteDialog, setShowCompleteDialog] = useState(false)
-  const [selectedCustomerForComplete, setSelectedCustomerForComplete] = useState<Customer | null>(null)
-  // Evita di riproporre automaticamente il dialog per lo stesso cliente già mostrato
-  const [promptedCustomerId, setPromptedCustomerId] = useState<string | null>(null)
   const { data: requestTypes = [], isLoading: loadingTypes } = useRequestTypes()
   const createRequest = useCreateRequest()
 
@@ -75,50 +68,16 @@ export const NewRequest = () => {
   const customerId = typeof clienteValue === 'object' && clienteValue?.id ? clienteValue.id : null
   const { data: customerData } = useCustomer(customerId || '')
 
-  // Auto-fill address for DM329 and offer to complete missing optional data
+  // Auto-compila l'indirizzo (sede legale) quando si seleziona il cliente (DM329).
+  // Il flusso "completa dati incompleti" è gestito dall'AutocompleteField del cliente (unico punto).
   useEffect(() => {
     if (isDM329Family(selectedType?.name) && customerData) {
-      // Auto-fill address with whatever data is available (partial address is fine)
       const formattedAddress = customersApi.formatFullAddress(customerData)
       if (formattedAddress) {
         setValue('sede_legale', formattedAddress)
       }
-
-      // Propose completing missing optional fields, only once per selected customer
-      if (hasIncompleteCustomerData(customerData) && promptedCustomerId !== customerData.id) {
-        setSelectedCustomerForComplete(customerData)
-        setShowCompleteDialog(true)
-        setPromptedCustomerId(customerData.id)
-      }
     }
-  }, [customerData, selectedType, setValue, promptedCustomerId])
-
-  // Manually re-open the completion dialog for the currently selected customer
-  const handleOpenCompleteDialog = () => {
-    if (customerData) {
-      setSelectedCustomerForComplete(customerData)
-      setShowCompleteDialog(true)
-    }
-  }
-
-  // Handle customer data completion
-  const handleCustomerComplete = (updatedCustomer: Customer) => {
-    setShowCompleteDialog(false)
-    setSelectedCustomerForComplete(null)
-
-    // Auto-fill address with updated data
-    const formattedAddress = customersApi.formatFullAddress(updatedCustomer)
-    if (formattedAddress) {
-      setValue('sede_legale', formattedAddress)
-    }
-  }
-
-  // Handle skip customer completion (procedi comunque)
-  const handleSkipComplete = () => {
-    setShowCompleteDialog(false)
-    setSelectedCustomerForComplete(null)
-    // Address already auto-filled above; nothing else to do
-  }
+  }, [customerData, selectedType, setValue])
 
   // Pre-seleziona il tipo se viene passato nella query string
   useEffect(() => {
@@ -303,23 +262,6 @@ export const NewRequest = () => {
                   />
                 )}
 
-                {selectedType.name === 'DM329' &&
-                  customerData &&
-                  hasIncompleteCustomerData(customerData) && (
-                    <Alert
-                      severity="info"
-                      sx={{ mt: 2 }}
-                      action={
-                        <Button color="inherit" size="small" onClick={handleOpenCompleteDialog}>
-                          Completa dati
-                        </Button>
-                      }
-                    >
-                      Alcuni dati anagrafici del cliente sono incompleti. Puoi integrarli ora oppure
-                      procedere comunque.
-                    </Alert>
-                  )}
-
                 {sectionError && (
                   <Alert severity="warning" sx={{ mt: 2 }} onClose={() => setSectionError(null)}>
                     {sectionError}
@@ -358,15 +300,6 @@ export const NewRequest = () => {
           </CardContent>
         </Card>
       </Box>
-
-      {/* Dialog for completing customer data when missing fields detected */}
-      <CompleteCustomerDataDialog
-        open={showCompleteDialog}
-        customer={selectedCustomerForComplete}
-        onClose={handleSkipComplete}
-        onComplete={handleCustomerComplete}
-        allowSkip={true}
-      />
     </Layout>
   )
 }

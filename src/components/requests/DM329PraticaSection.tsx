@@ -10,6 +10,7 @@ import {
   Typography,
   Chip,
   Divider,
+  Alert,
 } from '@mui/material'
 import { Customer } from '@/types'
 import { useClientDm329Overview } from '@/hooks/useRequests'
@@ -141,6 +142,13 @@ export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, o
       <Typography variant="h6" gutterBottom>
         Impianto e codice pratica
       </Typography>
+
+      {!customer.identificativo && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Questo cliente non ha ancora un <strong>codice cliente</strong>: il codice pratica non sarà
+          visibile finché non glielo assegni (Gestione Clienti). Puoi comunque creare la pratica.
+        </Alert>
+      )}
 
       <Grid container spacing={2}>
         <Grid item xs={12}>
