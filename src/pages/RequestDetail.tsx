@@ -53,6 +53,7 @@ import { ConfirmDeleteDialog } from '@/components/requests/ConfirmDeleteDialog'
 import { AttachmentsSection } from '@/components/requests/AttachmentsSection'
 import { RequestDetailsEditForm } from '@/components/requests/RequestDetailsEditForm'
 import { CompleteCustomerDataDialog } from '@/components/customers/CompleteCustomerDataDialog'
+import { AssegnaCodicePraticaPanel } from '@/components/requests/AssegnaCodicePraticaPanel'
 import { useActiveBlock } from '@/hooks/useRequestBlocks'
 import { getStatusColor, getStatusLabel, isDM329Family } from '@/utils/workflow'
 import { StatusChip } from '@/components/common'
@@ -426,6 +427,16 @@ export const RequestDetail = () => {
   // Only admin and userdm329 can mark requests as urgent
   const canToggleUrgent = user?.role === 'admin' || user?.role === 'userdm329'
 
+  // Pannello "Assegna codice pratica": solo DM329-family, pratiche prive di codice,
+  // e solo admin/userdm329 (isDM329 già calcolato sopra per i dati tecnici)
+  const isIntegrazione = request.request_type?.name === 'DM329-Integrazioni'
+  const hasCodicePratica = isIntegrazione ? !!request.pratica_padre_id : !!request.sala_lettera
+  const canAssignCodice =
+    isDM329 &&
+    !hasCodicePratica &&
+    !!customerRecord &&
+    (user?.role === 'admin' || user?.role === 'userdm329')
+
   return (
     <Layout>
       <Box>
@@ -612,6 +623,15 @@ export const RequestDetail = () => {
             )}
           </CardContent>
         </Card>
+
+        {canAssignCodice && customerRecord && (
+          <AssegnaCodicePraticaPanel
+            request={request}
+            customer={customerRecord}
+            sedeLegale={customersApi.formatFullAddress(customerRecord)}
+            onSaved={() => refetch()}
+          />
+        )}
 
         {/* Contenuto: sinistra info, destra storico/messaggi/allegati */}
         <Grid container spacing={3}>
