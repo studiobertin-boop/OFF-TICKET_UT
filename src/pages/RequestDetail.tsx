@@ -427,13 +427,12 @@ export const RequestDetail = () => {
   // Only admin and userdm329 can mark requests as urgent
   const canToggleUrgent = user?.role === 'admin' || user?.role === 'userdm329'
 
-  // Pannello "Assegna codice pratica": solo DM329-family, pratiche prive di codice,
-  // e solo admin/userdm329 (isDM329 già calcolato sopra per i dati tecnici)
+  // Pannello codice pratica: DM329-family, admin/userdm329, con cliente collegato.
+  // Se la pratica ha già il codice il pannello è in modalità "modifica" (collassato).
   const isIntegrazione = request.request_type?.name === 'DM329-Integrazioni'
   const hasCodicePratica = isIntegrazione ? !!request.pratica_padre_id : !!request.sala_lettera
-  const canAssignCodice =
+  const canManageCodice =
     isDM329 &&
-    !hasCodicePratica &&
     !!customerRecord &&
     (user?.role === 'admin' || user?.role === 'userdm329')
 
@@ -624,11 +623,13 @@ export const RequestDetail = () => {
           </CardContent>
         </Card>
 
-        {canAssignCodice && customerRecord && (
+        {canManageCodice && customerRecord && (
           <AssegnaCodicePraticaPanel
             request={request}
             customer={customerRecord}
             sedeLegale={customersApi.formatFullAddress(customerRecord)}
+            hasCode={hasCodicePratica}
+            currentCodice={codicePratica}
             onSaved={() => refetch()}
           />
         )}
