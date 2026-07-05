@@ -2,6 +2,19 @@ import { supabase, SUPABASE_URL } from '../supabase'
 import { Customer, CustomerCompleteness } from '@/types'
 import { validateCustomerInput, normalizeTelefono, normalizePec, normalizeProvincia, normalizeIdentificativo } from '@/utils/customerValidation'
 
+// True se l'errore Supabase è una violazione di unicità sul codice cliente (identificativo)
+const isDuplicateCodeError = (error: any): boolean =>
+  error?.code === '23505' &&
+  /identificativo|codice_cliente_num/i.test(`${error?.message ?? ''} ${error?.details ?? ''}`)
+
+// Messaggio chiaro per codice duplicato, con il prossimo numero disponibile
+const duplicateCodeMessage = async (): Promise<string> => {
+  let next: number | null = null
+  try { next = await customersApi.getNextCode() } catch { /* fallback senza numero */ }
+  const suffix = next != null ? ` Prossimo numero disponibile: ${String(next).padStart(3, '0')}.` : ''
+  return `Codice cliente già assegnato a un altro cliente.${suffix}`
+}
+
 export interface CreateCustomerInput {
   ragione_sociale: string
   identificativo?: string  // Optional, auto-generated if omitted
@@ -131,6 +144,16 @@ export const customersApi = {
     return data
   },
 
+  // Prossimo codice cliente numerico che l'auto-generazione assegnerebbe
+  getNextCode: async (): Promise<number> => {
+    const { data, error } = await supabase.rpc('get_next_customer_code')
+    if (error) {
+      console.error('Error fetching next customer code:', error)
+      throw new Error(`Errore nel calcolo del prossimo codice: ${error.message}`)
+    }
+    return data as number
+  },
+
   // Create new customer
   create: async (input: CreateCustomerInput): Promise<Customer> => {
     // Validate input with Zod schema
@@ -164,6 +187,7 @@ export const customersApi = {
 
     if (error) {
       console.error('Error creating customer:', error)
+      if (isDuplicateCodeError(error)) throw new Error(await duplicateCodeMessage())
       throw new Error(`Errore nella creazione del cliente: ${error.message}`)
     }
 
@@ -234,6 +258,7 @@ export const customersApi = {
 
     if (error) {
       console.error('Error updating customer:', error)
+      if (isDuplicateCodeError(error)) throw new Error(await duplicateCodeMessage())
       throw new Error(`Errore nell'aggiornamento del cliente: ${error.message}`)
     }
 

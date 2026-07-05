@@ -1,5 +1,6 @@
 import { Controller, Control } from 'react-hook-form'
 import { Grid, TextField, Typography, Chip } from '@mui/material'
+import { useNextCustomerCode } from '@/hooks/useCustomers'
 
 interface CustomerFormFieldsProps {
   control: Control<any>
@@ -24,6 +25,10 @@ export const CustomerFormFields = ({
 }: CustomerFormFieldsProps) => {
   const isMissing = (field: string) => highlightMissing && missingFields.includes(field)
   const isReadonly = (field: string) => readonlyFields.includes(field)
+
+  // Prossimo codice cliente disponibile (per l'hint sotto il campo Identificativo)
+  const { data: nextCode } = useNextCustomerCode()
+  const nextCodeLabel = nextCode != null ? String(nextCode).padStart(3, '0') : '…'
 
   // Helper to check if ANY address field is missing
   const hasAnyAddressMissing = () => {
@@ -78,9 +83,9 @@ export const CustomerFormFields = ({
                 error={!!errors.identificativo}
                 helperText={
                   errors.identificativo?.message ||
-                  (!field.value ? 'Auto-generato se vuoto (codice numerico, es. 585)' : undefined)
+                  (!field.value ? `Auto-generato se vuoto (prossimo numero disponibile: ${nextCodeLabel})` : undefined)
                 }
-                placeholder="585"
+                placeholder={nextCodeLabel}
                 InputProps={{
                   endAdornment: isMissing('identificativo') ? <MissingBadge /> : null,
                 }}

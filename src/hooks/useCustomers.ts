@@ -14,6 +14,15 @@ export const useCustomers = (filters?: CustomerFilters, options?: { enabled?: bo
   })
 }
 
+// Prossimo codice cliente disponibile (per hint nei form)
+export const useNextCustomerCode = () => {
+  return useQuery({
+    queryKey: [...CUSTOMERS_QUERY_KEY, 'next-code'],
+    queryFn: () => customersApi.getNextCode(),
+    staleTime: 60 * 1000,
+  })
+}
+
 // Get single customer by ID
 export const useCustomer = (id: string) => {
   return useQuery({
