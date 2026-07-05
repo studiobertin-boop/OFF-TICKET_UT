@@ -26,6 +26,8 @@ export const AssegnaCodicePraticaPanel = ({ request, customer, sedeLegale, hasCo
   const isIntegrazione = request.request_type?.name === 'DM329-Integrazioni'
 
   // Valori iniziali per la modalità modifica (solo se la pratica è già codificata).
+  // Nota: l'indirizzo NON va qui — è prefillato tramite i defaultValues del form sottostante
+  // (la sezione lo legge dal control, non da `initial`).
   const initialPratica: Partial<Dm329PraticaValue> | undefined =
     hasCode && !isIntegrazione
       ? {
@@ -33,7 +35,6 @@ export const AssegnaCodicePraticaPanel = ({ request, customer, sedeLegale, hasCo
           denominazione_sala: request.denominazione_sala ?? undefined,
           progressivo: request.progressivo ?? undefined,
           anno: request.anno ?? undefined,
-          indirizzo_impianto: request.indirizzo_impianto ?? undefined,
           impianto_uguale_sede_legale: request.impianto_uguale_sede_legale ?? undefined,
         }
       : undefined
