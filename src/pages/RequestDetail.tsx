@@ -856,11 +856,52 @@ export const RequestDetail = () => {
               />
             ))}
 
+            {/* DM329: mostra sempre i campi fissi, anche se vuoti */}
+            {isDM329 && !isEditingDetails && (
+              <Grid container spacing={2} sx={{ mb: 1 }}>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Denominazione sala
+                  </Typography>
+                  <Typography variant="body1">{request.denominazione_sala || 'N/A'}</Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    No CIVA
+                  </Typography>
+                  <Typography variant="body1">
+                    {request.custom_fields?.no_civa ? 'Sì' : 'No'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Off / Cac
+                  </Typography>
+                  <Typography variant="body1">
+                    {request.custom_fields?.off_cac
+                      ? String(request.custom_fields.off_cac).toUpperCase()
+                      : 'N/A'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Stato Fattura
+                  </Typography>
+                  <Typography variant="body1">
+                    {STATO_FATTURA_LABELS[(request.custom_fields?.stato_fattura as StatoFattura) || 'NO']}
+                  </Typography>
+                </Grid>
+              </Grid>
+            )}
+
             <Grid container spacing={2}>
               {Object.entries(request.custom_fields)
                 .filter(([key]) => {
                   // Escludi note (mostrata separatamente)
                   if (key === 'note') return false
+
+                  // Campi DM329 fissi: mostrati sempre nel riquadro qui sopra
+                  if (isDM329 && ['no_civa', 'off_cac', 'stato_fattura'].includes(key)) return false
 
                   // Escludi campi cliente (mostrati in sezione dedicata)
                   const clientFields = ['cliente', 'sede_legale', 'telefono', 'pec', 'descrizione_attivita', 'indirizzo_immobile']
