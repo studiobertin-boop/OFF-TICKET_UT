@@ -115,3 +115,62 @@ export function proposeAssignments(practices: FetchedPractice[]): ProposedAssign
 
   return out
 }
+
+export interface ReviewedAssignment {
+  request_id: string
+  request_type: string
+  customer_id: string
+  sala_lettera: string
+  denominazione_sala: string
+  progressivo: number
+  anno: number
+  indirizzo_impianto: string
+  pratica_padre: string
+}
+
+export interface ValidationError {
+  request_id: string
+  message: string
+}
+
+export interface ValidationReport {
+  valid: ReviewedAssignment[]
+  errors: ValidationError[]
+}
+
+export function validateAssignments(rows: ReviewedAssignment[]): ValidationReport {
+  const errors: ValidationError[] = []
+  const invalidIds = new Set<string>()
+  const fail = (id: string, message: string) => {
+    errors.push({ request_id: id, message })
+    invalidIds.add(id)
+  }
+
+  const primaries = rows.filter(r => !r.pratica_padre)
+  const integrazioni = rows.filter(r => r.pratica_padre)
+
+  // Vincoli di formato/range sulle primarie
+  const seen = new Map<string, string>() // "cust|sala|prog" -> request_id
+  for (const r of primaries) {
+    if (!/^[A-Z]$/.test(r.sala_lettera)) fail(r.request_id, `sala_lettera non valida: "${r.sala_lettera}"`)
+    if (!Number.isInteger(r.progressivo) || r.progressivo < 0 || r.progressivo > 99)
+      fail(r.request_id, `progressivo fuori range: ${r.progressivo}`)
+    if (!Number.isInteger(r.anno) || r.anno < 2000 || r.anno > 2100)
+      fail(r.request_id, `anno fuori range: ${r.anno}`)
+    const key = `${r.customer_id}|${r.sala_lettera}|${r.progressivo}`
+    if (seen.has(key)) fail(r.request_id, `codice duplicato con ${seen.get(key)} (cliente+sala+progressivo)`)
+    else seen.set(key, r.request_id)
+  }
+
+  // Integrazioni: il padre deve essere una primaria dello stesso cliente (in questo batch)
+  const primaryById = new Map(primaries.map(p => [p.request_id, p]))
+  for (const i of integrazioni) {
+    const parent = primaryById.get(i.pratica_padre)
+    if (!parent) fail(i.request_id, `pratica_padre inesistente o non primaria: "${i.pratica_padre}"`)
+    else if (parent.customer_id !== i.customer_id)
+      fail(i.request_id, `pratica_padre di un altro cliente`)
+  }
+
+  const valid = rows.filter(r => !invalidIds.has(r.request_id))
+  return { valid, errors }
+}
