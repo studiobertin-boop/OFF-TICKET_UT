@@ -8,6 +8,24 @@ export interface CreateRequestInput {
   title: string
   custom_fields: Record<string, any>
   customer_id?: string
+  // Codice pratica DM329
+  sala_lettera?: string | null
+  progressivo?: number | null
+  anno?: number | null
+  denominazione_sala?: string | null
+  indirizzo_impianto?: string | null
+  impianto_uguale_sede_legale?: boolean
+  pratica_padre_id?: string | null
+}
+
+export interface ClientDm329Practice {
+  request_id: string
+  sala_lettera: string
+  progressivo: number
+  anno: number
+  denominazione_sala: string | null
+  title: string
+  created_at: string
 }
 
 export interface UpdateRequestInput {
@@ -132,10 +150,33 @@ export const requestsApi = {
       if (error.message?.includes('JWT')) {
         throw new Error('Sessione scaduta. Ricarica la pagina ed effettua nuovamente il login.')
       }
+      // Codice pratica duplicato (indice ux_requests_codice_pratica)
+      if (error.code === '23505' && /codice_pratica/i.test(`${error.message ?? ''} ${(error as any).details ?? ''}`)) {
+        let next: number | null = null
+        if (input.customer_id && input.sala_lettera) {
+          try { next = await requestsApi.getNextProgressivo(input.customer_id, input.sala_lettera) } catch { /* ignore */ }
+        }
+        const suffix = next != null ? ` Prossimo progressivo disponibile: ${String(next).padStart(2, '0')}.` : ''
+        throw new Error(`Esiste già una pratica con questo codice per questa sala.${suffix}`)
+      }
       throw error
     }
 
     return data
+  },
+
+  // Pratiche primarie DM329 di un cliente (per selettore sala / pratica padre)
+  getClientDm329Overview: async (customerId: string): Promise<ClientDm329Practice[]> => {
+    const { data, error } = await supabase.rpc('get_client_dm329_overview', { p_customer: customerId })
+    if (error) throw error
+    return (data || []) as ClientDm329Practice[]
+  },
+
+  // Prossimo progressivo per (cliente, sala)
+  getNextProgressivo: async (customerId: string, lettera: string): Promise<number> => {
+    const { data, error } = await supabase.rpc('get_next_progressivo', { p_customer: customerId, p_lettera: lettera })
+    if (error) throw error
+    return (data as number) ?? 0
   },
 
   // Update request

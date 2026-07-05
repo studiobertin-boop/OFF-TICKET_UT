@@ -7,6 +7,16 @@ import { supabase } from '@/services/supabase'
 
 export const REQUESTS_QUERY_KEY = ['requests']
 
+// Pratiche primarie DM329 di un cliente (per selettore sala / pratica padre nel form)
+export const useClientDm329Overview = (customerId?: string | null) => {
+  return useQuery({
+    queryKey: ['client-dm329-overview', customerId],
+    queryFn: () => requestsApi.getClientDm329Overview(customerId as string),
+    enabled: !!customerId,
+    staleTime: 30 * 1000,
+  })
+}
+
 export const useRequests = (filters?: RequestFilters) => {
   const { user, loading: authLoading } = useAuth()
   const queryClient = useQueryClient()

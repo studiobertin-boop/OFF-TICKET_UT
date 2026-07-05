@@ -18,6 +18,8 @@ import {
 import { ArrowBack as ArrowBackIcon, Save as SaveIcon } from '@mui/icons-material'
 import { Layout } from '@/components/common/Layout'
 import { DynamicFormField } from '@/components/requests/DynamicFormField'
+import { DM329PraticaSection, Dm329PraticaValue } from '@/components/requests/DM329PraticaSection'
+import { DM329IntegrazioneSection, Dm329IntegrazioneValue } from '@/components/requests/DM329IntegrazioneSection'
 import { CompleteCustomerDataDialog } from '@/components/customers/CompleteCustomerDataDialog'
 import { useRequestTypes } from '@/hooks/useRequestTypes'
 import { useCreateRequest } from '@/hooks/useRequests'
@@ -38,6 +40,11 @@ export const NewRequest = () => {
   const [promptedCustomerId, setPromptedCustomerId] = useState<string | null>(null)
   const { data: requestTypes = [], isLoading: loadingTypes } = useRequestTypes()
   const createRequest = useCreateRequest()
+
+  // Valori delle sezioni DM329 dedicate (gestiti fuori dal resolver Zod)
+  const [praticaValue, setPraticaValue] = useState<{ value: Dm329PraticaValue | null; valid: boolean }>({ value: null, valid: false })
+  const [integrazioneValue, setIntegrazioneValue] = useState<{ value: Dm329IntegrazioneValue | null; valid: boolean }>({ value: null, valid: false })
+  const [sectionError, setSectionError] = useState<string | null>(null)
 
   // Determina se il tipo è stato pre-impostato dalla URL (utenti DM329)
   const typePreselected = !!searchParams.get('type')
@@ -138,6 +145,17 @@ export const NewRequest = () => {
   const onSubmit = async (data: any) => {
     if (!selectedTypeId || !selectedType) return
 
+    // Validazione delle sezioni DM329 dedicate (fuori dal resolver)
+    if (selectedType.name === 'DM329' && !praticaValue.valid) {
+      setSectionError('Completa i dati impianto e sala: indirizzo impianto, sala e denominazione (per una nuova sala).')
+      return
+    }
+    if (selectedType.name === 'DM329-Integrazioni' && !integrazioneValue.valid) {
+      setSectionError('Seleziona la pratica DM329 da integrare.')
+      return
+    }
+    setSectionError(null)
+
     try {
       // Extract customer_id from autocomplete fields
       let customer_id: string | undefined
@@ -175,12 +193,33 @@ export const NewRequest = () => {
         }
       }
 
-      const request = await createRequest.mutateAsync({
+      const payload: any = {
         request_type_id: selectedTypeId,
         title,
         custom_fields: processedData,
         customer_id,
-      })
+      }
+
+      // Codice pratica: DM329 (sala/progressivo) vs Integrazioni (pratica padre)
+      if (selectedType.name === 'DM329' && praticaValue.value) {
+        Object.assign(payload, {
+          sala_lettera: praticaValue.value.sala_lettera,
+          progressivo: praticaValue.value.progressivo,
+          anno: praticaValue.value.anno,
+          denominazione_sala: praticaValue.value.denominazione_sala,
+          indirizzo_impianto: praticaValue.value.indirizzo_impianto,
+          impianto_uguale_sede_legale: praticaValue.value.impianto_uguale_sede_legale,
+        })
+      } else if (selectedType.name === 'DM329-Integrazioni' && integrazioneValue.value) {
+        Object.assign(payload, {
+          pratica_padre_id: integrazioneValue.value.pratica_padre_id,
+          sala_lettera: integrazioneValue.value.sala_lettera,
+          progressivo: integrazioneValue.value.progressivo,
+          anno: integrazioneValue.value.anno,
+        })
+      }
+
+      const request = await createRequest.mutateAsync(payload)
 
       navigate(`/requests/${request.id}`)
     } catch (error) {
@@ -247,6 +286,23 @@ export const NewRequest = () => {
                   />
                 ))}
 
+                {selectedType.name === 'DM329' && customerData && (
+                  <DM329PraticaSection
+                    customer={customerData}
+                    sedeLegale={customersApi.formatFullAddress(customerData)}
+                    control={control}
+                    setValue={setValue}
+                    onChange={(value, valid) => setPraticaValue({ value, valid })}
+                  />
+                )}
+
+                {selectedType.name === 'DM329-Integrazioni' && customerData && (
+                  <DM329IntegrazioneSection
+                    customer={customerData}
+                    onChange={(value, valid) => setIntegrazioneValue({ value, valid })}
+                  />
+                )}
+
                 {selectedType.name === 'DM329' &&
                   customerData &&
                   hasIncompleteCustomerData(customerData) && (
@@ -264,9 +320,17 @@ export const NewRequest = () => {
                     </Alert>
                   )}
 
+                {sectionError && (
+                  <Alert severity="warning" sx={{ mt: 2 }} onClose={() => setSectionError(null)}>
+                    {sectionError}
+                  </Alert>
+                )}
+
                 {createRequest.isError && (
                   <Alert severity="error" sx={{ mt: 2 }}>
-                    Errore nella creazione della richiesta. Riprova.
+                    {createRequest.error instanceof Error
+                      ? createRequest.error.message
+                      : 'Errore nella creazione della richiesta. Riprova.'}
                   </Alert>
                 )}
 
