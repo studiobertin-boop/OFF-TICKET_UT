@@ -28,6 +28,7 @@ import {
 } from '@mui/icons-material'
 import { Request, RequestStatus, StatoFattura, STATO_FATTURA_OPTIONS, STATO_FATTURA_LABELS } from '@/types'
 import { getStatusColor, getStatusLabel, ALL_STANDARD_STATUSES, STANDARD_STATUS_LABELS } from '@/utils/workflow'
+import { StatusChip } from '@/components/common'
 import { usePersistedState } from '@/hooks/usePersistedState'
 import { BlockIndicator } from './BlockIndicator'
 import { UrgentIndicator } from './UrgentIndicator'
@@ -802,11 +803,7 @@ export const RequestsTableView = ({
                       onSave={(newValue) => handleSaveStatus(request.id, newValue)}
                     />
                   ) : (
-                    <Chip
-                      label={getStatusLabel(request.status)}
-                      color={getStatusColor(request.status)}
-                      size="small"
-                    />
+                    <StatusChip status={request.status} />
                   )}
                 </TableCell>
                 <TableCell>{request.creator?.full_name || 'N/A'}</TableCell>

@@ -55,6 +55,7 @@ import { RequestDetailsEditForm } from '@/components/requests/RequestDetailsEdit
 import { CompleteCustomerDataDialog } from '@/components/customers/CompleteCustomerDataDialog'
 import { useActiveBlock } from '@/hooks/useRequestBlocks'
 import { getStatusColor, getStatusLabel, isDM329Family } from '@/utils/workflow'
+import { StatusChip } from '@/components/common'
 import { useRequestTypes } from '@/hooks/useRequestTypes'
 import { hasIncompleteCustomerData } from '@/utils/customerValidation'
 import { STATO_FATTURA_OPTIONS, STATO_FATTURA_LABELS, type StatoFattura, type Customer } from '@/types'
@@ -544,7 +545,7 @@ export const RequestDetail = () => {
                       />
                     )}
                   </Box>
-                  <Chip label={getStatusLabel(request.status)} color={getStatusColor(request.status)} />
+                  <StatusChip status={request.status} size="medium" />
                 </Box>
 
             <Grid container spacing={3}>

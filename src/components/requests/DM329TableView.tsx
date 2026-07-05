@@ -31,6 +31,7 @@ import {
 } from '@mui/icons-material'
 import { Request, DM329Status, StatoFattura, STATO_FATTURA_OPTIONS, STATO_FATTURA_LABELS } from '@/types'
 import { getStatusColor, getStatusLabel, ALL_DM329_STATUSES, DM329_STATUS_LABELS } from '@/utils/workflow'
+import { StatusChip } from '@/components/common'
 import { usePersistedState } from '@/hooks/usePersistedState'
 import { useAuth } from '@/hooks/useAuth'
 import { BlockIndicator } from './BlockIndicator'
@@ -942,11 +943,7 @@ export const DM329TableView = ({
                       onSave={(newValue) => handleSaveStatus(request.id, newValue)}
                     />
                   ) : (
-                    <Chip
-                      label={getStatusLabel(request.status)}
-                      color={getStatusColor(request.status)}
-                      size="small"
-                    />
+                    <StatusChip status={request.status} />
                   )}
                 </TableCell>
                 <TableCell sx={{ textAlign: 'center' }}>
