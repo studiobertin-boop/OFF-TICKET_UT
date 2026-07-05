@@ -53,7 +53,7 @@ import { ConfirmDeleteDialog } from '@/components/requests/ConfirmDeleteDialog'
 import { AttachmentsSection } from '@/components/requests/AttachmentsSection'
 import { RequestDetailsEditForm } from '@/components/requests/RequestDetailsEditForm'
 import { CompleteCustomerDataDialog } from '@/components/customers/CompleteCustomerDataDialog'
-import { AssegnaCodicePraticaPanel } from '@/components/requests/AssegnaCodicePraticaPanel'
+import { CodicePraticaDialog } from '@/components/requests/CodicePraticaDialog'
 import { useActiveBlock } from '@/hooks/useRequestBlocks'
 import { getStatusColor, getStatusLabel, isDM329Family } from '@/utils/workflow'
 import { StatusChip } from '@/components/common'
@@ -218,6 +218,7 @@ export const RequestDetail = () => {
   const codicePratica = request ? codiceForRequest(request, clientSalaCount) : ''
 
   const [showCompleteCustomerDialog, setShowCompleteCustomerDialog] = useState(false)
+  const [codiceDialogOpen, setCodiceDialogOpen] = useState(false)
 
   const handleCustomerDataComplete = () => {
     setShowCompleteCustomerDialog(false)
@@ -553,17 +554,31 @@ export const RequestDetail = () => {
                     {isDM329 ? clientInfo?.ragione_sociale || request.title : request.title}
                   </Typography>
                 </Box>
-                {isDM329 && (codicePratica || request.denominazione_sala) && (
-                  <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
-                    {codicePratica && (
+                {isDM329 && (codicePratica || request.denominazione_sala || canManageCodice) && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
+                    {codicePratica ? (
                       <Typography component="span" sx={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '1.05rem' }}>
                         {codicePratica}
                       </Typography>
-                    )}
+                    ) : canManageCodice ? (
+                      <Typography component="span" variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                        Codice pratica non assegnato
+                      </Typography>
+                    ) : null}
                     {request.denominazione_sala && (
                       <Typography component="span" variant="subtitle1" color="text.secondary" sx={{ fontWeight: 500 }}>
                         · {request.denominazione_sala}
                       </Typography>
+                    )}
+                    {canManageCodice && (
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        onClick={() => setCodiceDialogOpen(true)}
+                        title={codicePratica ? 'Modifica codice pratica' : 'Assegna codice pratica'}
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
                     )}
                   </Box>
                 )}
@@ -623,13 +638,13 @@ export const RequestDetail = () => {
           </CardContent>
         </Card>
 
-        {canManageCodice && customerRecord && (
-          <AssegnaCodicePraticaPanel
+        {codiceDialogOpen && canManageCodice && customerRecord && (
+          <CodicePraticaDialog
             request={request}
             customer={customerRecord}
             sedeLegale={customersApi.formatFullAddress(customerRecord)}
             hasCode={hasCodicePratica}
-            currentCodice={codicePratica}
+            onClose={() => setCodiceDialogOpen(false)}
             onSaved={() => refetch()}
           />
         )}
