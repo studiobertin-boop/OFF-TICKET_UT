@@ -32,7 +32,8 @@ import {
   PriorityHigh as PriorityHighIcon,
 } from '@mui/icons-material'
 import { Layout } from '@/components/common/Layout'
-import { useRequest, useHideRequest, useDeleteRequest, useUpdateRequest } from '@/hooks/useRequests'
+import { useRequest, useHideRequest, useDeleteRequest, useUpdateRequest, useClientDm329Overview } from '@/hooks/useRequests'
+import { codiceForRequest } from '@/utils/practiceCode'
 import { useCustomer, useCustomers } from '@/hooks/useCustomers'
 import { useAuth } from '@/hooks/useAuth'
 import { useFeatureFlag } from '@/hooks/useFeatureFlag'
@@ -203,6 +204,14 @@ export const RequestDetail = () => {
     if (customerByName) return customerByName
     return null
   }, [request, legacyCustomer, customerByName])
+
+  // Codice pratica DM329 (chip accanto al titolo)
+  const { data: clientDm329Overview = [] } = useClientDm329Overview(request?.customer_id)
+  const clientSalaCount = useMemo(
+    () => new Set(clientDm329Overview.map(p => p.sala_lettera)).size,
+    [clientDm329Overview]
+  )
+  const codicePratica = request ? codiceForRequest(request, clientSalaCount) : ''
 
   const [showCompleteCustomerDialog, setShowCompleteCustomerDialog] = useState(false)
 
@@ -526,6 +535,14 @@ export const RequestDetail = () => {
                       <BlockIndicator isBlocked={true} reason={activeBlock?.reason} />
                     )}
                     <Typography variant="h4">{request.title}</Typography>
+                    {codicePratica && (
+                      <Chip
+                        label={codicePratica}
+                        color="primary"
+                        variant="outlined"
+                        sx={{ fontFamily: 'monospace', fontWeight: 700 }}
+                      />
+                    )}
                   </Box>
                   <Chip label={getStatusLabel(request.status)} color={getStatusColor(request.status)} />
                 </Box>

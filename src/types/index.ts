@@ -136,6 +136,14 @@ export interface Request {
   is_urgent?: boolean
   has_timer_alert?: boolean
   off_cac?: 'off' | 'cac' | ''
+  // Codice pratica DM329 (CODICECLIENTE[LETTERASALA]_PROGRESSIVO-ANNO)
+  sala_lettera?: string | null
+  progressivo?: number | null
+  anno?: number | null
+  denominazione_sala?: string | null
+  indirizzo_impianto?: string | null
+  impianto_uguale_sede_legale?: boolean
+  pratica_padre_id?: string | null
   created_at: string
   updated_at: string
 }

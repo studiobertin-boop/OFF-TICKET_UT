@@ -20,6 +20,7 @@ import {
   ListItemText,
   OutlinedInput,
   Button,
+  Typography,
 } from '@mui/material'
 import {
   Clear as ClearIcon,
@@ -40,6 +41,7 @@ import { requestsApi } from '@/services/api/requests'
 import { getAllUsers, updateRequestStatus } from '@/services/requestService'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
+import { computeClientSalaCounts, codiceForRequest } from '@/utils/practiceCode'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
 import {
@@ -209,6 +211,9 @@ export const DM329TableView = ({
   }, [uniqueClients, clienteSearchText])
 
   // Filtraggio e ordinamento
+  // Conteggio sale per cliente (per omettere/mostrare la lettera nel codice pratica)
+  const salaCounts = useMemo(() => computeClientSalaCounts(requests), [requests])
+
   const filteredAndSortedRequests = useMemo(() => {
     let filtered = [...requests]
 
@@ -898,19 +903,33 @@ export const DM329TableView = ({
                 </TableCell>
                 <TableCell>
                   {(() => {
+                    const codice = codiceForRequest(request, salaCounts.get(request.customer_id || '') || 0)
                     // Preferisci il cliente collegato (con codice); fallback al nome in custom_fields
                     const linked = request.customer
+                    let nome = '-'
                     if (linked?.ragione_sociale) {
-                      return linked.identificativo
+                      nome = linked.identificativo
                         ? `${linked.identificativo} — ${linked.ragione_sociale}`
                         : linked.ragione_sociale
+                    } else {
+                      const cliente = request.custom_fields?.cliente
+                      if (typeof cliente === 'string') nome = cliente
+                      else if (cliente && typeof cliente === 'object' && 'ragione_sociale' in cliente) {
+                        nome = cliente.ragione_sociale
+                      }
                     }
-                    const cliente = request.custom_fields?.cliente
-                    if (typeof cliente === 'string') return cliente
-                    if (cliente && typeof cliente === 'object' && 'ragione_sociale' in cliente) {
-                      return cliente.ragione_sociale
-                    }
-                    return '-'
+                    return (
+                      <>
+                        {codice && (
+                          <Typography variant="body2" sx={{ fontWeight: 700, fontFamily: 'monospace' }}>
+                            {codice}
+                          </Typography>
+                        )}
+                        <Typography variant="body2" color={codice ? 'text.secondary' : 'text.primary'}>
+                          {nome}
+                        </Typography>
+                      </>
+                    )
                   })()}
                 </TableCell>
                 <TableCell onClick={canEditStatus ? (e) => e.stopPropagation() : undefined}>

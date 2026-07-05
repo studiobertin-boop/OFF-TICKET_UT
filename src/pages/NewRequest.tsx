@@ -18,26 +18,26 @@ import {
 import { ArrowBack as ArrowBackIcon, Save as SaveIcon } from '@mui/icons-material'
 import { Layout } from '@/components/common/Layout'
 import { DynamicFormField } from '@/components/requests/DynamicFormField'
-import { CompleteCustomerDataDialog } from '@/components/customers/CompleteCustomerDataDialog'
+import { DM329PraticaSection, Dm329PraticaValue } from '@/components/requests/DM329PraticaSection'
+import { DM329IntegrazioneSection, Dm329IntegrazioneValue } from '@/components/requests/DM329IntegrazioneSection'
 import { useRequestTypes } from '@/hooks/useRequestTypes'
 import { useCreateRequest } from '@/hooks/useRequests'
 import { useCustomer } from '@/hooks/useCustomers'
 import { generateZodSchemaWithValidations, getDefaultValues } from '@/utils/formSchema'
-import { hasIncompleteCustomerData } from '@/utils/customerValidation'
 import { isDM329Family } from '@/utils/workflow'
 import { customersApi } from '@/services/api/customers'
-import { Customer } from '@/types'
 
 export const NewRequest = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [selectedTypeId, setSelectedTypeId] = useState<string>('')
-  const [showCompleteDialog, setShowCompleteDialog] = useState(false)
-  const [selectedCustomerForComplete, setSelectedCustomerForComplete] = useState<Customer | null>(null)
-  // Evita di riproporre automaticamente il dialog per lo stesso cliente già mostrato
-  const [promptedCustomerId, setPromptedCustomerId] = useState<string | null>(null)
   const { data: requestTypes = [], isLoading: loadingTypes } = useRequestTypes()
   const createRequest = useCreateRequest()
+
+  // Valori delle sezioni DM329 dedicate (gestiti fuori dal resolver Zod)
+  const [praticaValue, setPraticaValue] = useState<{ value: Dm329PraticaValue | null; valid: boolean }>({ value: null, valid: false })
+  const [integrazioneValue, setIntegrazioneValue] = useState<{ value: Dm329IntegrazioneValue | null; valid: boolean }>({ value: null, valid: false })
+  const [sectionError, setSectionError] = useState<string | null>(null)
 
   // Determina se il tipo è stato pre-impostato dalla URL (utenti DM329)
   const typePreselected = !!searchParams.get('type')
@@ -68,50 +68,16 @@ export const NewRequest = () => {
   const customerId = typeof clienteValue === 'object' && clienteValue?.id ? clienteValue.id : null
   const { data: customerData } = useCustomer(customerId || '')
 
-  // Auto-fill address for DM329 and offer to complete missing optional data
+  // Auto-compila l'indirizzo (sede legale) quando si seleziona il cliente (DM329).
+  // Il flusso "completa dati incompleti" è gestito dall'AutocompleteField del cliente (unico punto).
   useEffect(() => {
     if (isDM329Family(selectedType?.name) && customerData) {
-      // Auto-fill address with whatever data is available (partial address is fine)
       const formattedAddress = customersApi.formatFullAddress(customerData)
       if (formattedAddress) {
         setValue('sede_legale', formattedAddress)
       }
-
-      // Propose completing missing optional fields, only once per selected customer
-      if (hasIncompleteCustomerData(customerData) && promptedCustomerId !== customerData.id) {
-        setSelectedCustomerForComplete(customerData)
-        setShowCompleteDialog(true)
-        setPromptedCustomerId(customerData.id)
-      }
     }
-  }, [customerData, selectedType, setValue, promptedCustomerId])
-
-  // Manually re-open the completion dialog for the currently selected customer
-  const handleOpenCompleteDialog = () => {
-    if (customerData) {
-      setSelectedCustomerForComplete(customerData)
-      setShowCompleteDialog(true)
-    }
-  }
-
-  // Handle customer data completion
-  const handleCustomerComplete = (updatedCustomer: Customer) => {
-    setShowCompleteDialog(false)
-    setSelectedCustomerForComplete(null)
-
-    // Auto-fill address with updated data
-    const formattedAddress = customersApi.formatFullAddress(updatedCustomer)
-    if (formattedAddress) {
-      setValue('sede_legale', formattedAddress)
-    }
-  }
-
-  // Handle skip customer completion (procedi comunque)
-  const handleSkipComplete = () => {
-    setShowCompleteDialog(false)
-    setSelectedCustomerForComplete(null)
-    // Address already auto-filled above; nothing else to do
-  }
+  }, [customerData, selectedType, setValue])
 
   // Pre-seleziona il tipo se viene passato nella query string
   useEffect(() => {
@@ -137,6 +103,17 @@ export const NewRequest = () => {
 
   const onSubmit = async (data: any) => {
     if (!selectedTypeId || !selectedType) return
+
+    // Validazione delle sezioni DM329 dedicate (fuori dal resolver)
+    if (selectedType.name === 'DM329' && !praticaValue.valid) {
+      setSectionError('Completa i dati impianto e sala: indirizzo impianto, sala e denominazione (per una nuova sala).')
+      return
+    }
+    if (selectedType.name === 'DM329-Integrazioni' && !integrazioneValue.valid) {
+      setSectionError('Seleziona la pratica DM329 da integrare.')
+      return
+    }
+    setSectionError(null)
 
     try {
       // Extract customer_id from autocomplete fields
@@ -175,12 +152,33 @@ export const NewRequest = () => {
         }
       }
 
-      const request = await createRequest.mutateAsync({
+      const payload: any = {
         request_type_id: selectedTypeId,
         title,
         custom_fields: processedData,
         customer_id,
-      })
+      }
+
+      // Codice pratica: DM329 (sala/progressivo) vs Integrazioni (pratica padre)
+      if (selectedType.name === 'DM329' && praticaValue.value) {
+        Object.assign(payload, {
+          sala_lettera: praticaValue.value.sala_lettera,
+          progressivo: praticaValue.value.progressivo,
+          anno: praticaValue.value.anno,
+          denominazione_sala: praticaValue.value.denominazione_sala,
+          indirizzo_impianto: praticaValue.value.indirizzo_impianto,
+          impianto_uguale_sede_legale: praticaValue.value.impianto_uguale_sede_legale,
+        })
+      } else if (selectedType.name === 'DM329-Integrazioni' && integrazioneValue.value) {
+        Object.assign(payload, {
+          pratica_padre_id: integrazioneValue.value.pratica_padre_id,
+          sala_lettera: integrazioneValue.value.sala_lettera,
+          progressivo: integrazioneValue.value.progressivo,
+          anno: integrazioneValue.value.anno,
+        })
+      }
+
+      const request = await createRequest.mutateAsync(payload)
 
       navigate(`/requests/${request.id}`)
     } catch (error) {
@@ -247,26 +245,34 @@ export const NewRequest = () => {
                   />
                 ))}
 
-                {selectedType.name === 'DM329' &&
-                  customerData &&
-                  hasIncompleteCustomerData(customerData) && (
-                    <Alert
-                      severity="info"
-                      sx={{ mt: 2 }}
-                      action={
-                        <Button color="inherit" size="small" onClick={handleOpenCompleteDialog}>
-                          Completa dati
-                        </Button>
-                      }
-                    >
-                      Alcuni dati anagrafici del cliente sono incompleti. Puoi integrarli ora oppure
-                      procedere comunque.
-                    </Alert>
-                  )}
+                {selectedType.name === 'DM329' && customerData && (
+                  <DM329PraticaSection
+                    customer={customerData}
+                    sedeLegale={customersApi.formatFullAddress(customerData)}
+                    control={control}
+                    setValue={setValue}
+                    onChange={(value, valid) => setPraticaValue({ value, valid })}
+                  />
+                )}
+
+                {selectedType.name === 'DM329-Integrazioni' && customerData && (
+                  <DM329IntegrazioneSection
+                    customer={customerData}
+                    onChange={(value, valid) => setIntegrazioneValue({ value, valid })}
+                  />
+                )}
+
+                {sectionError && (
+                  <Alert severity="warning" sx={{ mt: 2 }} onClose={() => setSectionError(null)}>
+                    {sectionError}
+                  </Alert>
+                )}
 
                 {createRequest.isError && (
                   <Alert severity="error" sx={{ mt: 2 }}>
-                    Errore nella creazione della richiesta. Riprova.
+                    {createRequest.error instanceof Error
+                      ? createRequest.error.message
+                      : 'Errore nella creazione della richiesta. Riprova.'}
                   </Alert>
                 )}
 
@@ -294,15 +300,6 @@ export const NewRequest = () => {
           </CardContent>
         </Card>
       </Box>
-
-      {/* Dialog for completing customer data when missing fields detected */}
-      <CompleteCustomerDataDialog
-        open={showCompleteDialog}
-        customer={selectedCustomerForComplete}
-        onClose={handleSkipComplete}
-        onComplete={handleCustomerComplete}
-        allowSkip={true}
-      />
     </Layout>
   )
 }
