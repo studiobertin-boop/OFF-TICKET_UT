@@ -1,4 +1,5 @@
 import { RequestStatus, DM329Status, UserRole } from '@/types'
+import { getStatusIntent } from '@/theme/statusColors'
 
 export function isDM329Family(requestTypeName?: string | null): boolean {
   return requestTypeName === 'DM329' || requestTypeName === 'DM329-Integrazioni'
@@ -122,28 +123,8 @@ export function formatStatus(status: string): string {
 export function getStatusColor(
   status: string
 ): 'default' | 'primary' | 'secondary' | 'error' | 'warning' | 'info' | 'success' {
-  const statusColors: Record<
-    string,
-    'default' | 'primary' | 'secondary' | 'error' | 'warning' | 'info' | 'success'
-  > = {
-    // Standard workflow
-    APERTA: 'info',
-    ASSEGNATA: 'primary',
-    IN_LAVORAZIONE: 'warning',
-    COMPLETATA: 'success',
-    BLOCCATA: 'error',
-    ABORTITA: 'error',
-    // DM329 workflow
-    '1-INCARICO_RICEVUTO': 'info',
-    '2-SCHEDA_DATI_PRONTA': 'primary',
-    '3-MAIL_CLIENTE_INVIATA': 'primary',
-    '4-DOCUMENTI_PRONTI': 'warning',
-    '5-ATTESA_FIRMA': 'warning',
-    '6-PRONTA_PER_CIVA': 'success',
-    '7-CHIUSA': 'success',
-    'ARCHIVIATA NON FINITA': 'default',
-  }
-  return statusColors[status] || 'default'
+  // Delega alla fonte di verità unica (src/theme/statusColors.ts).
+  return getStatusIntent(status)
 }
 
 /**

@@ -37,6 +37,7 @@ import { useRequestTypes } from '@/hooks/useRequestTypes'
 import { useAuth } from '@/hooks/useAuth'
 import { usePersistedState } from '@/hooks/usePersistedState'
 import { getStatusColor, getStatusLabel, isDM329Family } from '@/utils/workflow'
+import { StatusChip } from '@/components/common'
 import type { DM329Status, StatoFattura } from '@/types'
 import { requestsApi } from '@/services/api/requests'
 import { RequestsTableView } from '@/components/requests/RequestsTableView'
@@ -751,7 +752,7 @@ export const Requests = () => {
                             )}
                           </Box>
                           <Box>
-                            <Chip label={getStatusLabel(request.status)} color={getStatusColor(request.status)} />
+                            <StatusChip status={request.status} />
                           </Box>
                         </Box>
                       </CardContent>

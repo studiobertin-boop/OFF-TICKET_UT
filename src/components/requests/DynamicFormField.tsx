@@ -39,7 +39,6 @@ export const DynamicFormField = ({ field, control, error }: DynamicFormFieldProp
                 required={field.required}
                 error={!!error}
                 helperText={error?.message}
-                margin="normal"
                 placeholder={field.placeholder}
                 inputProps={{
                   maxLength: field.maxLength,
@@ -64,7 +63,6 @@ export const DynamicFormField = ({ field, control, error }: DynamicFormFieldProp
                 required={field.required}
                 error={!!error}
                 helperText={error?.message}
-                margin="normal"
                 placeholder={field.placeholder}
                 inputProps={{
                   maxLength: field.maxLength,
@@ -80,7 +78,7 @@ export const DynamicFormField = ({ field, control, error }: DynamicFormFieldProp
             name={field.name}
             control={control}
             render={({ field: formField }) => (
-              <FormControl margin="normal" error={!!error}>
+              <FormControl error={!!error}>
                 <FormControlLabel
                   control={
                     <Checkbox
@@ -102,7 +100,7 @@ export const DynamicFormField = ({ field, control, error }: DynamicFormFieldProp
             name={field.name}
             control={control}
             render={({ field: formField }) => (
-              <FormControl fullWidth margin="normal" required={field.required} error={!!error}>
+              <FormControl fullWidth required={field.required} error={!!error}>
                 <FormLabel>{field.label}</FormLabel>
                 <Select {...formField} value={formField.value || ''}>
                   {!field.required && (
@@ -128,7 +126,7 @@ export const DynamicFormField = ({ field, control, error }: DynamicFormFieldProp
             name={field.name}
             control={control}
             render={({ field: formField }) => (
-              <FormControl fullWidth margin="normal" required={field.required} error={!!error}>
+              <FormControl fullWidth required={field.required} error={!!error}>
                 <FormLabel>{field.label}</FormLabel>
                 <Select
                   multiple
@@ -171,7 +169,6 @@ export const DynamicFormField = ({ field, control, error }: DynamicFormFieldProp
                 required={field.required}
                 error={!!error}
                 helperText={error?.message}
-                margin="normal"
                 InputLabelProps={{
                   shrink: true,
                 }}
@@ -198,7 +195,6 @@ export const DynamicFormField = ({ field, control, error }: DynamicFormFieldProp
                 required={field.required}
                 error={!!error}
                 helperText={error?.message}
-                margin="normal"
                 placeholder={field.placeholder}
                 inputProps={{
                   min: field.min,
@@ -224,7 +220,6 @@ export const DynamicFormField = ({ field, control, error }: DynamicFormFieldProp
                 required={field.required}
                 error={!!error}
                 helperText={error?.message}
-                margin="normal"
                 InputLabelProps={{
                   shrink: true,
                 }}

@@ -13,32 +13,38 @@ import {
   Chip,
   IconButton,
   TextField,
-  Select,
-  MenuItem,
   Checkbox,
-  FormControl,
   ListItemText,
-  OutlinedInput,
   Button,
   Typography,
+  Popover,
+  MenuItem,
+  Radio,
+  RadioGroup,
+  FormControlLabel,
+  Divider,
+  Tooltip,
 } from '@mui/material'
 import {
   Clear as ClearIcon,
-  CheckBox as CheckBoxIcon,
-  CheckBoxOutlineBlank as CheckBoxOutlineBlankIcon,
   Print as PrintIcon,
   FileDownload as FileDownloadIcon,
+  FilterList as FilterListIcon,
+  PriorityHigh as PriorityHighIcon,
+  Warning as WarningIcon,
+  AccessTime as AccessTimeIcon,
+  Block as BlockIcon,
 } from '@mui/icons-material'
 import { Request, DM329Status, StatoFattura, STATO_FATTURA_OPTIONS, STATO_FATTURA_LABELS } from '@/types'
 import { getStatusColor, getStatusLabel, ALL_DM329_STATUSES, DM329_STATUS_LABELS } from '@/utils/workflow'
+import { StatusChip } from '@/components/common'
+import { getStatusChipColors } from '@/theme/statusColors'
+import { useThemeMode } from '@/theme'
 import { usePersistedState } from '@/hooks/usePersistedState'
 import { useAuth } from '@/hooks/useAuth'
-import { BlockIndicator } from './BlockIndicator'
-import { UrgentIndicator } from './UrgentIndicator'
-import { TimerAlertIndicator } from './TimerAlertIndicator'
 import { EditableSelectCell } from './EditableSelectCell'
 import { requestsApi } from '@/services/api/requests'
-import { getAllUsers, updateRequestStatus } from '@/services/requestService'
+import { updateRequestStatus } from '@/services/requestService'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
 import { computeClientSalaCounts, codiceForRequest } from '@/utils/practiceCode'
@@ -66,7 +72,23 @@ interface DM329TableViewProps {
 }
 
 type OrderDirection = 'asc' | 'desc'
-type OrderBy = 'updated_at' | 'cliente' | 'status' | 'no_civa' | 'note' | 'is_urgent' | 'is_blocked' | 'has_timer_alert' | 'stato_fattura'
+type OrderBy =
+  | 'codice'
+  | 'cliente'
+  | 'sala'
+  | 'status'
+  | 'updated_at'
+  | 'note'
+  | 'is_urgent'
+  | 'is_blocked'
+  | 'has_timer_alert'
+  | 'no_civa'
+  | 'stato_fattura'
+
+// Colonna filtrabile → chiave del popover
+type FilterCol = 'cliente' | 'tipo' | 'stato' | 'segnal' | 'note' | 'fattura'
+
+type TriState = 'all' | 'true' | 'false'
 
 const DM329_STATUSES: DM329Status[] = [
   '1-INCARICO_RICEVUTO',
@@ -78,6 +100,50 @@ const DM329_STATUSES: DM329Status[] = [
   '7-CHIUSA',
 ]
 
+// Icone/colori degli allarmi (coerenti con gli indicatori usati altrove)
+const SEGNAL_META: { key: OrderBy; label: string; Icon: typeof PriorityHighIcon; color: string }[] = [
+  { key: 'is_urgent', label: 'Urgente', Icon: PriorityHighIcon, color: 'error.main' },
+  { key: 'is_blocked', label: 'Bloccata', Icon: WarningIcon, color: 'warning.main' },
+  { key: 'has_timer_alert', label: 'Scaduta', Icon: AccessTimeIcon, color: 'error.main' },
+  { key: 'no_civa', label: 'No CIVA', Icon: BlockIcon, color: 'primary.main' },
+]
+
+// Larghezze fisse (px) delle colonne compatte; Cliente resta flessibile (assorbe lo spazio)
+const W = {
+  select: 44,
+  codice: 120,
+  sala: 130,
+  tipo: 92,
+  stato: 170,
+  data: 104,
+  segnal: 134,
+  note: 240,
+  fattura: 120,
+}
+
+// Cella "Segnalazioni": 4 icone in posizione fissa, grigie quando non attive
+function SegnalazioniCell({ request }: { request: Request }) {
+  const active: Record<string, boolean> = {
+    is_urgent: !!request.is_urgent,
+    is_blocked: !!request.is_blocked,
+    has_timer_alert: !!request.has_timer_alert,
+    no_civa: !!request.custom_fields?.no_civa,
+  }
+  return (
+    <Box sx={{ display: 'inline-flex', gap: 0.75, alignItems: 'center' }}>
+      {SEGNAL_META.map(({ key, label, Icon, color }) =>
+        active[key] ? (
+          <Tooltip key={key} title={label} arrow>
+            <Icon sx={{ fontSize: 19, color }} />
+          </Tooltip>
+        ) : (
+          <Icon key={key} sx={{ fontSize: 19, color: 'text.disabled', opacity: 0.25 }} />
+        )
+      )}
+    </Box>
+  )
+}
+
 // Validation function for stato_fattura
 const validateStatoFattura = (
   value: StatoFattura,
@@ -87,11 +153,22 @@ const validateStatoFattura = (
     if (status !== '7-CHIUSA' && status !== 'ARCHIVIATA NON FINITA') {
       return {
         valid: false,
-        error: 'Stato "Sì" impostabile solo su richieste CHIUSE o ARCHIVIATE NON FINITE'
+        error: 'Stato "Sì" impostabile solo su richieste CHIUSE o ARCHIVIATE NON FINITE',
       }
     }
   }
   return { valid: true }
+}
+
+// Estrae la ragione sociale del cliente (senza prefisso codice)
+function clienteNome(req: Request): string {
+  if (req.customer?.ragione_sociale) return req.customer.ragione_sociale
+  const cliente = req.custom_fields?.cliente
+  if (typeof cliente === 'string') return cliente
+  if (cliente && typeof cliente === 'object' && 'ragione_sociale' in cliente) {
+    return cliente.ragione_sociale
+  }
+  return ''
 }
 
 export const DM329TableView = ({
@@ -105,24 +182,8 @@ export const DM329TableView = ({
 }: DM329TableViewProps) => {
   const navigate = useNavigate()
   const { user, isAdmin, isUserDM329 } = useAuth()
+  const { mode } = useThemeMode()
   const queryClient = useQueryClient()
-
-  // Tutti gli utenti per il filtro "Attribuzione"
-  const [allUsers, setAllUsers] = useState<{ id: string; full_name: string; email: string; role: string }[]>([])
-  useEffect(() => {
-    getAllUsers()
-      .then(data => setAllUsers(data as any))
-      .catch(() => setAllUsers([]))
-  }, [])
-  const usersMap = useMemo(() =>
-    Object.fromEntries(allUsers.map(u => [u.id, u.full_name])),
-    [allUsers]
-  )
-  // Utenti unici presenti nelle pratiche come attributed_to
-  const attributedUsers = useMemo(() => {
-    const ids = new Set(requests.map(r => r.attributed_to).filter(Boolean) as string[])
-    return allUsers.filter(u => ids.has(u.id))
-  }, [requests, allUsers])
 
   // Chi può modificare lo stato direttamente dalla lista DM329
   const canEditStatus = isAdmin || isUserDM329
@@ -135,14 +196,17 @@ export const DM329TableView = ({
   const [clienteFilter, setClienteFilter] = usePersistedState<string[]>('dm329Table_clienteFilter', [])
   const [clienteSearchText, setClienteSearchText] = useState('')
   const [statoFilter, setStatoFilter] = usePersistedState<DM329Status[]>('dm329Table_statoFilter', [])
-  const [noCivaFilter, setNoCivaFilter] = usePersistedState<'all' | 'true' | 'false'>('dm329Table_noCivaFilter', 'all')
+  const [noCivaFilter, setNoCivaFilter] = usePersistedState<TriState>('dm329Table_noCivaFilter', 'all')
   const [noteFilter, setNoteFilter] = usePersistedState<string>('dm329Table_noteFilter', '')
-  const [urgentFilter, setUrgentFilter] = usePersistedState<'all' | 'true' | 'false'>('dm329Table_urgentFilter', 'all')
-  const [blockedFilter, setBlockedFilter] = usePersistedState<'all' | 'true' | 'false'>('dm329Table_blockedFilter', 'all')
-  const [timerAlertFilter, setTimerAlertFilter] = usePersistedState<'all' | 'true' | 'false'>('dm329Table_timerAlertFilter', 'all')
+  const [urgentFilter, setUrgentFilter] = usePersistedState<TriState>('dm329Table_urgentFilter', 'all')
+  const [blockedFilter, setBlockedFilter] = usePersistedState<TriState>('dm329Table_blockedFilter', 'all')
+  const [timerAlertFilter, setTimerAlertFilter] = usePersistedState<TriState>('dm329Table_timerAlertFilter', 'all')
   const [statoFatturaFilter, setStatoFatturaFilter] = usePersistedState<StatoFattura[]>('dm329Table_statoFatturaFilter', [])
   const [tipoPraticaFilter, setTipoPraticaFilter] = usePersistedState<string>('dm329Table_tipoPraticaFilter', '')
-  const [attributedToFilter, setAttributedToFilter] = usePersistedState<string[]>('dm329Table_attributedToFilter', [])
+
+  // Popover filtri: colonna attiva + elemento di ancoraggio
+  const [filterCol, setFilterCol] = useState<FilterCol | null>(null)
+  const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null)
 
   // State for export dialog
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
@@ -153,6 +217,16 @@ export const DM329TableView = ({
     setStatoFilter(initialStatoFilter ? [initialStatoFilter as DM329Status] : [])
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialStatoFilter])
+
+  const openFilter = (col: FilterCol) => (e: React.MouseEvent<HTMLElement>) => {
+    e.stopPropagation()
+    setFilterAnchor(e.currentTarget)
+    setFilterCol(col)
+  }
+  const closeFilter = () => {
+    setFilterCol(null)
+    setFilterAnchor(null)
+  }
 
   const handleSort = (property: OrderBy) => {
     const isAsc = orderBy === property && order === 'asc'
@@ -169,7 +243,6 @@ export const DM329TableView = ({
     if (!validation.valid) {
       throw new Error(validation.error)
     }
-
     await requestsApi.updateCustomField(requestId, 'stato_fattura', newValue)
     await queryClient.invalidateQueries({ queryKey: ['requests'] })
     toast.success('Stato fattura aggiornato')
@@ -186,53 +259,28 @@ export const DM329TableView = ({
     toast.success('Stato aggiornato')
   }
 
-
-  // Estrai valori unici per i filtri
+  // Clienti unici (per il filtro)
   const uniqueClients = useMemo(() => {
-    const clients = requests
-      .map(r => {
-        const cliente = r.custom_fields?.cliente
-        if (typeof cliente === 'string') return cliente
-        if (cliente && typeof cliente === 'object' && 'ragione_sociale' in cliente) {
-          return cliente.ragione_sociale
-        }
-        return null
-      })
-      .filter(Boolean) as string[]
+    const clients = requests.map(clienteNome).filter(Boolean)
     return Array.from(new Set(clients)).sort()
   }, [requests])
 
-  // Filtra i clienti in base al testo di ricerca
   const filteredUniqueClients = useMemo(() => {
     if (!clienteSearchText) return uniqueClients
-    return uniqueClients.filter(c =>
-      c.toLowerCase().includes(clienteSearchText.toLowerCase())
-    )
+    return uniqueClients.filter(c => c.toLowerCase().includes(clienteSearchText.toLowerCase()))
   }, [uniqueClients, clienteSearchText])
 
-  // Filtraggio e ordinamento
   // Conteggio sale per cliente (per omettere/mostrare la lettera nel codice pratica)
   const salaCounts = useMemo(() => computeClientSalaCounts(requests), [requests])
 
   const filteredAndSortedRequests = useMemo(() => {
     let filtered = [...requests]
 
-    // Applica filtri
     if (clienteFilter.length > 0) {
-      filtered = filtered.filter(req => {
-        const cliente = req.custom_fields?.cliente
-        const clienteStr = typeof cliente === 'string'
-          ? cliente
-          : (cliente && typeof cliente === 'object' && 'ragione_sociale' in cliente)
-            ? cliente.ragione_sociale
-            : ''
-        return clienteFilter.includes(clienteStr)
-      })
+      filtered = filtered.filter(req => clienteFilter.includes(clienteNome(req)))
     }
     if (statoFilter.length > 0) {
-      filtered = filtered.filter(req =>
-        statoFilter.includes(req.status as DM329Status)
-      )
+      filtered = filtered.filter(req => statoFilter.includes(req.status as DM329Status))
     }
     if (noCivaFilter !== 'all') {
       filtered = filtered.filter(req => {
@@ -247,22 +295,13 @@ export const DM329TableView = ({
       })
     }
     if (urgentFilter !== 'all') {
-      filtered = filtered.filter(req => {
-        const isUrgent = req.is_urgent === true
-        return urgentFilter === 'true' ? isUrgent : !isUrgent
-      })
+      filtered = filtered.filter(req => (urgentFilter === 'true' ? req.is_urgent === true : req.is_urgent !== true))
     }
     if (blockedFilter !== 'all') {
-      filtered = filtered.filter(req => {
-        const isBlocked = req.is_blocked === true
-        return blockedFilter === 'true' ? isBlocked : !isBlocked
-      })
+      filtered = filtered.filter(req => (blockedFilter === 'true' ? req.is_blocked === true : req.is_blocked !== true))
     }
     if (timerAlertFilter !== 'all') {
-      filtered = filtered.filter(req => {
-        const hasTimerAlert = req.has_timer_alert === true
-        return timerAlertFilter === 'true' ? hasTimerAlert : !hasTimerAlert
-      })
+      filtered = filtered.filter(req => (timerAlertFilter === 'true' ? req.has_timer_alert === true : req.has_timer_alert !== true))
     }
     if (statoFatturaFilter.length > 0) {
       filtered = filtered.filter(req => {
@@ -273,80 +312,35 @@ export const DM329TableView = ({
     if (tipoPraticaFilter) {
       filtered = filtered.filter(req => req.request_type?.name === tipoPraticaFilter)
     }
-    if (attributedToFilter.length > 0) {
-      filtered = filtered.filter(req => {
-        if (attributedToFilter.includes('__unattributed__') && !req.attributed_to) return true
-        return req.attributed_to ? attributedToFilter.includes(req.attributed_to) : false
-      })
-    }
 
-    // Applica ordinamento
     filtered.sort((a, b) => {
       let aValue: any
       let bValue: any
-
       switch (orderBy) {
-        case 'is_urgent':
-          aValue = a.is_urgent ? 1 : 0
-          bValue = b.is_urgent ? 1 : 0
+        case 'is_urgent': aValue = a.is_urgent ? 1 : 0; bValue = b.is_urgent ? 1 : 0; break
+        case 'is_blocked': aValue = a.is_blocked ? 1 : 0; bValue = b.is_blocked ? 1 : 0; break
+        case 'has_timer_alert': aValue = a.has_timer_alert ? 1 : 0; bValue = b.has_timer_alert ? 1 : 0; break
+        case 'no_civa': aValue = a.custom_fields?.no_civa ? 1 : 0; bValue = b.custom_fields?.no_civa ? 1 : 0; break
+        case 'updated_at': aValue = new Date(a.updated_at).getTime(); bValue = new Date(b.updated_at).getTime(); break
+        case 'codice':
+          aValue = codiceForRequest(a, salaCounts.get(a.customer_id || '') || 0)
+          bValue = codiceForRequest(b, salaCounts.get(b.customer_id || '') || 0)
           break
-        case 'is_blocked':
-          aValue = a.is_blocked ? 1 : 0
-          bValue = b.is_blocked ? 1 : 0
-          break
-        case 'has_timer_alert':
-          aValue = a.has_timer_alert ? 1 : 0
-          bValue = b.has_timer_alert ? 1 : 0
-          break
-        case 'updated_at':
-          aValue = new Date(a.updated_at).getTime()
-          bValue = new Date(b.updated_at).getTime()
-          break
-        case 'cliente':
-          const aCliente = a.custom_fields?.cliente
-          const bCliente = b.custom_fields?.cliente
-          aValue = typeof aCliente === 'string'
-            ? aCliente
-            : (aCliente && typeof aCliente === 'object' && 'ragione_sociale' in aCliente)
-              ? aCliente.ragione_sociale
-              : ''
-          bValue = typeof bCliente === 'string'
-            ? bCliente
-            : (bCliente && typeof bCliente === 'object' && 'ragione_sociale' in bCliente)
-              ? bCliente.ragione_sociale
-              : ''
-          break
-        case 'status':
-          aValue = getStatusLabel(a.status)
-          bValue = getStatusLabel(b.status)
-          break
-        case 'no_civa':
-          aValue = a.custom_fields?.no_civa ? 1 : 0
-          bValue = b.custom_fields?.no_civa ? 1 : 0
-          break
-        case 'note':
-          aValue = (a.custom_fields?.note as string) || ''
-          bValue = (b.custom_fields?.note as string) || ''
-          break
-        case 'stato_fattura':
-          aValue = (a.custom_fields?.stato_fattura as string) || 'NO'
-          bValue = (b.custom_fields?.stato_fattura as string) || 'NO'
-          break
-        default:
-          return 0
+        case 'cliente': aValue = clienteNome(a); bValue = clienteNome(b); break
+        case 'sala': aValue = a.denominazione_sala || ''; bValue = b.denominazione_sala || ''; break
+        case 'status': aValue = getStatusLabel(a.status); bValue = getStatusLabel(b.status); break
+        case 'note': aValue = (a.custom_fields?.note as string) || ''; bValue = (b.custom_fields?.note as string) || ''; break
+        case 'stato_fattura': aValue = (a.custom_fields?.stato_fattura as string) || 'NO'; bValue = (b.custom_fields?.stato_fattura as string) || 'NO'; break
+        default: return 0
       }
-
       if (typeof aValue === 'string') {
-        return order === 'asc'
-          ? aValue.localeCompare(bValue)
-          : bValue.localeCompare(aValue)
+        return order === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue)
       }
-
       return order === 'asc' ? aValue - bValue : bValue - aValue
     })
 
     return filtered
-  }, [requests, orderBy, order, clienteFilter, statoFilter, noCivaFilter, noteFilter, urgentFilter, blockedFilter, timerAlertFilter, statoFatturaFilter, tipoPraticaFilter, attributedToFilter])
+  }, [requests, orderBy, order, clienteFilter, statoFilter, noCivaFilter, noteFilter, urgentFilter, blockedFilter, timerAlertFilter, statoFatturaFilter, tipoPraticaFilter, salaCounts])
 
   const clearFilters = () => {
     setClienteFilter([])
@@ -359,84 +353,50 @@ export const DM329TableView = ({
     setTimerAlertFilter('all')
     setStatoFatturaFilter([])
     setTipoPraticaFilter('')
-    setAttributedToFilter([])
   }
 
-  const hasActiveFilters = clienteFilter.length > 0 || statoFilter.length > 0 || noCivaFilter !== 'all' || noteFilter || urgentFilter !== 'all' || blockedFilter !== 'all' || timerAlertFilter !== 'all' || statoFatturaFilter.length > 0 || !!tipoPraticaFilter || attributedToFilter.length > 0
+  const segnalFilterActive = urgentFilter !== 'all' || blockedFilter !== 'all' || timerAlertFilter !== 'all' || noCivaFilter !== 'all'
+  const hasActiveFilters =
+    clienteFilter.length > 0 ||
+    statoFilter.length > 0 ||
+    noteFilter ||
+    segnalFilterActive ||
+    statoFatturaFilter.length > 0 ||
+    !!tipoPraticaFilter
 
-  // Check if all filteredAndSortedRequests are selected
-  const allSelected = selectionEnabled &&
-    filteredAndSortedRequests.length > 0 &&
-    filteredAndSortedRequests.every(req => selectedRequests.has(req.id))
-
-  const someSelected = selectionEnabled &&
-    selectedRequests.size > 0 &&
-    filteredAndSortedRequests.some(req => selectedRequests.has(req.id)) &&
-    !allSelected
+  const allSelected = selectionEnabled && filteredAndSortedRequests.length > 0 && filteredAndSortedRequests.every(req => selectedRequests.has(req.id))
+  const someSelected = selectionEnabled && selectedRequests.size > 0 && filteredAndSortedRequests.some(req => selectedRequests.has(req.id)) && !allSelected
 
   const handleSelectAll = () => {
-    if (onSelectAll) {
-      onSelectAll(!allSelected)
-    }
+    if (onSelectAll) onSelectAll(!allSelected)
   }
 
   const handleRowClick = (requestId: string, event: React.MouseEvent) => {
-    // If selection is enabled and clicking on checkbox column, don't navigate
     if (selectionEnabled && (event.target as HTMLElement).closest('.MuiCheckbox-root')) {
       event.stopPropagation()
-      if (onSelectRequest) {
-        onSelectRequest(requestId)
-      }
+      if (onSelectRequest) onSelectRequest(requestId)
       return
     }
-
-    // Otherwise navigate to request detail
     if (!selectionEnabled || !(event.target as HTMLElement).closest('.MuiCheckbox-root')) {
       navigate(`/requests/${requestId}`)
     }
   }
 
   const handlePrint = () => {
-    const filterDescriptions = createFilterDescription({
-      clienteFilter,
-      statoFilter,
-      noCivaFilter,
-      noteFilter,
-    })
-
-    const printColumns = [
-      {
-        header: 'Data Ultimo Cambio',
-        getValue: (req) => formatDateField(req.updated_at),
-      },
-      {
-        header: 'Cliente',
-        getValue: (req) => formatClienteField(req),
-      },
-      {
-        header: 'Stato',
-        getValue: (req) => getStatusLabel(req.status),
-      },
-      {
-        header: 'No CIVA',
-        getValue: (req) => formatBooleanField(req.custom_fields?.no_civa as boolean),
-        align: 'center' as const,
-      },
-      {
-        header: 'Note',
-        getValue: (req) => (req.custom_fields?.note as string) || '-',
-      },
+    const filterDescriptions = createFilterDescription({ clienteFilter, statoFilter, noCivaFilter, noteFilter })
+    const printColumns: any[] = [
+      { header: 'Cliente', getValue: (req: Request) => formatClienteField(req) },
+      { header: 'Stato', getValue: (req: Request) => getStatusLabel(req.status) },
+      { header: 'Ultimo cambio', getValue: (req: Request) => formatDateField(req.updated_at) },
+      { header: 'No CIVA', getValue: (req: Request) => formatBooleanField(req.custom_fields?.no_civa as boolean), align: 'center' as const },
+      { header: 'Note', getValue: (req: Request) => (req.custom_fields?.note as string) || '-' },
     ]
-
-    // Add stato_fattura column only for admin/userdm329
     if (isAdmin || isUserDM329) {
       printColumns.push({
         header: 'Stato Fattura',
-        getValue: (req) =>
-          STATO_FATTURA_LABELS[(req.custom_fields?.stato_fattura as StatoFattura) || 'NO'],
+        getValue: (req: Request) => STATO_FATTURA_LABELS[(req.custom_fields?.stato_fattura as StatoFattura) || 'NO'],
       })
     }
-
     const html = generatePrintHTML({
       title: 'Richieste DM329',
       columns: printColumns,
@@ -447,8 +407,166 @@ export const DM329TableView = ({
         filters: filterDescriptions,
       },
     })
-
     printHTML(html)
+  }
+
+  // Intestazione ordinabile riutilizzabile
+  const sortLabel = (property: OrderBy, label: string) => (
+    <TableSortLabel
+      active={orderBy === property}
+      direction={orderBy === property ? order : 'asc'}
+      onClick={() => handleSort(property)}
+    >
+      {label}
+    </TableSortLabel>
+  )
+  const funnel = (col: FilterCol, active: boolean) => (
+    <IconButton size="small" onClick={openFilter(col)} sx={{ ml: 0.25, color: active ? 'primary.main' : 'action.active' }}>
+      <FilterListIcon sx={{ fontSize: 16 }} />
+    </IconButton>
+  )
+  const ellipsisSx = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } as const
+
+  const colSpan = (selectionEnabled ? 1 : 0) + (isAdmin || isUserDM329 ? 9 : 8)
+  const isFlagSort = ['is_urgent', 'is_blocked', 'has_timer_alert', 'no_civa'].includes(orderBy)
+  const activeSegnal = SEGNAL_META.find(s => s.key === orderBy)
+
+  // Contenuto del popover filtri
+  const boolFilterRow = (label: string, value: TriState, setter: (v: TriState) => void, Icon?: typeof PriorityHighIcon) => (
+    <Box sx={{ mb: 0.5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        {Icon && <Icon sx={{ fontSize: 16, color: 'text.secondary' }} />}
+        <Typography variant="caption" sx={{ fontWeight: 600 }}>{label}</Typography>
+      </Box>
+      <RadioGroup row value={value} onChange={e => setter(e.target.value as TriState)} sx={{ ml: 0.5 }}>
+        <FormControlLabel value="all" control={<Radio size="small" />} label="Tutti" />
+        <FormControlLabel value="true" control={<Radio size="small" />} label="Sì" />
+        <FormControlLabel value="false" control={<Radio size="small" />} label="No" />
+      </RadioGroup>
+    </Box>
+  )
+
+  const renderFilterContent = () => {
+    switch (filterCol) {
+      case 'cliente':
+        return (
+          <Box sx={{ p: 1, width: 280 }}>
+            <TextField
+              size="small"
+              placeholder="Cerca cliente…"
+              value={clienteSearchText}
+              onChange={e => setClienteSearchText(e.target.value)}
+              fullWidth
+              autoFocus
+              sx={{ mb: 1 }}
+            />
+            <Box sx={{ maxHeight: 320, overflow: 'auto' }}>
+              {filteredUniqueClients.length > 0 ? (
+                filteredUniqueClients.map(cliente => (
+                  <MenuItem
+                    key={cliente}
+                    dense
+                    onClick={() =>
+                      setClienteFilter(prev =>
+                        prev.includes(cliente) ? prev.filter(c => c !== cliente) : [...prev, cliente]
+                      )
+                    }
+                  >
+                    <Checkbox size="small" checked={clienteFilter.includes(cliente)} />
+                    <ListItemText primary={cliente} />
+                  </MenuItem>
+                ))
+              ) : (
+                <MenuItem disabled><em>Nessun cliente trovato</em></MenuItem>
+              )}
+            </Box>
+          </Box>
+        )
+      case 'tipo':
+        return (
+          <Box sx={{ p: 1, minWidth: 180 }}>
+            <RadioGroup value={tipoPraticaFilter} onChange={e => setTipoPraticaFilter(e.target.value)}>
+              <FormControlLabel value="" control={<Radio size="small" />} label="Tutti" />
+              <FormControlLabel value="DM329" control={<Radio size="small" />} label="DM329" />
+              <FormControlLabel value="DM329-Integrazioni" control={<Radio size="small" />} label="Integrazioni" />
+            </RadioGroup>
+          </Box>
+        )
+      case 'stato':
+        return (
+          <Box sx={{ p: 1, minWidth: 220, maxHeight: 340, overflow: 'auto' }}>
+            {DM329_STATUSES.map(status => (
+              <MenuItem
+                key={status}
+                dense
+                onClick={() =>
+                  setStatoFilter(prev =>
+                    prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
+                  )
+                }
+              >
+                <Checkbox size="small" checked={statoFilter.includes(status)} />
+                <ListItemText primary={getStatusLabel(status)} />
+              </MenuItem>
+            ))}
+          </Box>
+        )
+      case 'segnal':
+        return (
+          <Box sx={{ p: 1.5, minWidth: 230 }}>
+            <Typography variant="overline" color="text.secondary">Ordina per</Typography>
+            {SEGNAL_META.map(({ key, label, Icon }) => (
+              <MenuItem key={key} dense selected={orderBy === key} onClick={() => handleSort(key)}>
+                <Icon sx={{ fontSize: 18, mr: 1, color: 'text.secondary' }} />
+                <ListItemText primary={label} />
+                {orderBy === key && (
+                  <Typography variant="caption" color="primary">{order === 'asc' ? '▲' : '▼'}</Typography>
+                )}
+              </MenuItem>
+            ))}
+            <Divider sx={{ my: 1 }} />
+            <Typography variant="overline" color="text.secondary">Filtra per</Typography>
+            {boolFilterRow('Urgente', urgentFilter, setUrgentFilter, PriorityHighIcon)}
+            {boolFilterRow('Bloccata', blockedFilter, setBlockedFilter, WarningIcon)}
+            {boolFilterRow('Scaduta', timerAlertFilter, setTimerAlertFilter, AccessTimeIcon)}
+            {boolFilterRow('No CIVA', noCivaFilter, setNoCivaFilter, BlockIcon)}
+          </Box>
+        )
+      case 'note':
+        return (
+          <Box sx={{ p: 1, width: 260 }}>
+            <TextField
+              size="small"
+              placeholder="Cerca nelle note…"
+              value={noteFilter}
+              onChange={e => setNoteFilter(e.target.value)}
+              fullWidth
+              autoFocus
+            />
+          </Box>
+        )
+      case 'fattura':
+        return (
+          <Box sx={{ p: 1, minWidth: 200 }}>
+            {STATO_FATTURA_OPTIONS.map(option => (
+              <MenuItem
+                key={option}
+                dense
+                onClick={() =>
+                  setStatoFatturaFilter(prev =>
+                    prev.includes(option) ? prev.filter(o => o !== option) : [...prev, option]
+                  )
+                }
+              >
+                <Checkbox size="small" checked={statoFatturaFilter.includes(option)} />
+                <ListItemText primary={STATO_FATTURA_LABELS[option]} />
+              </MenuItem>
+            ))}
+          </Box>
+        )
+      default:
+        return null
+    }
   }
 
   return (
@@ -456,26 +574,15 @@ export const DM329TableView = ({
       {/* Print and Export buttons */}
       {showPrintButton && (
         <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-          <Button
-            variant="outlined"
-            startIcon={<FileDownloadIcon />}
-            onClick={() => setExportDialogOpen(true)}
-            size="small"
-          >
+          <Button variant="outlined" startIcon={<FileDownloadIcon />} onClick={() => setExportDialogOpen(true)} size="small">
             Esporta
           </Button>
-          <Button
-            variant="outlined"
-            startIcon={<PrintIcon />}
-            onClick={handlePrint}
-            size="small"
-          >
+          <Button variant="outlined" startIcon={<PrintIcon />} onClick={handlePrint} size="small">
             Stampa
           </Button>
         </Box>
       )}
 
-      {/* Export Dialog */}
       <ExportRequestsDialog
         open={exportDialogOpen}
         onClose={() => setExportDialogOpen(false)}
@@ -485,37 +592,16 @@ export const DM329TableView = ({
 
       {hasActiveFilters && (
         <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-            {clienteFilter.length > 0 && (
-              <Chip label={`Clienti: ${clienteFilter.length}`} size="small" onDelete={() => setClienteFilter([])} />
-            )}
-            {statoFilter.length > 0 && (
-              <Chip label={`Stati: ${statoFilter.length}`} size="small" onDelete={() => setStatoFilter([])} />
-            )}
-            {noCivaFilter !== 'all' && (
-              <Chip label={`No CIVA: ${noCivaFilter === 'true' ? 'Sì' : 'No'}`} size="small" onDelete={() => setNoCivaFilter('all')} />
-            )}
-            {noteFilter && (
-              <Chip label={`Note: "${noteFilter}"`} size="small" onDelete={() => setNoteFilter('')} />
-            )}
-            {urgentFilter !== 'all' && (
-              <Chip label={`Urgenti: ${urgentFilter === 'true' ? 'Sì' : 'No'}`} size="small" onDelete={() => setUrgentFilter('all')} />
-            )}
-            {blockedFilter !== 'all' && (
-              <Chip label={`Bloccate: ${blockedFilter === 'true' ? 'Sì' : 'No'}`} size="small" onDelete={() => setBlockedFilter('all')} />
-            )}
-            {timerAlertFilter !== 'all' && (
-              <Chip label={`Timer scaduto: ${timerAlertFilter === 'true' ? 'Sì' : 'No'}`} size="small" onDelete={() => setTimerAlertFilter('all')} />
-            )}
-            {statoFatturaFilter.length > 0 && (
-              <Chip label={`Stato Fattura: ${statoFatturaFilter.length}`} size="small" onDelete={() => setStatoFatturaFilter([])} />
-            )}
-            {tipoPraticaFilter && (
-              <Chip label={`Tipo: ${tipoPraticaFilter === 'DM329-Integrazioni' ? 'Integrazioni' : tipoPraticaFilter}`} size="small" onDelete={() => setTipoPraticaFilter('')} />
-            )}
-            {attributedToFilter.length > 0 && (
-              <Chip label={`Attribuzione: ${attributedToFilter.length}`} size="small" onDelete={() => setAttributedToFilter([])} />
-            )}
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            {clienteFilter.length > 0 && <Chip label={`Clienti: ${clienteFilter.length}`} size="small" onDelete={() => setClienteFilter([])} />}
+            {statoFilter.length > 0 && <Chip label={`Stati: ${statoFilter.length}`} size="small" onDelete={() => setStatoFilter([])} />}
+            {tipoPraticaFilter && <Chip label={`Tipo: ${tipoPraticaFilter === 'DM329-Integrazioni' ? 'Integrazioni' : tipoPraticaFilter}`} size="small" onDelete={() => setTipoPraticaFilter('')} />}
+            {urgentFilter !== 'all' && <Chip label={`Urgenti: ${urgentFilter === 'true' ? 'Sì' : 'No'}`} size="small" onDelete={() => setUrgentFilter('all')} />}
+            {blockedFilter !== 'all' && <Chip label={`Bloccate: ${blockedFilter === 'true' ? 'Sì' : 'No'}`} size="small" onDelete={() => setBlockedFilter('all')} />}
+            {timerAlertFilter !== 'all' && <Chip label={`Scadute: ${timerAlertFilter === 'true' ? 'Sì' : 'No'}`} size="small" onDelete={() => setTimerAlertFilter('all')} />}
+            {noCivaFilter !== 'all' && <Chip label={`No CIVA: ${noCivaFilter === 'true' ? 'Sì' : 'No'}`} size="small" onDelete={() => setNoCivaFilter('all')} />}
+            {noteFilter && <Chip label={`Note: "${noteFilter}"`} size="small" onDelete={() => setNoteFilter('')} />}
+            {statoFatturaFilter.length > 0 && <Chip label={`Stato Fattura: ${statoFatturaFilter.length}`} size="small" onDelete={() => setStatoFatturaFilter([])} />}
           </Box>
           <IconButton size="small" onClick={clearFilters} color="primary" title="Cancella tutti i filtri">
             <ClearIcon fontSize="small" />
@@ -524,475 +610,133 @@ export const DM329TableView = ({
       )}
 
       <TableContainer component={Paper}>
-        <Table size="small">
+        <Table size="small" sx={{ tableLayout: 'fixed', minWidth: 1160 }}>
           <TableHead>
             <TableRow>
-              {/* Selection checkbox column */}
               {selectionEnabled && (
-                <TableCell sx={{ width: 50, padding: 1 }}>
-                  <Checkbox
-                    indeterminate={someSelected}
-                    checked={allSelected}
-                    onChange={handleSelectAll}
-                  />
+                <TableCell sx={{ width: W.select, p: 1 }}>
+                  <Checkbox indeterminate={someSelected} checked={allSelected} onChange={handleSelectAll} />
                 </TableCell>
               )}
-
-              {/* Urgent indicator column */}
-              <TableCell sx={{ width: 70, padding: 0.5 }}>
-                <TableSortLabel
-                  active={orderBy === 'is_urgent'}
-                  direction={orderBy === 'is_urgent' ? order : 'asc'}
-                  onClick={() => handleSort('is_urgent')}
-                  sx={{ fontSize: '0.8rem' }}
+              <TableCell sx={{ width: W.codice }}>{sortLabel('codice', 'Codice')}</TableCell>
+              <TableCell>
+                {sortLabel('cliente', 'Cliente')}
+                {funnel('cliente', clienteFilter.length > 0)}
+              </TableCell>
+              <TableCell sx={{ width: W.sala }}>{sortLabel('sala', 'Sala')}</TableCell>
+              <TableCell sx={{ width: W.tipo }}>
+                Tipo{funnel('tipo', !!tipoPraticaFilter)}
+              </TableCell>
+              <TableCell sx={{ width: W.stato }}>
+                {sortLabel('status', 'Stato')}
+                {funnel('stato', statoFilter.length > 0)}
+              </TableCell>
+              <TableCell sx={{ width: W.data }}>{sortLabel('updated_at', 'Ult. cambio')}</TableCell>
+              <TableCell sx={{ width: W.segnal, textAlign: 'center' }}>
+                <Box
+                  onClick={openFilter('segnal')}
+                  sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, cursor: 'pointer', color: isFlagSort ? 'primary.main' : 'inherit' }}
                 >
-                  Urg.
-                </TableSortLabel>
-                <FormControl size="small" fullWidth sx={{ mt: 0.5 }}>
-                  <Select
-                    value={urgentFilter}
-                    onChange={(e) => setUrgentFilter(e.target.value as 'all' | 'true' | 'false')}
-                    sx={{ fontSize: '0.75rem' }}
-                  >
-                    <MenuItem value="all">Tutti</MenuItem>
-                    <MenuItem value="true">Sì</MenuItem>
-                    <MenuItem value="false">No</MenuItem>
-                  </Select>
-                </FormControl>
+                  <span>Segnal.</span>
+                  {activeSegnal && <activeSegnal.Icon sx={{ fontSize: 15 }} />}
+                  {isFlagSort && <Typography variant="caption">{order === 'asc' ? '▲' : '▼'}</Typography>}
+                  <FilterListIcon sx={{ fontSize: 15, color: segnalFilterActive ? 'primary.main' : 'action.active' }} />
+                </Box>
               </TableCell>
-
-              {/* Blocked indicator column */}
-              <TableCell sx={{ width: 70, padding: 0.5 }}>
-                <TableSortLabel
-                  active={orderBy === 'is_blocked'}
-                  direction={orderBy === 'is_blocked' ? order : 'asc'}
-                  onClick={() => handleSort('is_blocked')}
-                  sx={{ fontSize: '0.8rem' }}
-                >
-                  Blocc.
-                </TableSortLabel>
-                <FormControl size="small" fullWidth sx={{ mt: 0.5 }}>
-                  <Select
-                    value={blockedFilter}
-                    onChange={(e) => setBlockedFilter(e.target.value as 'all' | 'true' | 'false')}
-                    sx={{ fontSize: '0.75rem' }}
-                  >
-                    <MenuItem value="all">Tutti</MenuItem>
-                    <MenuItem value="true">Sì</MenuItem>
-                    <MenuItem value="false">No</MenuItem>
-                  </Select>
-                </FormControl>
+              <TableCell sx={{ width: W.note }}>
+                {sortLabel('note', 'Note')}
+                {funnel('note', !!noteFilter)}
               </TableCell>
-
-              {/* Timer alert indicator column */}
-              <TableCell sx={{ width: 70, padding: 0.5 }}>
-                <TableSortLabel
-                  active={orderBy === 'has_timer_alert'}
-                  direction={orderBy === 'has_timer_alert' ? order : 'asc'}
-                  onClick={() => handleSort('has_timer_alert')}
-                  sx={{ fontSize: '0.8rem' }}
-                >
-                  Scad.
-                </TableSortLabel>
-                <FormControl size="small" fullWidth sx={{ mt: 0.5 }}>
-                  <Select
-                    value={timerAlertFilter}
-                    onChange={(e) => setTimerAlertFilter(e.target.value as 'all' | 'true' | 'false')}
-                    sx={{ fontSize: '0.75rem' }}
-                  >
-                    <MenuItem value="all">Tutti</MenuItem>
-                    <MenuItem value="true">Sì</MenuItem>
-                    <MenuItem value="false">No</MenuItem>
-                  </Select>
-                </FormControl>
-              </TableCell>
-
-              {/* Tipo pratica */}
-              <TableCell sx={{ minWidth: 120 }}>
-                <Box sx={{ fontSize: '0.8rem', fontWeight: 500, mb: 0.5 }}>Tipo</Box>
-                <FormControl size="small" fullWidth>
-                  <Select
-                    value={tipoPraticaFilter}
-                    onChange={(e) => setTipoPraticaFilter(e.target.value)}
-                    sx={{ fontSize: '0.75rem' }}
-                    displayEmpty
-                  >
-                    <MenuItem value=""><em>Tutti</em></MenuItem>
-                    <MenuItem value="DM329">DM329</MenuItem>
-                    <MenuItem value="DM329-Integrazioni">Integrazioni</MenuItem>
-                  </Select>
-                </FormControl>
-              </TableCell>
-
-              {/* Attribuzione */}
-              <TableCell sx={{ minWidth: 150 }}>
-                <Box sx={{ fontSize: '0.8rem', fontWeight: 500, mb: 0.5 }}>Attribuzione</Box>
-                <FormControl size="small" fullWidth>
-                  <Select
-                    multiple
-                    displayEmpty
-                    value={attributedToFilter}
-                    onChange={(e) => setAttributedToFilter(e.target.value as string[])}
-                    input={<OutlinedInput />}
-                    renderValue={(selected) =>
-                      selected.length === 0 ? <em>Tutti</em> : `${selected.length} selezionati`
-                    }
-                    MenuProps={{ PaperProps: { style: { maxHeight: 300 } } }}
-                  >
-                    <MenuItem value="__unattributed__">
-                      <Checkbox checked={attributedToFilter.includes('__unattributed__')} />
-                      <ListItemText primary="— Non attribuita" />
-                    </MenuItem>
-                    {attributedUsers.map((u) => (
-                      <MenuItem key={u.id} value={u.id}>
-                        <Checkbox checked={attributedToFilter.includes(u.id)} />
-                        <ListItemText primary={u.full_name} />
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </TableCell>
-
-              {/* Data ultimo cambio stato */}
-              <TableCell sx={{ width: 130 }}>
-                <TableSortLabel
-                  active={orderBy === 'updated_at'}
-                  direction={orderBy === 'updated_at' ? order : 'asc'}
-                  onClick={() => handleSort('updated_at')}
-                  sx={{ fontSize: '0.8rem' }}
-                >
-                  Ult. Cambio
-                </TableSortLabel>
-              </TableCell>
-
-              {/* Cliente */}
-              <TableCell sx={{ minWidth: 150 }}>
-                <TableSortLabel
-                  active={orderBy === 'cliente'}
-                  direction={orderBy === 'cliente' ? order : 'asc'}
-                  onClick={() => handleSort('cliente')}
-                >
-                  Cliente
-                </TableSortLabel>
-                <FormControl size="small" fullWidth sx={{ mt: 1 }}>
-                  <Select
-                    multiple
-                    displayEmpty
-                    value={clienteFilter}
-                    onChange={(e) => setClienteFilter(e.target.value as string[])}
-                    input={<OutlinedInput />}
-                    renderValue={(selected) => {
-                      if (selected.length === 0) {
-                        return <em>Filtra clienti...</em>
-                      }
-                      return `${selected.length} selezionati`
-                    }}
-                    MenuProps={{
-                      PaperProps: {
-                        style: {
-                          maxHeight: 400,
-                        },
-                      },
-                      autoFocus: false,
-                    }}
-                  >
-                    <Box sx={{ px: 2, py: 1, position: 'sticky', top: 0, bgcolor: 'background.paper', zIndex: 1 }}>
-                      <TextField
-                        size="small"
-                        placeholder="Cerca cliente..."
-                        value={clienteSearchText}
-                        onChange={(e) => setClienteSearchText(e.target.value)}
-                        fullWidth
-                        autoFocus
-                        onKeyDown={(e) => e.stopPropagation()}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </Box>
-                    {filteredUniqueClients.length > 0 ? (
-                      filteredUniqueClients.map((cliente) => (
-                        <MenuItem key={cliente} value={cliente}>
-                          <Checkbox checked={clienteFilter.indexOf(cliente) > -1} />
-                          <ListItemText primary={cliente} />
-                        </MenuItem>
-                      ))
-                    ) : (
-                      <MenuItem disabled>
-                        <em>Nessun cliente trovato</em>
-                      </MenuItem>
-                    )}
-                  </Select>
-                </FormControl>
-              </TableCell>
-
-              {/* Stato */}
-              <TableCell sx={{ minWidth: 160 }}>
-                <TableSortLabel
-                  active={orderBy === 'status'}
-                  direction={orderBy === 'status' ? order : 'asc'}
-                  onClick={() => handleSort('status')}
-                  sx={{ fontSize: '0.8rem' }}
-                >
-                  Stato
-                </TableSortLabel>
-                <FormControl size="small" fullWidth sx={{ mt: 1 }}>
-                  <Select
-                    multiple
-                    displayEmpty
-                    value={statoFilter}
-                    onChange={(e) => setStatoFilter(e.target.value as DM329Status[])}
-                    input={<OutlinedInput />}
-                    renderValue={(selected) => {
-                      if (selected.length === 0) {
-                        return <em>Tutti</em>
-                      }
-                      return `${selected.length} selezionati`
-                    }}
-                    MenuProps={{
-                      PaperProps: {
-                        style: {
-                          maxHeight: 300,
-                        },
-                      },
-                    }}
-                  >
-                    {DM329_STATUSES.map((status) => (
-                      <MenuItem key={status} value={status}>
-                        <Checkbox checked={statoFilter.indexOf(status) > -1} />
-                        <ListItemText primary={getStatusLabel(status)} />
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </TableCell>
-
-              {/* No CIVA */}
-              <TableCell sx={{ width: 90, textAlign: 'center' }}>
-                <TableSortLabel
-                  active={orderBy === 'no_civa'}
-                  direction={orderBy === 'no_civa' ? order : 'asc'}
-                  onClick={() => handleSort('no_civa')}
-                  sx={{ fontSize: '0.8rem' }}
-                >
-                  No CIVA
-                </TableSortLabel>
-                <FormControl size="small" fullWidth sx={{ mt: 1 }}>
-                  <Select
-                    value={noCivaFilter}
-                    onChange={(e) => setNoCivaFilter(e.target.value as 'all' | 'true' | 'false')}
-                  >
-                    <MenuItem value="all">Tutti</MenuItem>
-                    <MenuItem value="true">Sì</MenuItem>
-                    <MenuItem value="false">No</MenuItem>
-                  </Select>
-                </FormControl>
-              </TableCell>
-
-              {/* Note */}
-              <TableCell sx={{ minWidth: 200 }}>
-                <TableSortLabel
-                  active={orderBy === 'note'}
-                  direction={orderBy === 'note' ? order : 'asc'}
-                  onClick={() => handleSort('note')}
-                  sx={{ fontSize: '0.8rem' }}
-                >
-                  Note
-                </TableSortLabel>
-                <TextField
-                  size="small"
-                  placeholder="Cerca nelle note..."
-                  value={noteFilter}
-                  onChange={(e) => setNoteFilter(e.target.value)}
-                  fullWidth
-                  sx={{ mt: 1 }}
-                />
-              </TableCell>
-
-              {/* Stato Fattura - Solo per admin e userdm329 */}
               {(isAdmin || isUserDM329) && (
-                <TableCell sx={{ minWidth: 140 }}>
-                  <TableSortLabel
-                    active={orderBy === 'stato_fattura'}
-                    direction={orderBy === 'stato_fattura' ? order : 'asc'}
-                    onClick={() => handleSort('stato_fattura')}
-                    sx={{ fontSize: '0.8rem' }}
-                  >
-                    Stato Fattura
-                  </TableSortLabel>
-                  <FormControl size="small" fullWidth sx={{ mt: 1 }}>
-                    <Select
-                      multiple
-                      displayEmpty
-                      value={statoFatturaFilter}
-                      onChange={(e) => setStatoFatturaFilter(e.target.value as StatoFattura[])}
-                      input={<OutlinedInput />}
-                      renderValue={(selected) =>
-                        selected.length === 0 ? <em>Tutti</em> : `${selected.length} selezionati`
-                      }
-                      MenuProps={{
-                        PaperProps: {
-                          style: {
-                            maxHeight: 300,
-                          },
-                        },
-                      }}
-                    >
-                      {STATO_FATTURA_OPTIONS.map((option) => (
-                        <MenuItem key={option} value={option}>
-                          <Checkbox checked={statoFatturaFilter.includes(option)} />
-                          <ListItemText primary={STATO_FATTURA_LABELS[option]} />
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
+                <TableCell sx={{ width: W.fattura }}>
+                  {sortLabel('stato_fattura', 'Fatt.')}
+                  {funnel('fattura', statoFatturaFilter.length > 0)}
                 </TableCell>
               )}
             </TableRow>
           </TableHead>
           <TableBody>
-            {filteredAndSortedRequests.map((request) => (
-              <TableRow
-                key={request.id}
-                hover
-                onClick={(e) => handleRowClick(request.id, e)}
-                sx={{
-                  cursor: 'pointer',
-                  '&:hover': { backgroundColor: 'action.hover' },
-                  // Highlight selected requests
-                  ...(selectionEnabled && selectedRequests.has(request.id) && {
-                    backgroundColor: 'primary.light',
-                    '&:hover': { backgroundColor: 'primary.main' },
-                  }),
-                }}
-              >
-                {/* Selection checkbox */}
-                {selectionEnabled && (
-                  <TableCell sx={{ padding: 1 }} onClick={(e) => e.stopPropagation()}>
-                    <Checkbox
-                      checked={selectedRequests.has(request.id)}
-                      onChange={() => onSelectRequest && onSelectRequest(request.id)}
-                    />
-                  </TableCell>
-                )}
-
-                {/* Urgent indicator */}
-                <TableCell sx={{ padding: 1, textAlign: 'center' }}>
-                  {request.is_urgent && <UrgentIndicator isUrgent={true} />}
-                </TableCell>
-
-                {/* Blocked indicator */}
-                <TableCell sx={{ padding: 1, textAlign: 'center' }}>
-                  {request.is_blocked && <BlockIndicator isBlocked={true} />}
-                </TableCell>
-
-                {/* Timer alert indicator */}
-                <TableCell sx={{ padding: 1, textAlign: 'center' }}>
-                  {request.has_timer_alert && <TimerAlertIndicator hasAlert={true} />}
-                </TableCell>
-                {/* Tipo pratica */}
-                <TableCell sx={{ fontSize: '0.8rem' }}>
-                  {request.request_type?.name === 'DM329-Integrazioni' ? 'Integrazioni' : 'DM329'}
-                </TableCell>
-
-                {/* Attribuzione */}
-                <TableCell sx={{ fontSize: '0.8rem' }}>
-                  {request.attributed_to ? (usersMap[request.attributed_to] || '—') : '—'}
-                </TableCell>
-
-                <TableCell>
-                  {format(new Date(request.updated_at), 'dd/MM/yyyy HH:mm', { locale: it })}
-                </TableCell>
-                <TableCell>
-                  {(() => {
-                    const codice = codiceForRequest(request, salaCounts.get(request.customer_id || '') || 0)
-                    // Preferisci il cliente collegato (con codice); fallback al nome in custom_fields
-                    const linked = request.customer
-                    let nome = '-'
-                    if (linked?.ragione_sociale) {
-                      nome = linked.identificativo
-                        ? `${linked.identificativo} — ${linked.ragione_sociale}`
-                        : linked.ragione_sociale
-                    } else {
-                      const cliente = request.custom_fields?.cliente
-                      if (typeof cliente === 'string') nome = cliente
-                      else if (cliente && typeof cliente === 'object' && 'ragione_sociale' in cliente) {
-                        nome = cliente.ragione_sociale
-                      }
-                    }
-                    return (
-                      <>
-                        {codice && (
-                          <Typography variant="body2" sx={{ fontWeight: 700, fontFamily: 'monospace' }}>
-                            {codice}
-                          </Typography>
-                        )}
-                        <Typography variant="body2" color={codice ? 'text.secondary' : 'text.primary'}>
-                          {nome}
-                        </Typography>
-                      </>
-                    )
-                  })()}
-                </TableCell>
-                <TableCell onClick={canEditStatus ? (e) => e.stopPropagation() : undefined}>
-                  {canEditStatus ? (
-                    <EditableSelectCell
-                      value={request.status}
-                      options={ALL_DM329_STATUSES}
-                      optionLabels={DM329_STATUS_LABELS}
-                      getColor={getStatusColor}
-                      onSave={(newValue) => handleSaveStatus(request.id, newValue)}
-                    />
-                  ) : (
-                    <Chip
-                      label={getStatusLabel(request.status)}
-                      color={getStatusColor(request.status)}
-                      size="small"
-                    />
+            {filteredAndSortedRequests.map(request => {
+              const codice = codiceForRequest(request, salaCounts.get(request.customer_id || '') || 0)
+              const nome = clienteNome(request) || '-'
+              // La colonna "Sala" mostra il testo libero dell'operatore (denominazione_sala),
+              // non la lettera del codice: niente fallback "Sala A".
+              const sala = request.denominazione_sala || '—'
+              const note = (request.custom_fields?.note as string) || '-'
+              return (
+                <TableRow
+                  key={request.id}
+                  hover
+                  onClick={e => handleRowClick(request.id, e)}
+                  sx={{
+                    cursor: 'pointer',
+                    '&:hover': { backgroundColor: 'action.hover' },
+                    ...(request.is_blocked && {
+                      backgroundColor: 'warning.lighter',
+                      '&:hover': { backgroundColor: 'warning.light' },
+                    }),
+                    ...(selectionEnabled && selectedRequests.has(request.id) && {
+                      backgroundColor: 'action.selected',
+                    }),
+                  }}
+                >
+                  {selectionEnabled && (
+                    <TableCell sx={{ p: 1 }} onClick={e => e.stopPropagation()}>
+                      <Checkbox checked={selectedRequests.has(request.id)} onChange={() => onSelectRequest && onSelectRequest(request.id)} />
+                    </TableCell>
                   )}
-                </TableCell>
-                <TableCell sx={{ textAlign: 'center' }}>
-                  {request.custom_fields?.no_civa ? (
-                    <CheckBoxIcon color="primary" />
-                  ) : (
-                    <CheckBoxOutlineBlankIcon color="disabled" />
-                  )}
-                </TableCell>
-                <TableCell>
-                  <Box
-                    sx={{
-                      maxWidth: 200,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {(request.custom_fields?.note as string) || '-'}
-                  </Box>
-                </TableCell>
-
-                {/* Stato Fattura - Solo per admin e userdm329 */}
-                {(isAdmin || isUserDM329) && (
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <EditableSelectCell
-                      value={(request.custom_fields?.stato_fattura as StatoFattura) || 'NO'}
-                      options={STATO_FATTURA_OPTIONS}
-                      optionLabels={STATO_FATTURA_LABELS}
-                      onSave={(newValue) =>
-                        handleSaveStatoFattura(request.id, newValue as StatoFattura, request.status)
-                      }
-                      validate={(value) => validateStatoFattura(value as StatoFattura, request.status)}
-                    />
+                  <TableCell sx={ellipsisSx}>
+                    <Typography variant="body2" sx={{ fontWeight: 700, fontFamily: 'monospace', ...ellipsisSx }} title={codice || undefined}>
+                      {codice || '—'}
+                    </Typography>
                   </TableCell>
-                )}
-              </TableRow>
-            ))}
+                  <TableCell sx={{ ...ellipsisSx, fontWeight: 600 }} title={nome}>{nome}</TableCell>
+                  <TableCell sx={{ ...ellipsisSx, color: 'text.secondary' }} title={sala}>{sala}</TableCell>
+                  <TableCell sx={{ ...ellipsisSx, fontSize: '0.8rem', color: 'text.secondary' }}>
+                    {request.request_type?.name === 'DM329-Integrazioni' ? 'Integrazioni' : 'DM329'}
+                  </TableCell>
+                  <TableCell onClick={canEditStatus ? e => e.stopPropagation() : undefined}>
+                    {canEditStatus ? (
+                      <EditableSelectCell
+                        value={request.status}
+                        options={ALL_DM329_STATUSES}
+                        optionLabels={DM329_STATUS_LABELS}
+                        getColor={getStatusColor}
+                        getChipColors={(v) => {
+                          const c = getStatusChipColors(v, mode)
+                          return { color: c.main, bgcolor: c.bg }
+                        }}
+                        onSave={newValue => handleSaveStatus(request.id, newValue)}
+                      />
+                    ) : (
+                      <StatusChip status={request.status} />
+                    )}
+                  </TableCell>
+                  <TableCell sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                    {format(new Date(request.updated_at), 'dd/MM/yyyy', { locale: it })}
+                  </TableCell>
+                  <TableCell sx={{ textAlign: 'center' }}>
+                    <SegnalazioniCell request={request} />
+                  </TableCell>
+                  <TableCell sx={ellipsisSx} title={note}>{note}</TableCell>
+                  {(isAdmin || isUserDM329) && (
+                    <TableCell onClick={e => e.stopPropagation()}>
+                      <EditableSelectCell
+                        value={(request.custom_fields?.stato_fattura as StatoFattura) || 'NO'}
+                        options={STATO_FATTURA_OPTIONS}
+                        optionLabels={STATO_FATTURA_LABELS}
+                        onSave={newValue => handleSaveStatoFattura(request.id, newValue as StatoFattura, request.status)}
+                        validate={value => validateStatoFattura(value as StatoFattura, request.status)}
+                      />
+                    </TableCell>
+                  )}
+                </TableRow>
+              )
+            })}
 
             {filteredAndSortedRequests.length === 0 && (
               <TableRow>
-                <TableCell
-                  colSpan={(isAdmin || isUserDM329) ? (selectionEnabled ? 12 : 11) : (selectionEnabled ? 11 : 10)}
-                  align="center"
-                  sx={{ py: 3 }}
-                >
+                <TableCell colSpan={colSpan} align="center" sx={{ py: 3 }}>
                   Nessuna richiesta DM329 trovata
                 </TableCell>
               </TableRow>
@@ -1000,6 +744,16 @@ export const DM329TableView = ({
           </TableBody>
         </Table>
       </TableContainer>
+
+      {/* Popover filtri colonna */}
+      <Popover
+        open={Boolean(filterCol && filterAnchor)}
+        anchorEl={filterAnchor}
+        onClose={closeFilter}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      >
+        {renderFilterContent()}
+      </Popover>
     </Box>
   )
 }

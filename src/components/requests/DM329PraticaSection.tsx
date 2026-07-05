@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Control, useWatch, UseFormSetValue } from 'react-hook-form'
 import {
   Box,
@@ -14,6 +14,7 @@ import {
 } from '@mui/material'
 import { Customer } from '@/types'
 import { useClientDm329Overview } from '@/hooks/useRequests'
+import { useNextCustomerCode } from '@/hooks/useCustomers'
 import { composeCodicePratica } from '@/utils/practiceCode'
 import { AddressAutocompleteField } from './AddressAutocompleteField'
 
@@ -35,6 +36,8 @@ interface Props {
   control: Control<any>
   setValue: UseFormSetValue<any>
   onChange: (value: Dm329PraticaValue, valid: boolean) => void
+  /** Valori iniziali per la modalità modifica (pratica già codificata). In creazione resta undefined. */
+  initial?: Partial<Dm329PraticaValue>
 }
 
 /**
@@ -42,14 +45,24 @@ interface Props {
  * scelta della sala (sale esistenti del cliente + Nuova sala), denominazione, progressivo/anno,
  * e anteprima del codice pratica. I valori sono gestiti in stato locale e sollevati via onChange.
  */
-export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, onChange }: Props) => {
+export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, onChange, initial }: Props) => {
   const { data: overview = [] } = useClientDm329Overview(customer.id)
+  const { data: nextCode } = useNextCustomerCode()
 
-  const [flagUgualeSede, setFlagUgualeSede] = useState(false)
-  const [salaScelta, setSalaScelta] = useState('')
-  const [denominazione, setDenominazione] = useState('')
-  const [progressivo, setProgressivo] = useState(0)
-  const [anno, setAnno] = useState<number>(new Date().getFullYear())
+  // Se il cliente non ha codice, verrà assegnato alla creazione: mostra/usa il prossimo disponibile
+  const nextCodeStr = nextCode != null ? String(nextCode).padStart(3, '0') : undefined
+  const effectiveClientCode = customer.identificativo || nextCodeStr
+
+  const [flagUgualeSede, setFlagUgualeSede] = useState(initial?.impianto_uguale_sede_legale ?? false)
+  const [salaScelta, setSalaScelta] = useState(initial?.sala_lettera ?? '')
+  const [denominazione, setDenominazione] = useState(initial?.denominazione_sala ?? '')
+  const [progressivo, setProgressivo] = useState(initial?.progressivo ?? 0)
+  const [anno, setAnno] = useState<number>(initial?.anno ?? new Date().getFullYear())
+
+  // Modalità modifica: al mount NON azzerare i valori prefillati, e non sovrascrivere
+  // progressivo/denominazione finché l'operatore non cambia attivamente la sala.
+  const skipInitialReset = useRef(!!initial)
+  const userPickedSala = useRef(false)
 
   const indirizzoWatch = useWatch({ control, name: 'indirizzo_impianto' }) as string | undefined
 
@@ -80,8 +93,12 @@ export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, o
   const isNewSala = salaScelta === NEW_SALA
   const salaLettera = isNewSala ? nextLetter : salaScelta
 
-  // Reset quando cambia cliente
+  // Reset quando cambia cliente (saltato una volta al mount in modalità modifica per non azzerare il prefill)
   useEffect(() => {
+    if (skipInitialReset.current) {
+      skipInitialReset.current = false
+      return
+    }
     setSalaScelta('')
     setDenominazione('')
     setProgressivo(0)
@@ -91,6 +108,8 @@ export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, o
   // Applica i default quando cambia la sala scelta
   useEffect(() => {
     if (!salaScelta) return
+    // In modifica, mantieni i valori prefillati finché l'operatore non cambia attivamente la sala.
+    if (initial && !userPickedSala.current) return
     if (isNewSala) {
       setDenominazione('')
       setProgressivo(0)
@@ -105,7 +124,7 @@ export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, o
   const clientSalaCount = isNewSala ? sale.length + 1 : sale.length
 
   const codicePreview = composeCodicePratica({
-    clientCode: customer.identificativo,
+    clientCode: effectiveClientCode,
     sala_lettera: salaLettera,
     progressivo,
     anno,
@@ -144,9 +163,9 @@ export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, o
       </Typography>
 
       {!customer.identificativo && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          Questo cliente non ha ancora un <strong>codice cliente</strong>: il codice pratica non sarà
-          visibile finché non glielo assegni (Gestione Clienti). Puoi comunque creare la pratica.
+        <Alert severity="info" sx={{ mb: 2 }}>
+          A questo cliente verrà assegnato il codice cliente{' '}
+          <strong>{nextCodeStr || '…'}</strong> alla creazione della pratica.
         </Alert>
       )}
 
@@ -200,7 +219,7 @@ export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, o
             select
             label="Sala compressori"
             value={salaScelta}
-            onChange={e => setSalaScelta(e.target.value)}
+            onChange={e => { userPickedSala.current = true; setSalaScelta(e.target.value) }}
             fullWidth
             required
             helperText={isNewSala ? `Nuova sala: lettera ${nextLetter}` : ' '}

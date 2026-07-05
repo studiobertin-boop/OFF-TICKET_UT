@@ -10,8 +10,11 @@ import {
   Select,
   MenuItem,
   Alert,
+  useTheme,
 } from '@mui/material';
 import { Layout } from '@/components/common/Layout';
+import { useThemeMode } from '@/theme';
+import { getStatusHex } from '@/theme/statusColors';
 import { useAuth } from '@/hooks/useAuth';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -47,6 +50,8 @@ import type { GeneralAnalyticsFilters, DM329AnalyticsFilters } from '@/services/
 
 export const Dashboard = () => {
   const { user } = useAuth();
+  const { mode } = useThemeMode();
+  const theme = useTheme();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   // Tab iniziale: ?tab=dm329 / ?tab=generale hanno precedenza,
@@ -162,31 +167,31 @@ export const Dashboard = () => {
                   {
                     label: 'Aperte',
                     count: generalOverview.data?.openRequests || 0,
-                    color: '#2196f3',
+                    color: getStatusHex('APERTA', mode),
                     onClick: () => goToRequestsList('generale', 'APERTA'),
                   },
                   {
                     label: 'In Lavorazione',
                     count: generalOverview.data?.inProgressRequests || 0,
-                    color: '#ff9800',
+                    color: getStatusHex('IN_LAVORAZIONE', mode),
                     onClick: () => goToRequestsList('generale', 'IN_LAVORAZIONE'),
                   },
                   {
                     label: 'Completate',
                     count: generalOverview.data?.completedRequests || 0,
-                    color: '#4caf50',
+                    color: getStatusHex('COMPLETATA', mode),
                     onClick: () => goToRequestsList('generale', 'COMPLETATA'),
                   },
                   {
                     label: 'Bloccate',
                     count: generalOverview.data?.blockedRequests || 0,
-                    color: '#f44336',
+                    color: getStatusHex('BLOCCATA', mode),
                     onClick: () => goToRequestsList('generale', 'BLOCCATA'),
                   },
                   {
                     label: 'Attive',
                     count: generalOverview.data?.activeRequests || 0,
-                    color: '#9c27b0',
+                    color: theme.palette.primary.main,
                     onClick: () => goToRequestsList('generale'),
                   },
                 ]}
@@ -298,55 +303,55 @@ export const Dashboard = () => {
                   {
                     label: '1 - Incarico Ricevuto',
                     count: dm329Overview.data?.status1 || 0,
-                    color: '#2196f3',
+                    color: getStatusHex('1-INCARICO_RICEVUTO', mode),
                     onClick: () => goToRequestsList('dm329', '1-INCARICO_RICEVUTO'),
                   },
                   {
                     label: '2 - Scheda Dati Pronta',
                     count: dm329Overview.data?.status2 || 0,
-                    color: '#9c27b0',
+                    color: getStatusHex('2-SCHEDA_DATI_PRONTA', mode),
                     onClick: () => goToRequestsList('dm329', '2-SCHEDA_DATI_PRONTA'),
                   },
                   {
                     label: '3 - Mail Cliente Inviata',
                     count: dm329Overview.data?.status3 || 0,
-                    color: '#9c27b0',
+                    color: getStatusHex('3-MAIL_CLIENTE_INVIATA', mode),
                     onClick: () => goToRequestsList('dm329', '3-MAIL_CLIENTE_INVIATA'),
                   },
                   {
                     label: '4 - Documenti Pronti',
                     count: dm329Overview.data?.status4 || 0,
-                    color: '#ff9800',
+                    color: getStatusHex('4-DOCUMENTI_PRONTI', mode),
                     onClick: () => goToRequestsList('dm329', '4-DOCUMENTI_PRONTI'),
                   },
                   {
                     label: '5 - Attesa Firma',
                     count: dm329Overview.data?.status5 || 0,
-                    color: '#ff9800',
+                    color: getStatusHex('5-ATTESA_FIRMA', mode),
                     onClick: () => goToRequestsList('dm329', '5-ATTESA_FIRMA'),
                   },
                   {
                     label: '6 - Pronta per CIVA',
                     count: dm329Overview.data?.status6 || 0,
-                    color: '#4caf50',
+                    color: getStatusHex('6-PRONTA_PER_CIVA', mode),
                     onClick: () => goToRequestsList('dm329', '6-PRONTA_PER_CIVA'),
                   },
                   {
                     label: '7 - Chiusa',
                     count: dm329Overview.data?.status7 || 0,
-                    color: '#4caf50',
+                    color: getStatusHex('7-CHIUSA', mode),
                     onClick: () => goToRequestsList('dm329', '7-CHIUSA'),
                   },
                   {
                     label: 'Archiviata Non Finita',
                     count: dm329Overview.data?.statusArchived || 0,
-                    color: '#757575',
+                    color: getStatusHex('ARCHIVIATA NON FINITA', mode),
                     onClick: () => goToRequestsList('dm329', 'ARCHIVIATA NON FINITA'),
                   },
                   {
                     label: 'Totali Attive',
                     count: dm329Overview.data?.totalActive || 0,
-                    color: '#673ab7',
+                    color: theme.palette.primary.main,
                     onClick: () => goToRequestsList('dm329'),
                   },
                 ]}

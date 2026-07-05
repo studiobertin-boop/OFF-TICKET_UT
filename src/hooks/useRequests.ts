@@ -72,6 +72,9 @@ export const useCreateRequest = () => {
     mutationFn: requestsApi.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: REQUESTS_QUERY_KEY })
+      // Il cliente potrebbe aver appena ricevuto un codice (trigger auto-codifica DM329)
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+      queryClient.invalidateQueries({ queryKey: ['client-dm329-overview'] })
     },
   })
 }
@@ -84,6 +87,7 @@ export const useUpdateRequest = () => {
       requestsApi.update(id, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: REQUESTS_QUERY_KEY })
+      queryClient.invalidateQueries({ queryKey: ['client-dm329-overview'] })
     },
   })
 }
