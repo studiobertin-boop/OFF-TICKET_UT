@@ -216,6 +216,15 @@ export const requestsApi = {
       if (error.code === '42501') {
         throw new Error('Permessi insufficienti per aggiornare questa richiesta.')
       }
+      // Codice pratica duplicato (indice ux_requests_codice_pratica) — es. assegnazione dal pannello
+      if (error.code === '23505' && /codice_pratica/i.test(`${error.message ?? ''} ${(error as any).details ?? ''}`)) {
+        let next: number | null = null
+        if (updates.customer_id && updates.sala_lettera) {
+          try { next = await requestsApi.getNextProgressivo(updates.customer_id, updates.sala_lettera) } catch { /* ignore */ }
+        }
+        const suffix = next != null ? ` Prossimo progressivo disponibile: ${String(next).padStart(2, '0')}.` : ''
+        throw new Error(`Esiste già una pratica con questo codice per questa sala.${suffix}`)
+      }
       if (error.message?.includes('JWT')) {
         throw new Error('Sessione scaduta. Ricarica la pagina ed effettua nuovamente il login.')
       }
