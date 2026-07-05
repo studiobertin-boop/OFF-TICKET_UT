@@ -128,4 +128,14 @@ describe('validateAssignments', () => {
     expect(rep.errors.some(e => /duplicat/i.test(e.message) && e.request_id === 'r2')).toBe(false)
     expect(rep.valid.some(v => v.request_id === 'r2')).toBe(true)
   })
+
+  it('rifiuta integrazione senza pratica_padre con messaggio chiaro', () => {
+    const rep = validateAssignments([
+      { request_id: 'i1', request_type: 'DM329-Integrazioni', customer_id: 'c1',
+        sala_lettera: '', denominazione_sala: '', progressivo: 0, anno: 2025,
+        indirizzo_impianto: '', pratica_padre: '' },
+    ])
+    expect(rep.errors.some(e => e.request_id === 'i1' && /pratica_padre/i.test(e.message))).toBe(true)
+    expect(rep.valid.some(v => v.request_id === 'i1')).toBe(false)
+  })
 })

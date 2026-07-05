@@ -146,8 +146,8 @@ export function validateAssignments(rows: ReviewedAssignment[]): ValidationRepor
     invalidIds.add(id)
   }
 
-  const primaries = rows.filter(r => !r.pratica_padre)
-  const integrazioni = rows.filter(r => r.pratica_padre)
+  const primaries = rows.filter(r => r.request_type !== 'DM329-Integrazioni')
+  const integrazioni = rows.filter(r => r.request_type === 'DM329-Integrazioni')
 
   // Vincoli di formato/range sulle primarie
   const seen = new Map<string, string>() // "cust|sala|prog" -> request_id
@@ -175,6 +175,10 @@ export function validateAssignments(rows: ReviewedAssignment[]): ValidationRepor
   // Integrazioni: il padre deve essere una primaria dello stesso cliente (in questo batch)
   const primaryById = new Map(primaries.map(p => [p.request_id, p]))
   for (const i of integrazioni) {
+    if (!i.pratica_padre) {
+      fail(i.request_id, 'integrazione senza pratica_padre')
+      continue
+    }
     const parent = primaryById.get(i.pratica_padre)
     if (!parent) fail(i.request_id, `pratica_padre inesistente o non primaria: "${i.pratica_padre}"`)
     else if (parent.customer_id !== i.customer_id)

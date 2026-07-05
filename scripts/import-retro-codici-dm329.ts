@@ -82,7 +82,8 @@ async function main() {
   }
 
   for (const r of report.valid.filter(r => r.pratica_padre)) {
-    const parent = parentById.get(r.pratica_padre)!
+    const parent = parentById.get(r.pratica_padre)
+    if (!parent) { console.log(`  ❌ ${r.request_id}: padre ${r.pratica_padre} non tra le primarie valide`); ko++; continue }
     const { error } = await supabase.from('requests').update({
       pratica_padre_id: r.pratica_padre,
       sala_lettera: parent.sala_lettera,
