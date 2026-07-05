@@ -14,6 +14,7 @@ import {
 } from '@mui/material'
 import { Customer } from '@/types'
 import { useClientDm329Overview } from '@/hooks/useRequests'
+import { useNextCustomerCode } from '@/hooks/useCustomers'
 import { composeCodicePratica } from '@/utils/practiceCode'
 import { AddressAutocompleteField } from './AddressAutocompleteField'
 
@@ -44,6 +45,11 @@ interface Props {
  */
 export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, onChange }: Props) => {
   const { data: overview = [] } = useClientDm329Overview(customer.id)
+  const { data: nextCode } = useNextCustomerCode()
+
+  // Se il cliente non ha codice, verrà assegnato alla creazione: mostra/usa il prossimo disponibile
+  const nextCodeStr = nextCode != null ? String(nextCode).padStart(3, '0') : undefined
+  const effectiveClientCode = customer.identificativo || nextCodeStr
 
   const [flagUgualeSede, setFlagUgualeSede] = useState(false)
   const [salaScelta, setSalaScelta] = useState('')
@@ -105,7 +111,7 @@ export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, o
   const clientSalaCount = isNewSala ? sale.length + 1 : sale.length
 
   const codicePreview = composeCodicePratica({
-    clientCode: customer.identificativo,
+    clientCode: effectiveClientCode,
     sala_lettera: salaLettera,
     progressivo,
     anno,
@@ -144,9 +150,9 @@ export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, o
       </Typography>
 
       {!customer.identificativo && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          Questo cliente non ha ancora un <strong>codice cliente</strong>: il codice pratica non sarà
-          visibile finché non glielo assegni (Gestione Clienti). Puoi comunque creare la pratica.
+        <Alert severity="info" sx={{ mb: 2 }}>
+          A questo cliente verrà assegnato il codice cliente{' '}
+          <strong>{nextCodeStr || '…'}</strong> alla creazione della pratica.
         </Alert>
       )}
 
