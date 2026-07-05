@@ -152,14 +152,24 @@ export function validateAssignments(rows: ReviewedAssignment[]): ValidationRepor
   // Vincoli di formato/range sulle primarie
   const seen = new Map<string, string>() // "cust|sala|prog" -> request_id
   for (const r of primaries) {
-    if (!/^[A-Z]$/.test(r.sala_lettera)) fail(r.request_id, `sala_lettera non valida: "${r.sala_lettera}"`)
-    if (!Number.isInteger(r.progressivo) || r.progressivo < 0 || r.progressivo > 99)
+    let rowOk = true
+    if (!/^[A-Z]$/.test(r.sala_lettera)) {
+      fail(r.request_id, `sala_lettera non valida: "${r.sala_lettera}"`)
+      rowOk = false
+    }
+    if (!Number.isInteger(r.progressivo) || r.progressivo < 0 || r.progressivo > 99) {
       fail(r.request_id, `progressivo fuori range: ${r.progressivo}`)
-    if (!Number.isInteger(r.anno) || r.anno < 2000 || r.anno > 2100)
+      rowOk = false
+    }
+    if (!Number.isInteger(r.anno) || r.anno < 2000 || r.anno > 2100) {
       fail(r.request_id, `anno fuori range: ${r.anno}`)
+      rowOk = false
+    }
     const key = `${r.customer_id}|${r.sala_lettera}|${r.progressivo}`
-    if (seen.has(key)) fail(r.request_id, `codice duplicato con ${seen.get(key)} (cliente+sala+progressivo)`)
-    else seen.set(key, r.request_id)
+    if (rowOk) {
+      if (seen.has(key)) fail(r.request_id, `codice duplicato con ${seen.get(key)} (cliente+sala+progressivo)`)
+      else seen.set(key, r.request_id)
+    }
   }
 
   // Integrazioni: il padre deve essere una primaria dello stesso cliente (in questo batch)
@@ -169,6 +179,8 @@ export function validateAssignments(rows: ReviewedAssignment[]): ValidationRepor
     if (!parent) fail(i.request_id, `pratica_padre inesistente o non primaria: "${i.pratica_padre}"`)
     else if (parent.customer_id !== i.customer_id)
       fail(i.request_id, `pratica_padre di un altro cliente`)
+    else if (invalidIds.has(i.pratica_padre))
+      fail(i.request_id, `pratica_padre non valida (la primaria è stata scartata)`)
   }
 
   const valid = rows.filter(r => !invalidIds.has(r.request_id))

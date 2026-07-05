@@ -105,4 +105,27 @@ describe('validateAssignments', () => {
     expect(rep.errors).toEqual([])
     expect(rep.valid).toHaveLength(2)
   })
+
+  it('rifiuta integrazione il cui padre non è valido', () => {
+    const rep = validateAssignments([
+      prim({ request_id: 'p1', customer_id: 'c1', sala_lettera: 'a' }),
+      { request_id: 'i1', request_type: 'DM329-Integrazioni', customer_id: 'c1',
+        sala_lettera: '', denominazione_sala: '', progressivo: 0, anno: 2025,
+        indirizzo_impianto: '', pratica_padre: 'p1' },
+    ])
+    expect(rep.errors.some(e => e.request_id === 'p1')).toBe(true)
+    expect(rep.errors.some(e => e.request_id === 'i1')).toBe(true)
+    expect(rep.valid).toHaveLength(0)
+  })
+
+  it('non conta duplicati su righe già invalide', () => {
+    const rep = validateAssignments([
+      prim({ request_id: 'r1', sala_lettera: 'A', progressivo: 0, anno: 1999 }),
+      prim({ request_id: 'r2', sala_lettera: 'A', progressivo: 0, anno: 2025 }),
+    ])
+    // r1 should be invalid (bad anno), r2 should be valid (not a duplicate since r1 failed)
+    expect(rep.errors.some(e => e.request_id === 'r1')).toBe(true)
+    expect(rep.errors.some(e => /duplicat/i.test(e.message) && e.request_id === 'r2')).toBe(false)
+    expect(rep.valid.some(v => v.request_id === 'r2')).toBe(true)
+  })
 })
