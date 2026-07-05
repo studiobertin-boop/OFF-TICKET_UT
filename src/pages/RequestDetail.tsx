@@ -56,6 +56,7 @@ import { CompleteCustomerDataDialog } from '@/components/customers/CompleteCusto
 import { useActiveBlock } from '@/hooks/useRequestBlocks'
 import { getStatusColor, getStatusLabel, isDM329Family } from '@/utils/workflow'
 import { StatusChip } from '@/components/common'
+import { DM329StatusStepper } from '@/components/requests/DM329StatusStepper'
 import { useRequestTypes } from '@/hooks/useRequestTypes'
 import { hasIncompleteCustomerData } from '@/utils/customerValidation'
 import { STATO_FATTURA_OPTIONS, STATO_FATTURA_LABELS, type StatoFattura, type Customer } from '@/types'
@@ -524,29 +525,95 @@ export const RequestDetail = () => {
           </Box>
         </Box>
 
-        {/* Two column layout: details on left, history on right */}
-        <Grid container spacing={3}>
-          {/* Left column: Request details */}
-          <Grid item xs={12} lg={7}>
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 3 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    {request.is_blocked && (
-                      <BlockIndicator isBlocked={true} reason={activeBlock?.reason} />
-                    )}
-                    <Typography variant="h4">{request.title}</Typography>
+        {/* HERO: cliente, codice/sala, stato + date, workflow */}
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 2, flexWrap: 'wrap' }}>
+              <Box sx={{ minWidth: 0 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                  {request.is_blocked && (
+                    <BlockIndicator isBlocked={true} reason={activeBlock?.reason} />
+                  )}
+                  <Typography variant="h4" sx={{ wordBreak: 'break-word' }}>
+                    {isDM329 ? clientInfo?.ragione_sociale || request.title : request.title}
+                  </Typography>
+                </Box>
+                {isDM329 && (codicePratica || request.denominazione_sala) && (
+                  <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
                     {codicePratica && (
-                      <Chip
-                        label={codicePratica}
-                        color="primary"
-                        variant="outlined"
-                        sx={{ fontFamily: 'monospace', fontWeight: 700 }}
-                      />
+                      <Typography component="span" sx={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '1.05rem' }}>
+                        {codicePratica}
+                      </Typography>
+                    )}
+                    {request.denominazione_sala && (
+                      <Typography component="span" variant="subtitle1" color="text.secondary" sx={{ fontWeight: 500 }}>
+                        · {request.denominazione_sala}
+                      </Typography>
                     )}
                   </Box>
-                  <StatusChip status={request.status} size="medium" />
+                )}
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center', mt: 1 }}>
+                  <StatusChip status={request.status} />
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    label={request.request_type?.name === 'DM329-Integrazioni' ? 'Integrazioni' : request.request_type?.name || 'N/A'}
+                  />
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    label={`Creata ${new Date(request.created_at).toLocaleDateString('it-IT')} · ${request.creator?.full_name || 'N/A'}`}
+                  />
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    label={`Ultimo cambio stato: ${new Date(request.updated_at).toLocaleString('it-IT')}`}
+                  />
                 </Box>
+              </Box>
+              {isDM329 && (
+                <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+                  <Typography variant="overline" color="text.secondary" display="block">
+                    Attribuita a
+                  </Typography>
+                  {request.attributed_user ? (
+                    <Typography variant="body2">{request.attributed_user.full_name}</Typography>
+                  ) : (
+                    <Typography variant="body2" color="text.disabled">Non attribuita</Typography>
+                  )}
+                </Box>
+              )}
+            </Box>
+
+            <Divider sx={{ my: 2 }} />
+
+            {isDM329 ? (
+              <DM329StatusStepper
+                requestId={request.id}
+                currentStatus={request.status}
+                requestTypeName={request.request_type?.name || ''}
+                isBlocked={request.is_blocked}
+                onStatusChanged={refetch}
+              />
+            ) : (
+              <StatusTransitionButtons
+                requestId={request.id}
+                currentStatus={request.status}
+                requestTypeName={request.request_type?.name || ''}
+                assignedTo={request.assigned_to}
+                isBlocked={request.is_blocked}
+                onStatusChanged={refetch}
+              />
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Contenuto: sinistra info, destra storico/messaggi/allegati */}
+        <Grid container spacing={3}>
+          {/* Left column: Request details */}
+          <Grid item xs={12} lg={8}>
+            <Card>
+              <CardContent>
 
             <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
@@ -590,61 +657,6 @@ export const RequestDetail = () => {
                   </Typography>
                 )}
               </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Creata da
-                </Typography>
-                <Typography variant="body1" gutterBottom>
-                  {request.creator?.full_name || 'N/A'}
-                </Typography>
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Data Creazione
-                </Typography>
-                <Typography variant="body1" gutterBottom>
-                  {new Date(request.created_at).toLocaleString('it-IT')}
-                </Typography>
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Ultimo Aggiornamento
-                </Typography>
-                <Typography variant="body1" gutterBottom>
-                  {new Date(request.updated_at).toLocaleString('it-IT')}
-                </Typography>
-              </Grid>
-
-              {request.assigned_user && (
-                <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Assegnata a
-                  </Typography>
-                  <Typography variant="body1" gutterBottom>
-                    {request.assigned_user.full_name} ({request.assigned_user.email})
-                  </Typography>
-                </Grid>
-              )}
-
-              {isDM329 && (
-                <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Attribuita a
-                  </Typography>
-                  {request.attributed_user ? (
-                    <Typography variant="body1" gutterBottom>
-                      {request.attributed_user.full_name} ({request.attributed_user.email})
-                    </Typography>
-                  ) : (
-                    <Typography variant="body1" color="text.disabled" gutterBottom>
-                      Non attribuita
-                    </Typography>
-                  )}
-                </Grid>
-              )}
             </Grid>
 
             {/* Informazioni Cliente - NEW SECTION */}
@@ -937,23 +949,6 @@ export const RequestDetail = () => {
           </CardContent>
         </Card>
 
-        {/* Status Transition Buttons */}
-        <Card sx={{ mt: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Cambia Stato
-            </Typography>
-            <StatusTransitionButtons
-              requestId={request.id}
-              currentStatus={request.status}
-              requestTypeName={request.request_type?.name || ''}
-              assignedTo={request.assigned_to}
-              isBlocked={request.is_blocked}
-              onStatusChanged={refetch}
-            />
-          </CardContent>
-        </Card>
-
             {/* Assignment Section */}
             <AssignmentSection
               requestId={request.id}
@@ -963,19 +958,18 @@ export const RequestDetail = () => {
               onAssignmentChanged={refetch}
             />
 
-            {/* Attachments Section */}
-            <AttachmentsSection
-              requestId={request.id}
-              requestCreatedBy={request.created_by}
-              requestAssignedTo={request.assigned_to}
-            />
           </Grid>
 
-          {/* Right column: History panel and Chat */}
-          <Grid item xs={12} lg={5}>
+          {/* Colonna destra: storico, messaggi, allegati */}
+          <Grid item xs={12} lg={4}>
             <Box sx={{ position: 'sticky', top: 16, display: 'flex', flexDirection: 'column', gap: 3 }}>
               <RequestHistoryPanel requestId={request.id} />
               <RequestChatBox requestId={request.id} />
+              <AttachmentsSection
+                requestId={request.id}
+                requestCreatedBy={request.created_by}
+                requestAssignedTo={request.assigned_to}
+              />
             </Box>
           </Grid>
         </Grid>
