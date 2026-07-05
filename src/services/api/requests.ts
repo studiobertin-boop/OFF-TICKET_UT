@@ -36,6 +36,7 @@ export interface UpdateRequestInput {
   customer_id?: string | null
   is_urgent?: boolean
   request_type_id?: string
+  denominazione_sala?: string | null
 }
 
 export interface RequestFilters {

@@ -111,6 +111,7 @@ export const RequestDetail = () => {
   const [noCivaValue, setNoCivaValue] = useState(false)
   const [offCacValue, setOffCacValue] = useState<'off' | 'cac' | ''>('')
   const [statoFatturaValue, setStatoFatturaValue] = useState<StatoFattura>('NO')
+  const [denominazioneSalaValue, setDenominazioneSalaValue] = useState('')
   const [togglingUrgent, setTogglingUrgent] = useState(false)
   const [sedeImpianto, setSedeImpianto] = useState<string | null>(null)
 
@@ -294,6 +295,7 @@ export const RequestDetail = () => {
     setNoCivaValue(cf.no_civa === true)
     setOffCacValue((cf.off_cac as 'off' | 'cac' | '') || '')
     setStatoFatturaValue((cf.stato_fattura as StatoFattura) || 'NO')
+    setDenominazioneSalaValue(request?.denominazione_sala || '')
     setIsEditingDetails(true)
   }
 
@@ -312,6 +314,9 @@ export const RequestDetail = () => {
       await updateRequest.mutateAsync({
         id: request.id,
         updates: {
+          // denominazione_sala è colonna della pratica (non custom_field): NON cambia
+          // la lettera sala né il codice pratica, solo l'etichetta descrittiva.
+          denominazione_sala: denominazioneSalaValue.trim() || null,
           custom_fields: {
             ...request.custom_fields,
             no_civa: noCivaValue,
@@ -767,6 +772,17 @@ export const RequestDetail = () => {
             {isEditingDetails && (isDM329 ? (
               <Box sx={{ mb: 3, p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
                 <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Denominazione sala"
+                      value={denominazioneSalaValue}
+                      onChange={(e) => setDenominazioneSalaValue(e.target.value)}
+                      placeholder="Es. Sala principale, Verniciatura…"
+                      helperText="Solo il nome della sala; non modifica la lettera né il codice pratica."
+                    />
+                  </Grid>
                   <Grid item xs={12} sm={4}>
                     <FormControl fullWidth size="small">
                       <InputLabel id="no-civa-label">No CIVA</InputLabel>
