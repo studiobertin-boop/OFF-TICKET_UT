@@ -659,7 +659,9 @@ export const DM329TableView = ({
             {filteredAndSortedRequests.map(request => {
               const codice = codiceForRequest(request, salaCounts.get(request.customer_id || '') || 0)
               const nome = clienteNome(request) || '-'
-              const sala = request.denominazione_sala || (request.sala_lettera ? `Sala ${request.sala_lettera}` : '—')
+              // La colonna "Sala" mostra il testo libero dell'operatore (denominazione_sala),
+              // non la lettera del codice: niente fallback "Sala A".
+              const sala = request.denominazione_sala || '—'
               const note = (request.custom_fields?.note as string) || '-'
               return (
                 <TableRow
