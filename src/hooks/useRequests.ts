@@ -87,6 +87,7 @@ export const useUpdateRequest = () => {
       requestsApi.update(id, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: REQUESTS_QUERY_KEY })
+      queryClient.invalidateQueries({ queryKey: ['client-dm329-overview'] })
     },
   })
 }

@@ -37,6 +37,13 @@ export interface UpdateRequestInput {
   is_urgent?: boolean
   request_type_id?: string
   denominazione_sala?: string | null
+  // Codice pratica DM329 (assegnazione post-creazione)
+  sala_lettera?: string | null
+  progressivo?: number | null
+  anno?: number | null
+  indirizzo_impianto?: string | null
+  impianto_uguale_sede_legale?: boolean
+  pratica_padre_id?: string | null
 }
 
 export interface RequestFilters {
