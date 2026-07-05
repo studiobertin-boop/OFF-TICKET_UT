@@ -40,14 +40,16 @@ describe('proposeAssignments', () => {
     expect(out[2].prop_anno).toBe(2025)
   })
 
-  it('le integrazioni non ricevono lettera e propongono la primaria più recente dello stesso cliente come padre', () => {
+  it('le integrazioni ereditano sala/progressivo/anno dal padre', () => {
     const input: FetchedPractice[] = [
       { ...base, request_id: 'p1', indirizzo: 'Via Roma 1', created_at: '2024-01-01T00:00:00Z' },
       { ...base, request_type: 'DM329-Integrazioni', request_id: 'i1', indirizzo: '', created_at: '2024-06-01T00:00:00Z' },
     ]
     const out = proposeAssignments(input)
     const integr = out.find(o => o.request_id === 'i1')!
-    expect(integr.prop_sala_lettera).toBe('')
     expect(integr.pratica_padre).toBe('p1')
+    expect(integr.prop_sala_lettera).toBe('A')
+    expect(integr.prop_progressivo).toBe(0)
+    expect(integr.prop_anno).toBe(2024)
   })
 })

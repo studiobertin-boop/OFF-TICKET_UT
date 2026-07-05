@@ -90,6 +90,10 @@ export function proposeAssignments(practices: FetchedPractice[]): ProposedAssign
     const candidates = primaries
       .filter(p => p.customer_id === i.customer_id)
       .sort((a, b) => b.created_at.localeCompare(a.created_at))
+
+    const parentId = candidates[0]?.request_id ?? ''
+    const parentAssignment = parentId ? out.find(o => o.request_id === parentId) : undefined
+
     out.push({
       request_id: i.request_id,
       request_type: i.request_type,
@@ -100,11 +104,11 @@ export function proposeAssignments(practices: FetchedPractice[]): ProposedAssign
       indirizzo: i.indirizzo,
       status: i.status,
       created_at: i.created_at,
-      prop_sala_lettera: '',
-      prop_denominazione_sala: '',
-      prop_progressivo: 0,
-      prop_anno: yearOf(i.created_at),
-      pratica_padre: candidates[0]?.request_id ?? '',
+      prop_sala_lettera: parentAssignment?.prop_sala_lettera ?? '',
+      prop_denominazione_sala: parentAssignment?.prop_denominazione_sala ?? '',
+      prop_progressivo: parentAssignment?.prop_progressivo ?? 0,
+      prop_anno: parentAssignment?.prop_anno ?? yearOf(i.created_at),
+      pratica_padre: parentId,
       note_override: '',
     })
   }
