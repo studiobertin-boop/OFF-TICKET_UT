@@ -321,6 +321,9 @@ export interface DM329TechnicalData {
   // Dati apparecchiature (JSONB flessibile)
   equipment_data: Record<string, any>
 
+  // Dati aggiuntivi per la relazione tecnica (JSONB) — vedi services/relazione
+  additional_info?: Record<string, any>
+
   // OCR
   ocr_processing_status: OCRProcessingStatus
   ocr_results: OCRResult[]

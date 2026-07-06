@@ -19,6 +19,7 @@ import {
   Edit as EditIcon,
   Share as ShareIcon,
   Assessment as AssessmentIcon,
+  Description as DescriptionIcon,
 } from '@mui/icons-material'
 import { Layout } from '@/components/common/Layout'
 import { useRequest } from '@/hooks/useRequests'
@@ -30,6 +31,8 @@ import { customersApi } from '@/services/api/customers'
 import { TechnicalSheetForm, type TechnicalSheetFormRef } from '@/components/technicalSheet/TechnicalSheetForm'
 import { OCRReviewDialog } from '@/components/technicalSheet/OCRReviewDialog'
 import { ShareDialog } from '@/components/technicalSheet/ShareDialog'
+import RelazioneDataDialog from '@/components/relazione/RelazioneDataDialog'
+import type { AdditionalInfo } from '@/services/relazione/types'
 import { EquipmentCatalogProvider } from '@/components/technicalSheet/EquipmentCatalogContext'
 import type { DM329TechnicalData, SchedaDatiCompleta, OCRExtractedData, FuzzyMatch, OCRReviewData } from '@/types'
 import { isDM329Family } from '@/utils/workflow'
@@ -62,6 +65,7 @@ export const TechnicalDetails = () => {
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [ocrReviewData, setOcrReviewData] = useState<OCRReviewData | null>(null)
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
+  const [relazioneDialogOpen, setRelazioneDialogOpen] = useState(false)
   const formRef = useRef<TechnicalSheetFormRef>(null)
 
   // Carica scheda dati tecnici
@@ -499,6 +503,17 @@ export const TechnicalDetails = () => {
                     Visualizza Dati CIVA
                   </Button>
                 )}
+                {(user?.role === 'admin' || user?.role === 'userdm329') && (
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    startIcon={<DescriptionIcon />}
+                    onClick={() => setRelazioneDialogOpen(true)}
+                    disabled={saving}
+                  >
+                    Genera Relazione
+                  </Button>
+                )}
                 <Button
                   variant="outlined"
                   startIcon={<EditIcon />}
@@ -532,42 +547,9 @@ export const TechnicalDetails = () => {
           </Box>
         </Box>
 
-        {/* Info Richiesta */}
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Informazioni Pratica
-            </Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={4}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Titolo
-                </Typography>
-                <Typography variant="body1">{request.title}</Typography>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Cliente
-                </Typography>
-                <Typography variant="body1">{customerName}</Typography>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Stato Pratica
-                </Typography>
-                <Typography variant="body1">{request.status}</Typography>
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-
         {/* Form Dati Tecnici - PASSO 2 COMPLETATO */}
         <Card sx={{ mb: 3 }}>
           <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Dati Sala Compressori e Apparecchiature
-            </Typography>
-
             {/* ✅ Wrap form con EquipmentCatalogProvider per cache specs */}
             <EquipmentCatalogProvider>
               <TechnicalSheetForm
@@ -598,6 +580,19 @@ export const TechnicalDetails = () => {
             onClose={() => setShareDialogOpen(false)}
             technicalDataId={technicalData.id}
             requestId={request.id}
+          />
+        )}
+
+        {/* Dialog "Dati relazione" + generazione .docx */}
+        {technicalData && id && (
+          <RelazioneDataDialog
+            open={relazioneDialogOpen}
+            onClose={() => setRelazioneDialogOpen(false)}
+            requestId={id}
+            scheda={technicalData.equipment_data as SchedaDatiCompleta}
+            customer={request?.customer ?? customerByName ?? null}
+            initialAdditionalInfo={technicalData.additional_info as AdditionalInfo | undefined}
+            fileName={`Relazione_${customerName}.docx`}
           />
         )}
 

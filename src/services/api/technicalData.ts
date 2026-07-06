@@ -115,6 +115,19 @@ export const technicalDataApi = {
   },
 
   /**
+   * Salva i dati aggiuntivi per la relazione tecnica (additional_info JSONB)
+   * @param requestId ID della richiesta
+   * @param additionalInfo Dati aggiuntivi (descrizione attività, giri, spessimetrica, collegamenti, motivo revisione)
+   * @returns DM329TechnicalData aggiornata
+   */
+  async updateAdditionalInfo(
+    requestId: string,
+    additionalInfo: Record<string, any>
+  ): Promise<DM329TechnicalData> {
+    return this.update(requestId, { additional_info: additionalInfo })
+  },
+
+  /**
    * Salva l'indirizzo impianto (con dati strutturati da autocomplete)
    * @param requestId ID della richiesta
    * @param indirizzo Indirizzo testuale
