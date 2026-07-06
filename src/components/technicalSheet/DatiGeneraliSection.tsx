@@ -3,7 +3,6 @@ import { Control, Controller } from 'react-hook-form'
 import {
   TextField,
   Grid,
-  Typography,
   Box,
   Autocomplete,
 } from '@mui/material'
@@ -42,13 +41,9 @@ export const DatiGeneraliSection = ({
 
   return (
     <Box>
-      <Typography variant="h6" gutterBottom>
-        1. Dati Generali
-      </Typography>
-
-      <Grid container spacing={2}>
+      <Grid container spacing={1.5}>
         {/* Data Sopralluogo */}
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} sm={6} md={3}>
           <Controller
             name="dati_generali.data_sopralluogo"
             control={control}
@@ -58,6 +53,7 @@ export const DatiGeneraliSection = ({
                 {...field}
                 label="Data Sopralluogo"
                 type="date"
+                size="small"
                 fullWidth
                 required
                 error={!!errors?.dati_generali?.data_sopralluogo}
@@ -71,7 +67,7 @@ export const DatiGeneraliSection = ({
         </Grid>
 
         {/* Nome Tecnico */}
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} sm={6} md={3}>
           <Controller
             name="dati_generali.nome_tecnico"
             control={control}
@@ -80,6 +76,7 @@ export const DatiGeneraliSection = ({
               <TextField
                 {...field}
                 label="Nome Tecnico"
+                size="small"
                 fullWidth
                 required
                 error={!!errors?.dati_generali?.nome_tecnico}
@@ -91,7 +88,7 @@ export const DatiGeneraliSection = ({
         </Grid>
 
         {/* Cliente */}
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} sm={6} md={3}>
           <Controller
             name="dati_generali.cliente"
             control={control}
@@ -101,11 +98,12 @@ export const DatiGeneraliSection = ({
               <TextField
                 {...field}
                 label="Cliente"
+                size="small"
                 fullWidth
                 required
                 disabled
                 error={!!errors?.dati_generali?.cliente}
-                helperText={errors?.dati_generali?.cliente?.message || 'Auto-sincronizzato con il cliente associato alla pratica'}
+                helperText={errors?.dati_generali?.cliente?.message}
                 placeholder="Ragione sociale cliente"
               />
             )}
@@ -113,7 +111,7 @@ export const DatiGeneraliSection = ({
         </Grid>
 
         {/* Installatore */}
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} sm={6} md={3}>
           <Controller
             name="dati_generali.installatore"
             control={control}
@@ -161,17 +159,16 @@ export const DatiGeneraliSection = ({
                   <TextField
                     {...params}
                     label="Installatore"
+                    size="small"
                     required
                     error={!!errors?.dati_generali?.installatore}
-                    helperText={
-                      errors?.dati_generali?.installatore?.message ||
-                      'Precompilato con OFFICINA DEL COMPRESSORE S.R.L. - Digita per cercare o aggiungere'
-                    }
+                    helperText={errors?.dati_generali?.installatore?.message}
                     placeholder="Seleziona o inserisci installatore"
                   />
                 )}
                 freeSolo
                 autoSelect
+                size="small"
                 fullWidth
               />
             )}
@@ -187,9 +184,10 @@ export const DatiGeneraliSection = ({
               <TextField
                 {...field}
                 label="Note Generali"
+                size="small"
                 fullWidth
                 multiline
-                rows={3}
+                rows={2}
                 error={!!errors?.dati_generali?.note_generali}
                 helperText={errors?.dati_generali?.note_generali?.message}
                 placeholder="Note aggiuntive sul sopralluogo..."

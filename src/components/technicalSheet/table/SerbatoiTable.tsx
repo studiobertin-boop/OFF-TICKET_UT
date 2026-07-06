@@ -55,6 +55,14 @@ const SerbatoioRow = ({
     <>
       {/* RIGA PRINCIPALE */}
       <Box component="tr" sx={{ '&:hover > td': { bgcolor: alpha(SERBATOIO_COLOR, 0.06) } }}>
+        <Box component="td" sx={{ ...cellTdSx, px: 0.5, whiteSpace: 'nowrap' }}>
+          <Box sx={{ display: 'flex', gap: 0.25 }}>
+            <SingleOCRButton equipmentType="Serbatoi" equipmentIndex={index} onOCRComplete={(d) => onSerbatoioOCR(index, d)} />
+            <Tooltip title="Elimina serbatoio"><span>
+              <IconButton size="small" color="error" onClick={() => onRemove(index)}><DeleteIcon fontSize="small" /></IconButton>
+            </span></Tooltip>
+          </Box>
+        </Box>
         <Box component="td" sx={{ ...cellTdSx, fontWeight: 700, color: SERBATOIO_COLOR, px: 1.5, whiteSpace: 'nowrap' }}>{code}</Box>
 
         {adv ? (
@@ -87,14 +95,6 @@ const SerbatoioRow = ({
         <Box component="td" sx={{ ...cellTdSx, textAlign: 'center' }}><CheckCell control={control} name={`${base}.ancorato_terra`} /></Box>
         <Box component="td" sx={cellTdSx}><NumberCell control={control} name={`${base}.manometro.fondo_scala`} min={10} max={30} step={0.1} /></Box>
         <Box component="td" sx={cellTdSx}><NumberCell control={control} name={`${base}.manometro.segno_rosso`} min={10} max={30} step={0.1} /></Box>
-        <Box component="td" sx={{ ...cellTdSx, px: 0.5, whiteSpace: 'nowrap' }}>
-          <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-            <SingleOCRButton equipmentType="Serbatoi" equipmentIndex={index} onOCRComplete={(d) => onSerbatoioOCR(index, d)} />
-            <Tooltip title="Elimina serbatoio"><span>
-              <IconButton size="small" color="error" onClick={() => onRemove(index)}><DeleteIcon fontSize="small" /></IconButton>
-            </span></Tooltip>
-          </Box>
-        </Box>
       </Box>
 
       {/* SOTTO-BANDA VALVOLA (obbligatoria, full-span) */}
@@ -162,6 +162,7 @@ export const SerbatoiTable = ({ control, onSerbatoioOCR, onValvolaOCR }: Serbato
     >
       <thead>
         <tr>
+          <th aria-label="azioni" />
           <th>Cod.</th>
           <th>Marca</th>
           {adv && <th>Modello</th>}
@@ -176,7 +177,6 @@ export const SerbatoiTable = ({ control, onSerbatoioOCR, onValvolaOCR }: Serbato
           <th className="ctr">Anc.</th>
           <th className="num">Man. fondo</th>
           <th className="num">Man. rosso</th>
-          <th aria-label="azioni" />
         </tr>
       </thead>
       <tbody>

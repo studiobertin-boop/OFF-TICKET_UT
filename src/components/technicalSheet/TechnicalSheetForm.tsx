@@ -4,15 +4,11 @@ import {
   Box,
   Card,
   CardContent,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Typography,
   Chip,
   Button,
 } from '@mui/material'
 import {
-  ExpandMore as ExpandMoreIcon,
   AutoFixHigh as AutoFixHighIcon,
 } from '@mui/icons-material'
 import { DatiGeneraliSection } from './DatiGeneraliSection'
@@ -311,57 +307,38 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
     <FormProvider {...methods}>
       <Box component="form" onSubmit={handleSubmit(onSubmit)}>
         {/* Sezione 1: Informazioni Pratica */}
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold', color: 'text.primary' }}>
-              1 - Informazioni Pratica
-            </Typography>
-            <Accordion defaultExpanded>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
-                  <Typography variant="h6">Dati Generali</Typography>
-                  <Chip label="Obbligatorio" size="small" color="error" />
-                </Box>
-              </AccordionSummary>
-              <AccordionDetails>
-                <DatiGeneraliSection
-                  control={control}
-                  errors={errors}
-                  defaultCustomer={customerName}
-                />
-              </AccordionDetails>
-            </Accordion>
+        <Card sx={{ mb: 1.5 }}>
+          <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>1 · Informazioni Pratica</Typography>
+              <Chip label="Obbligatorio" size="small" color="error" sx={{ height: 18, fontSize: '0.65rem' }} />
+            </Box>
+            <DatiGeneraliSection
+              control={control}
+              errors={errors}
+              defaultCustomer={customerName}
+            />
           </CardContent>
         </Card>
 
         {/* Sezione 2: Dati Sala Compressori */}
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold', color: 'text.primary' }}>
-              2 - Dati Sala Compressori
-            </Typography>
-            <Accordion defaultExpanded>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
-                  <Typography variant="h6">Dati Impianto</Typography>
-                  <Chip label="Obbligatorio" size="small" color="error" />
-                </Box>
-              </AccordionSummary>
-              <AccordionDetails>
-                <DatiImpiantoSection control={control} errors={errors} sedeLegale={sedeLegale} />
-              </AccordionDetails>
-            </Accordion>
+        <Card sx={{ mb: 1.5 }}>
+          <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>2 · Dati Sala Compressori</Typography>
+              <Chip label="Obbligatorio" size="small" color="error" sx={{ height: 18, fontSize: '0.65rem' }} />
+            </Box>
+            <DatiImpiantoSection control={control} errors={errors} sedeLegale={sedeLegale} />
           </CardContent>
         </Card>
 
         {/* Sezione 3: Dati Apparecchiature */}
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
-                3 - Dati Apparecchiature
-              </Typography>
+        <Card sx={{ mb: 1.5 }}>
+          <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.25 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>3 · Dati Apparecchiature</Typography>
               <Button
+                size="small"
                 variant="contained"
                 startIcon={<AutoFixHighIcon />}
                 onClick={() => setBatchOCRDialogOpen(true)}
@@ -371,127 +348,18 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
               </Button>
             </Box>
 
-          {/* S - Serbatoi */}
-          <Accordion
-            defaultExpanded
-            sx={{
-              bgcolor: 'rgba(173, 216, 230, 0.15)',
-              '&:before': { display: 'none' },
-              mb: 1,
-            }}
-          >
-            <AccordionSummary
-              expandIcon={<ExpandMoreIcon />}
-              sx={{ bgcolor: 'rgba(173, 216, 230, 0.25)' }}
-            >
-              <Typography variant="h6" sx={{ fontWeight: 'medium' }}>S - Serbatoi</Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              <SerbatoiSection control={control} errors={errors} />
-            </AccordionDetails>
-          </Accordion>
+            <SerbatoiSection control={control} errors={errors} />
+            <CompressoriSection control={control} errors={errors} />
+            <EssiccatoriSection control={control} errors={errors} />
+            <FiltriSection control={control} errors={errors} />
+            <SeparatoriSection control={control} errors={errors} />
 
-          {/* C - Compressori (con Disoleatori inline) */}
-          <Accordion
-            defaultExpanded
-            sx={{
-              bgcolor: 'rgba(255, 235, 132, 0.15)',
-              '&:before': { display: 'none' },
-              mb: 1,
-            }}
-          >
-            <AccordionSummary
-              expandIcon={<ExpandMoreIcon />}
-              sx={{ bgcolor: 'rgba(255, 235, 132, 0.25)' }}
-            >
-              <Typography variant="h6" sx={{ fontWeight: 'medium' }}>C - Compressori</Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              <CompressoriSection control={control} errors={errors} />
-            </AccordionDetails>
-          </Accordion>
-
-          {/* E - Essiccatori (con Scambiatori inline) */}
-          <Accordion
-            defaultExpanded
-            sx={{
-              bgcolor: 'rgba(200, 230, 201, 0.15)',
-              '&:before': { display: 'none' },
-              mb: 1,
-            }}
-          >
-            <AccordionSummary
-              expandIcon={<ExpandMoreIcon />}
-              sx={{ bgcolor: 'rgba(200, 230, 201, 0.25)' }}
-            >
-              <Typography variant="h6" sx={{ fontWeight: 'medium' }}>E - Essiccatori</Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              <EssiccatoriSection control={control} errors={errors} />
-            </AccordionDetails>
-          </Accordion>
-
-          {/* F - Filtri (con Recipienti Filtro inline) */}
-          <Accordion
-            defaultExpanded
-            sx={{
-              bgcolor: 'rgba(255, 204, 188, 0.15)',
-              '&:before': { display: 'none' },
-              mb: 1,
-            }}
-          >
-            <AccordionSummary
-              expandIcon={<ExpandMoreIcon />}
-              sx={{ bgcolor: 'rgba(255, 204, 188, 0.25)' }}
-            >
-              <Typography variant="h6" sx={{ fontWeight: 'medium' }}>F - Filtri</Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              <FiltriSection control={control} errors={errors} />
-            </AccordionDetails>
-          </Accordion>
-
-          {/* SE - Separatori */}
-          <Accordion
-            defaultExpanded
-            sx={{
-              bgcolor: 'rgba(225, 190, 231, 0.15)',
-              '&:before': { display: 'none' },
-              mb: 1,
-            }}
-          >
-            <AccordionSummary
-              expandIcon={<ExpandMoreIcon />}
-              sx={{ bgcolor: 'rgba(225, 190, 231, 0.25)' }}
-            >
-              <Typography variant="h6" sx={{ fontWeight: 'medium' }}>SE - Separatori</Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              <SeparatoriSection control={control} errors={errors} />
-            </AccordionDetails>
-          </Accordion>
-
-          {/* AA - Altri Apparecchi */}
-          <Accordion
-            defaultExpanded
-            sx={{
-              bgcolor: 'rgba(207, 216, 220, 0.15)',
-              '&:before': { display: 'none' },
-              mb: 1,
-            }}
-          >
-            <AccordionSummary
-              expandIcon={<ExpandMoreIcon />}
-              sx={{ bgcolor: 'rgba(207, 216, 220, 0.25)' }}
-            >
-              <Typography variant="h6" sx={{ fontWeight: 'medium' }}>AA - Altri Apparecchi</Typography>
-            </AccordionSummary>
-            <AccordionDetails>
+            {/* AA - Altri Apparecchi (campo libero) */}
+            <Box sx={{ mt: 1.5 }}>
               <AltriApparecchiSection control={control} errors={errors} />
-            </AccordionDetails>
-          </Accordion>
-        </CardContent>
-      </Card>
+            </Box>
+          </CardContent>
+        </Card>
 
         {/* Batch OCR Dialog */}
         <BatchOCRDialog

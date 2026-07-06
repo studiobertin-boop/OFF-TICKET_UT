@@ -97,6 +97,14 @@ const CompressoreRow = ({
     <>
       {/* RIGA PRINCIPALE */}
       <Box component="tr" sx={{ '&:hover > td': { bgcolor: alpha(COMPRESSORE_COLOR, 0.06) } }}>
+        <Box component="td" sx={{ ...cellTdSx, px: 0.5, whiteSpace: 'nowrap' }}>
+          <Box sx={{ display: 'flex', gap: 0.25 }}>
+            <SingleOCRButton equipmentType="Compressori" equipmentIndex={index} onOCRComplete={handleCompressorOCR} />
+            <Tooltip title="Elimina compressore"><span>
+              <IconButton size="small" color="error" onClick={() => onRemove(index)}><DeleteIcon fontSize="small" /></IconButton>
+            </span></Tooltip>
+          </Box>
+        </Box>
         <Box component="td" sx={{ ...cellTdSx, fontWeight: 700, color: COMPRESSORE_COLOR, px: 1.5, whiteSpace: 'nowrap' }}>{code}</Box>
         <Box component="td" colSpan={3} sx={cellTdSx}>
           <Box sx={{ px: 1, py: 0.5, '& .MuiInputBase-root': { fontSize: '0.82rem' } }}>
@@ -122,14 +130,6 @@ const CompressoreRow = ({
         <Box component="td" sx={cellTdSx}><TextCell control={control} name={`${base}.note`} placeholder="Note" /></Box>
         <Box component="td" sx={{ ...cellTdSx, textAlign: 'center' }}>
           <CheckCell control={control} name={`${base}.ha_disoleatore`} onToggle={handleDisoleatoreToggle} />
-        </Box>
-        <Box component="td" sx={{ ...cellTdSx, px: 0.5, whiteSpace: 'nowrap' }}>
-          <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-            <SingleOCRButton equipmentType="Compressori" equipmentIndex={index} onOCRComplete={handleCompressorOCR} />
-            <Tooltip title="Elimina compressore"><span>
-              <IconButton size="small" color="error" onClick={() => onRemove(index)}><DeleteIcon fontSize="small" /></IconButton>
-            </span></Tooltip>
-          </Box>
         </Box>
       </Box>
 
@@ -218,6 +218,7 @@ export const CompressoriTable = ({ control }: CompressoriTableProps) => {
     >
       <thead>
         <tr>
+          <th aria-label="azioni" />
           <th>Cod.</th>
           <th>Marca</th>
           <th>Modello</th>
@@ -228,7 +229,6 @@ export const CompressoriTable = ({ control }: CompressoriTableProps) => {
           {adv && <th className="num">FAD l/min</th>}
           <th>Note</th>
           <th className="ctr">Disol.</th>
-          <th aria-label="azioni" />
         </tr>
       </thead>
       <tbody>

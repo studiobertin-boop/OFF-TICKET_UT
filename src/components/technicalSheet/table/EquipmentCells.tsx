@@ -20,8 +20,8 @@ export const cellTdSx = {
 const baseInputSx = {
   width: '100%',
   fontSize: '0.82rem',
-  px: 1.25,
-  py: 0.9,
+  px: 1,
+  py: 0.4,
   color: 'text.primary',
   '& input': { p: 0 },
   '& input::placeholder': { color: 'text.disabled', opacity: 1 },
@@ -104,7 +104,7 @@ export const SelectCell = ({ control, name, options, disabled }: CellBase & { op
         disableUnderline
         displayEmpty
         fullWidth
-        sx={{ fontSize: '0.82rem', px: 1.25, '& .MuiSelect-select': { py: 0.75 } }}
+        sx={{ fontSize: '0.82rem', px: 1, '& .MuiSelect-select': { py: 0.4 } }}
       >
         <MenuItem value=""><em>—</em></MenuItem>
         {options.map((o) => <MenuItem key={o} value={o}>{o}</MenuItem>)}
@@ -130,7 +130,7 @@ export const CheckCell = ({ control, name, onToggle }: CellBase & { onToggle?: (
 )
 
 export const ComputedCell = ({ value, badge }: { value: ReactNode; badge?: 'auto' | 'cat' }) => (
-  <Box sx={{ px: 1.25, py: 0.9, display: 'flex', alignItems: 'center', gap: 0.75, whiteSpace: 'nowrap' }}>
+  <Box sx={{ px: 1, py: 0.4, display: 'flex', alignItems: 'center', gap: 0.75, whiteSpace: 'nowrap' }}>
     <Typography component="span" sx={{ fontSize: '0.82rem', fontWeight: 600, color: 'success.main', fontVariantNumeric: 'tabular-nums' }}>
       {value || '—'}
     </Typography>

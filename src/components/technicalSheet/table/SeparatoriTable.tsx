@@ -29,6 +29,14 @@ const SeparatoreRow = ({ control, index, onRemove }: { control: Control<any>; in
 
   return (
     <Box component="tr" sx={{ '&:hover > td': { bgcolor: alpha(SEPARATORE_COLOR, 0.06) } }}>
+      <Box component="td" sx={{ ...cellTdSx, px: 0.5, whiteSpace: 'nowrap' }}>
+        <Box sx={{ display: 'flex', gap: 0.25 }}>
+          <SingleOCRButton equipmentType="Separatori" equipmentIndex={index} onOCRComplete={handleOCR} />
+          <Tooltip title="Elimina separatore"><span>
+            <IconButton size="small" color="error" onClick={() => onRemove(index)}><DeleteIcon fontSize="small" /></IconButton>
+          </span></Tooltip>
+        </Box>
+      </Box>
       <Box component="td" sx={{ ...cellTdSx, fontWeight: 700, color: SEPARATORE_COLOR, px: 1.5, whiteSpace: 'nowrap' }}>{code}</Box>
       <Box component="td" colSpan={2} sx={cellTdSx}>
         <Box sx={{ px: 1, py: 0.5, '& .MuiInputBase-root': { fontSize: '0.82rem' } }}>
@@ -42,14 +50,6 @@ const SeparatoreRow = ({ control, index, onRemove }: { control: Control<any>; in
               />
             )} />
           )} />
-        </Box>
-      </Box>
-      <Box component="td" sx={{ ...cellTdSx, px: 0.5, whiteSpace: 'nowrap' }}>
-        <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-          <SingleOCRButton equipmentType="Separatori" equipmentIndex={index} onOCRComplete={handleOCR} />
-          <Tooltip title="Elimina separatore"><span>
-            <IconButton size="small" color="error" onClick={() => onRemove(index)}><DeleteIcon fontSize="small" /></IconButton>
-          </span></Tooltip>
         </Box>
       </Box>
     </Box>
@@ -75,10 +75,10 @@ export const SeparatoriTable = ({ control }: SeparatoriTableProps) => {
     >
       <thead>
         <tr>
+          <th aria-label="azioni" />
           <th>Cod.</th>
           <th>Marca</th>
           <th>Modello</th>
-          <th aria-label="azioni" />
         </tr>
       </thead>
       <tbody>

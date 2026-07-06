@@ -68,6 +68,14 @@ const FiltroRow = ({
     <>
       {/* RIGA PRINCIPALE */}
       <Box component="tr" sx={{ '&:hover > td': { bgcolor: alpha(FILTRO_COLOR, 0.06) } }}>
+        <Box component="td" sx={{ ...cellTdSx, px: 0.5, whiteSpace: 'nowrap' }}>
+          <Box sx={{ display: 'flex', gap: 0.25 }}>
+            <SingleOCRButton equipmentType="Filtri" equipmentIndex={index} onOCRComplete={handleFiltroOCR} />
+            <Tooltip title="Elimina filtro"><span>
+              <IconButton size="small" color="error" onClick={() => onRemove(index)}><DeleteIcon fontSize="small" /></IconButton>
+            </span></Tooltip>
+          </Box>
+        </Box>
         <Box component="td" sx={{ ...cellTdSx, fontWeight: 700, color: FILTRO_COLOR, px: 1.5, whiteSpace: 'nowrap' }}>{code}</Box>
         <Box component="td" colSpan={2} sx={cellTdSx}>
           <Box sx={{ px: 1, py: 0.5, '& .MuiInputBase-root': { fontSize: '0.82rem' } }}>
@@ -90,14 +98,6 @@ const FiltroRow = ({
             <CheckCell control={control} name={`${base}.ha_recipiente`} onToggle={handleRecipienteToggle} />
           </Box>
         )}
-        <Box component="td" sx={{ ...cellTdSx, px: 0.5, whiteSpace: 'nowrap' }}>
-          <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-            <SingleOCRButton equipmentType="Filtri" equipmentIndex={index} onOCRComplete={handleFiltroOCR} />
-            <Tooltip title="Elimina filtro"><span>
-              <IconButton size="small" color="error" onClick={() => onRemove(index)}><DeleteIcon fontSize="small" /></IconButton>
-            </span></Tooltip>
-          </Box>
-        </Box>
       </Box>
 
       {/* SOTTO-BANDA RECIPIENTE FILTRO (solo se visibile al ruolo) */}
@@ -158,13 +158,13 @@ export const FiltriTable = ({ control }: FiltriTableProps) => {
     >
       <thead>
         <tr>
+          <th aria-label="azioni" />
           <th>Cod.</th>
           <th>Marca</th>
           <th>Modello</th>
           <th>N° fabbrica</th>
           <th className="num">Anno</th>
           {showRecipienteFiltro && <th className="ctr">Recip.</th>}
-          <th aria-label="azioni" />
         </tr>
       </thead>
       <tbody>

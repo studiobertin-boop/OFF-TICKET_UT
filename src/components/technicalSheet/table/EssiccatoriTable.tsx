@@ -87,6 +87,14 @@ const EssiccatoreRow = ({
     <>
       {/* RIGA PRINCIPALE */}
       <Box component="tr" sx={{ '&:hover > td': { bgcolor: alpha(ESSICCATORE_COLOR, 0.06) } }}>
+        <Box component="td" sx={{ ...cellTdSx, px: 0.5, whiteSpace: 'nowrap' }}>
+          <Box sx={{ display: 'flex', gap: 0.25 }}>
+            <SingleOCRButton equipmentType="Essiccatori" equipmentIndex={index} onOCRComplete={handleEssiccatoreOCR} />
+            <Tooltip title="Elimina essiccatore"><span>
+              <IconButton size="small" color="error" onClick={() => onRemove(index)}><DeleteIcon fontSize="small" /></IconButton>
+            </span></Tooltip>
+          </Box>
+        </Box>
         <Box component="td" sx={{ ...cellTdSx, fontWeight: 700, color: ESSICCATORE_COLOR, px: 1.5, whiteSpace: 'nowrap' }}>{code}</Box>
         <Box component="td" colSpan={2} sx={cellTdSx}>
           <Box sx={{ px: 1, py: 0.5, '& .MuiInputBase-root': { fontSize: '0.82rem' } }}>
@@ -108,14 +116,6 @@ const EssiccatoreRow = ({
         {adv && <Box component="td" sx={cellTdSx}><NumberCell control={control} name={`${base}.volume_aria_trattata`} min={0} max={100000} /></Box>}
         <Box component="td" sx={{ ...cellTdSx, textAlign: 'center' }}>
           <CheckCell control={control} name={`${base}.ha_scambiatore`} onToggle={handleScambiatoreToggle} />
-        </Box>
-        <Box component="td" sx={{ ...cellTdSx, px: 0.5, whiteSpace: 'nowrap' }}>
-          <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-            <SingleOCRButton equipmentType="Essiccatori" equipmentIndex={index} onOCRComplete={handleEssiccatoreOCR} />
-            <Tooltip title="Elimina essiccatore"><span>
-              <IconButton size="small" color="error" onClick={() => onRemove(index)}><DeleteIcon fontSize="small" /></IconButton>
-            </span></Tooltip>
-          </Box>
         </Box>
       </Box>
 
@@ -177,6 +177,7 @@ export const EssiccatoriTable = ({ control }: EssiccatoriTableProps) => {
     >
       <thead>
         <tr>
+          <th aria-label="azioni" />
           <th>Cod.</th>
           <th>Marca</th>
           <th>Modello</th>
@@ -185,7 +186,6 @@ export const EssiccatoriTable = ({ control }: EssiccatoriTableProps) => {
           {adv && <th className="num">PS bar</th>}
           {adv && <th className="num">Q l/min</th>}
           <th className="ctr">Scamb.</th>
-          <th aria-label="azioni" />
         </tr>
       </thead>
       <tbody>

@@ -3,7 +3,6 @@ import { Control, Controller, useWatch, useFormContext } from 'react-hook-form'
 import {
   TextField,
   Grid,
-  Typography,
   Box,
   FormControl,
   FormLabel,
@@ -59,14 +58,10 @@ export const DatiImpiantoSection = ({
   })
 
   return (
-    <Box>
-      <Typography variant="h6" gutterBottom>
-        2. Dati Impianto
-      </Typography>
-
-      <Grid container spacing={2}>
+    <Box sx={{ '& .MuiFormControlLabel-label': { fontSize: '0.85rem' } }}>
+      <Grid container spacing={1.5} alignItems="center">
         {/* Checkbox: Sede Imp. = Sede Legale */}
-        <Grid item xs={12}>
+        <Grid item xs={12} sm="auto">
           <Controller
             name="dati_impianto.sede_imp_uguale_legale"
             control={control}
@@ -100,7 +95,7 @@ export const DatiImpiantoSection = ({
         </Grid>
 
         {/* Sede Impianto - Condizionale */}
-        <Grid item xs={12}>
+        <Grid item xs={12} sm>
           {sedeImpUgualeLegale ? (
             // Se uguale a sede legale, mostra readonly
             <Controller
@@ -110,6 +105,7 @@ export const DatiImpiantoSection = ({
                 <TextField
                   {...field}
                   label="Sede Impianto"
+                  size="small"
                   fullWidth
                   disabled
                   helperText="Copiato automaticamente da Sede Legale"
@@ -157,6 +153,7 @@ export const DatiImpiantoSection = ({
               <TextField
                 {...field}
                 label="Denominazione Sala"
+                size="small"
                 fullWidth
                 placeholder="Es: Sala compressori centrale"
               />
@@ -193,6 +190,7 @@ export const DatiImpiantoSection = ({
                 <TextField
                   {...field}
                   label="Locale Condiviso Con"
+                  size="small"
                   fullWidth
                   placeholder="Specificare se il locale è condiviso"
                 />
@@ -208,8 +206,8 @@ export const DatiImpiantoSection = ({
             control={control}
             defaultValue={[]}
             render={({ field }) => (
-              <FormControl fullWidth>
-                <FormLabel>Aria Aspirata dai Compressori</FormLabel>
+              <FormControl fullWidth size="small">
+                <FormLabel sx={{ fontSize: '0.75rem' }}>Aria Aspirata dai Compressori</FormLabel>
                 <Select
                   {...field}
                   multiple
@@ -242,8 +240,8 @@ export const DatiImpiantoSection = ({
             rules={{ required: 'Campo obbligatorio' }}
             defaultValue=""
             render={({ field }) => (
-              <FormControl fullWidth required error={!!errors?.dati_impianto?.raccolta_condense}>
-                <FormLabel>Raccolta Condense *</FormLabel>
+              <FormControl fullWidth size="small" required error={!!errors?.dati_impianto?.raccolta_condense}>
+                <FormLabel sx={{ fontSize: '0.75rem' }}>Raccolta Condense *</FormLabel>
                 <Select
                   {...field}
                   value={field.value || ''}
@@ -328,6 +326,7 @@ export const DatiImpiantoSection = ({
               <TextField
                 {...field}
                 label="Fonti di Calore / Materiali Infiammabili Vicini"
+                size="small"
                 fullWidth
                 placeholder="Specificare eventuali fonti o materiali"
               />
@@ -360,6 +359,7 @@ export const DatiImpiantoSection = ({
               <TextField
                 {...field}
                 label="Diametri Collegamenti in Sala"
+                size="small"
                 fullWidth
                 placeholder={'Es: 1/2", 3/4"'}
               />
@@ -376,6 +376,7 @@ export const DatiImpiantoSection = ({
               <TextField
                 {...field}
                 label="Diametri Linee di Distribuzione"
+                size="small"
                 fullWidth
                 placeholder={'Es: 1", 1 1/4"'}
               />
