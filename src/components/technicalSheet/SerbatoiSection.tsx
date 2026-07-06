@@ -1,117 +1,60 @@
-import { Control, useFieldArray, useFormContext } from 'react-hook-form'
-import { EquipmentSection } from './EquipmentSection'
-import { SingleOCRButton } from './SingleOCRButton'
-import { EQUIPMENT_LIMITS, generateEquipmentCode } from '@/types'
+import { type Control, useFormContext } from 'react-hook-form'
+import { SerbatoiTable } from './table/SerbatoiTable'
 import type { OCRExtractedData } from '@/types/ocr'
-import { SerbatoioItem } from './SerbatoioItem'
 
 interface SerbatoiSectionProps {
   control: Control<any>
   errors: any
 }
 
+/**
+ * Sezione Serbatoi della SCHEDA DATI DM329 — modalità "foglio di calcolo".
+ * Il rendering è delegato a SerbatoiTable; qui restano gli handler OCR
+ * (serbatoio e valvola) che scrivono nel form, invariati rispetto a prima.
+ */
 export const SerbatoiSection = ({ control, errors }: SerbatoiSectionProps) => {
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: 'serbatoi',
-  })
-
   const { setValue, trigger } = useFormContext()
 
-  const handleAdd = () => {
-    const newIndex = fields.length + 1
-    append({
-      codice: generateEquipmentCode(EQUIPMENT_LIMITS.serbatoi.prefix, newIndex),
-      valvola_sicurezza: {}, // Obbligatoria
-      manometro: {},
-    })
-  }
-
   const handleOCRComplete = (index: number, data: OCRExtractedData) => {
-    const basePath = `serbatoi.${index}`
+    const base = `serbatoi.${index}`
+    if (data.marca) setValue(`${base}.marca`, data.marca)
+    if (data.modello) setValue(`${base}.modello`, data.modello)
+    if (data.n_fabbrica) setValue(`${base}.n_fabbrica`, data.n_fabbrica)
+    if (data.anno) setValue(`${base}.anno`, data.anno)
+    if (data.volume) setValue(`${base}.volume`, data.volume)
+    if (data.pressione_max) setValue(`${base}.pressione_max`, data.pressione_max)
 
-    console.log('📝 Applicazione dati OCR a Serbatoio #' + (index + 1), data)
-
-    // Popola campi comuni
-    if (data.marca) setValue(`${basePath}.marca`, data.marca)
-    if (data.modello) setValue(`${basePath}.modello`, data.modello)
-    if (data.n_fabbrica) setValue(`${basePath}.n_fabbrica`, data.n_fabbrica)
-    if (data.anno) setValue(`${basePath}.anno`, data.anno)
-    if (data.volume) setValue(`${basePath}.volume`, data.volume)
-    if (data.pressione_max) setValue(`${basePath}.pressione_max`, data.pressione_max)
-
-    // Popola valvola di sicurezza (se presente nei dati OCR)
     if (data.valvola_sicurezza) {
-      if (data.valvola_sicurezza.marca) {
-        setValue(`${basePath}.valvola_sicurezza.marca`, data.valvola_sicurezza.marca)
-      }
-      if (data.valvola_sicurezza.modello) {
-        setValue(`${basePath}.valvola_sicurezza.modello`, data.valvola_sicurezza.modello)
-      }
-      if (data.valvola_sicurezza.n_fabbrica) {
-        setValue(`${basePath}.valvola_sicurezza.n_fabbrica`, data.valvola_sicurezza.n_fabbrica)
-      }
-      if (data.valvola_sicurezza.diametro_pressione) {
-        setValue(`${basePath}.valvola_sicurezza.diametro_pressione`, data.valvola_sicurezza.diametro_pressione)
-      }
+      const v = data.valvola_sicurezza
+      if (v.marca) setValue(`${base}.valvola_sicurezza.marca`, v.marca)
+      if (v.modello) setValue(`${base}.valvola_sicurezza.modello`, v.modello)
+      if (v.n_fabbrica) setValue(`${base}.valvola_sicurezza.n_fabbrica`, v.n_fabbrica)
+      if (v.diametro_pressione) setValue(`${base}.valvola_sicurezza.diametro_pressione`, v.diametro_pressione)
     }
 
-    // Popola manometro (se presente)
     if (data.manometro) {
-      if (data.manometro.fondo_scala) {
-        setValue(`${basePath}.manometro.fondo_scala`, data.manometro.fondo_scala)
-      }
-      if (data.manometro.segno_rosso) {
-        setValue(`${basePath}.manometro.segno_rosso`, data.manometro.segno_rosso)
-      }
+      if (data.manometro.fondo_scala) setValue(`${base}.manometro.fondo_scala`, data.manometro.fondo_scala)
+      if (data.manometro.segno_rosso) setValue(`${base}.manometro.segno_rosso`, data.manometro.segno_rosso)
     }
 
-    // Valida immediatamente i campi
-    trigger(basePath)
+    trigger(base)
   }
 
-  // Handler OCR specifico per valvola di sicurezza (S1.1, S2.1, etc.)
   const handleValvolaOCRComplete = (index: number, data: OCRExtractedData) => {
-    const basePath = `serbatoi.${index}.valvola_sicurezza`
-
-    console.log('📝 Applicazione dati OCR a Valvola di Sicurezza S' + (index + 1) + '.1', data)
-
-    // Popola campi valvola da OCR
-    if (data.marca) setValue(`${basePath}.marca`, data.marca)
-    if (data.modello) setValue(`${basePath}.modello`, data.modello)
-    if (data.n_fabbrica) setValue(`${basePath}.n_fabbrica`, data.n_fabbrica)
-    if (data.diametro_pressione) setValue(`${basePath}.diametro_pressione`, data.diametro_pressione)
-
-    // Valida immediatamente
-    trigger(basePath)
+    const base = `serbatoi.${index}.valvola_sicurezza`
+    if (data.marca) setValue(`${base}.marca`, data.marca)
+    if (data.modello) setValue(`${base}.modello`, data.modello)
+    if (data.n_fabbrica) setValue(`${base}.n_fabbrica`, data.n_fabbrica)
+    if (data.diametro_pressione) setValue(`${base}.diametro_pressione`, data.diametro_pressione)
+    trigger(base)
   }
 
   return (
-    <EquipmentSection
-      title="3. Serbatoi"
-      subtitle="Massimo 7 serbatoi (S1-S7). Ogni serbatoio DEVE avere una valvola di sicurezza."
-      items={fields}
-      maxItems={EQUIPMENT_LIMITS.serbatoi.max}
-      minItems={EQUIPMENT_LIMITS.serbatoi.min}
-      onAdd={handleAdd}
-      onRemove={remove}
-      generateCode={(index) => generateEquipmentCode(EQUIPMENT_LIMITS.serbatoi.prefix, index + 1)}
-      itemTypeName="serbatoio"
-      renderHeaderActions={(_item, index) => (
-        <SingleOCRButton
-          equipmentType="Serbatoi"
-          equipmentIndex={index}
-          onOCRComplete={(data) => handleOCRComplete(index, data)}
-        />
-      )}
-      renderItem={(_item, index) => (
-        <SerbatoioItem
-          index={index}
-          control={control}
-          errors={errors}
-          onValvolaOCRComplete={handleValvolaOCRComplete}
-        />
-      )}
+    <SerbatoiTable
+      control={control}
+      errors={errors}
+      onSerbatoioOCR={handleOCRComplete}
+      onValvolaOCR={handleValvolaOCRComplete}
     />
   )
 }

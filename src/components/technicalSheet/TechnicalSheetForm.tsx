@@ -340,7 +340,7 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
             <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold', color: 'text.primary' }}>
               2 - Dati Sala Compressori
             </Typography>
-            <Accordion>
+            <Accordion defaultExpanded>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
                   <Typography variant="h6">Dati Impianto</Typography>
@@ -373,6 +373,7 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
 
           {/* S - Serbatoi */}
           <Accordion
+            defaultExpanded
             sx={{
               bgcolor: 'rgba(173, 216, 230, 0.15)',
               '&:before': { display: 'none' },
@@ -392,6 +393,7 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
 
           {/* C - Compressori (con Disoleatori inline) */}
           <Accordion
+            defaultExpanded
             sx={{
               bgcolor: 'rgba(255, 235, 132, 0.15)',
               '&:before': { display: 'none' },
@@ -411,6 +413,7 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
 
           {/* E - Essiccatori (con Scambiatori inline) */}
           <Accordion
+            defaultExpanded
             sx={{
               bgcolor: 'rgba(200, 230, 201, 0.15)',
               '&:before': { display: 'none' },
@@ -430,6 +433,7 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
 
           {/* F - Filtri (con Recipienti Filtro inline) */}
           <Accordion
+            defaultExpanded
             sx={{
               bgcolor: 'rgba(255, 204, 188, 0.15)',
               '&:before': { display: 'none' },
@@ -449,6 +453,7 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
 
           {/* SE - Separatori */}
           <Accordion
+            defaultExpanded
             sx={{
               bgcolor: 'rgba(225, 190, 231, 0.15)',
               '&:before': { display: 'none' },
@@ -468,6 +473,7 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
 
           {/* AA - Altri Apparecchi */}
           <Accordion
+            defaultExpanded
             sx={{
               bgcolor: 'rgba(207, 216, 220, 0.15)',
               '&:before': { display: 'none' },
