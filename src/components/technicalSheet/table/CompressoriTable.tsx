@@ -116,7 +116,7 @@ const CompressoreRow = ({
                     marcaValue={m.value || ''} modelloValue={mo.value || ''} pressioneValue={p.value}
                     onMarcaChange={m.onChange} onModelloChange={mo.onChange} onPressioneChange={p.onChange}
                     onEquipmentSelected={handleCompressorEquipmentSelected}
-                    pressioneLabel="Pressione Max (bar)" pressioneField="pressione_max" size="small" fullWidth
+                    pressioneLabel="Pressione Max (bar)" pressioneField="pressione_max" dense size="small" fullWidth
                   />
                 )} />
               )} />
@@ -137,6 +137,9 @@ const CompressoreRow = ({
       {haDisoleatore && disoleatoreIndex !== -1 && (
         <SubBand colSpan={colCount} color={COMPRESSORE_COLOR}>
           <SubBandLabel>{code}.1 · Disoleatore</SubBandLabel>
+          <Box sx={{ alignSelf: 'center' }}>
+            <SingleOCRButton equipmentType="Disoleatori" equipmentIndex={disoleatoreIndex} onOCRComplete={handleDisoleatoreOCR} />
+          </Box>
           <Box sx={{ minWidth: 260, flex: '1 1 300px', '& .MuiInputBase-root': { fontSize: '0.82rem' } }}>
             <Controller name={`${dbase}.marca`} control={control} render={({ field: m }) => (
               <Controller name={`${dbase}.modello`} control={control} render={({ field: mo }) => (
@@ -144,7 +147,7 @@ const CompressoreRow = ({
                   equipmentType="Disoleatori"
                   marcaValue={m.value || ''} modelloValue={mo.value || ''}
                   onMarcaChange={m.onChange} onModelloChange={mo.onChange}
-                  size="small" fullWidth
+                  dense size="small" fullWidth
                 />
               )} />
             )} />
@@ -155,13 +158,13 @@ const CompressoreRow = ({
           {adv && <Field label="PS bar" w={70}><NumberCell control={control} name={`${dbase}.ps_pressione_max`} min={3} max={50} step={0.1} /></Field>}
           {adv && <Field label="TS °C" w={70}><NumberCell control={control} name={`${dbase}.ts_temperatura`} min={50} max={250} /></Field>}
           {adv && <Field label="Cat. PED" w={90}><SelectCell control={control} name={`${dbase}.categoria_ped`} options={PED_OPTIONS} /></Field>}
-          <Box sx={{ alignSelf: 'center' }}>
-            <SingleOCRButton equipmentType="Disoleatori" equipmentIndex={disoleatoreIndex} onOCRComplete={handleDisoleatoreOCR} />
-          </Box>
 
           <BandBreak />
 
           <SubBandLabel icon={<WarningIcon sx={{ fontSize: 15 }} />}>{code}.2 · Valvola</SubBandLabel>
+          <Box sx={{ alignSelf: 'center' }}>
+            <SingleOCRButton equipmentType="Disoleatori" equipmentIndex={disoleatoreIndex} componentType="valvola_sicurezza" onOCRComplete={handleDisoleatoreValvolaOCR} />
+          </Box>
           <Box sx={{ minWidth: 280, flex: '1 1 320px', '& .MuiInputBase-root': { fontSize: '0.82rem' } }}>
             <Controller name={`${dbase}.valvola_sicurezza.marca`} control={control} render={({ field: m }) => (
               <Controller name={`${dbase}.valvola_sicurezza.modello`} control={control} render={({ field: mo }) => (
@@ -170,7 +173,7 @@ const CompressoreRow = ({
                     equipmentType="Valvole di sicurezza"
                     marcaValue={m.value || ''} modelloValue={mo.value || ''} pressioneValue={p.value}
                     onMarcaChange={m.onChange} onModelloChange={mo.onChange} onPressioneChange={p.onChange}
-                    pressioneLabel="Ptar (bar)" pressioneField="ptar" size="small" fullWidth
+                    pressioneLabel="Ptar (bar)" pressioneField="ptar" dense size="small" fullWidth
                   />
                 )} />
               )} />
@@ -182,9 +185,6 @@ const CompressoreRow = ({
           {adv && <Field label="TS °C" w={70}><NumberCell control={control} name={`${dbase}.valvola_sicurezza.ts_temperatura`} min={50} max={250} /></Field>}
           {adv && <Field label="Qmax l/min" w={90}><NumberCell control={control} name={`${dbase}.valvola_sicurezza.volume_aria_scaricato`} min={100} max={100000} /></Field>}
           {adv && <Field label="Cat. PED"><ComputedCell value="IV" /></Field>}
-          <Box sx={{ ml: 'auto', alignSelf: 'center' }}>
-            <SingleOCRButton equipmentType="Disoleatori" equipmentIndex={disoleatoreIndex} componentType="valvola_sicurezza" onOCRComplete={handleDisoleatoreValvolaOCR} />
-          </Box>
         </SubBand>
       )}
     </>

@@ -91,7 +91,7 @@ export const NumberCell = ({
   />
 )
 
-export const SelectCell = ({ control, name, options, disabled }: CellBase & { options: string[] }) => (
+export const SelectCell = ({ control, name, options, disabled, display }: CellBase & { options: string[]; display?: Record<string, string> }) => (
   <Controller
     name={name}
     control={control}
@@ -104,6 +104,11 @@ export const SelectCell = ({ control, name, options, disabled }: CellBase & { op
         disableUnderline
         displayEmpty
         fullWidth
+        renderValue={(v) => {
+          const val = (v as string) || ''
+          if (!val) return <Box component="span" sx={{ color: 'text.disabled' }}>—</Box>
+          return display ? (display[val] ?? val) : val
+        }}
         sx={{ fontSize: '0.82rem', px: 1, '& .MuiSelect-select': { py: 0.4 } }}
       >
         <MenuItem value=""><em>—</em></MenuItem>

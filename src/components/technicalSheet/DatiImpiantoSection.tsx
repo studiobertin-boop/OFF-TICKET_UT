@@ -1,12 +1,11 @@
-import React from 'react'
 import { Control, Controller, useWatch, useFormContext } from 'react-hook-form'
 import {
   TextField,
   Grid,
   Box,
   FormControl,
-  FormLabel,
   FormHelperText,
+  InputLabel,
   Select,
   MenuItem,
   Checkbox,
@@ -27,24 +26,17 @@ interface DatiImpiantoSectionProps {
 }
 
 /**
- * SEZIONE 2: DATI IMPIANTO
- * Informazioni sulla sala compressori e condizioni ambientali
- *
- * MODIFICHE:
- * - Aggiunto checkbox "Sede Imp. = Sede Legale"
- * - Campo "Sede Impianto" condizionale (autocomplete se diverso da sede legale)
- * - Aggiunto checkbox "Lontano da materiale infiammabile"
- * - Rinominato "Fonti di calore vicine" → "Fonti di calore / Materiali infiammabili vicini"
+ * SEZIONE 2: DATI IMPIANTO — layout compatto e allineato in righe.
+ * Logica invariata (sede condizionale, locale condiviso condizionale,
+ * aria aspirata multiselect, raccolta condense obbligatoria).
  */
 export const DatiImpiantoSection = ({
   control,
   errors,
   sedeLegale,
 }: DatiImpiantoSectionProps) => {
-  // Get setValue from form context
   const { setValue } = useFormContext()
 
-  // Watch per logica condizionale
   const sedeImpUgualeLegale = useWatch({
     control,
     name: 'dati_impianto.sede_imp_uguale_legale',
@@ -59,8 +51,8 @@ export const DatiImpiantoSection = ({
 
   return (
     <Box sx={{ '& .MuiFormControlLabel-label': { fontSize: '0.85rem' } }}>
-      <Grid container spacing={1.5} alignItems="center">
-        {/* Checkbox: Sede Imp. = Sede Legale */}
+      <Grid container spacing={1.5} alignItems="flex-start">
+        {/* RIGA 1: sede + denominazione */}
         <Grid item xs={12} sm="auto">
           <Controller
             name="dati_impianto.sede_imp_uguale_legale"
@@ -68,22 +60,18 @@ export const DatiImpiantoSection = ({
             defaultValue={false}
             render={({ field }) => (
               <FormControlLabel
+                sx={{ mt: 0.5 }}
                 control={
                   <Checkbox
+                    size="small"
                     checked={field.value || false}
                     onChange={(e) => {
                       const isChecked = e.target.checked
-
-                      // Se checked, imposta prima la sede impianto poi il checkbox
                       if (isChecked && sedeLegale) {
                         setValue('dati_impianto.sede_impianto', sedeLegale, {
-                          shouldDirty: true,
-                          shouldValidate: true,
-                          shouldTouch: true
+                          shouldDirty: true, shouldValidate: true, shouldTouch: true,
                         })
                       }
-
-                      // Poi aggiorna il checkbox - importante farlo DOPO setValue
                       field.onChange(isChecked)
                     }}
                   />
@@ -94,26 +82,16 @@ export const DatiImpiantoSection = ({
           />
         </Grid>
 
-        {/* Sede Impianto - Condizionale */}
         <Grid item xs={12} sm>
           {sedeImpUgualeLegale ? (
-            // Se uguale a sede legale, mostra readonly
             <Controller
               name="dati_impianto.sede_impianto"
               control={control}
               render={({ field }) => (
-                <TextField
-                  {...field}
-                  label="Sede Impianto"
-                  size="small"
-                  fullWidth
-                  disabled
-                  helperText="Copiato automaticamente da Sede Legale"
-                />
+                <TextField {...field} label="Sede Impianto" size="small" fullWidth disabled />
               )}
             />
           ) : (
-            // Se diversa, mostra autocomplete
             <AddressAutocompleteField
               field={{
                 name: 'dati_impianto.sede_impianto',
@@ -128,91 +106,30 @@ export const DatiImpiantoSection = ({
           )}
         </Grid>
 
-        {/* Indirizzo Impianto - DEPRECATED ma mantenuto */}
-        <Grid item xs={12} md={6} sx={{ display: 'none' }}>
-          <Controller
-            name="dati_impianto.indirizzo_impianto"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label="Indirizzo Impianto (deprecated)"
-                fullWidth
-                disabled
-              />
-            )}
-          />
-        </Grid>
-
-        {/* Denominazione Sala */}
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} sm={6} md={3}>
           <Controller
             name="dati_impianto.denominazione_sala"
             control={control}
             render={({ field }) => (
-              <TextField
-                {...field}
-                label="Denominazione Sala"
-                size="small"
-                fullWidth
-                placeholder="Es: Sala compressori centrale"
-              />
+              <TextField {...field} label="Denominazione Sala" size="small" fullWidth placeholder="Es: Sala compressori" />
             )}
           />
         </Grid>
 
-        {/* Locale Dedicato */}
-        <Grid item xs={12} md={4}>
-          <Controller
-            name="dati_impianto.locale_dedicato"
-            control={control}
-            render={({ field }) => (
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={field.value || false}
-                    onChange={(e) => field.onChange(e.target.checked)}
-                  />
-                }
-                label="Locale Dedicato"
-              />
-            )}
-          />
-        </Grid>
-
-        {/* Locale Condiviso Con - Visibile solo se locale_dedicato = false */}
-        {!localeDedicato && (
-          <Grid item xs={12} md={8}>
-            <Controller
-              name="dati_impianto.locale_condiviso_con"
-              control={control}
-              render={({ field }) => (
-                <TextField
-                  {...field}
-                  label="Locale Condiviso Con"
-                  size="small"
-                  fullWidth
-                  placeholder="Specificare se il locale è condiviso"
-                />
-              )}
-            />
-          </Grid>
-        )}
-
-        {/* Aria Aspirata dai Compressori */}
-        <Grid item xs={12} md={6}>
+        {/* RIGA 2: aria + raccolta + locale */}
+        <Grid item xs={12} sm={6} md={3}>
           <Controller
             name="dati_impianto.aria_aspirata"
             control={control}
             defaultValue={[]}
             render={({ field }) => (
               <FormControl fullWidth size="small">
-                <FormLabel sx={{ fontSize: '0.75rem' }}>Aria Aspirata dai Compressori</FormLabel>
+                <InputLabel>Aria Aspirata</InputLabel>
                 <Select
                   {...field}
                   multiple
                   value={field.value || []}
-                  input={<OutlinedInput />}
+                  input={<OutlinedInput label="Aria Aspirata" />}
                   renderValue={(selected) => (
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                       {(selected as string[]).map((value) => (
@@ -222,9 +139,7 @@ export const DatiImpiantoSection = ({
                   )}
                 >
                   {ARIA_ASPIRATA_OPTIONS.map((option) => (
-                    <MenuItem key={option} value={option}>
-                      {option}
-                    </MenuItem>
+                    <MenuItem key={option} value={option}>{option}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
@@ -232,8 +147,7 @@ export const DatiImpiantoSection = ({
           />
         </Grid>
 
-        {/* Raccolta Condense - OBBLIGATORIO - SELEZIONE SINGOLA */}
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} sm={6} md={3}>
           <Controller
             name="dati_impianto.raccolta_condense"
             control={control}
@@ -241,15 +155,10 @@ export const DatiImpiantoSection = ({
             defaultValue=""
             render={({ field }) => (
               <FormControl fullWidth size="small" required error={!!errors?.dati_impianto?.raccolta_condense}>
-                <FormLabel sx={{ fontSize: '0.75rem' }}>Raccolta Condense *</FormLabel>
-                <Select
-                  {...field}
-                  value={field.value || ''}
-                >
+                <InputLabel>Raccolta Condense</InputLabel>
+                <Select {...field} value={field.value || ''} label="Raccolta Condense">
                   {RACCOLTA_CONDENSE_OPTIONS.map((option) => (
-                    <MenuItem key={option} value={option}>
-                      {option}
-                    </MenuItem>
+                    <MenuItem key={option} value={option}>{option}</MenuItem>
                   ))}
                 </Select>
                 {errors?.dati_impianto?.raccolta_condense && (
@@ -260,128 +169,92 @@ export const DatiImpiantoSection = ({
           />
         </Grid>
 
-        {/* Accesso al Locale Vietato */}
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} sm="auto">
           <Controller
-            name="dati_impianto.accesso_locale_vietato"
+            name="dati_impianto.locale_dedicato"
             control={control}
             render={({ field }) => (
               <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={field.value || false}
-                    onChange={(e) => field.onChange(e.target.checked)}
-                  />
-                }
-                label="Accesso al Locale Vietato"
+                sx={{ mt: 0.5 }}
+                control={<Checkbox size="small" checked={field.value || false} onChange={(e) => field.onChange(e.target.checked)} />}
+                label="Locale Dedicato"
               />
             )}
           />
         </Grid>
 
-        {/* Lontano da Fonti di Calore */}
-        <Grid item xs={12} md={4}>
-          <Controller
-            name="dati_impianto.lontano_fonti_calore"
-            control={control}
-            render={({ field }) => (
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={field.value || false}
-                    onChange={(e) => field.onChange(e.target.checked)}
-                  />
-                }
-                label="Lontano da Fonti di Calore"
-              />
-            )}
-          />
+        {!localeDedicato && (
+          <Grid item xs={12} sm md={3}>
+            <Controller
+              name="dati_impianto.locale_condiviso_con"
+              control={control}
+              render={({ field }) => (
+                <TextField {...field} label="Locale Condiviso Con" size="small" fullWidth placeholder="Se condiviso, con chi" />
+              )}
+            />
+          </Grid>
+        )}
+
+        {/* RIGA 3: condizioni (checkbox su una riga) */}
+        <Grid item xs={12}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', columnGap: 3, rowGap: 0.5 }}>
+            <Controller
+              name="dati_impianto.accesso_locale_vietato"
+              control={control}
+              render={({ field }) => (
+                <FormControlLabel control={<Checkbox size="small" checked={field.value || false} onChange={(e) => field.onChange(e.target.checked)} />} label="Accesso al Locale Vietato" />
+              )}
+            />
+            <Controller
+              name="dati_impianto.lontano_fonti_calore"
+              control={control}
+              render={({ field }) => (
+                <FormControlLabel control={<Checkbox size="small" checked={field.value || false} onChange={(e) => field.onChange(e.target.checked)} />} label="Lontano da Fonti di Calore" />
+              )}
+            />
+            <Controller
+              name="dati_impianto.lontano_materiale_infiammabile"
+              control={control}
+              render={({ field }) => (
+                <FormControlLabel control={<Checkbox size="small" checked={field.value || false} onChange={(e) => field.onChange(e.target.checked)} />} label="Lontano da Materiale Infiammabile" />
+              )}
+            />
+          </Box>
         </Grid>
 
-        {/* Lontano da Materiale Infiammabile - NUOVO */}
-        <Grid item xs={12} md={4}>
-          <Controller
-            name="dati_impianto.lontano_materiale_infiammabile"
-            control={control}
-            render={({ field }) => (
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={field.value || false}
-                    onChange={(e) => field.onChange(e.target.checked)}
-                  />
-                }
-                label="Lontano da Materiale Infiammabile"
-              />
-            )}
-          />
-        </Grid>
-
-        {/* Fonti di Calore / Materiali Infiammabili Vicini - RINOMINATO */}
+        {/* RIGA 4: testi liberi */}
         <Grid item xs={12} md={4}>
           <Controller
             name="dati_impianto.fonti_calore_materiali_infiammabili"
             control={control}
             render={({ field }) => (
-              <TextField
-                {...field}
-                label="Fonti di Calore / Materiali Infiammabili Vicini"
-                size="small"
-                fullWidth
-                placeholder="Specificare eventuali fonti o materiali"
-              />
+              <TextField {...field} label="Fonti Calore / Materiali Infiammabili Vicini" size="small" fullWidth placeholder="Specificare fonti o materiali" />
             )}
           />
         </Grid>
-
-        {/* Fonti di Calore Vicine - DEPRECATED nascosto */}
-        <Grid item xs={12} md={4} sx={{ display: 'none' }}>
-          <Controller
-            name="dati_impianto.fonti_calore_vicine"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label="Fonti di Calore Vicine (deprecated)"
-                fullWidth
-                disabled
-              />
-            )}
-          />
-        </Grid>
-
-        {/* Diametri Collegamenti in Sala */}
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} sm={6} md={4}>
           <Controller
             name="dati_impianto.diametri_collegamenti_sala"
             control={control}
             render={({ field }) => (
-              <TextField
-                {...field}
-                label="Diametri Collegamenti in Sala"
-                size="small"
-                fullWidth
-                placeholder={'Es: 1/2", 3/4"'}
-              />
+              <TextField {...field} label="Diametri Collegamenti in Sala" size="small" fullWidth placeholder={'Es: 1/2", 3/4"'} />
             )}
           />
         </Grid>
-
-        {/* Diametri Linee di Distribuzione */}
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} sm={6} md={4}>
           <Controller
             name="dati_impianto.diametri_linee_distribuzione"
             control={control}
             render={({ field }) => (
-              <TextField
-                {...field}
-                label="Diametri Linee di Distribuzione"
-                size="small"
-                fullWidth
-                placeholder={'Es: 1", 1 1/4"'}
-              />
+              <TextField {...field} label="Diametri Linee di Distribuzione" size="small" fullWidth placeholder={'Es: 1", 1 1/4"'} />
             )}
           />
+        </Grid>
+
+        {/* Campi DEPRECATED mantenuti nascosti */}
+        <Grid item xs={12} sx={{ display: 'none' }}>
+          <Controller name="dati_impianto.indirizzo_impianto" control={control} render={({ field }) => (<TextField {...field} disabled />)} />
+          <Controller name="dati_impianto.fonti_calore_vicine" control={control} render={({ field }) => (<TextField {...field} disabled />)} />
         </Grid>
       </Grid>
     </Box>

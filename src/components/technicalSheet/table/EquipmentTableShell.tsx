@@ -51,14 +51,14 @@ export const EquipmentTableShell = ({
           width: '100%',
           minWidth: 'max-content',
           '& th': {
-            position: 'sticky', top: 0, zIndex: 2, textAlign: 'left', whiteSpace: 'nowrap',
-            fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.03em', textTransform: 'uppercase',
-            color: 'text.primary', bgcolor: alpha(color, 0.16), p: '5px 8px',
+            position: 'sticky', top: 0, zIndex: 2, textAlign: 'left', whiteSpace: 'normal',
+            lineHeight: 1.1, verticalAlign: 'bottom',
+            fontSize: '0.66rem', fontWeight: 700, letterSpacing: '0.02em', textTransform: 'uppercase',
+            color: 'text.primary', bgcolor: alpha(color, 0.16), p: '4px 6px',
             borderBottom: '2px solid', borderColor: alpha(color, 0.5),
           },
           '& th.num': { textAlign: 'right' },
           '& th.ctr': { textAlign: 'center' },
-          '& .MuiAutocomplete-root': { minWidth: 150 },
         }}
       >
         {children}

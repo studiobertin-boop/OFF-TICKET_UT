@@ -104,7 +104,7 @@ const EssiccatoreRow = ({
                   equipmentType="Essiccatori"
                   marcaValue={m.value || ''} modelloValue={mo.value || ''}
                   onMarcaChange={m.onChange} onModelloChange={mo.onChange}
-                  size="small" fullWidth
+                  dense size="small" fullWidth
                 />
               )} />
             )} />
@@ -123,6 +123,9 @@ const EssiccatoreRow = ({
       {haScambiatore && scambiatoreIndex !== -1 && (
         <SubBand colSpan={colCount} color={ESSICCATORE_COLOR}>
           <SubBandLabel>{code}.1 · Scambiatore</SubBandLabel>
+          <Box sx={{ alignSelf: 'center' }}>
+            <SingleOCRButton equipmentType="Scambiatori" equipmentIndex={scambiatoreIndex} onOCRComplete={handleScambiatoreOCR} />
+          </Box>
           <Box sx={{ minWidth: 260, flex: '1 1 300px', '& .MuiInputBase-root': { fontSize: '0.82rem' } }}>
             <Controller name={`${sbase}.marca`} control={control} render={({ field: m }) => (
               <Controller name={`${sbase}.modello`} control={control} render={({ field: mo }) => (
@@ -130,7 +133,7 @@ const EssiccatoreRow = ({
                   equipmentType="Scambiatori"
                   marcaValue={m.value || ''} modelloValue={mo.value || ''}
                   onMarcaChange={m.onChange} onModelloChange={mo.onChange}
-                  size="small" fullWidth
+                  dense size="small" fullWidth
                 />
               )} />
             )} />
@@ -141,9 +144,6 @@ const EssiccatoreRow = ({
           {adv && <Field label="TS °C" w={70}><NumberCell control={control} name={`${sbase}.ts_temperatura`} min={50} max={250} /></Field>}
           {adv && <Field label="Volume L" w={80}><NumberCell control={control} name={`${sbase}.volume`} min={50} max={5000} /></Field>}
           {adv && <Field label="Cat. PED" w={90}><SelectCell control={control} name={`${sbase}.categoria_ped`} options={PED_OPTIONS} /></Field>}
-          <Box sx={{ ml: 'auto', alignSelf: 'center' }}>
-            <SingleOCRButton equipmentType="Scambiatori" equipmentIndex={scambiatoreIndex} onOCRComplete={handleScambiatoreOCR} />
-          </Box>
         </SubBand>
       )}
     </>

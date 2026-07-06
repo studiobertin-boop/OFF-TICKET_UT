@@ -38,7 +38,17 @@ interface EquipmentAutocompleteProps {
   readOnly?: boolean
   size?: 'small' | 'medium'
   fullWidth?: boolean
+  /** Modalità cella: input senza bordo/etichetta, opzioni piccole, popup più largo */
+  dense?: boolean
 }
+
+// Slot props condivisi per la modalità dense (popup più largo della colonna, opzioni piccole)
+const denseSlotProps = {
+  popper: { sx: { minWidth: 260 } },
+  paper: { sx: { '& .MuiAutocomplete-option': { fontSize: '0.78rem', minHeight: 30, py: 0.25 } } },
+} as const
+
+const denseInputSx = { '& .MuiInputBase-input': { fontSize: '0.8rem', py: 0.5 } }
 
 /**
  * Componente Autocomplete con filtri cascata per apparecchiature
@@ -62,6 +72,7 @@ export const EquipmentAutocomplete = ({
   readOnly = false,
   size = 'small',
   fullWidth = true,
+  dense = false,
 }: EquipmentAutocompleteProps) => {
   const [marcheOptions, setMarcheOptions] = useState<string[]>([])
   const [modelliOptions, setModelliOptions] = useState<string[]>([])
@@ -223,7 +234,7 @@ export const EquipmentAutocomplete = ({
   }
 
   return (
-    <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+    <Box sx={{ display: 'flex', gap: dense ? 1 : 2, alignItems: 'flex-start' }}>
       {/* Marca Autocomplete */}
       <Autocomplete
         freeSolo
@@ -240,13 +251,17 @@ export const EquipmentAutocomplete = ({
         }}
         options={marcheOptions}
         loading={loadingMarche}
+        slotProps={dense ? denseSlotProps : undefined}
         renderInput={(params) => (
           <TextField
             {...params}
-            label="Marca"
-            placeholder="Seleziona o digita..."
+            label={dense ? undefined : 'Marca'}
+            placeholder={dense ? 'Marca' : 'Seleziona o digita...'}
+            variant={dense ? 'standard' : 'outlined'}
+            sx={dense ? denseInputSx : undefined}
             InputProps={{
               ...params.InputProps,
+              disableUnderline: dense || undefined,
               endAdornment: (
                 <>
                   {loadingMarche ? <CircularProgress color="inherit" size={20} /> : null}
@@ -282,13 +297,17 @@ export const EquipmentAutocomplete = ({
         }}
         options={modelliOptions}
         loading={loadingModelli}
+        slotProps={dense ? denseSlotProps : undefined}
         renderInput={(params) => (
           <TextField
             {...params}
-            label="Modello"
-            placeholder={marcaValue ? 'Seleziona o digita...' : 'Prima seleziona marca'}
+            label={dense ? undefined : 'Modello'}
+            placeholder={dense ? 'Modello' : (marcaValue ? 'Seleziona o digita...' : 'Prima seleziona marca')}
+            variant={dense ? 'standard' : 'outlined'}
+            sx={dense ? denseInputSx : undefined}
             InputProps={{
               ...params.InputProps,
+              disableUnderline: dense || undefined,
               endAdornment: (
                 <>
                   {loadingModelli ? <CircularProgress color="inherit" size={20} /> : null}

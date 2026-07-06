@@ -46,7 +46,7 @@ const SeparatoreRow = ({ control, index, onRemove }: { control: Control<any>; in
                 equipmentType="Separatori"
                 marcaValue={m.value || ''} modelloValue={mo.value || ''}
                 onMarcaChange={m.onChange} onModelloChange={mo.onChange}
-                size="small" fullWidth
+                dense size="small" fullWidth
               />
             )} />
           )} />

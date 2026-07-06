@@ -85,7 +85,7 @@ const FiltroRow = ({
                   equipmentType="Filtri"
                   marcaValue={m.value || ''} modelloValue={mo.value || ''}
                   onMarcaChange={m.onChange} onModelloChange={mo.onChange}
-                  size="small" fullWidth
+                  dense size="small" fullWidth
                 />
               )} />
             )} />
@@ -104,6 +104,9 @@ const FiltroRow = ({
       {showRecipiente && haRecipiente && recipienteIndex !== -1 && (
         <SubBand colSpan={colCount} color={FILTRO_COLOR}>
           <SubBandLabel>{code}.1 · Recipiente filtro</SubBandLabel>
+          <Box sx={{ alignSelf: 'center' }}>
+            <SingleOCRButton equipmentType="Recipienti filtro" equipmentIndex={recipienteIndex} onOCRComplete={handleRecipienteOCR} />
+          </Box>
           <Box sx={{ minWidth: 260, flex: '1 1 300px', '& .MuiInputBase-root': { fontSize: '0.82rem' } }}>
             <Controller name={`${rbase}.marca`} control={control} render={({ field: m }) => (
               <Controller name={`${rbase}.modello`} control={control} render={({ field: mo }) => (
@@ -111,7 +114,7 @@ const FiltroRow = ({
                   equipmentType="Recipienti filtro"
                   marcaValue={m.value || ''} modelloValue={mo.value || ''}
                   onMarcaChange={m.onChange} onModelloChange={mo.onChange}
-                  size="small" fullWidth
+                  dense size="small" fullWidth
                 />
               )} />
             )} />
@@ -122,9 +125,6 @@ const FiltroRow = ({
           <Field label="TS °C" w={70}><NumberCell control={control} name={`${rbase}.ts_temperatura`} min={50} max={250} /></Field>
           <Field label="Volume L" w={80}><NumberCell control={control} name={`${rbase}.volume`} min={50} max={5000} /></Field>
           <Field label="Note" w={160}><TextCell control={control} name={`${rbase}.note`} placeholder="Note" /></Field>
-          <Box sx={{ ml: 'auto', alignSelf: 'center' }}>
-            <SingleOCRButton equipmentType="Recipienti filtro" equipmentIndex={recipienteIndex} onOCRComplete={handleRecipienteOCR} />
-          </Box>
         </SubBand>
       )}
     </>

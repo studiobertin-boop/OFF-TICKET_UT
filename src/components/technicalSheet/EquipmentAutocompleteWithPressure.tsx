@@ -43,7 +43,16 @@ interface EquipmentAutocompleteWithPressureProps {
   readOnly?: boolean
   size?: 'small' | 'medium'
   fullWidth?: boolean
+  /** Modalità cella: input senza bordo/etichetta, opzioni piccole, popup più largo */
+  dense?: boolean
 }
+
+const denseSlotProps = {
+  popper: { sx: { minWidth: 260 } },
+  paper: { sx: { '& .MuiAutocomplete-option': { fontSize: '0.78rem', minHeight: 30, py: 0.25 } } },
+} as const
+
+const denseInputSx = { '& .MuiInputBase-input': { fontSize: '0.8rem', py: 0.5 } }
 
 /**
  * Componente Autocomplete con 3 step per apparecchiature che richiedono pressione
@@ -75,6 +84,7 @@ export const EquipmentAutocompleteWithPressure = ({
   disabled = false,
   readOnly = false,
   size = 'small',
+  dense = false,
   // fullWidth prop accepted but not used directly (layout is flex-based)
 }: EquipmentAutocompleteWithPressureProps) => {
   // Options state
@@ -319,11 +329,11 @@ export const EquipmentAutocompleteWithPressure = ({
   }
 
   return (
-    <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+    <Box sx={{ display: 'flex', gap: dense ? 1 : 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
       {/* Marca Autocomplete */}
       <Autocomplete
         freeSolo
-        sx={{ minWidth: 180, flex: 1 }}
+        sx={{ minWidth: dense ? 130 : 180, flex: 1 }}
         size={size}
         disabled={disabled || readOnly}
         value={marcaValue}
@@ -335,16 +345,18 @@ export const EquipmentAutocompleteWithPressure = ({
         }}
         options={marcheOptions}
         loading={loadingMarche}
+        slotProps={dense ? denseSlotProps : undefined}
         renderInput={(params) => (
           <TextField
             {...params}
-            label="Marca"
-            placeholder="Seleziona o digita..."
-            InputLabelProps={{
-              shrink: true,
-            }}
+            label={dense ? undefined : 'Marca'}
+            placeholder={dense ? 'Marca' : 'Seleziona o digita...'}
+            variant={dense ? 'standard' : 'outlined'}
+            sx={dense ? denseInputSx : undefined}
+            InputLabelProps={dense ? undefined : { shrink: true }}
             InputProps={{
               ...params.InputProps,
+              disableUnderline: dense || undefined,
               endAdornment: (
                 <>
                   {loadingMarche ? <CircularProgress color="inherit" size={20} /> : null}
@@ -367,7 +379,7 @@ export const EquipmentAutocompleteWithPressure = ({
       {/* Modello Autocomplete */}
       <Autocomplete
         freeSolo
-        sx={{ minWidth: 180, flex: 1 }}
+        sx={{ minWidth: dense ? 130 : 180, flex: 1 }}
         size={size}
         disabled={disabled || readOnly || !marcaValue}
         value={modelloValue}
@@ -379,16 +391,18 @@ export const EquipmentAutocompleteWithPressure = ({
         }}
         options={modelliOptions}
         loading={loadingModelli}
+        slotProps={dense ? denseSlotProps : undefined}
         renderInput={(params) => (
           <TextField
             {...params}
-            label="Modello"
-            placeholder={marcaValue ? 'Seleziona o digita...' : 'Prima seleziona marca'}
-            InputLabelProps={{
-              shrink: true,
-            }}
+            label={dense ? undefined : 'Modello'}
+            placeholder={dense ? 'Modello' : (marcaValue ? 'Seleziona o digita...' : 'Prima seleziona marca')}
+            variant={dense ? 'standard' : 'outlined'}
+            sx={dense ? denseInputSx : undefined}
+            InputLabelProps={dense ? undefined : { shrink: true }}
             InputProps={{
               ...params.InputProps,
+              disableUnderline: dense || undefined,
               endAdornment: (
                 <>
                   {loadingModelli ? <CircularProgress color="inherit" size={20} /> : null}
@@ -408,7 +422,7 @@ export const EquipmentAutocompleteWithPressure = ({
       {/* Pressione Autocomplete (terzo campo) */}
       <Autocomplete
         freeSolo
-        sx={{ minWidth: 150, flex: 0.8 }}
+        sx={{ minWidth: dense ? 90 : 150, flex: 0.8 }}
         size={size}
         disabled={disabled || readOnly || !modelloValue}
         value={pressioneValue !== undefined ? pressioneValue : null}
@@ -425,17 +439,19 @@ export const EquipmentAutocompleteWithPressure = ({
           if (option === null || option === undefined) return ''
           return typeof option === 'number' ? option.toString() : option
         }}
+        slotProps={dense ? denseSlotProps : undefined}
         renderInput={(params) => (
           <TextField
             {...params}
-            label={pressioneLabel}
+            label={dense ? undefined : pressioneLabel}
             type="number"
-            placeholder={modelloValue ? 'Seleziona o digita...' : 'Prima seleziona modello'}
-            InputLabelProps={{
-              shrink: true,
-            }}
+            placeholder={dense ? pressioneLabel : (modelloValue ? 'Seleziona o digita...' : 'Prima seleziona modello')}
+            variant={dense ? 'standard' : 'outlined'}
+            sx={dense ? denseInputSx : undefined}
+            InputLabelProps={dense ? undefined : { shrink: true }}
             InputProps={{
               ...params.InputProps,
+              disableUnderline: dense || undefined,
               endAdornment: (
                 <>
                   {loadingPressioni ? <CircularProgress color="inherit" size={20} /> : null}

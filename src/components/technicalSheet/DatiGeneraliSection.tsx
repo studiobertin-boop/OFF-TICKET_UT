@@ -43,7 +43,7 @@ export const DatiGeneraliSection = ({
     <Box>
       <Grid container spacing={1.5}>
         {/* Data Sopralluogo */}
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={2}>
           <Controller
             name="dati_generali.data_sopralluogo"
             control={control}
@@ -67,7 +67,7 @@ export const DatiGeneraliSection = ({
         </Grid>
 
         {/* Nome Tecnico */}
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={2}>
           <Controller
             name="dati_generali.nome_tecnico"
             control={control}
@@ -88,7 +88,7 @@ export const DatiGeneraliSection = ({
         </Grid>
 
         {/* Cliente */}
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={2}>
           <Controller
             name="dati_generali.cliente"
             control={control}
@@ -176,7 +176,7 @@ export const DatiGeneraliSection = ({
         </Grid>
 
         {/* Note Generali */}
-        <Grid item xs={12}>
+        <Grid item xs={12} md={3}>
           <Controller
             name="dati_generali.note_generali"
             control={control}
@@ -187,7 +187,8 @@ export const DatiGeneraliSection = ({
                 size="small"
                 fullWidth
                 multiline
-                rows={2}
+                minRows={1}
+                maxRows={6}
                 error={!!errors?.dati_generali?.note_generali}
                 helperText={errors?.dati_generali?.note_generali?.message}
                 placeholder="Note aggiuntive sul sopralluogo..."
