@@ -84,6 +84,8 @@ export interface Serbatoio {
   ancorato_terra?: boolean
   scarico?: ScaricoOption // Select singola
   note?: string
+  gia_denunciato?: boolean // NUOVO - flag "già denunciato"
+  matricola_inail?: string // NUOVO - Matricola INAIL (testo libero)
   valvola_sicurezza: ValvolaSicurezza // OBBLIGATORIA
   manometro?: Manometro
   foto_targhetta?: string // URL o base64
@@ -126,6 +128,8 @@ export interface Disoleatore {
   ts?: string // TS libero (valore singolo o intervallo, es. "-10 ÷ +100") - precompilato da catalogo
   categoria_ped?: CategoriaPED // NUOVO - Select I/II/III/IV - NON visibile a tecnicoDM329
   note?: string
+  gia_denunciato?: boolean // NUOVO - flag "già denunciato"
+  matricola_inail?: string // NUOVO - Matricola INAIL (testo libero)
   valvola_sicurezza: ValvolaSicurezza // OBBLIGATORIA
   foto_targhetta?: string
 }
@@ -186,6 +190,8 @@ export interface RecipienteFiltro {
   ts?: string // TS libero (valore singolo o intervallo) - precompilato da catalogo
   volume?: number // litri (intero, min 50, max 5000) - NON visibile a tecnicoDM329
   note?: string // NON visibile a tecnicoDM329
+  gia_denunciato?: boolean // NUOVO - flag "già denunciato"
+  matricola_inail?: string // NUOVO - Matricola INAIL (testo libero)
   foto_targhetta?: string // NON visibile a tecnicoDM329
 }
 

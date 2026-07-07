@@ -104,26 +104,26 @@ const EqRow = ({ control, def, base, code, depth, adv, ocr, onDelete, append }: 
   const catCell = () => {
     if (hidden('cat') || def.cat === false) return null
     if (def.cat === 'IV') return <ComputedCell value="IV" />
-    return <SelectCell control={control} name={`${base}.categoria_ped`} options={PED_OPTIONS} />
+    return <SelectCell control={control} name={`${base}.categoria_ped`} options={PED_OPTIONS} w={58} />
   }
 
   return (
     <>
       <Box component="tr" sx={{ '&:hover > td': { bgcolor: alpha(color, 0.06) } }}>
         {/* AZIONI (a inizio riga) */}
-        <Box component="td" sx={{ ...cellTdSx, px: 0.5, whiteSpace: 'nowrap' }}>
-          <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center' }}>
+        <Box component="td" sx={{ ...cellTdSx, px: 0.25, whiteSpace: 'nowrap', width: 1 }}>
+          <Box sx={{ display: 'flex', gap: 0, alignItems: 'center', '& .MuiIconButton-root': { p: 0.25 } }}>
             {def.extra.length > 0 ? (
-              <IconButton size="small" onClick={() => setExpanded((e) => !e)} sx={{ p: 0.25 }}>
+              <IconButton size="small" onClick={() => setExpanded((e) => !e)}>
                 {expanded ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
               </IconButton>
-            ) : <Box sx={{ width: 22 }} />}
+            ) : <Box sx={{ width: 20 }} />}
             <SingleOCRButton equipmentType={ocr.equipmentType} equipmentIndex={ocr.equipmentIndex} componentType={ocr.componentType} onOCRComplete={(d) => applyOcr(def, base, d, setValue)} />
-            {onDelete && (
+            {onDelete ? (
               <Tooltip title={`Elimina ${def.label.toLowerCase()}`}><span>
                 <IconButton size="small" color="error" onClick={onDelete}><DeleteIcon fontSize="small" /></IconButton>
               </span></Tooltip>
-            )}
+            ) : <Box sx={{ width: 26 }} />}
             {append && (
               <Tooltip title={`Appendi ${append.label.toLowerCase()}`}>
                 <IconButton size="small" color="primary" onClick={append.onClick}><AddLinkIcon fontSize="small" /></IconButton>
@@ -133,17 +133,17 @@ const EqRow = ({ control, def, base, code, depth, adv, ocr, onDelete, append }: 
         </Box>
 
         {/* COD. */}
-        <Box component="td" sx={{ ...cellTdSx, pl: 1 + depth * 2, whiteSpace: 'nowrap', fontWeight: depth === 0 ? 700 : 600, color: depth === 0 ? color : 'text.secondary', fontSize: depth === 0 ? '0.82rem' : '0.76rem' }}>{code}</Box>
+        <Box component="td" sx={{ ...cellTdSx, pl: `${4 + depth * 12}px`, pr: 0.5, whiteSpace: 'nowrap', fontWeight: depth === 0 ? 700 : 600, color: depth === 0 ? color : 'text.secondary', fontSize: depth === 0 ? '0.82rem' : '0.76rem' }}>{code}</Box>
 
         {/* MARCA / MOD. */}
         {modelloHidden ? (
           <>
-            <Box component="td" sx={cellTdSx}><TextCell control={control} name={`${base}.marca`} placeholder="Marca" /></Box>
+            <Box component="td" sx={cellTdSx}><TextCell control={control} name={`${base}.marca`} placeholder="Marca" w={180} /></Box>
             <Box component="td" sx={cellTdSx} />
           </>
         ) : (
           <Box component="td" colSpan={2} sx={cellTdSx}>
-            <Box sx={{ px: 0.5 }}>
+            <Box sx={{ px: 0.5, minWidth: 380 }}>
               <Controller name={`${base}.marca`} control={control} render={({ field: m }) => (
                 <Controller name={`${base}.modello`} control={control} render={({ field: mo }) => (
                   <EquipmentAutocomplete equipmentType={def.catalogType} dense
@@ -157,24 +157,24 @@ const EqRow = ({ control, def, base, code, depth, adv, ocr, onDelete, append }: 
         )}
 
         {/* CAPACITÀ */}
-        <Box component="td" sx={cellTdSx}>{def.capacitaField && !hidden('capacita') ? <NumberCell control={control} name={`${base}.${def.capacitaField}`} min={0} max={100000} step={def.kind === 'valvola' || def.capacitaField.startsWith('volume_aria') ? 1 : 1} /> : null}</Box>
+        <Box component="td" sx={cellTdSx}>{def.capacitaField && !hidden('capacita') ? <NumberCell control={control} name={`${base}.${def.capacitaField}`} min={0} max={100000} step={1} w={66} /> : null}</Box>
         {/* PRESSIONE */}
-        <Box component="td" sx={cellTdSx}>{def.pressioneField && !hidden('pressione') ? <NumberCell control={control} name={`${base}.${def.pressioneField}`} min={0} max={100} step={0.1} /> : null}</Box>
+        <Box component="td" sx={cellTdSx}>{def.pressioneField && !hidden('pressione') ? <NumberCell control={control} name={`${base}.${def.pressioneField}`} min={0} max={100} step={0.1} w={52} /> : null}</Box>
         {/* TS (testo libero) */}
-        <Box component="td" sx={cellTdSx}>{def.ts && !hidden('ts') ? <TextCell control={control} name={`${base}.ts`} placeholder="°C / ÷" /> : null}</Box>
+        <Box component="td" sx={cellTdSx}>{def.ts && !hidden('ts') ? <TextCell control={control} name={`${base}.ts`} placeholder="°C / ÷" w={78} /> : null}</Box>
         {/* CAT. */}
         <Box component="td" sx={cellTdSx}>{catCell()}</Box>
         {/* ANNO */}
-        <Box component="td" sx={cellTdSx}><NumberCell control={control} name={`${base}.anno`} min={1980} max={2100} /></Box>
+        <Box component="td" sx={cellTdSx}><NumberCell control={control} name={`${base}.anno`} min={1980} max={2100} w={50} /></Box>
         {/* N.F. */}
-        <Box component="td" sx={cellTdSx}><TextCell control={control} name={`${base}.n_fabbrica`} placeholder="N° fabbrica" /></Box>
+        <Box component="td" sx={cellTdSx}><TextCell control={control} name={`${base}.n_fabbrica`} placeholder="N° fabbrica" w={140} /></Box>
       </Box>
 
       {/* RIGA ESPANSA: campi extra del tipo */}
       {expanded && def.extra.length > 0 && (
         <Box component="tr">
           <Box component="td" colSpan={COL_COUNT} sx={{ ...cellTdSx, bgcolor: alpha(color, 0.05) }}>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 1.5, px: 2, py: 1, pl: 2 + depth * 2 }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 1.5, px: 1.5, py: 1 }}>
               <Typography component="span" sx={{ fontSize: '0.7rem', fontWeight: 700, color, alignSelf: 'center', pr: 0.5 }}>{code} · dettagli</Typography>
               {def.extra.map((f) => (
                 <Field key={f.name} label={f.label} w={f.kind === 'check' ? 'auto' as any : (f.kind === 'text' ? 150 : 90)}>

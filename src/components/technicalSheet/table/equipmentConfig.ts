@@ -50,6 +50,10 @@ export const FINITURA_ABBR: Record<string, string> = { VERNICIATO: 'V', ZINCATO:
 export const SCARICO_ABBR: Record<string, string> = { AUTOMATICO: 'A', MANUALE: 'M', ASSENTE: '—' }
 
 const NOTE_EXTRA: ExtraFieldDef = { name: 'note', label: 'Note', kind: 'text' }
+const DENUNCIA_EXTRA: ExtraFieldDef[] = [
+  { name: 'gia_denunciato', label: 'Già denunciato', kind: 'check' },
+  { name: 'matricola_inail', label: 'Matr. INAIL', kind: 'text' },
+]
 
 export const EQUIPMENT_DEFS: Record<EquipmentKind, EquipmentTypeDef> = {
   serbatoio: {
@@ -61,7 +65,7 @@ export const EQUIPMENT_DEFS: Record<EquipmentKind, EquipmentTypeDef> = {
       { name: 'ancorato_terra', label: 'Ancorato a terra', kind: 'check' },
       { name: 'manometro.fondo_scala', label: 'Man. fondo scala', kind: 'number', min: 10, max: 30, step: 0.1 },
       { name: 'manometro.segno_rosso', label: 'Man. segno rosso', kind: 'number', min: 10, max: 30, step: 0.1 },
-      NOTE_EXTRA,
+      NOTE_EXTRA, ...DENUNCIA_EXTRA,
     ],
     specsMap: { volume: 'volume', ps: 'ps_pressione_max', ts: 'ts', categoria_ped: 'categoria_ped' },
     mandatoryValvola: true,
@@ -70,7 +74,7 @@ export const EQUIPMENT_DEFS: Record<EquipmentKind, EquipmentTypeDef> = {
   compressore: {
     kind: 'compressore', label: 'Compressore', prefix: 'C', catalogType: 'Compressori',
     capacitaField: 'volume_aria_prodotto', pressioneField: 'pressione_max', ts: false, cat: false, autoPed: false,
-    extra: [{ name: 'materiale_n', label: 'Materiale N°', kind: 'text' }, NOTE_EXTRA],
+    extra: [NOTE_EXTRA],
     specsMap: { fad: 'volume_aria_prodotto', ps: 'pressione_max' },
     childKind: 'disoleatore',
     adv: ['capacita'],
@@ -78,7 +82,7 @@ export const EQUIPMENT_DEFS: Record<EquipmentKind, EquipmentTypeDef> = {
   disoleatore: {
     kind: 'disoleatore', label: 'Disoleatore', prefix: 'C', catalogType: 'Disoleatori',
     capacitaField: 'volume', pressioneField: 'ps_pressione_max', ts: true, cat: 'edit', autoPed: false,
-    extra: [NOTE_EXTRA],
+    extra: [NOTE_EXTRA, ...DENUNCIA_EXTRA],
     specsMap: { volume: 'volume', ps: 'ps_pressione_max', ts: 'ts', categoria_ped: 'categoria_ped' },
     mandatoryValvola: true,
     adv: ['pressione', 'ts', 'cat'],
@@ -108,7 +112,7 @@ export const EQUIPMENT_DEFS: Record<EquipmentKind, EquipmentTypeDef> = {
   recipiente: {
     kind: 'recipiente', label: 'Recipiente filtro', prefix: 'F', catalogType: 'Recipienti filtro',
     capacitaField: 'volume', pressioneField: 'ps_pressione_max', ts: true, cat: false, autoPed: false,
-    extra: [NOTE_EXTRA],
+    extra: [NOTE_EXTRA, ...DENUNCIA_EXTRA],
     specsMap: { volume: 'volume', ps: 'ps_pressione_max', ts: 'ts' },
     roleHidden: true,
   },

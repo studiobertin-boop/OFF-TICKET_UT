@@ -33,6 +33,13 @@ const baseInputSx = {
     borderRadius: 1,
     bgcolor: 'background.paper',
   },
+  // Evita che il browser colori di bianco/giallo i campi autocompletati (es. N.F.)
+  '& input:-webkit-autofill, & input:-webkit-autofill:hover, & input:-webkit-autofill:focus': {
+    WebkitBoxShadow: (t: any) => `0 0 0 1000px ${t.palette.background.paper} inset`,
+    WebkitTextFillColor: (t: any) => t.palette.text.primary,
+    caretColor: (t: any) => t.palette.text.primary,
+    transition: 'background-color 9999s ease-out',
+  },
 }
 
 const errorSx = {
@@ -46,7 +53,7 @@ interface CellBase {
   disabled?: boolean
 }
 
-export const TextCell = ({ control, name, placeholder, disabled }: CellBase & { placeholder?: string }) => (
+export const TextCell = ({ control, name, placeholder, disabled, w }: CellBase & { placeholder?: string; w?: number }) => (
   <Controller
     name={name}
     control={control}
@@ -57,7 +64,8 @@ export const TextCell = ({ control, name, placeholder, disabled }: CellBase & { 
           value={field.value ?? ''}
           placeholder={placeholder ?? '—'}
           disabled={disabled}
-          sx={{ ...baseInputSx, ...(fieldState.error ? errorSx : {}) }}
+          inputProps={{ autoComplete: 'off' }}
+          sx={{ ...baseInputSx, ...(w ? { width: w } : {}), ...(fieldState.error ? errorSx : {}) }}
         />
       </Tooltip>
     )}
@@ -65,8 +73,8 @@ export const TextCell = ({ control, name, placeholder, disabled }: CellBase & { 
 )
 
 export const NumberCell = ({
-  control, name, min, max, step, placeholder, disabled,
-}: CellBase & { min?: number; max?: number; step?: number; placeholder?: string }) => (
+  control, name, min, max, step, placeholder, disabled, w,
+}: CellBase & { min?: number; max?: number; step?: number; placeholder?: string; w?: number }) => (
   <Controller
     name={name}
     control={control}
@@ -83,15 +91,15 @@ export const NumberCell = ({
           onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
           placeholder={placeholder ?? '—'}
           disabled={disabled}
-          inputProps={{ min, max, step, style: { textAlign: 'right', fontVariantNumeric: 'tabular-nums' } }}
-          sx={{ ...baseInputSx, ...(fieldState.error ? errorSx : {}) }}
+          inputProps={{ min, max, step, autoComplete: 'off', style: { textAlign: 'right', fontVariantNumeric: 'tabular-nums' } }}
+          sx={{ ...baseInputSx, ...(w ? { width: w } : {}), ...(fieldState.error ? errorSx : {}) }}
         />
       </Tooltip>
     )}
   />
 )
 
-export const SelectCell = ({ control, name, options, disabled, display }: CellBase & { options: string[]; display?: Record<string, string> }) => (
+export const SelectCell = ({ control, name, options, disabled, display, w }: CellBase & { options: string[]; display?: Record<string, string>; w?: number }) => (
   <Controller
     name={name}
     control={control}
@@ -103,13 +111,13 @@ export const SelectCell = ({ control, name, options, disabled, display }: CellBa
         variant="standard"
         disableUnderline
         displayEmpty
-        fullWidth
+        fullWidth={!w}
         renderValue={(v) => {
           const val = (v as string) || ''
           if (!val) return <Box component="span" sx={{ color: 'text.disabled' }}>—</Box>
           return display ? (display[val] ?? val) : val
         }}
-        sx={{ fontSize: '0.82rem', px: 1, '& .MuiSelect-select': { py: 0.4 } }}
+        sx={{ fontSize: '0.82rem', px: 1, '& .MuiSelect-select': { py: 0.4 }, ...(w ? { width: w } : {}) }}
       >
         <MenuItem value=""><em>—</em></MenuItem>
         {options.map((o) => <MenuItem key={o} value={o}>{o}</MenuItem>)}

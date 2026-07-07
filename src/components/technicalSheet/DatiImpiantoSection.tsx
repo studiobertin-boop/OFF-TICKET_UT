@@ -25,10 +25,9 @@ interface DatiImpiantoSectionProps {
 }
 
 /**
- * SEZIONE 2: DATI IMPIANTO — layout compatto e allineato.
- * NB: Sede Impianto / "= Sede Legale" / Denominazione Sala sono stati rimossi
- * da qui perché duplicati: si compilano nella maschera di creazione pratica
- * (e restano modificabili dal dettaglio pratica).
+ * SEZIONE 2: DATI IMPIANTO — tre colonne della stessa larghezza, allineate.
+ * NB: Sede Impianto / "= Sede Legale" / Denominazione Sala rimossi (duplicati:
+ * si compilano nella maschera di creazione pratica).
  */
 export const DatiImpiantoSection = ({
   control,
@@ -40,30 +39,37 @@ export const DatiImpiantoSection = ({
     defaultValue: false,
   })
 
+  const shrink = { shrink: true }
+
   return (
     <Box sx={{ '& .MuiFormControlLabel-label': { fontSize: '0.85rem' } }}>
-      <Grid container spacing={1.5} alignItems="flex-start">
-        {/* RIGA 1: aria + raccolta + locale */}
-        <Grid item xs={12} sm={6} md={3}>
+      <Grid container spacing={1.5}>
+        {/* RIGA 1 — 3 colonne uguali */}
+        <Grid item xs={12} sm={6} md={4}>
           <Controller
             name="dati_impianto.aria_aspirata"
             control={control}
             defaultValue={[]}
             render={({ field }) => (
               <FormControl fullWidth size="small">
-                <InputLabel>Aria Aspirata</InputLabel>
+                <InputLabel shrink>Aria Aspirata</InputLabel>
                 <Select
                   {...field}
                   multiple
+                  displayEmpty
                   value={field.value || []}
-                  input={<OutlinedInput label="Aria Aspirata" />}
-                  renderValue={(selected) => (
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {(selected as string[]).map((value) => (
-                        <Chip key={value} label={value} size="small" />
-                      ))}
-                    </Box>
-                  )}
+                  input={<OutlinedInput notched label="Aria Aspirata" />}
+                  renderValue={(selected) =>
+                    (selected as string[]).length === 0 ? (
+                      <Box component="span" sx={{ color: 'text.disabled' }}>—</Box>
+                    ) : (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {(selected as string[]).map((value) => (
+                          <Chip key={value} label={value} size="small" />
+                        ))}
+                      </Box>
+                    )
+                  }
                 >
                   {ARIA_ASPIRATA_OPTIONS.map((option) => (
                     <MenuItem key={option} value={option}>{option}</MenuItem>
@@ -74,7 +80,7 @@ export const DatiImpiantoSection = ({
           />
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={4}>
           <Controller
             name="dati_impianto.raccolta_condense"
             control={control}
@@ -82,8 +88,10 @@ export const DatiImpiantoSection = ({
             defaultValue=""
             render={({ field }) => (
               <FormControl fullWidth size="small" required error={!!errors?.dati_impianto?.raccolta_condense}>
-                <InputLabel>Raccolta Condense</InputLabel>
-                <Select {...field} value={field.value || ''} label="Raccolta Condense">
+                <InputLabel shrink>Raccolta Condense</InputLabel>
+                <Select {...field} displayEmpty value={field.value || ''} input={<OutlinedInput notched label="Raccolta Condense" />}
+                  renderValue={(v) => (v ? String(v) : <Box component="span" sx={{ color: 'text.disabled' }}>—</Box>)}
+                >
                   {RACCOLTA_CONDENSE_OPTIONS.map((option) => (
                     <MenuItem key={option} value={option}>{option}</MenuItem>
                   ))}
@@ -96,35 +104,28 @@ export const DatiImpiantoSection = ({
           />
         </Grid>
 
-        <Grid item xs={12} sm="auto">
-          <Controller
-            name="dati_impianto.locale_dedicato"
-            control={control}
-            render={({ field }) => (
-              <FormControlLabel
-                sx={{ mt: 0.5 }}
-                control={<Checkbox size="small" checked={field.value || false} onChange={(e) => field.onChange(e.target.checked)} />}
-                label="Locale Dedicato"
-              />
-            )}
-          />
-        </Grid>
-
-        {!localeDedicato && (
-          <Grid item xs={12} sm md={3}>
+        <Grid item xs={12} sm={6} md={4}>
+          {!localeDedicato && (
             <Controller
               name="dati_impianto.locale_condiviso_con"
               control={control}
               render={({ field }) => (
-                <TextField {...field} label="Locale Condiviso Con" size="small" fullWidth placeholder="Se condiviso, con chi" />
+                <TextField {...field} label="Locale Condiviso Con" size="small" fullWidth InputLabelProps={shrink} placeholder="Se condiviso, con chi" />
               )}
             />
-          </Grid>
-        )}
+          )}
+        </Grid>
 
-        {/* RIGA 2: condizioni (checkbox su una riga) */}
+        {/* RIGA 2 — condizioni (checkbox su una riga) */}
         <Grid item xs={12}>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', columnGap: 3, rowGap: 0.5 }}>
+            <Controller
+              name="dati_impianto.locale_dedicato"
+              control={control}
+              render={({ field }) => (
+                <FormControlLabel control={<Checkbox size="small" checked={field.value || false} onChange={(e) => field.onChange(e.target.checked)} />} label="Locale Dedicato" />
+              )}
+            />
             <Controller
               name="dati_impianto.accesso_locale_vietato"
               control={control}
@@ -149,13 +150,13 @@ export const DatiImpiantoSection = ({
           </Box>
         </Grid>
 
-        {/* RIGA 3: testi liberi */}
-        <Grid item xs={12} md={4}>
+        {/* RIGA 3 — 3 colonne uguali */}
+        <Grid item xs={12} sm={6} md={4}>
           <Controller
             name="dati_impianto.fonti_calore_materiali_infiammabili"
             control={control}
             render={({ field }) => (
-              <TextField {...field} label="Fonti Calore / Materiali Infiammabili Vicini" size="small" fullWidth placeholder="Specificare fonti o materiali" />
+              <TextField {...field} label="Fonti Calore / Mat. Infiammabili Vicini" size="small" fullWidth InputLabelProps={shrink} placeholder="Specificare fonti o materiali" />
             )}
           />
         </Grid>
@@ -164,7 +165,7 @@ export const DatiImpiantoSection = ({
             name="dati_impianto.diametri_collegamenti_sala"
             control={control}
             render={({ field }) => (
-              <TextField {...field} label="Diametri Collegamenti in Sala" size="small" fullWidth placeholder={'Es: 1/2", 3/4"'} />
+              <TextField {...field} label="Diametri Collegamenti in Sala" size="small" fullWidth InputLabelProps={shrink} placeholder={'Es: 1/2", 3/4"'} />
             )}
           />
         </Grid>
@@ -173,7 +174,7 @@ export const DatiImpiantoSection = ({
             name="dati_impianto.diametri_linee_distribuzione"
             control={control}
             render={({ field }) => (
-              <TextField {...field} label="Diametri Linee di Distribuzione" size="small" fullWidth placeholder={'Es: 1", 1 1/4"'} />
+              <TextField {...field} label="Diametri Linee di Distribuzione" size="small" fullWidth InputLabelProps={shrink} placeholder={'Es: 1", 1 1/4"'} />
             )}
           />
         </Grid>
