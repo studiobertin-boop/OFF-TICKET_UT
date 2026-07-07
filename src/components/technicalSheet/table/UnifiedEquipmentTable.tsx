@@ -111,7 +111,7 @@ const EqRow = ({ control, def, base, code, depth, adv, ocr, onDelete, append }: 
     <>
       <Box component="tr" sx={{ '&:hover > td': { bgcolor: alpha(color, 0.06) } }}>
         {/* AZIONI (a inizio riga) */}
-        <Box component="td" sx={{ ...cellTdSx, px: 0.25, whiteSpace: 'nowrap', width: 1 }}>
+        <Box component="td" sx={{ ...cellTdSx, px: 0.25, whiteSpace: 'nowrap' }}>
           <Box sx={{ display: 'flex', gap: 0, alignItems: 'center', '& .MuiIconButton-root': { p: 0.25 } }}>
             {def.extra.length > 0 ? (
               <IconButton size="small" onClick={() => setExpanded((e) => !e)}>
