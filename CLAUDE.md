@@ -84,3 +84,11 @@ Claude può interrogare e verificare il DB di produzione direttamente, senza chi
   `curl -s "$URL/rest/v1/<tabella>?select=...&<col>=eq.<val>" -H "apikey: $KEY" -H "Authorization: Bearer $KEY"`
 - `SUPABASE_ACCESS_TOKEN` (`sbp_...`) → **Management API** per DDL/migrations via `.../database/query` (usare `curl`, non urllib — bloccato da Cloudflare).
 Non stampare mai i valori delle chiavi nell'output.
+
+### Accesso diretto Vercel (token in `.env.local`)
+Claude può interrogare Vercel (stato deploy, log, ecc.) via REST API con `curl`, senza login OAuth:
+- `VERCEL_TOKEN` in `.env.local` (git-ignored). IDs progetto da `.vercel/project.json`:
+  `projectId=prj_fAKAZgGjD87vfJynowfdmob7yeDQ`, `teamId=team_P5NpLlWxs4jtIIx5J6dnJsJP`.
+- Ultimi deploy: `curl -s "https://api.vercel.com/v6/deployments?projectId=<PID>&teamId=<TID>&limit=3" -H "Authorization: Bearer $VERCEL_TOKEN"`
+- Log di un deploy: `.../v3/deployments/<id>/events?teamId=<TID>`.
+Deploy di produzione: avviene automaticamente al push su `main` (Production Branch). Non stampare mai il token.
