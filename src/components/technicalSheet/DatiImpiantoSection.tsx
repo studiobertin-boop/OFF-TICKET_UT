@@ -1,4 +1,4 @@
-import { Control, Controller, useWatch, useFormContext } from 'react-hook-form'
+import { Control, Controller, useWatch } from 'react-hook-form'
 import {
   TextField,
   Grid,
@@ -17,7 +17,6 @@ import {
   ARIA_ASPIRATA_OPTIONS,
   RACCOLTA_CONDENSE_OPTIONS,
 } from '@/types'
-import { AddressAutocompleteField } from '@/components/requests/AddressAutocompleteField'
 
 interface DatiImpiantoSectionProps {
   control: Control<any>
@@ -26,23 +25,15 @@ interface DatiImpiantoSectionProps {
 }
 
 /**
- * SEZIONE 2: DATI IMPIANTO — layout compatto e allineato in righe.
- * Logica invariata (sede condizionale, locale condiviso condizionale,
- * aria aspirata multiselect, raccolta condense obbligatoria).
+ * SEZIONE 2: DATI IMPIANTO — layout compatto e allineato.
+ * NB: Sede Impianto / "= Sede Legale" / Denominazione Sala sono stati rimossi
+ * da qui perché duplicati: si compilano nella maschera di creazione pratica
+ * (e restano modificabili dal dettaglio pratica).
  */
 export const DatiImpiantoSection = ({
   control,
   errors,
-  sedeLegale,
 }: DatiImpiantoSectionProps) => {
-  const { setValue } = useFormContext()
-
-  const sedeImpUgualeLegale = useWatch({
-    control,
-    name: 'dati_impianto.sede_imp_uguale_legale',
-    defaultValue: false,
-  })
-
   const localeDedicato = useWatch({
     control,
     name: 'dati_impianto.locale_dedicato',
@@ -52,71 +43,7 @@ export const DatiImpiantoSection = ({
   return (
     <Box sx={{ '& .MuiFormControlLabel-label': { fontSize: '0.85rem' } }}>
       <Grid container spacing={1.5} alignItems="flex-start">
-        {/* RIGA 1: sede + denominazione */}
-        <Grid item xs={12} sm="auto">
-          <Controller
-            name="dati_impianto.sede_imp_uguale_legale"
-            control={control}
-            defaultValue={false}
-            render={({ field }) => (
-              <FormControlLabel
-                sx={{ mt: 0.5 }}
-                control={
-                  <Checkbox
-                    size="small"
-                    checked={field.value || false}
-                    onChange={(e) => {
-                      const isChecked = e.target.checked
-                      if (isChecked && sedeLegale) {
-                        setValue('dati_impianto.sede_impianto', sedeLegale, {
-                          shouldDirty: true, shouldValidate: true, shouldTouch: true,
-                        })
-                      }
-                      field.onChange(isChecked)
-                    }}
-                  />
-                }
-                label="Sede Impianto = Sede Legale"
-              />
-            )}
-          />
-        </Grid>
-
-        <Grid item xs={12} sm>
-          {sedeImpUgualeLegale ? (
-            <Controller
-              name="dati_impianto.sede_impianto"
-              control={control}
-              render={({ field }) => (
-                <TextField {...field} label="Sede Impianto" size="small" fullWidth disabled />
-              )}
-            />
-          ) : (
-            <AddressAutocompleteField
-              field={{
-                name: 'dati_impianto.sede_impianto',
-                label: 'Sede Impianto',
-                type: 'address-autocomplete',
-                required: true,
-                placeholder: 'Via, Città, CAP...',
-              }}
-              control={control}
-              error={errors?.dati_impianto?.sede_impianto}
-            />
-          )}
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <Controller
-            name="dati_impianto.denominazione_sala"
-            control={control}
-            render={({ field }) => (
-              <TextField {...field} label="Denominazione Sala" size="small" fullWidth placeholder="Es: Sala compressori" />
-            )}
-          />
-        </Grid>
-
-        {/* RIGA 2: aria + raccolta + locale */}
+        {/* RIGA 1: aria + raccolta + locale */}
         <Grid item xs={12} sm={6} md={3}>
           <Controller
             name="dati_impianto.aria_aspirata"
@@ -195,7 +122,7 @@ export const DatiImpiantoSection = ({
           </Grid>
         )}
 
-        {/* RIGA 3: condizioni (checkbox su una riga) */}
+        {/* RIGA 2: condizioni (checkbox su una riga) */}
         <Grid item xs={12}>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', columnGap: 3, rowGap: 0.5 }}>
             <Controller
@@ -222,7 +149,7 @@ export const DatiImpiantoSection = ({
           </Box>
         </Grid>
 
-        {/* RIGA 4: testi liberi */}
+        {/* RIGA 3: testi liberi */}
         <Grid item xs={12} md={4}>
           <Controller
             name="dati_impianto.fonti_calore_materiali_infiammabili"
@@ -249,12 +176,6 @@ export const DatiImpiantoSection = ({
               <TextField {...field} label="Diametri Linee di Distribuzione" size="small" fullWidth placeholder={'Es: 1", 1 1/4"'} />
             )}
           />
-        </Grid>
-
-        {/* Campi DEPRECATED mantenuti nascosti */}
-        <Grid item xs={12} sx={{ display: 'none' }}>
-          <Controller name="dati_impianto.indirizzo_impianto" control={control} render={({ field }) => (<TextField {...field} disabled />)} />
-          <Controller name="dati_impianto.fonti_calore_vicine" control={control} render={({ field }) => (<TextField {...field} disabled />)} />
         </Grid>
       </Grid>
     </Box>

@@ -13,14 +13,8 @@ import {
 } from '@mui/icons-material'
 import { DatiGeneraliSection } from './DatiGeneraliSection'
 import { DatiImpiantoSection } from './DatiImpiantoSection'
-import { SerbatoiSection } from './SerbatoiSection'
-import {
-  CompressoriSection,
-  EssiccatoriSection,
-  FiltriSection,
-  SeparatoriSection,
-  AltriApparecchiSection,
-} from './AllEquipmentSections'
+import { UnifiedEquipmentTable } from './table/UnifiedEquipmentTable'
+import { AltriApparecchiSection } from './AllEquipmentSections'
 import { BatchOCRDialog } from './BatchOCRDialog'
 import { UpdateCatalogDialog } from './UpdateCatalogDialog'
 import { useEquipmentCatalogUpdate } from '@/hooks/useEquipmentCatalogUpdate'
@@ -348,11 +342,7 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
               </Button>
             </Box>
 
-            <SerbatoiSection control={control} errors={errors} />
-            <CompressoriSection control={control} errors={errors} />
-            <EssiccatoriSection control={control} errors={errors} />
-            <FiltriSection control={control} errors={errors} />
-            <SeparatoriSection control={control} errors={errors} />
+            <UnifiedEquipmentTable control={control} errors={errors} />
 
             {/* AA - Altri Apparecchi (campo libero) */}
             <Box sx={{ mt: 1.5 }}>

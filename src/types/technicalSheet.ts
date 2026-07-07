@@ -57,6 +57,7 @@ export interface ValvolaSicurezza {
   pressione_taratura?: number // RINOMINATO da pressione - Ptar (bar) - 1 decimale (min 0, max 100000)
   pressione?: number // DEPRECATED - mantenuto per retrocompatibilità
   ts_temperatura?: number // NUOVO - TS (°C) - intero (min 50, max 250) - NON visibile a tecnicoDM329
+  ts?: string // TS libero (valore singolo o intervallo, es. "-10 ÷ +100") - precompilato da catalogo
   temperatura_max?: number // DEPRECATED - mantenuto per retrocompatibilità - TS (°C) - intero (min 0, max 500)
   volume_aria_scaricato?: number // NUOVO - Qmax (l/min) - intero (min 100, max 100000) - NON visibile a tecnicoDM329
   portata_max?: number // DEPRECATED - mantenuto per retrocompatibilità - Qmax (l/min) - intero (min 0, max 100000)
@@ -77,6 +78,7 @@ export interface Serbatoio {
   anno?: number // intero (min 1980, max 2100)
   ps_pressione_max?: number // NUOVO - PS (bar) - 1 decimale (min 3.0, max 50.0) - NON visibile a tecnicoDM329
   ts_temperatura?: number // NUOVO - TS (°C) - intero (min 50, max 250) - NON visibile a tecnicoDM329
+  ts?: string // TS libero (valore singolo o intervallo, es. "-10 ÷ +100") - precompilato da catalogo
   categoria_ped?: CategoriaPED // NUOVO - Select I/II/III/IV - NON visibile a tecnicoDM329
   finitura_interna?: FinituraInternaOption // Select singola
   ancorato_terra?: boolean
@@ -121,6 +123,7 @@ export interface Disoleatore {
   ps_pressione_max?: number // NUOVO - PS (bar) - 1 decimale (min 3.0, max 50.0) - NON visibile a tecnicoDM329
   pressione_max?: number // DEPRECATED - mantenuto per retrocompatibilità - bar (1 decimale, min 10, max 30)
   ts_temperatura?: number // NUOVO - TS (°C) - intero (min 50, max 250) - NON visibile a tecnicoDM329
+  ts?: string // TS libero (valore singolo o intervallo, es. "-10 ÷ +100") - precompilato da catalogo
   categoria_ped?: CategoriaPED // NUOVO - Select I/II/III/IV - NON visibile a tecnicoDM329
   note?: string
   valvola_sicurezza: ValvolaSicurezza // OBBLIGATORIA
@@ -159,6 +162,7 @@ export interface Scambiatore {
   ps_pressione_max?: number // NUOVO - PS (bar) - 1 decimale (min 3.0, max 50.0) - NON visibile a tecnicoDM329
   pressione_max?: number // DEPRECATED - mantenuto per retrocompatibilità - bar (1 decimale, min 10, max 30)
   ts_temperatura?: number // NUOVO - TS (°C) - intero (min 50, max 250) - NON visibile a tecnicoDM329
+  ts?: string // TS libero (valore singolo o intervallo, es. "-10 ÷ +100") - precompilato da catalogo
   temperatura_max?: number // DEPRECATED - mantenuto per retrocompatibilità - TS (°C) - Temperatura massima ammissibile - intero (min 0, max 500)
   volume?: number // litri (intero, min 50, max 5000) - NON visibile a tecnicoDM329
   categoria_ped?: CategoriaPED // NUOVO - Select I/II/III/IV - NON visibile a tecnicoDM329 - Calcolato da PS × Volume
@@ -179,6 +183,7 @@ export interface RecipienteFiltro {
   anno?: number // intero (min 1980, max 2100) - NON visibile a tecnicoDM329
   ps_pressione_max?: number // PS (bar) - 1 decimale (min 3.0, max 50.0) - NON visibile a tecnicoDM329
   ts_temperatura?: number // TS (°C) - intero (min 50, max 250) - NON visibile a tecnicoDM329
+  ts?: string // TS libero (valore singolo o intervallo) - precompilato da catalogo
   volume?: number // litri (intero, min 50, max 5000) - NON visibile a tecnicoDM329
   note?: string // NON visibile a tecnicoDM329
   foto_targhetta?: string // NON visibile a tecnicoDM329
