@@ -42,6 +42,13 @@ export interface EquipmentTypeDef {
   mandatoryValvola?: boolean // valvola di sicurezza sempre presente (serbatoio, disoleatore)
   adv?: AdvKey[] // colonne nascoste a tecnicoDM329
   roleHidden?: boolean // intera riga nascosta a tecnicoDM329 (recipiente filtro)
+  /**
+   * Il catalogo è indicizzato per pressione (stesso modello ha più varianti):
+   * la colonna PS/Ptar diventa un selettore che, scelta la pressione, autocompila
+   * i dati dipendenti (FAD per compressori; TS/Qmax/diametro per valvole) e permette
+   * di aggiungere nuove pressioni/portate al catalogo. Valore = chiave pressione negli specs.
+   */
+  pressureCatalog?: 'pressione_max' | 'ptar'
 }
 
 export const FINITURA_OPTIONS = ['VERNICIATO', 'ZINCATO', 'VITROFLEX', 'ALTRO'] as const
@@ -78,6 +85,7 @@ export const EQUIPMENT_DEFS: Record<EquipmentKind, EquipmentTypeDef> = {
     specsMap: { fad: 'volume_aria_prodotto', ps: 'pressione_max' },
     childKind: 'disoleatore',
     adv: ['capacita'],
+    pressureCatalog: 'pressione_max',
   },
   disoleatore: {
     kind: 'disoleatore', label: 'Disoleatore', prefix: 'C', catalogType: 'Disoleatori',
@@ -128,6 +136,7 @@ export const EQUIPMENT_DEFS: Record<EquipmentKind, EquipmentTypeDef> = {
     extra: [{ name: 'diametro', label: 'Diametro', kind: 'text' }],
     specsMap: { ptar: 'pressione_taratura', ts: 'ts', qmax: 'volume_aria_scaricato', diametro: 'diametro' },
     adv: ['capacita', 'ts', 'cat'],
+    pressureCatalog: 'ptar',
   },
 }
 

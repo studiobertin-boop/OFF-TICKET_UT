@@ -29,6 +29,9 @@ interface AddEquipmentDialogProps {
   // Props per compressori e valvole (dove la pressione fa parte della chiave)
   initialPressione?: number
   pressioneField?: 'pressione_max' | 'ptar'
+  // Precompilazione marca/modello (es. quando si aggiunge una variante dalla riga)
+  initialMarca?: string
+  initialModello?: string
 }
 
 const CATEGORIA_PED_OPTIONS: CategoriaPED[] = ['I', 'II', 'III', 'IV']
@@ -52,6 +55,8 @@ export const AddEquipmentDialog = ({
   onSuccess,
   initialPressione,
   pressioneField,
+  initialMarca,
+  initialModello,
 }: AddEquipmentDialogProps) => {
   const [marca, setMarca] = useState('')
   const [modello, setModello] = useState('')
@@ -117,6 +122,14 @@ export const AddEquipmentDialog = ({
 
     loadModelli()
   }, [equipmentType, marca])
+
+  // ✅ Precompila marca/modello se passati come prop (apertura da riga)
+  useEffect(() => {
+    if (open) {
+      if (initialMarca !== undefined) setMarca(initialMarca)
+      if (initialModello !== undefined) setModello(initialModello)
+    }
+  }, [open, initialMarca, initialModello])
 
   // ✅ Inizializza pressione se passata come prop
   useEffect(() => {

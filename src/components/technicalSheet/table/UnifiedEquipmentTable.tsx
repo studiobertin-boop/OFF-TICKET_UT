@@ -8,12 +8,13 @@ import {
 import { alpha } from '@mui/material/styles'
 import { radii } from '@/theme/tokens'
 import { TextCell, NumberCell, SelectCell, CheckCell, ComputedCell, cellTdSx } from './EquipmentCells'
+import { PressioneCatalogCell } from './PressioneCatalogCell'
 import { Field } from './SubBand'
 import { EquipmentAutocomplete } from '../EquipmentAutocomplete'
 import { SingleOCRButton } from '../SingleOCRButton'
 import { useTecnicoDM329Visibility } from '@/hooks/useTecnicoDM329Visibility'
 import { calculateCategoriaPED } from '@/utils/categoriaPedCalculator'
-import { EQUIPMENT_LIMITS, generateEquipmentCode, type CategoriaPED, type EquipmentCatalogType } from '@/types'
+import { generateEquipmentCode, type CategoriaPED, type EquipmentCatalogType } from '@/types'
 import type { OCRExtractedData } from '@/types/ocr'
 import {
   EQUIPMENT_DEFS, NEW_EQUIPMENT_KINDS, type EquipmentKind, type EquipmentTypeDef, type AdvKey, type ExtraFieldDef,
@@ -21,6 +22,10 @@ import {
 
 const PED_OPTIONS: CategoriaPED[] = ['I', 'II', 'III', 'IV']
 const COL_COUNT = 10
+/** Handler stabile: abilita il pulsante "+ aggiungi al catalogo" senza logica extra
+ *  (l'aggiornamento opzioni è gestito dentro EquipmentAutocomplete). Identità stabile
+ *  per non ri-triggerare l'effetto checkExists ad ogni render. */
+const ENABLE_ADD_TO_CATALOG = () => {}
 
 const KIND_COLOR: Record<EquipmentKind, string> = {
   serbatoio: '#5aa6d6', compressore: '#d8a900', disoleatore: '#c99a00', essiccatore: '#4fa564',
@@ -149,7 +154,9 @@ const EqRow = ({ control, def, base, code, depth, adv, ocr, onDelete, append }: 
                   <EquipmentAutocomplete equipmentType={def.catalogType} dense
                     marcaValue={m.value || ''} modelloValue={mo.value || ''}
                     onMarcaChange={m.onChange} onModelloChange={mo.onChange}
-                    onEquipmentSelected={handleSelected} size="small" fullWidth />
+                    onEquipmentSelected={def.pressureCatalog ? undefined : handleSelected}
+                    onAddToCatalog={ENABLE_ADD_TO_CATALOG}
+                    size="small" fullWidth />
                 )} />
               )} />
             </Box>
@@ -158,8 +165,17 @@ const EqRow = ({ control, def, base, code, depth, adv, ocr, onDelete, append }: 
 
         {/* CAPACITÀ (numerica, allineata a destra: riempie la colonna) */}
         <Box component="td" sx={{ ...cellTdSx, minWidth: 60 }}>{def.capacitaField && !hidden('capacita') ? <NumberCell control={control} name={`${base}.${def.capacitaField}`} min={0} max={100000} step={1} /> : null}</Box>
-        {/* PRESSIONE */}
-        <Box component="td" sx={{ ...cellTdSx, minWidth: 48 }}>{def.pressioneField && !hidden('pressione') ? <NumberCell control={control} name={`${base}.${def.pressioneField}`} min={0} max={100} step={0.1} /> : null}</Box>
+        {/* PRESSIONE — selettore da catalogo per i tipi indicizzati per pressione (compressori/valvole) */}
+        <Box component="td" sx={{ ...cellTdSx, minWidth: 48 }}>
+          {def.pressioneField && !hidden('pressione') ? (
+            def.pressureCatalog ? (
+              <PressioneCatalogCell control={control} base={base} catalogType={def.catalogType as 'Compressori' | 'Valvole di sicurezza'}
+                pressioneField={def.pressioneField} onSelected={handleSelected} min={0} max={100} step={0.1} />
+            ) : (
+              <NumberCell control={control} name={`${base}.${def.pressioneField}`} min={0} max={100} step={0.1} />
+            )
+          ) : null}
+        </Box>
         {/* TS (testo libero, allineata a sinistra) */}
         <Box component="td" sx={{ ...cellTdSx, minWidth: 64 }}>{def.ts && !hidden('ts') ? <TextCell control={control} name={`${base}.ts`} placeholder="°C / ÷" w={78} /> : null}</Box>
         {/* CAT. */}
@@ -232,7 +248,7 @@ export const UnifiedEquipmentTable = ({ control }: UnifiedEquipmentTableProps) =
     const code = generateEquipmentCode('S', i + 1)
     rows.push(<EqRow key={`s-${f.id}`} control={control} def={EQUIPMENT_DEFS.serbatoio} base={`serbatoi.${i}`} code={code} depth={0} adv={adv}
       ocr={{ equipmentType: 'Serbatoi', equipmentIndex: i }}
-      onDelete={() => { if (serbatoi.fields.length <= EQUIPMENT_LIMITS.serbatoi.min) { window.alert(`Minimo ${EQUIPMENT_LIMITS.serbatoi.min} serbatoio`); return } if (confirmDel('il serbatoio', code)) serbatoi.remove(i) }}
+      onDelete={() => { if (confirmDel('il serbatoio', code)) serbatoi.remove(i) }}
       append={null} />)
     rows.push(<EqRow key={`s-${f.id}-v`} control={control} def={EQUIPMENT_DEFS.valvola} base={`serbatoi.${i}.valvola_sicurezza`} code={`${code}.1`} depth={1} adv={adv}
       ocr={{ equipmentType: 'Serbatoi', equipmentIndex: i, componentType: 'valvola_sicurezza' }} onDelete={null} append={null} />)
@@ -243,7 +259,7 @@ export const UnifiedEquipmentTable = ({ control }: UnifiedEquipmentTableProps) =
     const dIdx = disoleatori.fields.findIndex((d: any) => d.compressore_associato === code)
     rows.push(<EqRow key={`c-${f.id}`} control={control} def={EQUIPMENT_DEFS.compressore} base={`compressori.${i}`} code={code} depth={0} adv={adv}
       ocr={{ equipmentType: 'Compressori', equipmentIndex: i }}
-      onDelete={() => { if (compressori.fields.length <= EQUIPMENT_LIMITS.compressori.min) { window.alert('Minimo 1 compressore'); return } if (confirmDel('il compressore', code)) { if (dIdx >= 0) disoleatori.remove(dIdx); compressori.remove(i) } }}
+      onDelete={() => { if (confirmDel('il compressore', code)) { if (dIdx >= 0) disoleatori.remove(dIdx); compressori.remove(i) } }}
       append={dIdx === -1 ? { label: 'Disoleatore', onClick: () => { disoleatori.append({ codice: `${code}.1`, compressore_associato: code, valvola_sicurezza: {} }); setValue(`compressori.${i}.ha_disoleatore`, true) } } : null} />)
     if (dIdx >= 0) {
       rows.push(<EqRow key={`c-${f.id}-d`} control={control} def={EQUIPMENT_DEFS.disoleatore} base={`disoleatori.${dIdx}`} code={`${code}.1`} depth={1} adv={adv}
@@ -259,7 +275,7 @@ export const UnifiedEquipmentTable = ({ control }: UnifiedEquipmentTableProps) =
     const sIdx = scambiatori.fields.findIndex((s: any) => s.essiccatore_associato === code)
     rows.push(<EqRow key={`e-${f.id}`} control={control} def={EQUIPMENT_DEFS.essiccatore} base={`essiccatori.${i}`} code={code} depth={0} adv={adv}
       ocr={{ equipmentType: 'Essiccatori', equipmentIndex: i }}
-      onDelete={() => { if (essiccatori.fields.length <= EQUIPMENT_LIMITS.essiccatori.min) { window.alert('Minimo 1 essiccatore'); return } if (confirmDel("l'essiccatore", code)) { if (sIdx >= 0) scambiatori.remove(sIdx); essiccatori.remove(i) } }}
+      onDelete={() => { if (confirmDel("l'essiccatore", code)) { if (sIdx >= 0) scambiatori.remove(sIdx); essiccatori.remove(i) } }}
       append={sIdx === -1 ? { label: 'Scambiatore', onClick: () => { scambiatori.append({ codice: `${code}.1`, essiccatore_associato: code }); setValue(`essiccatori.${i}.ha_scambiatore`, true) } } : null} />)
     if (sIdx >= 0) {
       rows.push(<EqRow key={`e-${f.id}-s`} control={control} def={EQUIPMENT_DEFS.scambiatore} base={`scambiatori.${sIdx}`} code={`${code}.1`} depth={1} adv={adv}
@@ -273,7 +289,7 @@ export const UnifiedEquipmentTable = ({ control }: UnifiedEquipmentTableProps) =
     const rIdx = recipienti.fields.findIndex((r: any) => r.filtro_associato === code)
     rows.push(<EqRow key={`f-${f.id}`} control={control} def={EQUIPMENT_DEFS.filtro} base={`filtri.${i}`} code={code} depth={0} adv={adv}
       ocr={{ equipmentType: 'Filtri', equipmentIndex: i }}
-      onDelete={() => { if (filtri.fields.length <= EQUIPMENT_LIMITS.filtri.min) { window.alert('Minimo 1 filtro'); return } if (confirmDel('il filtro', code)) { if (rIdx >= 0) recipienti.remove(rIdx); filtri.remove(i) } }}
+      onDelete={() => { if (confirmDel('il filtro', code)) { if (rIdx >= 0) recipienti.remove(rIdx); filtri.remove(i) } }}
       append={(showRecipienteFiltro && rIdx === -1) ? { label: 'Recipiente', onClick: () => { recipienti.append({ codice: `${code}.1`, filtro_associato: code }); setValue(`filtri.${i}.ha_recipiente`, true) } } : null} />)
     if (rIdx >= 0 && showRecipienteFiltro) {
       rows.push(<EqRow key={`f-${f.id}-r`} control={control} def={EQUIPMENT_DEFS.recipiente} base={`recipienti_filtro.${rIdx}`} code={`${code}.1`} depth={1} adv={adv}
@@ -286,7 +302,7 @@ export const UnifiedEquipmentTable = ({ control }: UnifiedEquipmentTableProps) =
     const code = generateEquipmentCode('SEP', i + 1)
     rows.push(<EqRow key={`sep-${f.id}`} control={control} def={EQUIPMENT_DEFS.separatore} base={`separatori.${i}`} code={code} depth={0} adv={adv}
       ocr={{ equipmentType: 'Separatori', equipmentIndex: i }}
-      onDelete={() => { if (separatori.fields.length <= EQUIPMENT_LIMITS.separatori.min) { window.alert('Minimo 1 separatore'); return } if (confirmDel('il separatore', code)) separatori.remove(i) }} append={null} />)
+      onDelete={() => { if (confirmDel('il separatore', code)) separatori.remove(i) }} append={null} />)
   })
 
   const total = serbatoi.fields.length + compressori.fields.length + essiccatori.fields.length + filtri.fields.length + separatori.fields.length

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Controller, type Control } from 'react-hook-form'
 import { InputBase, Select, MenuItem, Checkbox, Box, Tooltip, Typography } from '@mui/material'
 import { alpha } from '@mui/material/styles'
+import { useNoAutofillToken } from '@/utils/noAutofill'
 
 /**
  * Celle tipizzate per la SCHEDA DATI DM329 in modalità "foglio di calcolo".
@@ -53,51 +54,57 @@ interface CellBase {
   disabled?: boolean
 }
 
-export const TextCell = ({ control, name, placeholder, disabled, w }: CellBase & { placeholder?: string; w?: number }) => (
-  <Controller
-    name={name}
-    control={control}
-    render={({ field, fieldState }) => (
-      <Tooltip title={fieldState.error?.message ?? ''} placement="top" arrow disableHoverListener={!fieldState.error}>
-        <InputBase
-          {...field}
-          value={field.value ?? ''}
-          placeholder={placeholder ?? '—'}
-          disabled={disabled}
-          inputProps={{ autoComplete: 'off' }}
-          sx={{ ...baseInputSx, ...(w ? { width: w } : {}), ...(fieldState.error ? errorSx : {}) }}
-        />
-      </Tooltip>
-    )}
-  />
-)
+export const TextCell = ({ control, name, placeholder, disabled, w }: CellBase & { placeholder?: string; w?: number }) => {
+  const ac = useNoAutofillToken()
+  return (
+    <Controller
+      name={name}
+      control={control}
+      render={({ field, fieldState }) => (
+        <Tooltip title={fieldState.error?.message ?? ''} placement="top" arrow disableHoverListener={!fieldState.error}>
+          <InputBase
+            {...field}
+            value={field.value ?? ''}
+            placeholder={placeholder ?? '—'}
+            disabled={disabled}
+            inputProps={{ autoComplete: ac }}
+            sx={{ ...baseInputSx, ...(w ? { width: w } : {}), ...(fieldState.error ? errorSx : {}) }}
+          />
+        </Tooltip>
+      )}
+    />
+  )
+}
 
 export const NumberCell = ({
   control, name, min, max, step, placeholder, disabled, w,
-}: CellBase & { min?: number; max?: number; step?: number; placeholder?: string; w?: number }) => (
-  <Controller
-    name={name}
-    control={control}
-    rules={{
-      ...(min !== undefined ? { min: { value: min, message: `Minimo ${min}` } } : {}),
-      ...(max !== undefined ? { max: { value: max, message: `Massimo ${max}` } } : {}),
-    }}
-    render={({ field, fieldState }) => (
-      <Tooltip title={fieldState.error?.message ?? ''} placement="top" arrow disableHoverListener={!fieldState.error}>
-        <InputBase
-          {...field}
-          type="number"
-          value={field.value ?? ''}
-          onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
-          placeholder={placeholder ?? '—'}
-          disabled={disabled}
-          inputProps={{ min, max, step, autoComplete: 'off', style: { textAlign: 'right', fontVariantNumeric: 'tabular-nums' } }}
-          sx={{ ...baseInputSx, ...(w ? { width: w } : {}), ...(fieldState.error ? errorSx : {}) }}
-        />
-      </Tooltip>
-    )}
-  />
-)
+}: CellBase & { min?: number; max?: number; step?: number; placeholder?: string; w?: number }) => {
+  const ac = useNoAutofillToken()
+  return (
+    <Controller
+      name={name}
+      control={control}
+      rules={{
+        ...(min !== undefined ? { min: { value: min, message: `Minimo ${min}` } } : {}),
+        ...(max !== undefined ? { max: { value: max, message: `Massimo ${max}` } } : {}),
+      }}
+      render={({ field, fieldState }) => (
+        <Tooltip title={fieldState.error?.message ?? ''} placement="top" arrow disableHoverListener={!fieldState.error}>
+          <InputBase
+            {...field}
+            type="number"
+            value={field.value ?? ''}
+            onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+            placeholder={placeholder ?? '—'}
+            disabled={disabled}
+            inputProps={{ min, max, step, autoComplete: ac, style: { textAlign: 'right', fontVariantNumeric: 'tabular-nums' } }}
+            sx={{ ...baseInputSx, ...(w ? { width: w } : {}), ...(fieldState.error ? errorSx : {}) }}
+          />
+        </Tooltip>
+      )}
+    />
+  )
+}
 
 export const SelectCell = ({ control, name, options, disabled, display, w }: CellBase & { options: string[]; display?: Record<string, string>; w?: number }) => (
   <Controller

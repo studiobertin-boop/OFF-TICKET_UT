@@ -77,3 +77,10 @@ Docs: supabase.com/docs | mui.com | tanstack.com/query
 
 ## PREFERENZE
 Claude applica direttamente le modifiche al database Supabase (schema, migrations, query) tramite Management API con access token, senza richiedere caricamento manuale dalla dashboard.
+
+### Accesso diretto Supabase (credenziali in `.env.local`)
+Claude può interrogare e verificare il DB di produzione direttamente, senza chiedere. Credenziali in `.env.local` (git-ignored):
+- `VITE_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` → **Data API REST/PostgREST** (bypassa RLS) per SELECT/verifiche dati. Es:
+  `curl -s "$URL/rest/v1/<tabella>?select=...&<col>=eq.<val>" -H "apikey: $KEY" -H "Authorization: Bearer $KEY"`
+- `SUPABASE_ACCESS_TOKEN` (`sbp_...`) → **Management API** per DDL/migrations via `.../database/query` (usare `curl`, non urllib — bloccato da Cloudflare).
+Non stampare mai i valori delle chiavi nell'output.

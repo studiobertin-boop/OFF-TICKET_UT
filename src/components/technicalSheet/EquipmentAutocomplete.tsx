@@ -14,6 +14,7 @@ import {
 import { equipmentCatalogApi } from '@/services/api/equipmentCatalog'
 import type { EquipmentCatalogType, EquipmentCatalogItem } from '@/types'
 import { AddEquipmentDialog } from './AddEquipmentDialog'
+import { useNoAutofillToken } from '@/utils/noAutofill'
 
 interface EquipmentAutocompleteProps {
   // Tipo apparecchiatura (filtra le opzioni)
@@ -80,6 +81,7 @@ export const EquipmentAutocomplete = ({
   const [loadingModelli, setLoadingModelli] = useState(false)
   const [showAddButton, setShowAddButton] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const ac = useNoAutofillToken()
 
   /**
    * Carica marche quando cambia il tipo
@@ -131,36 +133,15 @@ export const EquipmentAutocomplete = ({
   }, [equipmentType, marcaValue])
 
   /**
-   * Verifica se mostrare bottone "Aggiungi"
-   * Lo mostriamo se:
-   * 1. Marca compilata ma non nei suggerimenti (nuova marca)
-   * 2. Marca E modello compilati E non esistono nel catalogo
+   * Mostra il pulsante "Aggiungi al catalogo" in modo uniforme per tutti i tipi:
+   * appena marca e modello sono compilati. Non facciamo un controllo di esistenza
+   * (per compressori/valvole la stessa marca/modello può avere più varianti di
+   * pressione a catalogo, quindi "già esiste" non significa "non aggiungibile");
+   * l'unicità è garantita dal vincolo DB e segnalata nel dialog in caso di duplicato.
    */
   useEffect(() => {
-    if (!marcaValue || !onAddToCatalog) {
-      setShowAddButton(false)
-      return
-    }
-
-    const checkExists = async () => {
-      try {
-        // Caso 1: Solo marca compilata, verifica se è nuova
-        if (!modelloValue) {
-          const marcaExists = marcheOptions.includes(marcaValue)
-          setShowAddButton(!marcaExists)
-          return
-        }
-
-        // Caso 2: Marca e modello compilati, verifica combinazione
-        const exists = await equipmentCatalogApi.exists(equipmentType, marcaValue, modelloValue)
-        setShowAddButton(!exists)
-      } catch (error) {
-        setShowAddButton(false)
-      }
-    }
-
-    checkExists()
-  }, [equipmentType, marcaValue, modelloValue, onAddToCatalog, marcheOptions])
+    setShowAddButton(!!onAddToCatalog && !!marcaValue && !!modelloValue)
+  }, [onAddToCatalog, marcaValue, modelloValue])
 
   /**
    * Handle marca change
@@ -269,6 +250,7 @@ export const EquipmentAutocomplete = ({
                 </>
               ),
             }}
+            inputProps={{ ...params.inputProps, autoComplete: ac }}
           />
         )}
         renderOption={(props, option) => (
@@ -315,6 +297,7 @@ export const EquipmentAutocomplete = ({
                 </>
               ),
             }}
+            inputProps={{ ...params.inputProps, autoComplete: ac }}
           />
         )}
         renderOption={(props, option) => (
@@ -343,6 +326,8 @@ export const EquipmentAutocomplete = ({
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         equipmentType={equipmentType}
+        initialMarca={marcaValue}
+        initialModello={modelloValue}
         onSuccess={handleDialogSuccess}
       />
     </Box>
