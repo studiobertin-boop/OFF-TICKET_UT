@@ -156,16 +156,16 @@ const EqRow = ({ control, def, base, code, depth, adv, ocr, onDelete, append }: 
           </Box>
         )}
 
-        {/* CAPACITÀ */}
-        <Box component="td" sx={cellTdSx}>{def.capacitaField && !hidden('capacita') ? <NumberCell control={control} name={`${base}.${def.capacitaField}`} min={0} max={100000} step={1} w={66} /> : null}</Box>
+        {/* CAPACITÀ (numerica, allineata a destra: riempie la colonna) */}
+        <Box component="td" sx={{ ...cellTdSx, minWidth: 60 }}>{def.capacitaField && !hidden('capacita') ? <NumberCell control={control} name={`${base}.${def.capacitaField}`} min={0} max={100000} step={1} /> : null}</Box>
         {/* PRESSIONE */}
-        <Box component="td" sx={cellTdSx}>{def.pressioneField && !hidden('pressione') ? <NumberCell control={control} name={`${base}.${def.pressioneField}`} min={0} max={100} step={0.1} w={52} /> : null}</Box>
-        {/* TS (testo libero) */}
-        <Box component="td" sx={cellTdSx}>{def.ts && !hidden('ts') ? <TextCell control={control} name={`${base}.ts`} placeholder="°C / ÷" w={78} /> : null}</Box>
+        <Box component="td" sx={{ ...cellTdSx, minWidth: 48 }}>{def.pressioneField && !hidden('pressione') ? <NumberCell control={control} name={`${base}.${def.pressioneField}`} min={0} max={100} step={0.1} /> : null}</Box>
+        {/* TS (testo libero, allineata a sinistra) */}
+        <Box component="td" sx={{ ...cellTdSx, minWidth: 64 }}>{def.ts && !hidden('ts') ? <TextCell control={control} name={`${base}.ts`} placeholder="°C / ÷" w={78} /> : null}</Box>
         {/* CAT. */}
         <Box component="td" sx={cellTdSx}>{catCell()}</Box>
         {/* ANNO */}
-        <Box component="td" sx={cellTdSx}><NumberCell control={control} name={`${base}.anno`} min={1980} max={2100} w={50} /></Box>
+        <Box component="td" sx={{ ...cellTdSx, minWidth: 44 }}><NumberCell control={control} name={`${base}.anno`} min={1980} max={2100} /></Box>
         {/* N.F. */}
         <Box component="td" sx={cellTdSx}><TextCell control={control} name={`${base}.n_fabbrica`} placeholder="N° fabbrica" w={140} /></Box>
       </Box>
