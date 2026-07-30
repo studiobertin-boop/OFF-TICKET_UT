@@ -7,6 +7,8 @@
  * 1..max di EQUIPMENT_LIMITS.
  */
 
+import { EQUIPMENT_LIMITS } from '@/types'
+
 export interface ParsedCode {
   prefix: string
   num: number
@@ -62,4 +64,104 @@ export function nextFreeCode(prefix: string, existing: unknown[], max: number): 
 /** Codice di un'apparecchiatura dipendente, derivato dal padre. */
 export function childCode(parentCode: string, sub = 1): string {
   return `${parentCode}.${sub}`
+}
+
+/** Array principali della scheda: prefisso e massimo vengono da EQUIPMENT_LIMITS. */
+const PARENT_ARRAYS = ['serbatoi', 'compressori', 'essiccatori', 'filtri', 'separatori'] as const
+
+/** Array dipendenti: il codice si deriva dal padre tramite il campo di riferimento. */
+const CHILD_ARRAYS = [
+  { array: 'disoleatori', ref: 'compressore_associato' },
+  { array: 'scambiatori', ref: 'essiccatore_associato' },
+  { array: 'recipienti_filtro', ref: 'filtro_associato' },
+] as const
+
+/** Tutti i codici validi presenti nella scheda, per validare i riferimenti. */
+export function collectCodes(scheda: any): Set<string> {
+  const codes = new Set<string>()
+  const names: string[] = [...PARENT_ARRAYS, ...CHILD_ARRAYS.map((c) => c.array)]
+  for (const name of names) {
+    const items = scheda?.[name]
+    if (!Array.isArray(items)) continue
+    for (const item of items) {
+      if (parseCode(item?.codice)) codes.add(item.codice)
+    }
+  }
+  return codes
+}
+
+/**
+ * Completa i codici di una scheda senza rinumerare nulla di valido.
+ *
+ * Array principali: scorre nell'ordine in cui si trovano e assegna a ogni record privo di codice
+ * valido — mancante, di prefisso sbagliato, fuori dal massimo del tipo, o duplicato di uno già
+ * visto — il numero libero più basso.
+ *
+ * Array dipendenti: riallinea `codice` a `${riferimento}.1`. Se il riferimento al padre manca o
+ * non è valido il codice non è derivabile e il record resta intatto: è un problema di dati, non
+ * qualcosa che questa funzione possa indovinare.
+ *
+ * Idempotente: applicata al proprio risultato ritorna `changed: false`.
+ */
+export function normalizeSchedaCodes<T extends Record<string, any>>(
+  scheda: T
+): { scheda: T; changed: boolean } {
+  let changed = false
+  const out: Record<string, any> = { ...(scheda ?? {}) }
+
+  for (const name of PARENT_ARRAYS) {
+    const items = scheda?.[name]
+    if (!Array.isArray(items) || items.length === 0) continue
+
+    const { prefix, max } = EQUIPMENT_LIMITS[name]
+    const seen = new Set<number>()
+    let touched = false
+
+    // 1° passaggio: individua i codici da conservare.
+    const keep = items.map((item: any) => {
+      const p = parseCode(item?.codice)
+      if (!p || p.prefix !== prefix || p.sub !== undefined || p.num < 1 || p.num > max) return false
+      if (seen.has(p.num)) return false // duplicato: conserva il primo
+      seen.add(p.num)
+      return true
+    })
+
+    // 2° passaggio: assegna il numero libero più basso a chi ne è privo.
+    const next = items.map((item: any, i: number) => {
+      if (keep[i]) return item
+      const taken = [...seen].map((n) => `${prefix}${n}`)
+      const code = nextFreeCode(prefix, taken, max)
+      if (!code) return item // tipo saturo: non c'è codice da assegnare
+      seen.add(parseCode(code)!.num)
+      touched = true
+      return { ...item, codice: code }
+    })
+
+    if (touched) {
+      out[name] = next
+      changed = true
+    }
+  }
+
+  for (const { array, ref } of CHILD_ARRAYS) {
+    const items = scheda?.[array]
+    if (!Array.isArray(items) || items.length === 0) continue
+
+    let touched = false
+    const next = items.map((item: any) => {
+      const parent = parseCode(item?.[ref])
+      if (!parent || parent.sub !== undefined) return item
+      const expected = childCode(item[ref])
+      if (item?.codice === expected) return item
+      touched = true
+      return { ...item, codice: expected }
+    })
+
+    if (touched) {
+      out[array] = next
+      changed = true
+    }
+  }
+
+  return { scheda: out as T, changed }
 }

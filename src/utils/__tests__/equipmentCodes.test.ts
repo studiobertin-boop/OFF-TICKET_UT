@@ -1,5 +1,7 @@
 import { describe, test, expect } from 'vitest'
-import { parseCode, compareCodes, nextFreeCode, childCode } from '@/utils/equipmentCodes'
+import {
+  parseCode, compareCodes, nextFreeCode, childCode, collectCodes, normalizeSchedaCodes,
+} from '@/utils/equipmentCodes'
 
 describe('parseCode', () => {
   test('riconosce i codici principali', () => {
@@ -74,5 +76,125 @@ describe('childCode', () => {
   test('deriva il codice del figlio dal padre', () => {
     expect(childCode('C3')).toBe('C3.1')
     expect(childCode('S1', 2)).toBe('S1.2')
+  })
+})
+
+describe('collectCodes', () => {
+  test('raccoglie i codici validi di tutti gli array', () => {
+    const codes = collectCodes({
+      serbatoi: [{ codice: 'S1' }],
+      compressori: [{ codice: 'C1' }],
+      disoleatori: [{ codice: 'C1.1' }],
+      filtri: [{ codice: null }],
+    })
+    expect(codes).toEqual(new Set(['S1', 'C1', 'C1.1']))
+  })
+
+  test('tollera scheda vuota o array assenti', () => {
+    expect(collectCodes({})).toEqual(new Set())
+    expect(collectCodes(null)).toEqual(new Set())
+  })
+})
+
+describe('normalizeSchedaCodes', () => {
+  test('assegna i codici mancanti in ordine di array', () => {
+    const { scheda, changed } = normalizeSchedaCodes({
+      compressori: [{ marca: 'a' }, { marca: 'b' }],
+    })
+    expect(changed).toBe(true)
+    expect(scheda.compressori.map((c: any) => c.codice)).toEqual(['C1', 'C2'])
+  })
+
+  test('non rinumera: i buchi restano buchi', () => {
+    const { scheda, changed } = normalizeSchedaCodes({
+      serbatoi: [{ codice: 'S1' }, { codice: 'S3' }],
+    })
+    expect(changed).toBe(false)
+    expect(scheda.serbatoi.map((s: any) => s.codice)).toEqual(['S1', 'S3'])
+  })
+
+  test('assegna al record privo di codice il numero libero più basso', () => {
+    const { scheda } = normalizeSchedaCodes({
+      serbatoi: [{ codice: 'S1' }, { codice: 'S3' }, {}],
+    })
+    expect(scheda.serbatoi.map((s: any) => s.codice)).toEqual(['S1', 'S3', 'S2'])
+  })
+
+  test('risolve i duplicati conservando il primo', () => {
+    const { scheda, changed } = normalizeSchedaCodes({
+      serbatoi: [{ codice: 'S1', marca: 'primo' }, { codice: 'S1', marca: 'secondo' }],
+    })
+    expect(changed).toBe(true)
+    expect(scheda.serbatoi[0]).toEqual({ codice: 'S1', marca: 'primo' })
+    expect(scheda.serbatoi[1]).toEqual({ codice: 'S2', marca: 'secondo' })
+  })
+
+  test('riassegna i codici di prefisso sbagliato', () => {
+    const { scheda } = normalizeSchedaCodes({ serbatoi: [{ codice: 'X9' }] })
+    expect(scheda.serbatoi[0].codice).toBe('S1')
+  })
+
+  test('riassegna i codici fuori dal massimo del tipo', () => {
+    const { scheda } = normalizeSchedaCodes({ separatori: [{ codice: 'SEP9' }] })
+    expect(scheda.separatori[0].codice).toBe('SEP1')
+  })
+
+  test('lascia intatto il record quando il tipo è saturo', () => {
+    const { scheda } = normalizeSchedaCodes({
+      separatori: [{ codice: 'SEP1' }, { codice: 'SEP2' }, { codice: 'SEP3' }, { marca: 'quarto' }],
+    })
+    expect(scheda.separatori[3]).toEqual({ marca: 'quarto' })
+  })
+
+  test('deriva il codice del figlio dal riferimento al padre', () => {
+    const { scheda, changed } = normalizeSchedaCodes({
+      compressori: [{ codice: 'C1' }, { codice: 'C2' }, { codice: 'C3' }],
+      disoleatori: [{ codice: 'undefined.1', compressore_associato: 'C3' }],
+    })
+    expect(changed).toBe(true)
+    expect(scheda.disoleatori[0].codice).toBe('C3.1')
+  })
+
+  test('lascia intatto il figlio senza riferimento valido', () => {
+    const { scheda, changed } = normalizeSchedaCodes({
+      disoleatori: [{ codice: 'undefined.1', compressore_associato: null }],
+    })
+    expect(changed).toBe(false)
+    expect(scheda.disoleatori[0].codice).toBe('undefined.1')
+  })
+
+  test('deriva anche i codici di scambiatori e recipienti', () => {
+    const { scheda } = normalizeSchedaCodes({
+      scambiatori: [{ essiccatore_associato: 'E2' }],
+      recipienti_filtro: [{ filtro_associato: 'F1' }],
+    })
+    expect(scheda.scambiatori[0].codice).toBe('E2.1')
+    expect(scheda.recipienti_filtro[0].codice).toBe('F1.1')
+  })
+
+  test('è idempotente', () => {
+    const first = normalizeSchedaCodes({
+      compressori: [{ marca: 'a' }, { marca: 'b' }],
+      disoleatori: [{ compressore_associato: 'C2' }],
+    })
+    const second = normalizeSchedaCodes(first.scheda)
+    expect(second.changed).toBe(false)
+    expect(second.scheda).toEqual(first.scheda)
+  })
+
+  test('non modifica la scheda in ingresso', () => {
+    const input = { compressori: [{ marca: 'a' }] }
+    normalizeSchedaCodes(input)
+    expect(input.compressori[0]).toEqual({ marca: 'a' })
+  })
+
+  test('conserva i campi non gestiti', () => {
+    const { scheda } = normalizeSchedaCodes({
+      stato: 'bozza',
+      dati_generali: { cliente: 'ACME' },
+      serbatoi: [{ marca: 'a' }],
+    })
+    expect(scheda.stato).toBe('bozza')
+    expect(scheda.dati_generali).toEqual({ cliente: 'ACME' })
   })
 })
