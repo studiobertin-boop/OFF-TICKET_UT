@@ -97,9 +97,11 @@ export function collectCodes(scheda: any): Set<string> {
  * valido — mancante, di prefisso sbagliato, fuori dal massimo del tipo, o duplicato di uno già
  * visto — il numero libero più basso.
  *
- * Array dipendenti: riallinea `codice` a `${riferimento}.1`. Se il riferimento al padre manca o
- * non è valido il codice non è derivabile e il record resta intatto: è un problema di dati, non
- * qualcosa che questa funzione possa indovinare.
+ * Array dipendenti: riallinea `codice` a `${riferimento}.1`. Il riferimento al padre deve avere
+ * il prefisso e il numero entro i limiti specifici dell'array dipendente (es. disoleatori richiede
+ * prefisso 'C' e num 1..5); se il riferimento non è valido il codice non è derivabile e il record
+ * resta intatto. Anche quando il riferimento è valido, se il codice derivato è già occupato da un
+ * altro figlio dello stesso padre, il record precedente conserva il codice e il nuovo resta intatto.
  *
  * Idempotente: applicata al proprio risultato ritorna `changed: false`.
  */
@@ -147,12 +149,27 @@ export function normalizeSchedaCodes<T extends Record<string, any>>(
     const items = scheda?.[array]
     if (!Array.isArray(items) || items.length === 0) continue
 
+    const { prefix, max } = EQUIPMENT_LIMITS[array]
+    /** Codice che il figlio dovrebbe avere, o null se il riferimento non è utilizzabile. */
+    const expectedOf = (item: any): string | null => {
+      const parent = parseCode(item?.[ref])
+      if (!parent || parent.sub !== undefined) return null
+      if (parent.prefix !== prefix || parent.num < 1 || parent.num > max) return null
+      return childCode(item[ref])
+    }
+    const claimed = new Set<string>()
+    // 1° passaggio: chi ha già il codice corretto lo mantiene e se lo riserva.
+    items.forEach((item: any) => {
+      const expected = expectedOf(item)
+      if (expected && item?.codice === expected) claimed.add(expected)
+    })
+    // 2° passaggio: assegna a chi ne è privo, senza creare duplicati.
     let touched = false
     const next = items.map((item: any) => {
-      const parent = parseCode(item?.[ref])
-      if (!parent || parent.sub !== undefined) return item
-      const expected = childCode(item[ref])
-      if (item?.codice === expected) return item
+      const expected = expectedOf(item)
+      if (!expected || item?.codice === expected) return item
+      if (claimed.has(expected)) return item // il codice appartiene già a un altro figlio
+      claimed.add(expected)
       touched = true
       return { ...item, codice: expected }
     })

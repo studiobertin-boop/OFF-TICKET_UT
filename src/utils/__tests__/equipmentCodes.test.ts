@@ -172,6 +172,52 @@ describe('normalizeSchedaCodes', () => {
     expect(scheda.recipienti_filtro[0].codice).toBe('F1.1')
   })
 
+  test('riferimento di prefisso sbagliato lascia il record intatto', () => {
+    const { scheda, changed } = normalizeSchedaCodes({
+      disoleatori: [{ codice: 'S9.1', compressore_associato: 'S9' }],
+    })
+    expect(changed).toBe(false)
+    expect(scheda.disoleatori[0].codice).toBe('S9.1')
+  })
+
+  test('riferimento fuori dal massimo del tipo lascia il record intatto', () => {
+    const { scheda, changed } = normalizeSchedaCodes({
+      disoleatori: [{ codice: 'C99.1', compressore_associato: 'C99' }],
+    })
+    expect(changed).toBe(false)
+    expect(scheda.disoleatori[0].codice).toBe('C99.1')
+  })
+
+  test('due figli sullo stesso padre non ricevono lo stesso codice', () => {
+    const { scheda, changed } = normalizeSchedaCodes({
+      compressori: [{ codice: 'C1' }],
+      disoleatori: [{ compressore_associato: 'C1' }, { compressore_associato: 'C1' }],
+    })
+    expect(changed).toBe(true)
+    expect(scheda.disoleatori[0].codice).toBe('C1.1')
+    expect(scheda.disoleatori[1].codice).toBeUndefined()
+  })
+
+  test('il figlio che ha già il codice corretto ha la precedenza sull\'ordine di array', () => {
+    const { scheda, changed } = normalizeSchedaCodes({
+      compressori: [{ codice: 'C1' }],
+      disoleatori: [{ compressore_associato: 'C1' }, { codice: 'C1.1', compressore_associato: 'C1' }],
+    })
+    expect(changed).toBe(false)
+    expect(scheda.disoleatori[0].codice).toBeUndefined()
+    expect(scheda.disoleatori[1].codice).toBe('C1.1')
+  })
+
+  test('idempotenza con due figli sullo stesso padre', () => {
+    const first = normalizeSchedaCodes({
+      compressori: [{ codice: 'C1' }],
+      disoleatori: [{ compressore_associato: 'C1' }, { compressore_associato: 'C1' }],
+    })
+    const second = normalizeSchedaCodes(first.scheda)
+    expect(second.changed).toBe(false)
+    expect(second.scheda).toEqual(first.scheda)
+  })
+
   test('è idempotente', () => {
     const first = normalizeSchedaCodes({
       compressori: [{ marca: 'a' }, { marca: 'b' }],
