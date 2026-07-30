@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest'
 import {
-  parseCode, compareCodes, nextFreeCode, childCode, collectCodes, normalizeSchedaCodes,
+  parseCode, compareCodes, nextFreeCode, childCode, collectCodes, normalizeSchedaCodes, pruneAdditionalInfo,
 } from '@/utils/equipmentCodes'
 
 describe('parseCode', () => {
@@ -242,5 +242,69 @@ describe('normalizeSchedaCodes', () => {
     })
     expect(scheda.stato).toBe('bozza')
     expect(scheda.dati_generali).toEqual({ cliente: 'ACME' })
+  })
+})
+
+describe('pruneAdditionalInfo', () => {
+  const codes = new Set(['C1', 'S1', 'S2'])
+
+  test('rimuove i giri di compressori inesistenti', () => {
+    const { info, dropped } = pruneAdditionalInfo(
+      { compressoriGiri: { C1: 'fissi', C9: 'variabili' } },
+      codes
+    )
+    expect(info.compressoriGiri).toEqual({ C1: 'fissi' })
+    expect(dropped).toEqual(['giri C9'])
+  })
+
+  test('rimuove la chiave di collegamento di un compressore inesistente', () => {
+    const { info, dropped } = pruneAdditionalInfo(
+      { collegamentiCompressoriSerbatoi: { C9: ['S1'] } },
+      codes
+    )
+    expect(info.collegamentiCompressoriSerbatoi).toEqual({})
+    expect(dropped).toEqual(['collegamenti C9'])
+  })
+
+  test('filtra i serbatoi inesistenti conservando la chiave', () => {
+    const { info, dropped } = pruneAdditionalInfo(
+      { collegamentiCompressoriSerbatoi: { C1: ['S1', 'S7'] } },
+      codes
+    )
+    expect(info.collegamentiCompressoriSerbatoi).toEqual({ C1: ['S1'] })
+    expect(dropped).toEqual(['collegamento C1 → S7'])
+  })
+
+  test('filtra la spessimetrica', () => {
+    const { info, dropped } = pruneAdditionalInfo({ spessimetrica: ['S1', 'S9'] }, codes)
+    expect(info.spessimetrica).toEqual(['S1'])
+    expect(dropped).toEqual(['spessimetrica S9'])
+  })
+
+  test('conserva i campi testuali', () => {
+    const { info } = pruneAdditionalInfo(
+      { descrizioneAttivita: 'officina', motivoRevisione: 'aggiunta serbatoio' },
+      codes
+    )
+    expect(info.descrizioneAttivita).toBe('officina')
+    expect(info.motivoRevisione).toBe('aggiunta serbatoio')
+  })
+
+  test('non segnala nulla quando tutto è valido', () => {
+    const { dropped } = pruneAdditionalInfo(
+      { compressoriGiri: { C1: 'fissi' }, collegamentiCompressoriSerbatoi: { C1: ['S1', 'S2'] } },
+      codes
+    )
+    expect(dropped).toEqual([])
+  })
+
+  test('tollera additional_info assente', () => {
+    const { info, dropped } = pruneAdditionalInfo(undefined, codes)
+    expect(info).toEqual({
+      compressoriGiri: {},
+      spessimetrica: [],
+      collegamentiCompressoriSerbatoi: {},
+    })
+    expect(dropped).toEqual([])
   })
 })

@@ -8,6 +8,7 @@
  */
 
 import { EQUIPMENT_LIMITS } from '@/types'
+import type { AdditionalInfo, TipoGiri } from '@/services/relazione/types'
 
 export interface ParsedCode {
   prefix: string
@@ -181,4 +182,51 @@ export function normalizeSchedaCodes<T extends Record<string, any>>(
   }
 
   return { scheda: out as T, changed }
+}
+
+/**
+ * Rimuove da `additional_info` i riferimenti a codici non più presenti nella scheda e riporta
+ * cosa ha scartato, così il chiamante può dirlo all'utente.
+ *
+ * Attenzione al limite intrinseco del modello posizionale: se un codice liberato viene
+ * riassegnato a una nuova apparecchiatura, un riferimento redatto per la precedente risulta
+ * ancora valido e resta agganciato alla nuova. Qui non c'è l'informazione per distinguere i due
+ * casi; la riconferma visiva nel dialog è la mitigazione.
+ */
+export function pruneAdditionalInfo(
+  info: AdditionalInfo | undefined,
+  codes: Set<string>
+): { info: AdditionalInfo; dropped: string[] } {
+  const src = info ?? {}
+  const dropped: string[] = []
+
+  const compressoriGiri: Record<string, TipoGiri> = {}
+  for (const [code, giro] of Object.entries(src.compressoriGiri ?? {})) {
+    if (codes.has(code)) compressoriGiri[code] = giro
+    else dropped.push(`giri ${code}`)
+  }
+
+  const collegamentiCompressoriSerbatoi: Record<string, string[]> = {}
+  for (const [code, serbatoi] of Object.entries(src.collegamentiCompressoriSerbatoi ?? {})) {
+    if (!codes.has(code)) {
+      dropped.push(`collegamenti ${code}`)
+      continue
+    }
+    collegamentiCompressoriSerbatoi[code] = (serbatoi ?? []).filter((s) => {
+      if (codes.has(s)) return true
+      dropped.push(`collegamento ${code} → ${s}`)
+      return false
+    })
+  }
+
+  const spessimetrica = (src.spessimetrica ?? []).filter((code) => {
+    if (codes.has(code)) return true
+    dropped.push(`spessimetrica ${code}`)
+    return false
+  })
+
+  return {
+    info: { ...src, compressoriGiri, spessimetrica, collegamentiCompressoriSerbatoi },
+    dropped,
+  }
 }
