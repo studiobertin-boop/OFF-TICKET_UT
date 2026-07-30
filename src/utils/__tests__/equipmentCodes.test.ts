@@ -168,8 +168,8 @@ describe('normalizeSchedaCodes', () => {
       scambiatori: [{ essiccatore_associato: 'E2' }],
       recipienti_filtro: [{ filtro_associato: 'F1' }],
     })
-    expect(scheda.scambiatori[0].codice).toBe('E2.1')
-    expect(scheda.recipienti_filtro[0].codice).toBe('F1.1')
+    expect((scheda.scambiatori[0] as any).codice).toBe('E2.1')
+    expect((scheda.recipienti_filtro[0] as any).codice).toBe('F1.1')
   })
 
   test('riferimento di prefisso sbagliato lascia il record intatto', () => {
@@ -194,8 +194,8 @@ describe('normalizeSchedaCodes', () => {
       disoleatori: [{ compressore_associato: 'C1' }, { compressore_associato: 'C1' }],
     })
     expect(changed).toBe(true)
-    expect(scheda.disoleatori[0].codice).toBe('C1.1')
-    expect(scheda.disoleatori[1].codice).toBeUndefined()
+    expect((scheda.disoleatori[0] as any).codice).toBe('C1.1')
+    expect((scheda.disoleatori[1] as any).codice).toBeUndefined()
   })
 
   test('il figlio che ha già il codice corretto ha la precedenza sull\'ordine di array', () => {
