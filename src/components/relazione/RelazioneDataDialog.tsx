@@ -24,6 +24,7 @@ import {
   ListItemText,
   Box,
   CircularProgress,
+  Alert,
 } from '@mui/material'
 import toast from 'react-hot-toast'
 import type { SelectChangeEvent } from '@mui/material'
@@ -33,6 +34,7 @@ import { technicalDataApi } from '@/services/api/technicalData'
 import { additionalInfoSchema } from '@/services/relazione/schema'
 import { generateAndDownloadRelazione } from '@/services/relazione/generateRelazione'
 import type { AdditionalInfo, TipoGiri } from '@/services/relazione/types'
+import { collectCodes, pruneAdditionalInfo } from '@/utils/equipmentCodes'
 
 interface RelazioneDataDialogProps {
   open: boolean
@@ -68,23 +70,30 @@ export default function RelazioneDataDialog({
     [scheda, serbatoiCodes]
   )
 
+  /** Codici realmente presenti nella scheda: valida i riferimenti salvati in additional_info. */
+  const schedaCodes = useMemo(() => collectCodes(scheda), [scheda])
+
   const [descrizioneAttivita, setDescrizioneAttivita] = useState('')
   const [motivoRevisione, setMotivoRevisione] = useState('')
   const [giri, setGiri] = useState<Record<string, TipoGiri>>({})
   const [spessimetrica, setSpessimetrica] = useState<string[]>([])
   const [collegamenti, setCollegamenti] = useState<Record<string, string[]>>({})
   const [saving, setSaving] = useState(false)
+  const [droppedRefs, setDroppedRefs] = useState<string[]>([])
 
   // Sincronizza lo stato all'apertura del dialog
   useEffect(() => {
     if (!open) return
-    const info = initialAdditionalInfo ?? {}
+    // Scarta i riferimenti ad apparecchiature non più presenti: la scheda può essere cambiata
+    // dopo che questi dati sono stati redatti.
+    const { info, dropped } = pruneAdditionalInfo(initialAdditionalInfo, schedaCodes)
     setDescrizioneAttivita(info.descrizioneAttivita || customer?.descrizione_attivita || '')
     setMotivoRevisione(info.motivoRevisione || '')
-    setGiri(info.compressoriGiri || {})
-    setSpessimetrica(info.spessimetrica || [])
-    setCollegamenti(info.collegamentiCompressoriSerbatoi || {})
-  }, [open, initialAdditionalInfo, customer])
+    setGiri(info.compressoriGiri ?? {})
+    setSpessimetrica(info.spessimetrica ?? [])
+    setCollegamenti(info.collegamentiCompressoriSerbatoi ?? {})
+    setDroppedRefs(dropped)
+  }, [open, initialAdditionalInfo, customer, schedaCodes])
 
   const setGiroFor = (code: string, value: TipoGiri) =>
     setGiri((prev) => ({ ...prev, [code]: value }))
@@ -93,13 +102,18 @@ export default function RelazioneDataDialog({
     setCollegamenti((prev) => ({ ...prev, [code]: values }))
 
   const handleGenera = async () => {
-    const candidate: AdditionalInfo = {
-      descrizioneAttivita: descrizioneAttivita.trim(),
-      motivoRevisione: motivoRevisione.trim() || undefined,
-      compressoriGiri: giri,
-      spessimetrica,
-      collegamentiCompressoriSerbatoi: collegamenti,
-    }
+    // Si persiste il solo oggetto ripulito: altrimenti una voce obsoleta sopravvivrebbe a ogni
+    // generazione successiva.
+    const { info: candidate } = pruneAdditionalInfo(
+      {
+        descrizioneAttivita: descrizioneAttivita.trim(),
+        motivoRevisione: motivoRevisione.trim() || undefined,
+        compressoriGiri: giri,
+        spessimetrica,
+        collegamentiCompressoriSerbatoi: collegamenti,
+      },
+      schedaCodes
+    )
 
     const parsed = additionalInfoSchema.safeParse(candidate)
     if (!parsed.success) {
@@ -136,6 +150,13 @@ export default function RelazioneDataDialog({
       <DialogTitle>Dati per la relazione tecnica</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={3} sx={{ mt: 1 }}>
+          {droppedRefs.length > 0 && (
+            <Alert severity="warning">
+              Alcuni riferimenti salvati non corrispondono più ad apparecchiature presenti nella
+              scheda e sono stati rimossi: {droppedRefs.join('; ')}. Ricontrolla i dati qui sotto
+              prima di generare la relazione.
+            </Alert>
+          )}
           <TextField
             label="Descrizione attività (ATECO)"
             value={descrizioneAttivita}
