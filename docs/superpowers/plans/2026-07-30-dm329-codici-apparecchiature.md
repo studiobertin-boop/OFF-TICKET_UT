@@ -1465,13 +1465,25 @@ Expected: PASS su tutti i file, inclusi i test preesistenti di `src/services/rel
 
 - [ ] **Step 2: Build con typecheck**
 
-Run: `npm run build:check`
-Expected: build completata senza errori.
+Run: `npx tsc --noEmit` poi `npx vite build`
+
+`npm run build:check` (che è `tsc && vite build`) **non può passare** in questo repository: al
+2026-07-30 esistono 4 errori TypeScript preesistenti, in `AddInstallerDialog.tsx` (2),
+`BillingReport.tsx` e `billingReports.ts`, che non rientrano in questo lavoro. La verifica corretta
+è quindi in due parti:
+
+- `npx tsc --noEmit` deve riportare **esattamente quei 4 errori** e nessun altro. Qualunque errore
+  in un altro file è una regressione di questo lavoro.
+- `npx vite build` deve completare la build del bundle.
 
 - [ ] **Step 3: Lint**
 
-Run: `npm run lint`
-Expected: nessun errore, nessun warning.
+Run: `npx eslint` sui soli file toccati.
+
+`npm run lint` usa `--max-warnings 0` su un baseline di ~380 warning preesistenti e fallisce a
+prescindere: il bar "nessun warning" del piano non era raggiungibile. La verifica corretta è che i
+file toccati non introducano **errori** — i warning `no-explicit-any` sono coerenti con il resto
+del repository.
 
 - [ ] **Step 4: Verificare che l'aritmetica sugli indici sia scomparsa dai percorsi attivi**
 
