@@ -223,7 +223,7 @@ export function childCode(parentCode: string, sub = 1): string {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run src/utils/__tests__/equipmentCodes.test.ts`
-Expected: PASS — 14 test
+Expected: PASS — 15 test
 
 - [ ] **Step 5: Commit**
 
