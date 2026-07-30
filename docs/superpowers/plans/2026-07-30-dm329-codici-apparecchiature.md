@@ -1126,8 +1126,8 @@ Subito dopo la chiusura di `completedItems.forEach(...)` (riga 286, la riga `})`
 ```ts
     // I segnaposto `{}` inseriti negli array principali per raggiungere la posizione richiesta
     // restano privi di codice: la normalizzazione li completa col numero libero più basso. Gli
-    // array dipendenti non ne producono più (Step 4). `reset` serve perché useFieldArray non si
-    // risincronizza da sé dopo i setValue fatti qui sopra.
+    // array dipendenti non ne producono più (Step 4). `reset` riscrive nel form la scheda
+    // normalizzata, che è un oggetto nuovo, in un colpo solo invece di un setValue per array.
     const { scheda: normalized, changed } = normalizeSchedaCodes(getValues())
     if (changed) reset(normalized)
 ```
