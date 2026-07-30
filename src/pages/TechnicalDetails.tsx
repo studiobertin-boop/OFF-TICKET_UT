@@ -123,6 +123,11 @@ export const TechnicalDetails = () => {
             } catch (normErr) {
               console.error('[normalizeSchedaCodes] Errore nel salvataggio dei codici:', normErr)
             }
+
+            // Allinea anche lo stato locale: il dialog della relazione legge
+            // technicalData.equipment_data, non formData, e senza questo continuerebbe a
+            // vedere la scheda non normalizzata fino al ricaricamento della pagina.
+            setTechnicalData((prev) => (prev ? { ...prev, equipment_data: normalized } : prev))
           }
 
           setFormData(normalized)
