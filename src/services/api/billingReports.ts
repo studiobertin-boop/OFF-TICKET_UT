@@ -40,6 +40,12 @@ export const billingReportsApi = {
       .gte('updated_at', `${dateFrom}T00:00:00`)
       .lte('updated_at', `${dateTo}T23:59:59`)
       .order('updated_at', { ascending: false })
+      // requests.request_type_id è una FK NOT NULL verso request_types (relazione
+      // many-to-one), quindi PostgREST incorpora request_type come OGGETTO singolo.
+      // Il client Supabase è creato senza i tipi generati del Database, perciò non
+      // può dedurre la cardinalità dell'embed e lo inferisce come array: qui
+      // allineiamo il tipo alla forma effettiva della risposta.
+      .overrideTypes<{ request_type: { id: string; name: string } }[]>()
 
     if (error) {
       console.error('Error fetching billing report:', error)

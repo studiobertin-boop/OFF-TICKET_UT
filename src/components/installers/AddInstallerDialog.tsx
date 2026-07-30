@@ -52,7 +52,10 @@ export const AddInstallerDialog = ({
     handleSubmit,
     formState: { errors },
     reset,
-  } = useForm<CreateInstallerInput>({
+    // Nessun parametro di tipo esplicito: il tipo dei campi viene dedotto dal
+    // resolver Zod (stessa forma usata in InstallersManagement.tsx). Passarlo a
+    // mano crea un mismatch con il Resolver inferito da @hookform/resolvers.
+  } = useForm({
     resolver: zodResolver(createInstallerSchema),
     defaultValues: {
       nome: initialNome,

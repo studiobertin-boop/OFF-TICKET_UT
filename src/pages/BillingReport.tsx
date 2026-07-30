@@ -37,7 +37,11 @@ export default function BillingReport() {
       const totalCount = Object.values(data).reduce((sum, items) => sum + items.length, 0)
 
       if (totalCount === 0) {
-        toast.info('Nessuna richiesta non fatturata trovata nel periodo selezionato')
+        // react-hot-toast non ha toast.info: il toast "blank" con icona è la
+        // variante neutra (l'esito non è né un successo né un errore)
+        toast('Nessuna richiesta non fatturata trovata nel periodo selezionato', {
+          icon: 'ℹ️',
+        })
       } else {
         toast.success(`Report generato: ${totalCount} richieste trovate`)
       }
