@@ -14,7 +14,8 @@ import { EquipmentAutocomplete } from '../EquipmentAutocomplete'
 import { SingleOCRButton } from '../SingleOCRButton'
 import { useTecnicoDM329Visibility } from '@/hooks/useTecnicoDM329Visibility'
 import { calculateCategoriaPED } from '@/utils/categoriaPedCalculator'
-import { generateEquipmentCode, type CategoriaPED, type EquipmentCatalogType } from '@/types'
+import { EQUIPMENT_LIMITS, type CategoriaPED, type EquipmentCatalogType } from '@/types'
+import { compareCodes, nextFreeCode } from '@/utils/equipmentCodes'
 import type { OCRExtractedData } from '@/types/ocr'
 import {
   EQUIPMENT_DEFS, NEW_EQUIPMENT_KINDS, type EquipmentKind, type EquipmentTypeDef, type AdvKey, type ExtraFieldDef,
@@ -26,6 +27,23 @@ const COL_COUNT = 10
  *  (l'aggiornamento opzioni è gestito dentro EquipmentAutocomplete). Identità stabile
  *  per non ri-triggerare l'effetto checkExists ad ogni render. */
 const ENABLE_ADD_TO_CATALOG = () => {}
+
+/**
+ * Righe da rendere, ordinate per codice. `i` resta l'indice reale nell'array di React Hook Form:
+ * l'ordinamento riguarda solo la resa, non i percorsi dei campi.
+ *
+ * Il codice si legge dai valori osservati (`values`), non da `fields` di `useFieldArray`, che non
+ * si risincronizza dopo un `setValue` esterno come quello del batch OCR. `fields` resta come
+ * ripiego finché l'osservazione non ha prodotto un valore.
+ */
+const sortedEntries = (fields: any[], values: any[] | undefined) =>
+  fields
+    .map((f: any, i: number) => ({ f, i, code: (values?.[i]?.codice ?? f?.codice ?? '') as string }))
+    .sort((a, b) => compareCodes(a.code, b.code))
+
+/** Codici correnti di un array, per calcolare il prossimo numero libero. */
+const codesOf = (fields: any[], values: any[] | undefined) =>
+  fields.map((f: any, i: number) => values?.[i]?.codice ?? f?.codice)
 
 const KIND_COLOR: Record<EquipmentKind, string> = {
   serbatoio: '#5aa6d6', compressore: '#d8a900', disoleatore: '#c99a00', essiccatore: '#4fa564',
@@ -224,28 +242,61 @@ export const UnifiedEquipmentTable = ({ control }: UnifiedEquipmentTableProps) =
   const recipienti = useFieldArray({ control, name: 'recipienti_filtro' })
   const separatori = useFieldArray({ control, name: 'separatori' })
 
+  // I codici vengono dai valori del form, non da `fields`: vedi sortedEntries.
+  const serbatoiVals = useWatch({ control, name: 'serbatoi' }) as any[] | undefined
+  const compressoriVals = useWatch({ control, name: 'compressori' }) as any[] | undefined
+  const disoleatoriVals = useWatch({ control, name: 'disoleatori' }) as any[] | undefined
+  const essiccatoriVals = useWatch({ control, name: 'essiccatori' }) as any[] | undefined
+  const scambiatoriVals = useWatch({ control, name: 'scambiatori' }) as any[] | undefined
+  const filtriVals = useWatch({ control, name: 'filtri' }) as any[] | undefined
+  const recipientiVals = useWatch({ control, name: 'recipienti_filtro' }) as any[] | undefined
+  const separatoriVals = useWatch({ control, name: 'separatori' }) as any[] | undefined
+
+  /** Conteggio e massimo per i tipi creabili: serve a disabilitare la voce di menu. */
+  const newKindState: Record<string, { count: number; max: number }> = {
+    serbatoio: { count: serbatoi.fields.length, max: EQUIPMENT_LIMITS.serbatoi.max },
+    compressore: { count: compressori.fields.length, max: EQUIPMENT_LIMITS.compressori.max },
+    essiccatore: { count: essiccatori.fields.length, max: EQUIPMENT_LIMITS.essiccatori.max },
+    filtro: { count: filtri.fields.length, max: EQUIPMENT_LIMITS.filtri.max },
+    separatore: { count: separatori.fields.length, max: EQUIPMENT_LIMITS.separatori.max },
+  }
+
   const confirmDel = (label: string, code: string) => window.confirm(`Confermi di voler eliminare ${label} ${code}?`)
 
   const addNew = (kind: EquipmentKind) => {
     setMenuAnchor(null)
     switch (kind) {
-      case 'serbatoio':
-        serbatoi.append({ codice: generateEquipmentCode('S', serbatoi.fields.length + 1), valvola_sicurezza: {}, manometro: {} }); break
-      case 'compressore':
-        compressori.append({ codice: generateEquipmentCode('C', compressori.fields.length + 1), ha_disoleatore: false }); break
-      case 'essiccatore':
-        essiccatori.append({ codice: generateEquipmentCode('E', essiccatori.fields.length + 1), ha_scambiatore: false }); break
-      case 'filtro':
-        filtri.append({ codice: generateEquipmentCode('F', filtri.fields.length + 1), ha_recipiente: false }); break
-      case 'separatore':
-        separatori.append({ codice: generateEquipmentCode('SEP', separatori.fields.length + 1) }); break
+      case 'serbatoio': {
+        const codice = nextFreeCode('S', codesOf(serbatoi.fields, serbatoiVals), EQUIPMENT_LIMITS.serbatoi.max)
+        if (codice) serbatoi.append({ codice, valvola_sicurezza: {}, manometro: {} })
+        break
+      }
+      case 'compressore': {
+        const codice = nextFreeCode('C', codesOf(compressori.fields, compressoriVals), EQUIPMENT_LIMITS.compressori.max)
+        if (codice) compressori.append({ codice, ha_disoleatore: false })
+        break
+      }
+      case 'essiccatore': {
+        const codice = nextFreeCode('E', codesOf(essiccatori.fields, essiccatoriVals), EQUIPMENT_LIMITS.essiccatori.max)
+        if (codice) essiccatori.append({ codice, ha_scambiatore: false })
+        break
+      }
+      case 'filtro': {
+        const codice = nextFreeCode('F', codesOf(filtri.fields, filtriVals), EQUIPMENT_LIMITS.filtri.max)
+        if (codice) filtri.append({ codice, ha_recipiente: false })
+        break
+      }
+      case 'separatore': {
+        const codice = nextFreeCode('SEP', codesOf(separatori.fields, separatoriVals), EQUIPMENT_LIMITS.separatori.max)
+        if (codice) separatori.append({ codice })
+        break
+      }
     }
   }
 
   const rows: ReactNode[] = []
 
-  serbatoi.fields.forEach((f, i) => {
-    const code = generateEquipmentCode('S', i + 1)
+  sortedEntries(serbatoi.fields, serbatoiVals).forEach(({ f, i, code }) => {
     rows.push(<EqRow key={`s-${f.id}`} control={control} def={EQUIPMENT_DEFS.serbatoio} base={`serbatoi.${i}`} code={code} depth={0} adv={adv}
       ocr={{ equipmentType: 'Serbatoi', equipmentIndex: i }}
       onDelete={() => { if (confirmDel('il serbatoio', code)) serbatoi.remove(i) }}
@@ -254,9 +305,8 @@ export const UnifiedEquipmentTable = ({ control }: UnifiedEquipmentTableProps) =
       ocr={{ equipmentType: 'Serbatoi', equipmentIndex: i, componentType: 'valvola_sicurezza' }} onDelete={null} append={null} />)
   })
 
-  compressori.fields.forEach((f, i) => {
-    const code = generateEquipmentCode('C', i + 1)
-    const dIdx = disoleatori.fields.findIndex((d: any) => d.compressore_associato === code)
+  sortedEntries(compressori.fields, compressoriVals).forEach(({ f, i, code }) => {
+    const dIdx = (disoleatoriVals ?? disoleatori.fields).findIndex((d: any) => d?.compressore_associato === code)
     rows.push(<EqRow key={`c-${f.id}`} control={control} def={EQUIPMENT_DEFS.compressore} base={`compressori.${i}`} code={code} depth={0} adv={adv}
       ocr={{ equipmentType: 'Compressori', equipmentIndex: i }}
       onDelete={() => { if (confirmDel('il compressore', code)) { if (dIdx >= 0) disoleatori.remove(dIdx); compressori.remove(i) } }}
@@ -270,9 +320,8 @@ export const UnifiedEquipmentTable = ({ control }: UnifiedEquipmentTableProps) =
     }
   })
 
-  essiccatori.fields.forEach((f, i) => {
-    const code = generateEquipmentCode('E', i + 1)
-    const sIdx = scambiatori.fields.findIndex((s: any) => s.essiccatore_associato === code)
+  sortedEntries(essiccatori.fields, essiccatoriVals).forEach(({ f, i, code }) => {
+    const sIdx = (scambiatoriVals ?? scambiatori.fields).findIndex((s: any) => s?.essiccatore_associato === code)
     rows.push(<EqRow key={`e-${f.id}`} control={control} def={EQUIPMENT_DEFS.essiccatore} base={`essiccatori.${i}`} code={code} depth={0} adv={adv}
       ocr={{ equipmentType: 'Essiccatori', equipmentIndex: i }}
       onDelete={() => { if (confirmDel("l'essiccatore", code)) { if (sIdx >= 0) scambiatori.remove(sIdx); essiccatori.remove(i) } }}
@@ -284,9 +333,8 @@ export const UnifiedEquipmentTable = ({ control }: UnifiedEquipmentTableProps) =
     }
   })
 
-  filtri.fields.forEach((f, i) => {
-    const code = generateEquipmentCode('F', i + 1)
-    const rIdx = recipienti.fields.findIndex((r: any) => r.filtro_associato === code)
+  sortedEntries(filtri.fields, filtriVals).forEach(({ f, i, code }) => {
+    const rIdx = (recipientiVals ?? recipienti.fields).findIndex((r: any) => r?.filtro_associato === code)
     rows.push(<EqRow key={`f-${f.id}`} control={control} def={EQUIPMENT_DEFS.filtro} base={`filtri.${i}`} code={code} depth={0} adv={adv}
       ocr={{ equipmentType: 'Filtri', equipmentIndex: i }}
       onDelete={() => { if (confirmDel('il filtro', code)) { if (rIdx >= 0) recipienti.remove(rIdx); filtri.remove(i) } }}
@@ -298,8 +346,7 @@ export const UnifiedEquipmentTable = ({ control }: UnifiedEquipmentTableProps) =
     }
   })
 
-  separatori.fields.forEach((f, i) => {
-    const code = generateEquipmentCode('SEP', i + 1)
+  sortedEntries(separatori.fields, separatoriVals).forEach(({ f, i, code }) => {
     rows.push(<EqRow key={`sep-${f.id}`} control={control} def={EQUIPMENT_DEFS.separatore} base={`separatori.${i}`} code={code} depth={0} adv={adv}
       ocr={{ equipmentType: 'Separatori', equipmentIndex: i }}
       onDelete={() => { if (confirmDel('il separatore', code)) separatori.remove(i) }} append={null} />)
@@ -317,9 +364,14 @@ export const UnifiedEquipmentTable = ({ control }: UnifiedEquipmentTableProps) =
         </Button>
         <Menu anchorEl={menuAnchor} open={!!menuAnchor} onClose={() => setMenuAnchor(null)}>
           {NEW_EQUIPMENT_KINDS.map((k) => (
-            <MenuItem key={k} onClick={() => addNew(k)}>
+            <MenuItem key={k} onClick={() => addNew(k)} disabled={newKindState[k].count >= newKindState[k].max}>
               <Box sx={{ width: 10, height: 10, borderRadius: '3px', bgcolor: KIND_COLOR[k], mr: 1.5 }} />
               {EQUIPMENT_DEFS[k].label}
+              {newKindState[k].count >= newKindState[k].max && (
+                <Typography component="span" sx={{ fontSize: '0.7rem', color: 'text.secondary', ml: 1 }}>
+                  (max {newKindState[k].max})
+                </Typography>
+              )}
             </MenuItem>
           ))}
         </Menu>
