@@ -21,6 +21,8 @@ import { useEquipmentCatalogUpdate } from '@/hooks/useEquipmentCatalogUpdate'
 import type { SchedaDatiCompleta } from '@/types'
 import type { BatchOCRResult, BatchOCRItem } from '@/types/ocr'
 import type { EquipmentCatalogType } from '@/types'
+import { EQUIPMENT_LIMITS } from '@/types'
+import { normalizeSchedaCodes } from '@/utils/equipmentCodes'
 
 interface TechnicalSheetFormProps {
   defaultValues?: Partial<SchedaDatiCompleta>
@@ -34,6 +36,13 @@ interface TechnicalSheetFormProps {
 export interface TechnicalSheetFormRef {
   getFormData: () => SchedaDatiCompleta
   submitForm: () => Promise<void>
+}
+
+/** Campo di riferimento al padre, per gli array dipendenti. */
+const CHILD_REF_FIELD: Record<string, string> = {
+  disoleatori: 'compressore_associato',
+  scambiatori: 'essiccatore_associato',
+  recipienti_filtro: 'filtro_associato',
 }
 
 /**
@@ -80,6 +89,8 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
     formState: { errors },
     watch,
     setValue,
+    getValues,
+    reset,
   } = methods
 
   // State per Batch OCR Dialog
@@ -270,20 +281,49 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
         newEquipment.valvola_sicurezza = data.valvola_sicurezza || {}
       }
 
-      // Inserisci nell'array all'indice corretto
-      const newArray = [...currentArray]
-
-      // Assicurati che l'array sia abbastanza grande
-      while (newArray.length <= item.parsedIndex) {
-        newArray.push({})
+      // Il nome del file codifica la posizione voluta dal tecnico: "S3.jpg" ⇒ S3.
+      const limits = (EQUIPMENT_LIMITS as Record<string, { prefix: string; max: number }>)[fieldName]
+      const refField = limits ? CHILD_REF_FIELD[fieldName] : undefined
+      if (limits) {
+        if (refField) {
+          // Array dipendente: il codice deriva dal padre, es. disoleatore di C1 ⇒ C1.1.
+          const parentCode = `${limits.prefix}${(item.parsedParentIndex ?? item.parsedIndex) + 1}`
+          newEquipment.codice = `${parentCode}.1`
+          newEquipment[refField] = parentCode
+        } else {
+          newEquipment.codice = `${limits.prefix}${item.parsedIndex + 1}`
+        }
       }
 
-      newArray[item.parsedIndex] = newEquipment
+      // Inserisci nell'array
+      const newArray = [...currentArray]
 
-      console.log(`💾 Salvando in ${fieldName}[${item.parsedIndex}]:`, newEquipment)
+      if (refField) {
+        // Array dipendente: il record si individua dal riferimento al padre. Riempire per indice
+        // creerebbe segnaposto senza padre, quindi senza codice derivabile.
+        const existing = newArray.findIndex((r: any) => r?.[refField] === newEquipment[refField])
+        if (existing >= 0) newArray[existing] = newEquipment
+        else newArray.push(newEquipment)
+        console.log(`💾 Salvando in ${fieldName} per ${newEquipment[refField]}:`, newEquipment)
+      } else {
+        // Array principale: la posizione conta, il nome del file la codifica.
+        while (newArray.length <= item.parsedIndex) {
+          newArray.push({})
+        }
+        newArray[item.parsedIndex] = newEquipment
+        console.log(`💾 Salvando in ${fieldName}[${item.parsedIndex}]:`, newEquipment)
+      }
+
       console.log(`📊 Nuovo array ${fieldName}:`, newArray)
       setValue(fieldName as any, newArray, { shouldValidate: true, shouldDirty: true })
     })
+
+    // I segnaposto `{}` inseriti negli array principali per raggiungere la posizione richiesta
+    // restano privi di codice: la normalizzazione li completa col numero libero più basso. Gli
+    // array dipendenti non ne producono più (Step 4). `reset` riscrive nel form la scheda
+    // normalizzata, che è un oggetto nuovo, in un colpo solo invece di un setValue per array.
+    const { scheda: normalized, changed } = normalizeSchedaCodes(getValues())
+    if (changed) reset(normalized)
 
     alert(
       `Batch OCR completato!\n\n` +
