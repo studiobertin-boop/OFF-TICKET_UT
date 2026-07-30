@@ -521,7 +521,7 @@ export function normalizeSchedaCodes<T extends Record<string, any>>(
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run src/utils/__tests__/equipmentCodes.test.ts`
-Expected: PASS — 30 test (14 di Task 1 + 16 nuovi)
+Expected: PASS — 30 test (15 di Task 1 + 15 nuovi); 35 dopo il round di fix descritto sotto
 
 - [ ] **Step 5: Commit**
 
