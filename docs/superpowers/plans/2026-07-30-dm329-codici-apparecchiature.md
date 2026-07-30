@@ -429,9 +429,11 @@ export function collectCodes(scheda: any): Set<string> {
  * valido — mancante, di prefisso sbagliato, fuori dal massimo del tipo, o duplicato di uno già
  * visto — il numero libero più basso.
  *
- * Array dipendenti: riallinea `codice` a `${riferimento}.1`. Se il riferimento al padre manca o
- * non è valido il codice non è derivabile e il record resta intatto: è un problema di dati, non
- * qualcosa che questa funzione possa indovinare.
+ * Array dipendenti: riallinea `codice` a `${riferimento}.1`. Il riferimento al padre deve avere il
+ * prefisso e il numero entro i limiti specifici dell'array dipendente (es. disoleatori richiede
+ * prefisso 'C' e num 1..5); se il riferimento non è valido il codice non è derivabile e il record
+ * resta intatto. Anche quando il riferimento è valido, se il codice derivato è già occupato da un
+ * altro figlio dello stesso padre, il record precedente conserva il codice e il nuovo resta intatto.
  *
  * Idempotente: applicata al proprio risultato ritorna `changed: false`.
  */
@@ -479,12 +481,27 @@ export function normalizeSchedaCodes<T extends Record<string, any>>(
     const items = scheda?.[array]
     if (!Array.isArray(items) || items.length === 0) continue
 
+    const { prefix, max } = EQUIPMENT_LIMITS[array]
+    /** Codice che il figlio dovrebbe avere, o null se il riferimento non è utilizzabile. */
+    const expectedOf = (item: any): string | null => {
+      const parent = parseCode(item?.[ref])
+      if (!parent || parent.sub !== undefined) return null
+      if (parent.prefix !== prefix || parent.num < 1 || parent.num > max) return null
+      return childCode(item[ref])
+    }
+    const claimed = new Set<string>()
+    // 1° passaggio: chi ha già il codice corretto lo mantiene e se lo riserva.
+    items.forEach((item: any) => {
+      const expected = expectedOf(item)
+      if (expected && item?.codice === expected) claimed.add(expected)
+    })
+    // 2° passaggio: assegna a chi ne è privo, senza creare duplicati.
     let touched = false
     const next = items.map((item: any) => {
-      const parent = parseCode(item?.[ref])
-      if (!parent || parent.sub !== undefined) return item
-      const expected = childCode(item[ref])
-      if (item?.codice === expected) return item
+      const expected = expectedOf(item)
+      if (!expected || item?.codice === expected) return item
+      if (claimed.has(expected)) return item // il codice appartiene già a un altro figlio
+      claimed.add(expected)
       touched = true
       return { ...item, codice: expected }
     })
@@ -498,6 +515,8 @@ export function normalizeSchedaCodes<T extends Record<string, any>>(
   return { scheda: out as T, changed }
 }
 ```
+
+**Nota — deviazione approvata dopo la revisione.** Il passaggio sui figli sopra è più robusto di quanto il piano prevedesse in origine: valida prefisso e intervallo del riferimento contro l'entry `EQUIPMENT_LIMITS` dell'array dipendente, e usa due passaggi per non creare codici figli duplicati (chi ha già il codice corretto ha la precedenza sull'ordine di array). Senza la validazione un `compressore_associato: 'C99'` produceva `codice: 'C99.1'`, fuori da `1..max`, violando i vincoli globali; senza la deduplica due disoleatori sullo stesso padre ricevevano entrambi `C1.1`. Il round di fix ha aggiunto 5 test — riferimento di prefisso sbagliato, riferimento fuori dal massimo, due figli sullo stesso padre, precedenza di chi ha già il codice corretto, idempotenza con due figli sullo stesso padre — portando il totale a 35.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -662,7 +681,7 @@ export function pruneAdditionalInfo(
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run src/utils/__tests__/equipmentCodes.test.ts`
-Expected: PASS — 37 test
+Expected: PASS — 42 test (35 + 7 nuovi)
 
 - [ ] **Step 5: Commit**
 
@@ -1057,8 +1076,8 @@ In `handleBatchOCRComplete`, subito dopo la costruzione di `newEquipment` e dei 
 ```ts
       // Il nome del file codifica la posizione voluta dal tecnico: "S3.jpg" ⇒ S3.
       const limits = (EQUIPMENT_LIMITS as Record<string, { prefix: string; max: number }>)[fieldName]
+      const refField = limits ? CHILD_REF_FIELD[fieldName] : undefined
       if (limits) {
-        const refField = CHILD_REF_FIELD[fieldName]
         if (refField) {
           // Array dipendente: il codice deriva dal padre, es. disoleatore di C1 ⇒ C1.1.
           const parentCode = `${limits.prefix}${(item.parsedParentIndex ?? item.parsedIndex) + 1}`
@@ -1070,19 +1089,50 @@ In `handleBatchOCRComplete`, subito dopo la costruzione di `newEquipment` e dei 
       }
 ```
 
-- [ ] **Step 4: Completare i segnaposto dopo l'applicazione dei risultati**
+- [ ] **Step 4: Inserire i record dipendenti per riferimento, non per posizione**
+
+Riempire per indice un array dipendente produce segnaposto `{}` privi di riferimento al padre, e senza padre non esiste codice da derivare: la normalizzazione non può completarli. Un'apparecchiatura dipendente si individua comunque dal proprio riferimento — la tabella cerca il disoleatore con `compressore_associato === code`, non quello in posizione *n* — quindi la posizione nell'array non porta informazione.
+
+Sostituire il blocco di inserimento (righe 273-285, da `// Inserisci nell'array all'indice corretto` fino al `setValue` incluso) con:
+
+```ts
+      // Inserisci nell'array
+      const newArray = [...currentArray]
+
+      if (refField) {
+        // Array dipendente: il record si individua dal riferimento al padre. Riempire per indice
+        // creerebbe segnaposto senza padre, quindi senza codice derivabile.
+        const existing = newArray.findIndex((r: any) => r?.[refField] === newEquipment[refField])
+        if (existing >= 0) newArray[existing] = newEquipment
+        else newArray.push(newEquipment)
+        console.log(`💾 Salvando in ${fieldName} per ${newEquipment[refField]}:`, newEquipment)
+      } else {
+        // Array principale: la posizione conta, il nome del file la codifica.
+        while (newArray.length <= item.parsedIndex) {
+          newArray.push({})
+        }
+        newArray[item.parsedIndex] = newEquipment
+        console.log(`💾 Salvando in ${fieldName}[${item.parsedIndex}]:`, newEquipment)
+      }
+
+      console.log(`📊 Nuovo array ${fieldName}:`, newArray)
+      setValue(fieldName as any, newArray, { shouldValidate: true, shouldDirty: true })
+```
+
+- [ ] **Step 5: Completare i segnaposto dopo l'applicazione dei risultati**
 
 Subito dopo la chiusura di `completedItems.forEach(...)` (riga 286, la riga `})`) e **prima** della chiamata ad `alert(`, inserire:
 
 ```ts
-    // I segnaposto `{}` inseriti per raggiungere la posizione richiesta restano privi di codice:
-    // la normalizzazione li completa col numero libero più basso. `reset` serve perché
-    // useFieldArray non si risincronizza da sé dopo i setValue fatti qui sopra.
+    // I segnaposto `{}` inseriti negli array principali per raggiungere la posizione richiesta
+    // restano privi di codice: la normalizzazione li completa col numero libero più basso. Gli
+    // array dipendenti non ne producono più (Step 4). `reset` serve perché useFieldArray non si
+    // risincronizza da sé dopo i setValue fatti qui sopra.
     const { scheda: normalized, changed } = normalizeSchedaCodes(getValues())
     if (changed) reset(normalized)
 ```
 
-- [ ] **Step 5: Verificare typecheck e lint**
+- [ ] **Step 6: Verificare typecheck e lint**
 
 Run: `npx tsc --noEmit`
 Expected: nessun errore.
@@ -1090,7 +1140,7 @@ Expected: nessun errore.
 Run: `npm run lint`
 Expected: nessun errore.
 
-- [ ] **Step 6: Verificare a mano un import batch**
+- [ ] **Step 7: Verificare a mano un import batch**
 
 Run: `npm run dev`, aprire una scheda dati DM329 vuota e usare il batch OCR con due file nominati per saltare una posizione, per esempio `S1.jpg` e `S3.jpg`.
 
@@ -1099,7 +1149,9 @@ Atteso:
 2. Il segnaposto in posizione 2 mostra `S2`, non una cella vuota.
 3. Ricaricando la pagina i codici sono invariati.
 
-- [ ] **Step 7: Commit**
+Ripetere con un file di disoleatore, per esempio `C1.1.jpg`, su una scheda che ha già `C1`. Atteso: il disoleatore compare agganciato a `C1` con codice `C1.1`, e negli array dipendenti non compaiono righe vuote senza codice.
+
+- [ ] **Step 8: Commit**
 
 ```bash
 git add src/components/technicalSheet/TechnicalSheetForm.tsx
@@ -1452,7 +1504,8 @@ git commit -m "chore(dm329): rifiniture dopo la verifica finale"
 | Limite `max` applicato al menu | 4 (Step 6) |
 | Lettura via `useWatch` e non da `fields` | 4 (Step 3) |
 | Normalizzazione al caricamento | 5 |
-| Batch OCR assegna i codici | 6 |
+| Batch OCR assegna i codici | 6 (Step 3) |
+| Record dipendenti inseriti per riferimento, non per posizione | 6 (Step 4) — deviazione approvata dopo la revisione del Task 2 |
 | Prune all'apertura, al salvataggio, con avviso | 7 |
 | Bonifica SQL delle 2 schede + disoleatore orfano | 8 |
 | Test su nextFreeCode, compareCodes, normalizeSchedaCodes, pruneAdditionalInfo | 1, 2, 3 |
