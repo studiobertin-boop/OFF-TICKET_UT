@@ -67,6 +67,20 @@ export function childCode(parentCode: string, sub = 1): string {
   return `${parentCode}.${sub}`
 }
 
+/**
+ * Codice dell'apparecchiatura che un nome file indirizza per posizione: `serbatoi` + indice 0 ⇒ `S1`,
+ * `disoleatori` + indice 0 ⇒ `C1.1` (gli array dipendenti portano il suffisso del figlio).
+ *
+ * È solo la traduzione posizione → codice del nome file: non dice nulla su cosa la scheda contenga
+ * davvero, quindi il chiamante deve comunque cercare il record con quel codice.
+ * Ritorna null se l'array non ha limiti definiti o l'indice non è un intero non negativo.
+ */
+export function codeForArrayIndex(array: string, index: number): string | null {
+  const limits = (EQUIPMENT_LIMITS as Record<string, { prefix: string; max: number; suffix?: string }>)[array]
+  if (!limits || !Number.isInteger(index) || index < 0) return null
+  return `${limits.prefix}${index + 1}${limits.suffix ?? ''}`
+}
+
 /** Array principali della scheda: prefisso e massimo vengono da EQUIPMENT_LIMITS. */
 const PARENT_ARRAYS = ['serbatoi', 'compressori', 'essiccatori', 'filtri', 'separatori'] as const
 

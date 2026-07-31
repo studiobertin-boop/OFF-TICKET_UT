@@ -22,7 +22,7 @@ import type { SchedaDatiCompleta } from '@/types'
 import type { BatchOCRResult, BatchOCRItem } from '@/types/ocr'
 import type { EquipmentCatalogType } from '@/types'
 import { EQUIPMENT_LIMITS } from '@/types'
-import { normalizeSchedaCodes } from '@/utils/equipmentCodes'
+import { codeForArrayIndex, normalizeSchedaCodes } from '@/utils/equipmentCodes'
 
 interface TechnicalSheetFormProps {
   defaultValues?: Partial<SchedaDatiCompleta>
@@ -241,14 +241,19 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
     /** File non applicati al form, con il motivo: da mostrare al tecnico a fine batch. */
     const skipped: string[] = []
 
-    /** Le apparecchiature dipendenti si applicano dopo i padri: il controllo di esistenza del padre
-     *  deve vedere anche quelli creati dallo stesso batch, qualunque sia l'ordine dei file (in
-     *  ordine alfabetico "C1.1.jpg" precede "C1.jpg"). `sort` è stabile: a parità l'ordine resta. */
-    const isDependent = (i: BatchOCRItem) => {
+    /**
+     * Ordine di applicazione: prima i record principali, poi i dipendenti, infine le valvole.
+     * Ogni gruppo si aggancia a qualcosa che il gruppo precedente ha già creato — un disoleatore al
+     * suo compressore, una valvola al serbatoio o al disoleatore che la porta — e l'ordine dei file
+     * non lo garantisce (in ordine alfabetico "C1.1.jpg" precede "C1.jpg" e "S1.1.jpg" precede
+     * "S1.jpg"). `sort` è stabile: a parità di gruppo l'ordine di caricamento resta.
+     */
+    const applyOrder = (i: BatchOCRItem) => {
+      if (i.parsedComponentType === 'valvola_sicurezza') return 2
       const field = i.parsedType ? TYPE_TO_FIELD[i.parsedType as EquipmentCatalogType] : ''
-      return !!field && !!CHILD_REF_FIELD[field] && i.parsedComponentType !== 'valvola_sicurezza'
+      return field && CHILD_REF_FIELD[field] ? 1 : 0
     }
-    const orderedItems = [...completedItems].sort((a, b) => Number(isDependent(a)) - Number(isDependent(b)))
+    const orderedItems = [...completedItems].sort((a, b) => applyOrder(a) - applyOrder(b))
 
     orderedItems.forEach(item => {
       console.log('🔍 Item RAW:', {
@@ -277,13 +282,24 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
 
       // Gestione componente nested (valvola)
       if (item.parsedComponentType === 'valvola_sicurezza') {
-        console.log(`🔐 Popolando valvola per ${fieldName}[${item.parsedIndex}]`)
+        // La valvola appartiene a un'apparecchiatura precisa, individuata dal codice: scrivere in
+        // `${fieldName}.${parsedIndex}` colpirebbe il record sbagliato appena codici e posizioni
+        // divergono (con [S1, S3], "S2.1.jpg" sovrascriverebbe la valvola di S3) e, se la posizione
+        // non esiste, creerebbe un record fantasma privo di codice.
+        const ownerCode = codeForArrayIndex(fieldName, item.parsedIndex)
+        const ownerArray = (watch(fieldName as any) || []) as any[]
+        const ownerIndex = ownerCode ? ownerArray.findIndex((r: any) => r?.codice === ownerCode) : -1
+        if (ownerIndex < 0) {
+          skipped.push(`${item.filename}: ${ownerCode ?? 'l\'apparecchiatura'} non è presente nella scheda`)
+          return
+        }
+        console.log(`🔐 Popolando la valvola di ${ownerCode}`)
 
         // Usa valori normalizzati se disponibili
         const marca = item.normalizedMarca?.normalizedValue || data.marca || ''
         const modello = item.normalizedModello?.normalizedValue || data.modello || ''
 
-        const basePath = `${fieldName}.${item.parsedIndex}.valvola_sicurezza`
+        const basePath = `${fieldName}.${ownerIndex}.valvola_sicurezza`
         setValue(`${basePath}.marca` as any, marca)
         setValue(`${basePath}.modello` as any, modello)
         if (data.n_fabbrica) setValue(`${basePath}.n_fabbrica` as any, data.n_fabbrica)

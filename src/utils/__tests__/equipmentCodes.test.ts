@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'vitest'
 import {
-  parseCode, compareCodes, nextFreeCode, childCode, collectCodes, normalizeSchedaCodes, pruneAdditionalInfo,
+  parseCode, compareCodes, nextFreeCode, childCode, codeForArrayIndex, collectCodes,
+  normalizeSchedaCodes, pruneAdditionalInfo,
 } from '@/utils/equipmentCodes'
 
 describe('parseCode', () => {
@@ -76,6 +77,33 @@ describe('childCode', () => {
   test('deriva il codice del figlio dal padre', () => {
     expect(childCode('C3')).toBe('C3.1')
     expect(childCode('S1', 2)).toBe('S1.2')
+  })
+})
+
+describe('codeForArrayIndex', () => {
+  test('traduce la posizione del nome file nel codice del record', () => {
+    // "S1.jpg" ⇒ indice 0 ⇒ S1; "SEP3.jpg" ⇒ indice 2 ⇒ SEP3.
+    expect(codeForArrayIndex('serbatoi', 0)).toBe('S1')
+    expect(codeForArrayIndex('separatori', 2)).toBe('SEP3')
+    expect(codeForArrayIndex('filtri', 7)).toBe('F8')
+  })
+
+  test('per gli array dipendenti aggiunge il suffisso del figlio', () => {
+    // La valvola di un disoleatore appartiene a C1.1, non a C1.
+    expect(codeForArrayIndex('disoleatori', 0)).toBe('C1.1')
+    expect(codeForArrayIndex('scambiatori', 1)).toBe('E2.1')
+    expect(codeForArrayIndex('recipienti_filtro', 2)).toBe('F3.1')
+  })
+
+  test('non filtra i codici fuori dal massimo: è solo una traduzione', () => {
+    // "F9.jpg" con filtri.max = 8: la riduzione in range spetta a normalizeSchedaCodes.
+    expect(codeForArrayIndex('filtri', 8)).toBe('F9')
+  })
+
+  test('ritorna null su array sconosciuto o indice non valido', () => {
+    expect(codeForArrayIndex('altri_apparecchi', 0)).toBeNull()
+    expect(codeForArrayIndex('serbatoi', -1)).toBeNull()
+    expect(codeForArrayIndex('serbatoi', 1.5)).toBeNull()
   })
 })
 
