@@ -85,7 +85,9 @@ export function collectCodes(scheda: any): Set<string> {
     const items = scheda?.[name]
     if (!Array.isArray(items)) continue
     for (const item of items) {
-      if (parseCode(item?.codice)) codes.add(item.codice)
+      // `parseCode` tollera gli spazi: il codice entra nell'insieme nella stessa forma normalizzata,
+      // altrimenti un `'S1 '` memorizzato farebbe scartare a `pruneAdditionalInfo` un riferimento valido.
+      if (parseCode(item?.codice)) codes.add(item.codice.trim())
     }
   }
   return codes

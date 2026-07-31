@@ -141,7 +141,12 @@ export const EQUIPMENT_DEFS: Record<EquipmentKind, EquipmentTypeDef> = {
 }
 
 /** Tipi selezionabili dal pulsante "Nuova apparecchiatura". */
-export const NEW_EQUIPMENT_KINDS: EquipmentKind[] = ['serbatoio', 'compressore', 'essiccatore', 'filtro', 'separatore']
+export const NEW_EQUIPMENT_KINDS = [
+  'serbatoio', 'compressore', 'essiccatore', 'filtro', 'separatore',
+] as const satisfies readonly EquipmentKind[]
+
+/** Solo i tipi creabili: chi ne indicizza l'insieme deve coprirli tutti, verificato dal compilatore. */
+export type NewEquipmentKind = (typeof NEW_EQUIPMENT_KINDS)[number]
 
 /** Limiti per tipo (min/max nell'array) — riusa la logica esistente. */
 export const KIND_ARRAY: Record<EquipmentKind, string> = {

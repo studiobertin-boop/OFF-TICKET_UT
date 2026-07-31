@@ -18,7 +18,8 @@ import { EQUIPMENT_LIMITS, type CategoriaPED, type EquipmentCatalogType } from '
 import { compareCodes, nextFreeCode } from '@/utils/equipmentCodes'
 import type { OCRExtractedData } from '@/types/ocr'
 import {
-  EQUIPMENT_DEFS, NEW_EQUIPMENT_KINDS, type EquipmentKind, type EquipmentTypeDef, type AdvKey, type ExtraFieldDef,
+  EQUIPMENT_DEFS, NEW_EQUIPMENT_KINDS,
+  type EquipmentKind, type NewEquipmentKind, type EquipmentTypeDef, type AdvKey, type ExtraFieldDef,
 } from './equipmentConfig'
 
 const PED_OPTIONS: CategoriaPED[] = ['I', 'II', 'III', 'IV']
@@ -32,9 +33,10 @@ const ENABLE_ADD_TO_CATALOG = () => {}
  * Righe da rendere, ordinate per codice. `i` resta l'indice reale nell'array di React Hook Form:
  * l'ordinamento riguarda solo la resa, non i percorsi dei campi.
  *
- * Il codice si legge dai valori osservati (`values`), non da `fields` di `useFieldArray`, che non
- * si risincronizza dopo un `setValue` esterno come quello del batch OCR. `fields` resta come
- * ripiego finché l'osservazione non ha prodotto un valore.
+ * Il codice si legge dai valori osservati (`values`), che sono la fonte autorevole: è lì che
+ * finiscono sia le modifiche dell'utente sia le riscritture esterne (batch OCR, normalizzazione).
+ * `fields` di `useFieldArray` resta solo come ripiego al primo render, prima che l'osservazione
+ * abbia prodotto un valore.
  */
 const sortedEntries = (fields: any[], values: any[] | undefined) =>
   fields
@@ -253,7 +255,7 @@ export const UnifiedEquipmentTable = ({ control }: UnifiedEquipmentTableProps) =
   const separatoriVals = useWatch({ control, name: 'separatori' }) as any[] | undefined
 
   /** Conteggio e massimo per i tipi creabili: serve a disabilitare la voce di menu. */
-  const newKindState: Record<string, { count: number; max: number }> = {
+  const newKindState: Record<NewEquipmentKind, { count: number; max: number }> = {
     serbatoio: { count: serbatoi.fields.length, max: EQUIPMENT_LIMITS.serbatoi.max },
     compressore: { count: compressori.fields.length, max: EQUIPMENT_LIMITS.compressori.max },
     essiccatore: { count: essiccatori.fields.length, max: EQUIPMENT_LIMITS.essiccatori.max },
@@ -267,27 +269,27 @@ export const UnifiedEquipmentTable = ({ control }: UnifiedEquipmentTableProps) =
     setMenuAnchor(null)
     switch (kind) {
       case 'serbatoio': {
-        const codice = nextFreeCode('S', codesOf(serbatoi.fields, serbatoiVals), EQUIPMENT_LIMITS.serbatoi.max)
+        const codice = nextFreeCode(EQUIPMENT_LIMITS.serbatoi.prefix, codesOf(serbatoi.fields, serbatoiVals), EQUIPMENT_LIMITS.serbatoi.max)
         if (codice) serbatoi.append({ codice, valvola_sicurezza: {}, manometro: {} })
         break
       }
       case 'compressore': {
-        const codice = nextFreeCode('C', codesOf(compressori.fields, compressoriVals), EQUIPMENT_LIMITS.compressori.max)
+        const codice = nextFreeCode(EQUIPMENT_LIMITS.compressori.prefix, codesOf(compressori.fields, compressoriVals), EQUIPMENT_LIMITS.compressori.max)
         if (codice) compressori.append({ codice, ha_disoleatore: false })
         break
       }
       case 'essiccatore': {
-        const codice = nextFreeCode('E', codesOf(essiccatori.fields, essiccatoriVals), EQUIPMENT_LIMITS.essiccatori.max)
+        const codice = nextFreeCode(EQUIPMENT_LIMITS.essiccatori.prefix, codesOf(essiccatori.fields, essiccatoriVals), EQUIPMENT_LIMITS.essiccatori.max)
         if (codice) essiccatori.append({ codice, ha_scambiatore: false })
         break
       }
       case 'filtro': {
-        const codice = nextFreeCode('F', codesOf(filtri.fields, filtriVals), EQUIPMENT_LIMITS.filtri.max)
+        const codice = nextFreeCode(EQUIPMENT_LIMITS.filtri.prefix, codesOf(filtri.fields, filtriVals), EQUIPMENT_LIMITS.filtri.max)
         if (codice) filtri.append({ codice, ha_recipiente: false })
         break
       }
       case 'separatore': {
-        const codice = nextFreeCode('SEP', codesOf(separatori.fields, separatoriVals), EQUIPMENT_LIMITS.separatori.max)
+        const codice = nextFreeCode(EQUIPMENT_LIMITS.separatori.prefix, codesOf(separatori.fields, separatoriVals), EQUIPMENT_LIMITS.separatori.max)
         if (codice) separatori.append({ codice })
         break
       }
