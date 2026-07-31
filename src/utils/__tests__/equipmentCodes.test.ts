@@ -245,6 +245,44 @@ describe('normalizeSchedaCodes', () => {
   })
 })
 
+describe('normalizeSchedaCodes sugli array prodotti dal batch OCR', () => {
+  test('non tocca nulla: ogni record accodato porta già il proprio codice', () => {
+    // "S2.jpg" caricato su una scheda con S1 e S3: il record si accoda, non prende la posizione 1.
+    const { scheda, changed } = normalizeSchedaCodes({
+      serbatoi: [{ codice: 'S1' }, { codice: 'S3', marca: 'Fiac' }, { codice: 'S2', marca: 'Nuair' }],
+      compressori: [{ codice: 'C1' }],
+      disoleatori: [{ codice: 'C1.1', compressore_associato: 'C1' }],
+    })
+    expect(changed).toBe(false)
+    expect(scheda.serbatoi.map((s: any) => s.codice)).toEqual(['S1', 'S3', 'S2'])
+    expect(scheda.serbatoi[1].marca).toBe('Fiac')
+  })
+
+  test('riporta in range il codice accodato oltre il massimo del tipo', () => {
+    // "F9.jpg" con filtri.max = 8: il record entra con codice F9 e va riassegnato.
+    const { scheda, changed } = normalizeSchedaCodes({
+      filtri: [{ codice: 'F1' }, { codice: 'F2' }, { codice: 'F9', marca: 'Omi' }],
+    })
+    expect(changed).toBe(true)
+    expect(scheda.filtri.map((f: any) => f.codice)).toEqual(['F1', 'F2', 'F3'])
+    expect(scheda.filtri[2].marca).toBe('Omi')
+  })
+
+  test('il record fuori range prende il numero libero più basso, non il successivo', () => {
+    const { scheda } = normalizeSchedaCodes({
+      serbatoi: [{ codice: 'S1' }, { codice: 'S3' }, { codice: 'S8' }],
+    })
+    expect(scheda.serbatoi.map((s: any) => s.codice)).toEqual(['S1', 'S3', 'S2'])
+  })
+
+  test('un secondo passaggio sullo stesso batch non cambia più nulla', () => {
+    const first = normalizeSchedaCodes({ filtri: [{ codice: 'F1' }, { codice: 'F9' }] })
+    const second = normalizeSchedaCodes(first.scheda)
+    expect(second.changed).toBe(false)
+    expect(second.scheda).toEqual(first.scheda)
+  })
+})
+
 describe('pruneAdditionalInfo', () => {
   const codes = new Set(['C1', 'S1', 'S2'])
 

@@ -45,6 +45,50 @@ const CHILD_REF_FIELD: Record<string, string> = {
   recipienti_filtro: 'filtro_associato',
 }
 
+/** Tipo riconosciuto dal nome del file → field array del form. */
+const TYPE_TO_FIELD: Record<EquipmentCatalogType, string> = {
+  'Serbatoi': 'serbatoi',
+  'Compressori': 'compressori',
+  'Disoleatori': 'disoleatori',
+  'Essiccatori': 'essiccatori',
+  'Scambiatori': 'scambiatori',
+  'Filtri': 'filtri',
+  'Separatori': 'separatori',
+  'Recipienti filtro': 'recipienti_filtro',
+  'Altro': 'altri_apparecchi',
+  'Valvole di sicurezza': '', // Non applicabile
+}
+
+/** Array del padre, per gli array dipendenti. */
+const CHILD_PARENT_ARRAY: Record<string, string> = {
+  disoleatori: 'compressori',
+  scambiatori: 'essiccatori',
+  recipienti_filtro: 'filtri',
+}
+
+/**
+ * Valore che l'OCR non ha saputo leggere: non deve sovrascrivere quello già presente nel record.
+ * Comprende gli oggetti vuoti (`valvola_sicurezza: {}`), usati come default quando manca il dato.
+ */
+const isEmptyOcrValue = (v: unknown) =>
+  v === undefined ||
+  v === null ||
+  v === '' ||
+  (typeof v === 'object' && !Array.isArray(v) && Object.keys(v as object).length === 0)
+
+/**
+ * Sovrascrive con i dati OCR solo i campi effettivamente letti: rileggere una targhetta aggiorna la
+ * scheda senza cancellare quello che l'OCR non recupera (categoria PED scelta a mano, note, ecc.).
+ */
+const mergeOcrData = (existing: any, incoming: Record<string, any>) => {
+  const out = { ...existing }
+  for (const [key, value] of Object.entries(incoming)) {
+    if (isEmptyOcrValue(value)) continue
+    out[key] = value
+  }
+  return out
+}
+
 /**
  * Form completo SCHEDA DATI DM329
  * Organizzato in sezioni collassabili (Accordion)
@@ -194,7 +238,19 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
     const completedItems = items.filter(i => i.status === 'completed' && i.result?.data)
     console.log('📦 Items completati da processare:', completedItems.length)
 
-    completedItems.forEach(item => {
+    /** File non applicati al form, con il motivo: da mostrare al tecnico a fine batch. */
+    const skipped: string[] = []
+
+    /** Le apparecchiature dipendenti si applicano dopo i padri: il controllo di esistenza del padre
+     *  deve vedere anche quelli creati dallo stesso batch, qualunque sia l'ordine dei file (in
+     *  ordine alfabetico "C1.1.jpg" precede "C1.jpg"). `sort` è stabile: a parità l'ordine resta. */
+    const isDependent = (i: BatchOCRItem) => {
+      const field = i.parsedType ? TYPE_TO_FIELD[i.parsedType as EquipmentCatalogType] : ''
+      return !!field && !!CHILD_REF_FIELD[field] && i.parsedComponentType !== 'valvola_sicurezza'
+    }
+    const orderedItems = [...completedItems].sort((a, b) => Number(isDependent(a)) - Number(isDependent(b)))
+
+    orderedItems.forEach(item => {
       console.log('🔍 Item RAW:', {
         filename: item.filename,
         parsedType: item.parsedType,
@@ -213,21 +269,7 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
 
       console.log(`🔧 Processando ${equipmentType} index ${item.parsedIndex}:`, data)
 
-      // Mappa tipo → field array name
-      const typeToFieldMap: Record<EquipmentCatalogType, string> = {
-        'Serbatoi': 'serbatoi',
-        'Compressori': 'compressori',
-        'Disoleatori': 'disoleatori',
-        'Essiccatori': 'essiccatori',
-        'Scambiatori': 'scambiatori',
-        'Filtri': 'filtri',
-        'Separatori': 'separatori',
-        'Recipienti filtro': 'recipienti_filtro',
-        'Altro': 'altri_apparecchi',
-        'Valvole di sicurezza': '' // Non applicabile
-      }
-
-      const fieldName = typeToFieldMap[equipmentType]
+      const fieldName = TYPE_TO_FIELD[equipmentType]
       if (!fieldName) {
         console.warn('⚠️ Tipo non mappato:', equipmentType)
         return
@@ -281,57 +323,74 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
         newEquipment.valvola_sicurezza = data.valvola_sicurezza || {}
       }
 
-      // Il nome del file codifica la posizione voluta dal tecnico: "S3.jpg" ⇒ S3.
+      // Il nome del file individua l'apparecchiatura per codice, non per posizione: "S3.jpg" ⇒ il
+      // record che ha codice S3, ovunque si trovi nell'array.
       const limits = (EQUIPMENT_LIMITS as Record<string, { prefix: string; max: number }>)[fieldName]
       const refField = limits ? CHILD_REF_FIELD[fieldName] : undefined
-      if (limits) {
-        if (refField) {
-          // Array dipendente: il codice deriva dal padre, es. disoleatore di C1 ⇒ C1.1.
-          const parentCode = `${limits.prefix}${(item.parsedParentIndex ?? item.parsedIndex) + 1}`
-          newEquipment.codice = `${parentCode}.1`
-          newEquipment[refField] = parentCode
-        } else {
-          newEquipment.codice = `${limits.prefix}${item.parsedIndex + 1}`
+      /** Codice atteso per gli array principali; per i dipendenti si deriva dal padre. */
+      let targetCode: string | undefined
+
+      if (limits && refField) {
+        // Array dipendente: il codice deriva dal padre, es. disoleatore di C1 ⇒ C1.1. Il padre va
+        // risolto sui codici realmente presenti: senza questo controllo nascerebbe un figlio orfano,
+        // che la tabella non renderizza e la normalizzazione non sa correggere.
+        // `parsedParentIndex` è sempre valorizzato dal filenameParser per le forme "C1.1"/"E1.1":
+        // nessun ripiego sull'indice del figlio, che aggancerebbe il record al padre sbagliato.
+        if (item.parsedParentIndex === undefined) {
+          skipped.push(`${item.filename}: il nome del file non indica l'apparecchiatura padre`)
+          return
         }
+        const parentCode = `${limits.prefix}${item.parsedParentIndex + 1}`
+        const parentArray = (watch(CHILD_PARENT_ARRAY[fieldName] as any) || []) as any[]
+        if (!parentArray.some((p: any) => p?.codice === parentCode)) {
+          skipped.push(`${item.filename}: ${parentCode} non è presente nella scheda`)
+          return
+        }
+        targetCode = `${parentCode}.1`
+        newEquipment.codice = targetCode
+        newEquipment[refField] = parentCode
+      } else if (limits) {
+        targetCode = `${limits.prefix}${item.parsedIndex + 1}`
+        newEquipment.codice = targetCode
       }
 
       // Inserisci nell'array
       const newArray = [...currentArray]
 
-      if (refField) {
-        // Array dipendente: il record si individua dal riferimento al padre. Riempire per indice
-        // creerebbe segnaposto senza padre, quindi senza codice derivabile.
-        const existing = newArray.findIndex((r: any) => r?.[refField] === newEquipment[refField])
-        if (existing >= 0) newArray[existing] = newEquipment
-        else newArray.push(newEquipment)
-        console.log(`💾 Salvando in ${fieldName} per ${newEquipment[refField]}:`, newEquipment)
-      } else {
-        // Array principale: la posizione conta, il nome del file la codifica.
-        while (newArray.length <= item.parsedIndex) {
-          newArray.push({})
-        }
-        newArray[item.parsedIndex] = newEquipment
-        console.log(`💾 Salvando in ${fieldName}[${item.parsedIndex}]:`, newEquipment)
-      }
+      // Il record si individua dall'identità (riferimento al padre per i dipendenti, codice per i
+      // principali), mai dalla posizione: scrivere per indice sovrascriverebbe l'apparecchiatura
+      // sbagliata appena i codici non coincidono più con le posizioni (es. S2 eliminato).
+      const existing = refField
+        ? newArray.findIndex((r: any) => r?.[refField] === newEquipment[refField])
+        : targetCode !== undefined
+          ? newArray.findIndex((r: any) => r?.codice === targetCode)
+          : -1
+      if (existing >= 0) newArray[existing] = mergeOcrData(newArray[existing], newEquipment)
+      else newArray.push(newEquipment)
+      console.log(`💾 Salvando in ${fieldName} ${targetCode ?? '(senza codice)'}:`, newEquipment)
 
       console.log(`📊 Nuovo array ${fieldName}:`, newArray)
       setValue(fieldName as any, newArray, { shouldValidate: true, shouldDirty: true })
     })
 
-    // I segnaposto `{}` inseriti negli array principali per raggiungere la posizione richiesta
-    // restano privi di codice: la normalizzazione li completa col numero libero più basso. Gli
-    // array dipendenti non ne producono più (Step 4). `reset` riscrive nel form la scheda
+    // Nessun record nasce più privo di codice: ogni inserimento porta con sé il proprio. Resta però
+    // il caso fuori range — "F9.jpg" con `filtri.max = 8` accoda un record con codice F9 — che la
+    // normalizzazione riporta al numero libero più basso. `reset` riscrive nel form la scheda
     // normalizzata, che è un oggetto nuovo, in un colpo solo invece di un setValue per array.
     const { scheda: normalized, changed } = normalizeSchedaCodes(getValues())
     if (changed) reset(normalized)
 
+    const applicati = completedItems.length - skipped.length
     alert(
       `Batch OCR completato!\n\n` +
       `Totale: ${results.total}\n` +
       `Completati: ${results.completed}\n` +
       `Errori: ${results.errors}\n` +
       `Normalizzati: ${results.normalized}\n\n` +
-      `${completedItems.length} apparecchiature aggiunte al form.`
+      `${applicati} apparecchiature aggiunte al form.` +
+      (skipped.length
+        ? `\n\n${skipped.length} file non applicati:\n${skipped.map((s) => `• ${s}`).join('\n')}`
+        : '')
     )
 
     setBatchOCRDialogOpen(false)
