@@ -11,6 +11,13 @@
 -- Entrambe le istruzioni sono idempotenti: rieseguirle non produce ulteriori modifiche.
 
 -- 1. Codici mancanti negli array principali.
+--
+-- L'UPDATE è ristretto alle due sole schede da bonificare. Non è timidezza: è la restrizione che
+-- rende sicura l'assegnazione posizionale. Su un array che contiene già codici validi, `prefix||ord`
+-- ne conierebbe di duplicati (per [{codice:'S2'}, {}] l'ord 2 assegnerebbe un secondo 'S2'), e il
+-- regex non limitato accetterebbe come valido un 'S99' che l'app invece riassegna. Su queste due
+-- schede nessuno dei due casi esiste: la verifica in produzione ha mostrato solo codici nulli, senza
+-- alcun codice valido con cui collidere. Fuori da qui la bonifica non serve, quindi non si applica.
 with parents(arr, prefix) as (
   values ('serbatoi', 'S'), ('compressori', 'C'), ('essiccatori', 'E'),
          ('filtri', 'F'), ('separatori', 'SEP')
@@ -21,6 +28,10 @@ per_array as (
          (
            select jsonb_agg(
                     case
+                      -- Un elemento scalare (es. un `null` nell'array) non ha un percorso da
+                      -- impostare: `jsonb_set` solleverebbe "cannot set path in scalar" e farebbe
+                      -- fallire l'intera migrazione. Lo si lascia passare intatto.
+                      when jsonb_typeof(elem) <> 'object' then elem
                       when elem->>'codice' ~ ('^' || p.prefix || '[0-9]+$') then elem
                       else jsonb_set(elem, '{codice}', to_jsonb(p.prefix || ord::text))
                     end
@@ -30,7 +41,11 @@ per_array as (
          ) as new_arr
   from dm329_technical_data d
   cross join parents p
-  where jsonb_typeof(d.equipment_data->p.arr) = 'array'
+  where d.request_id in (
+          '81e04b73-2aa7-427d-b7e8-397f45660ba0',
+          'e642f56e-5dd6-4b63-9788-57bfe2bef407'
+        )
+    and jsonb_typeof(d.equipment_data->p.arr) = 'array'
     and jsonb_array_length(d.equipment_data->p.arr) > 0
 ),
 merged as (
