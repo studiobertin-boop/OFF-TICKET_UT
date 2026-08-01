@@ -44,6 +44,7 @@ export const CIVASummary = () => {
   // Load all CIVA data
   const {
     request,
+    technicalData,
     equipmentData,
     customer,
     installer,
@@ -54,6 +55,7 @@ export const CIVASummary = () => {
 
   const indirizzoImpianto = risolviIndirizzoImpianto({
     indirizzoRichiesta: request?.indirizzo_impianto,
+    indirizzoSchedaLegacy: technicalData?.indirizzo_impianto,
     sedeImpiantoLegacy: equipmentData?.dati_impianto?.sede_impianto
   })
 
