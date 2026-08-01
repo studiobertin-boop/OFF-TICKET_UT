@@ -44,6 +44,10 @@ interface Props {
  * Sezione dedicata del form Nuova Richiesta DM329: indirizzo impianto (con flag = sede legale),
  * scelta della sala (sale esistenti del cliente + Nuova sala), denominazione, progressivo/anno,
  * e anteprima del codice pratica. I valori sono gestiti in stato locale e sollevati via onChange.
+ *
+ * La presenza di `initial` distingue la modalità modifica (pratica già codificata) dalla
+ * creazione: in modifica la denominazione sala è scrivibile, in creazione resta ereditata
+ * dalla sala scelta salvo che si scelga "Nuova sala".
  */
 export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, onChange, initial }: Props) => {
   const { data: overview = [] } = useClientDm329Overview(customer.id)
@@ -61,8 +65,12 @@ export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, o
 
   // Modalità modifica: al mount NON azzerare i valori prefillati, e non sovrascrivere
   // progressivo/denominazione finché l'operatore non cambia attivamente la sala.
-  const skipInitialReset = useRef(!!initial)
+  const isModifica = !!initial
+  const skipInitialReset = useRef(isModifica)
   const userPickedSala = useRef(false)
+  // L'operatore ha scritto a mano la denominazione: i default della sala non devono più
+  // sovrascriverla (l'effetto sotto rigira anche solo perché `overview` viene rifetchata).
+  const userEditedDenominazione = useRef(false)
 
   const indirizzoWatch = useWatch({ control, name: 'indirizzo_impianto' }) as string | undefined
 
@@ -93,6 +101,11 @@ export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, o
   const isNewSala = salaScelta === NEW_SALA
   const salaLettera = isNewSala ? nextLetter : salaScelta
 
+  // In creazione la denominazione di una sala esistente è ereditata e resta in sola lettura.
+  // In modifica va scrivibile: è l'unico punto in cui si può rinominare la sala di una pratica
+  // già codificata senza passare da "Nuova sala" (che cambierebbe lettera, progressivo e codice).
+  const denominazioneModificabile = isNewSala || isModifica
+
   // Reset quando cambia cliente (saltato una volta al mount in modalità modifica per non azzerare il prefill)
   useEffect(() => {
     if (skipInitialReset.current) {
@@ -109,16 +122,16 @@ export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, o
   useEffect(() => {
     if (!salaScelta) return
     // In modifica, mantieni i valori prefillati finché l'operatore non cambia attivamente la sala.
-    if (initial && !userPickedSala.current) return
+    if (isModifica && !userPickedSala.current) return
     if (isNewSala) {
-      setDenominazione('')
+      if (!userEditedDenominazione.current) setDenominazione('')
       setProgressivo(0)
     } else {
       const s = sale.find(x => x.lettera === salaScelta)
-      setDenominazione(s?.denominazione || '')
+      if (!userEditedDenominazione.current) setDenominazione(s?.denominazione || '')
       setProgressivo((s?.maxProg ?? -1) + 1)
     }
-  }, [salaScelta, isNewSala, sale])
+  }, [salaScelta, isNewSala, sale, isModifica])
 
   const indirizzoEffettivo = flagUgualeSede ? sedeLegale : (indirizzoWatch || '')
   const clientSalaCount = isNewSala ? sale.length + 1 : sale.length
@@ -219,7 +232,12 @@ export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, o
             select
             label="Sala compressori"
             value={salaScelta}
-            onChange={e => { userPickedSala.current = true; setSalaScelta(e.target.value) }}
+            onChange={e => {
+              userPickedSala.current = true
+              // Cambio sala volontario: i default della nuova sala tornano ad avere la precedenza.
+              userEditedDenominazione.current = false
+              setSalaScelta(e.target.value)
+            }}
             fullWidth
             required
             helperText={isNewSala ? `Nuova sala: lettera ${nextLetter}` : ' '}
@@ -241,11 +259,17 @@ export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, o
           <TextField
             label="Denominazione sala"
             value={denominazione}
-            onChange={e => setDenominazione(e.target.value)}
+            onChange={e => { userEditedDenominazione.current = true; setDenominazione(e.target.value) }}
             fullWidth
             required={isNewSala}
-            InputProps={{ readOnly: !isNewSala }}
-            helperText={isNewSala ? 'Es. Sala principale, Verniciatura…' : 'Dalla sala esistente'}
+            InputProps={{ readOnly: !denominazioneModificabile }}
+            helperText={
+              isNewSala
+                ? 'Es. Sala principale, Verniciatura…'
+                : isModifica
+                  ? 'Rinominabile: lettera e progressivo (quindi il codice pratica) non cambiano'
+                  : 'Dalla sala esistente'
+            }
           />
         </Grid>
 
