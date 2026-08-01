@@ -7,9 +7,49 @@
  */
 import PizZip from 'pizzip'
 import Docxtemplater from 'docxtemplater'
-import type { RelazioneModel } from './types'
+import ImageModule from 'docxtemplater-image-module-free'
+import type { RelazioneModel, SchemaImpianto } from './types'
+import { applicaFusioneColonne } from './fusioneCelle'
+import { dimensioniGruppi } from './engine/esiti'
 
 const CHECK = '✓'
+const NON_APPLICABILE = 'n.a.'
+const NON_DETERMINABILE = 'n.d.'
+
+/**
+ * Larghezza fissa dello schema d'impianto, in pixel a 96 dpi: pari alla larghezza utile
+ * della pagina del template (9638 twip = 6,69 pollici). È fissa per scelta — due schemi
+ * catturati a risoluzioni diverse devono impaginarsi identici.
+ */
+const SCHEMA_LARGHEZZA_PX = 640
+
+/**
+ * Altezza massima tollerata, poco sotto l'altezza utile della pagina (14570 twip).
+ * Serve solo agli schemi in formato ritratto: senza il limite l'immagine sborderebbe,
+ * e un documento rotto è peggio di una larghezza non rispettata al pixel.
+ */
+const SCHEMA_ALTEZZA_MAX_PX = 900
+
+/** Proporzioni di ripiego quando le dimensioni native non sono note (4:3). */
+const SCHEMA_RAPPORTO_DEFAULT = 0.75
+
+/**
+ * Valore del tag `{%schemaImpianto}`. Il modulo immagini vuole un primitivo e lo passa
+ * a `getImage`: i byte veri arrivano dalla chiusura su `SchemaImpianto`, non da qui.
+ */
+const SCHEMA_TAG = 'schemaImpianto'
+
+/** Dimensioni di stampa dello schema: larghezza fissa, altezza in proporzione. */
+export function dimensioniSchema(schema: SchemaImpianto): [number, number] {
+  const { larghezzaPx, altezzaPx } = schema
+  const rapporto =
+    larghezzaPx > 0 && altezzaPx > 0 ? altezzaPx / larghezzaPx : SCHEMA_RAPPORTO_DEFAULT
+
+  const altezza = Math.round(SCHEMA_LARGHEZZA_PX * rapporto)
+  if (altezza <= SCHEMA_ALTEZZA_MAX_PX) return [SCHEMA_LARGHEZZA_PX, altezza]
+
+  return [Math.round(SCHEMA_ALTEZZA_MAX_PX / rapporto), SCHEMA_ALTEZZA_MAX_PX]
+}
 
 /**
  * Parser che risolve i path con punto ({premessa.ragioneSociale}) contro lo scope
@@ -38,20 +78,34 @@ function nestedParser(tag: string) {
 export function buildTemplateData(model: RelazioneModel): Record<string, unknown> {
   return {
     ...model,
-    procedura: model.procedura.map((r) => ({
+    esiti: model.esiti.map((r) => ({
       ...r,
-      dichiarazioneMark: r.dichiarazione ? CHECK : '',
-      verificaMark: r.verifica ? CHECK : '',
+      verificaIntegritaMark: r.verificaIntegrita ? CHECK : '',
     })),
     valvole: {
-      portata: model.valvole.portata.map((r) => ({ ...r, adeguatoMark: r.adeguato ? CHECK : '' })),
+      portata: model.valvole.portata.map((r) => ({
+        ...r,
+        // Tre esiti distinti, non due: "n.a." = confronto non definito (nessun
+        // compressore collegato), "n.d." = dati mancanti, cella vuota = confronto
+        // eseguito e non superato. Una spunta afferma; il vuoto non deve coprire
+        // due significati opposti.
+        adeguatoMark: !r.applicabile
+          ? NON_APPLICABILE
+          : !r.datiCompleti
+            ? NON_DETERMINABILE
+            : r.adeguato
+              ? CHECK
+              : '',
+      })),
       pressione: model.valvole.pressione.map((r) => ({
         ...r,
-        adeguatoMark: r.adeguato ? CHECK : '',
+        adeguatoMark: !r.datiCompleti ? NON_DETERMINABILE : r.adeguato ? CHECK : '',
       })),
     },
     // liste di stringhe → oggetti, così il template può fare {#lista}{voce}{/lista}
     allegati: model.allegati.map((voce) => ({ voce })),
+    // Sentinella per il modulo immagini; stringa vuota = nessuno schema = paragrafo vuoto.
+    schemaImpianto: model.schemaImpianto ? SCHEMA_TAG : '',
     descrizioneGenerale: {
       ...model.descrizioneGenerale,
       sezioni: model.descrizioneGenerale.sezioni.map((voce) => ({ voce })),
@@ -73,7 +127,37 @@ export function renderRelazioneDocx(
     linebreaks: true,
     parser: nestedParser,
     nullGetter: () => '',
+    // Il modulo è sempre attaccato: senza schema il tag vale '' e rende un paragrafo
+    // vuoto, quindi non serve costruire il documento in due modi diversi.
+    modules: [
+      new ImageModule({
+        centered: true,
+        fileType: 'docx',
+        getImage: () => model.schemaImpianto?.dati ?? new Uint8Array(),
+        getSize: () =>
+          model.schemaImpianto
+            ? dimensioniSchema(model.schemaImpianto)
+            : [SCHEMA_LARGHEZZA_PX, Math.round(SCHEMA_LARGHEZZA_PX * SCHEMA_RAPPORTO_DEFAULT)],
+      }),
+    ],
   })
   doc.render(buildTemplateData(model))
-  return doc.getZip().generate({ type: 'uint8array' })
+
+  // Stato INAIL e verifica di integrità valgono per l'intero gruppo di apparecchiature:
+  // le celle si fondono verticalmente. Va fatto dopo il render perché `vMerge` sta nelle
+  // proprietà della cella, che il loop di docxtemplater duplica identiche.
+  const out = doc.getZip()
+  const documento = out.file('word/document.xml')
+  if (documento) {
+    out.file(
+      'word/document.xml',
+      applicaFusioneColonne(documento.asText(), {
+        ancoraTabella: 'Adempimento DM 329/2004',
+        intestazioniColonne: ['Stato INAIL', 'Verifica Integrità'],
+        dimensioniGruppi: dimensioniGruppi(model.esiti),
+      })
+    )
+  }
+
+  return out.generate({ type: 'uint8array' })
 }

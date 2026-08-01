@@ -7,6 +7,7 @@
 export { buildRelazioneModel } from './buildRelazioneModel'
 export type { BuildRelazioneInput } from './buildRelazioneModel'
 export { renderRelazioneDocx, buildTemplateData } from './renderRelazione'
+export { validateRelazione, haErrori } from './preflight'
 export { generateAndDownloadRelazione, TEMPLATE_URL } from './generateRelazione'
 export type { GenerateRelazioneParams } from './generateRelazione'
 export { additionalInfoSchema, tipoGiriSchema } from './schema'
@@ -18,10 +19,17 @@ export type {
   PremessaModel,
   DescrizioneGeneraleModel,
   CaratteristicheRow,
-  ProceduraRow,
-  ClassificazioneModel,
-  ClassificazioneBlocco,
+  CondizioneRow,
+  FluidiModel,
+  FluidoRow,
+  EsitoRow,
+  ProtezioneRow,
+  ValvolaProtezione,
+  TubazioniModel,
+  RiqualificazioneRow,
   ValvoleModel,
   PortataValvolaRow,
   PressioneValvolaRow,
+  SchemaImpianto,
+  Segnalazione,
 } from './types'

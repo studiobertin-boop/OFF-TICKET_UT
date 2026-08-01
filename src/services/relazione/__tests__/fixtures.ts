@@ -17,7 +17,18 @@ import type {
   Separatore,
   ValvolaSicurezza,
 } from '@/types/technicalSheet'
-import type { AdditionalInfo } from '../types'
+import type { AdditionalInfo, PraticaInfo } from '../types'
+
+/** Codice pratica: prima emissione, impianto presso la sede legale, nessuna sala nominata. */
+export function makePratica(overrides: Partial<PraticaInfo> = {}): PraticaInfo {
+  return {
+    progressivo: 0,
+    denominazioneSala: null,
+    impiantoUgualeSedeLegale: true,
+    indirizzoImpianto: null,
+    ...overrides,
+  }
+}
 
 export function makeCustomer(overrides: Partial<Customer> = {}): Customer {
   return {

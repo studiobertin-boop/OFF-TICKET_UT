@@ -2,7 +2,13 @@ import { describe, test, expect } from 'vitest'
 import PizZip from 'pizzip'
 import { renderRelazioneDocx } from '../renderRelazione'
 import { buildRelazioneModel } from '../buildRelazioneModel'
-import { makeScheda, makeCustomer, makeAdditionalInfo, makeCompressore } from './fixtures'
+import {
+  makeScheda,
+  makeCustomer,
+  makeAdditionalInfo,
+  makeCompressore,
+  makePratica,
+} from './fixtures'
 
 /** Costruisce un .docx minimo valido con il body XML fornito. */
 function makeTemplateDocx(bodyXml: string): Uint8Array {
@@ -43,16 +49,17 @@ describe('renderRelazioneDocx', () => {
       scheda: makeScheda(),
       additionalInfo: makeAdditionalInfo(),
       customer: makeCustomer({ ragione_sociale: 'ACME S.r.l.' }),
+      pratica: makePratica(),
     })
 
     const xml = outputXml(renderRelazioneDocx(template, model))
     expect(xml).toContain('ACME S.r.l.')
   })
 
-  test('espande i loop di tabella (caratteristiche) e i flag Adeguato/Verifica', () => {
+  test('espande i loop di tabella e i mark di spunta', () => {
     const body =
       `<w:p><w:r><w:t>{#caratteristiche}[{pos}]{/caratteristiche}</w:t></w:r></w:p>` +
-      `<w:p><w:r><w:t>{#procedura}{pos}={verificaMark};{/procedura}</w:t></w:r></w:p>`
+      `<w:p><w:r><w:t>{#esiti}{pos}={verificaIntegritaMark};{/esiti}</w:t></w:r></w:p>`
     const template = makeTemplateDocx(body)
     const model = buildRelazioneModel({
       scheda: makeScheda({
@@ -65,10 +72,47 @@ describe('renderRelazioneDocx', () => {
       }),
       additionalInfo: makeAdditionalInfo(),
       customer: makeCustomer(),
+      pratica: makePratica(),
     })
 
     const xml = outputXml(renderRelazioneDocx(template, model))
     expect(xml).toContain('[C1]')
-    expect(xml).toContain('C1=;') // compressore senza disoleatore → verificaMark vuoto
+    expect(xml).toContain('C1=;') // nessuna spessimetrica → mark vuoto
+  })
+
+  test('le sezioni inverse scelgono una sola variante della frase sui fluidi', () => {
+    const body =
+      `<w:p><w:r><w:t>{#fluidi.evidenziaNocive}EVIDENZIATA{/fluidi.evidenziaNocive}</w:t></w:r></w:p>` +
+      `<w:p><w:r><w:t>{^fluidi.evidenziaNocive}PIANA{/fluidi.evidenziaNocive}</w:t></w:r></w:p>`
+    const template = makeTemplateDocx(body)
+
+    const render = (aria: 'Pulita' | 'Acidi') =>
+      outputXml(
+        renderRelazioneDocx(
+          template,
+          buildRelazioneModel({
+            scheda: makeScheda({
+              dati_impianto: {
+                sede_imp_uguale_legale: true,
+                sede_impianto: '',
+                indirizzo_impianto: '',
+                raccolta_condense: 'tanica',
+                aria_aspirata: [aria],
+              },
+            }),
+            additionalInfo: makeAdditionalInfo(),
+            customer: makeCustomer(),
+            pratica: makePratica(),
+          })
+        )
+      )
+
+    const pulita = render('Pulita')
+    expect(pulita).toContain('PIANA')
+    expect(pulita).not.toContain('EVIDENZIATA')
+
+    const acidi = render('Acidi')
+    expect(acidi).toContain('EVIDENZIATA')
+    expect(acidi).not.toContain('PIANA')
   })
 })

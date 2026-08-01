@@ -11,7 +11,6 @@ export const additionalInfoSchema = z.object({
   compressoriGiri: z.record(z.string(), tipoGiriSchema).default({}),
   spessimetrica: z.array(z.string()).default([]),
   collegamentiCompressoriSerbatoi: z.record(z.string(), z.array(z.string())).default({}),
-  motivoRevisione: z.string().optional(),
 })
 
 export type AdditionalInfoParsed = z.infer<typeof additionalInfoSchema>

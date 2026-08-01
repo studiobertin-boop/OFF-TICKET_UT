@@ -10,8 +10,9 @@
 import type { SchedaDatiCompleta, ValvolaSicurezza } from '@/types/technicalSheet'
 import type { CaratteristicheRow, EngineOptions } from '../types'
 import {
-  codiceValvolaDisoleatore,
-  codiceValvolaSerbatoio,
+  codiciValvoleDisoleatore,
+  codiciValvoleSerbatoio,
+  descrizioneSerbatoio,
   formatNumberIT,
   formatTemperatura,
 } from '../helpers'
@@ -70,20 +71,26 @@ export function buildCaratteristiche(
         temperatura: formatTemperatura(TEMP_MIN_RECIPIENTE, diso.ts_temperatura),
         categoria: diso.categoria_ped ?? '',
       })
-      rows.push(valvolaRow(codiceValvolaDisoleatore(diso.codice), diso.valvola_sicurezza))
+      const valvole = [diso.valvola_sicurezza, ...(diso.valvole_aggiuntive ?? [])]
+      codiciValvoleDisoleatore(diso.codice, valvole.length).forEach((pos, i) => {
+        rows.push(valvolaRow(pos, valvole[i]))
+      })
     }
   }
 
   // Serbatoi (+ valvole)
   for (const s of scheda.serbatoi ?? []) {
     rows.push({
-      ...base(s.codice, 'Serbatoio aria verticale', s.marca, s.modello, s.anno, s.n_fabbrica),
+      ...base(s.codice, descrizioneSerbatoio(s), s.marca, s.modello, s.anno, s.n_fabbrica),
       capacita: formatNumberIT(s.volume),
       pressione: formatNumberIT(s.ps_pressione_max),
       temperatura: formatTemperatura(TEMP_MIN_RECIPIENTE, s.ts_temperatura),
       categoria: s.categoria_ped ?? '',
     })
-    rows.push(valvolaRow(codiceValvolaSerbatoio(s.codice), s.valvola_sicurezza))
+    const valvole = [s.valvola_sicurezza, ...(s.valvole_aggiuntive ?? [])]
+    codiciValvoleSerbatoio(s.codice, valvole.length).forEach((pos, i) => {
+      rows.push(valvolaRow(pos, valvole[i]))
+    })
   }
 
   // Essiccatori (+ scambiatori)

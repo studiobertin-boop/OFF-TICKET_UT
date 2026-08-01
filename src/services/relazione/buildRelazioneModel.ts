@@ -4,12 +4,18 @@
  */
 import type { Customer } from '@/types'
 import type { SchedaDatiCompleta } from '@/types/technicalSheet'
-import type { AdditionalInfo, EngineOptions, RelazioneModel } from './types'
+import type {
+  AdditionalInfo, EngineOptions, PraticaInfo, RelazioneModel, SchemaImpianto,
+} from './types'
 import { buildPremessa } from './engine/premessa'
 import { buildDescrizioneGenerale } from './engine/descrizioneGenerale'
 import { buildCaratteristiche } from './engine/caratteristiche'
-import { buildProceduraDM329 } from './engine/proceduraDM329'
-import { buildClassificazione } from './engine/classificazione'
+import { buildEsiti } from './engine/esiti'
+import { buildProtezioni } from './engine/protezioni'
+import { buildFluidi } from './engine/fluidi'
+import { buildCondizioniInstallazione } from './engine/condizioniInstallazione'
+import { buildRiqualificazione } from './engine/riqualificazione'
+import { buildTubazioni } from './engine/tubazioni'
 import { buildValvole } from './engine/valvole'
 import { buildAllegati } from './engine/allegati'
 
@@ -17,21 +23,30 @@ export interface BuildRelazioneInput extends EngineOptions {
   scheda: SchedaDatiCompleta
   additionalInfo: AdditionalInfo
   customer: Customer
+  /** Dati del codice pratica: ubicazione impianto e progressivo di revisione */
+  pratica: PraticaInfo
+  /** §2.3 — immagine scelta al momento della generazione, mai persistita */
+  schemaImpianto?: SchemaImpianto
 }
 
 export function buildRelazioneModel(input: BuildRelazioneInput): RelazioneModel {
-  const { scheda, additionalInfo, customer, resolveCostruttore } = input
+  const { scheda, additionalInfo, customer, pratica, schemaImpianto, resolveCostruttore } = input
   const options: EngineOptions = { resolveCostruttore }
 
+  const esiti = buildEsiti(scheda, additionalInfo, options)
+
   return {
-    premessa: buildPremessa({ customer, datiImpianto: scheda.dati_impianto, additionalInfo }),
+    premessa: buildPremessa({ customer, pratica, additionalInfo }),
     descrizioneGenerale: buildDescrizioneGenerale(scheda, additionalInfo),
+    condizioniInstallazione: buildCondizioniInstallazione(scheda.dati_impianto),
+    fluidi: buildFluidi(scheda),
     caratteristiche: buildCaratteristiche(scheda, options),
-    procedura: buildProceduraDM329(scheda, options),
-    classificazione: buildClassificazione(scheda, additionalInfo),
+    esiti,
+    protezioni: buildProtezioni(scheda, esiti),
+    tubazioni: buildTubazioni(scheda),
+    riqualificazione: buildRiqualificazione(esiti),
     valvole: buildValvole(scheda, additionalInfo, options),
     allegati: buildAllegati(additionalInfo),
-    dataSopralluogo: scheda.dati_generali?.data_sopralluogo ?? '',
-    nomeTecnico: scheda.dati_generali?.nome_tecnico ?? '',
+    schemaImpianto,
   }
 }

@@ -24,17 +24,20 @@ export function plurale(count: number, singolare: string, plurale: string): stri
   return count === 1 ? singolare : plurale
 }
 
-/**
- * Codice della valvola di sicurezza di un serbatoio: Sx → Sx.1.
- */
+// La convenzione delle posizioni valvola è condivisa con la scheda dati: vive in
+// utils/valvoleImpianto e si riesporta qui per i moduli dell'engine.
+export {
+  codiciValvoleSerbatoio,
+  codiciValvoleDisoleatore,
+  valvoleDi,
+} from '@/utils/valvoleImpianto'
+
+/** Codice della valvola principale di un serbatoio: Sx → Sx.1. */
 export function codiceValvolaSerbatoio(serbatoioCodice: string): string {
   return `${serbatoioCodice}.1`
 }
 
-/**
- * Codice della valvola di sicurezza di un disoleatore: il disoleatore è Cx.1,
- * la sua valvola è Cx.2 (secondo posto sotto il compressore Cx).
- */
+/** Codice della valvola principale di un disoleatore: Cx.1 → Cx.2. */
 export function codiceValvolaDisoleatore(disoleatoreCodice: string): string {
   const base = disoleatoreCodice.split('.')[0]
   return `${base}.2`
@@ -47,7 +50,51 @@ export function codiceValvolaDisoleatore(disoleatoreCodice: string): string {
 export function joinConLaE(items: string[]): string {
   if (items.length === 0) return ''
   if (items.length === 1) return items[0]
-  return `${items.slice(0, -1).join(', ')} e ${items[items.length - 1]}`
+  const ultimo = items[items.length - 1]
+  // Eufonia: "ed uno", "ed essiccatori" — la d davanti a vocale, come nelle relazioni.
+  const congiunzione = /^[aeiouAEIOU]/.test(ultimo) ? 'ed' : 'e'
+  return `${items.slice(0, -1).join(', ')} ${congiunzione} ${ultimo}`
+}
+
+/**
+ * Descrizione del serbatoio: dipende dal fluido contenuto e dall'orientamento.
+ * Vive qui perché la usano §4 (caratteristiche), §5.2 (esiti), §5.3 (protezioni) e
+ * §6.2 (valvole): duplicarla ha già prodotto un documento che chiamava lo stesso
+ * recipiente "aria verticale" in una tabella e "azoto verticale" in un'altra.
+ */
+export function descrizioneSerbatoio(s: {
+  fluido?: string
+  fluido_altro?: string
+  orientamento?: string
+}): string {
+  const fluido =
+    s.fluido === 'AZOTO'
+      ? 'azoto'
+      : s.fluido === 'ALTRO'
+        ? (s.fluido_altro?.trim().toLowerCase() ?? '')
+        : 'aria'
+  const orientamento = s.orientamento === 'ORIZZONTALE' ? 'orizzontale' : 'verticale'
+  return ['Serbatoio', fluido, orientamento].filter(Boolean).join(' ')
+}
+
+const NUMERI_IN_LETTERE = [
+  'zero',
+  'uno',
+  'due',
+  'tre',
+  'quattro',
+  'cinque',
+  'sei',
+  'sette',
+  'otto',
+]
+
+/**
+ * Numero in lettere per gli elenchi discorsivi ("di cui uno a giri fissi e due a giri
+ * variabili"). Oltre la scala delle apparecchiature previste ripiega sulla cifra.
+ */
+export function numeroInLettere(n: number): string {
+  return NUMERI_IN_LETTERE[n] ?? String(n)
 }
 
 /**

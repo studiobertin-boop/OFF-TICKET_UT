@@ -17,7 +17,12 @@ import type {
   ValvolaConnessa,
   ValvoleModel,
 } from '../types'
-import { codiceValvolaDisoleatore, codiceValvolaSerbatoio, formatNumberIT } from '../helpers'
+import {
+  codiceValvolaDisoleatore,
+  codiceValvolaSerbatoio,
+  descrizioneSerbatoio,
+  formatNumberIT,
+} from '../helpers'
 
 export function buildValvole(
   scheda: SchedaDatiCompleta,
@@ -47,13 +52,17 @@ export function buildValvole(
 
     const portataMax = c.volume_aria_prodotto ?? 0
     const scaricato = v.volume_aria_scaricato ?? 0
+    const portataVerificabile = portataMax > 0 && scaricato > 0
     portata.push({
       posValvola: posV,
       nFabbricaValvola,
+      applicabile: true,
+      datiCompleti: portataVerificabile,
       connesse: [connessa(c.codice, 'Compressore', c.marca, c.modello)],
       portataMax: formatNumberIT(portataMax),
+      portataMaxTesto: formatNumberIT(portataMax),
       portataScaricata: formatNumberIT(scaricato),
-      adeguato: portataMax <= scaricato,
+      adeguato: portataVerificabile && portataMax <= scaricato,
     })
 
     const ps = diso.ps_pressione_max ?? 0
@@ -61,10 +70,11 @@ export function buildValvole(
     pressione.push({
       posValvola: posV,
       nFabbricaValvola,
+      datiCompleti: ps > 0 && taratura > 0,
       connesse: [connessa(diso.codice, 'Serbatoio disoleatore', diso.marca, diso.modello)],
       psRecipiente: formatNumberIT(ps),
       pressioneTaratura: formatNumberIT(taratura),
-      adeguato: taratura <= ps,
+      adeguato: ps > 0 && taratura > 0 && taratura <= ps,
     })
   }
 
@@ -74,17 +84,34 @@ export function buildValvole(
     const posV = codiceValvolaSerbatoio(s.codice)
     const v = s.valvola_sicurezza
     const nFabbricaValvola = v.n_fabbrica ?? ''
+    const scaricato = v.volume_aria_scaricato ?? 0
 
     const connessi = compressori.filter((c) => (collegamenti[c.codice] ?? []).includes(s.codice))
-    const portataMax = connessi.reduce((sum, c) => sum + (c.volume_aria_prodotto ?? 0), 0)
-    const scaricato = v.volume_aria_scaricato ?? 0
+    const addendi = connessi.map((c) => c.volume_aria_prodotto ?? 0)
+    const portataMax = addendi.reduce((sum, q) => sum + q, 0)
+
+    // La verifica di portata confronta la valvola con i compressori che alimentano il
+    // recipiente. Senza compressori collegati il confronto non esiste: dichiararlo
+    // "adeguato" sulla base di una somma pari a zero sarebbe un controllo apparente.
+    // È il caso dei circuiti non alimentati da compressori d'aria (es. azoto).
+    const applicabile = connessi.length > 0
+    const portataVerificabile = portataMax > 0 && scaricato > 0
     portata.push({
       posValvola: posV,
       nFabbricaValvola,
+      applicabile,
+      datiCompleti: portataVerificabile,
       connesse: connessi.map((c) => connessa(c.codice, 'Compressore', c.marca, c.modello)),
-      portataMax: formatNumberIT(portataMax),
+      portataMax: applicabile ? formatNumberIT(portataMax) : '',
+      // Con più compressori si mostra la somma scomposta, che contiene già il totale:
+      // stampare anche il totale da solo, sopra, era una ripetizione.
+      portataMaxTesto: !applicabile
+        ? ''
+        : addendi.length > 1
+          ? `${addendi.map(formatNumberIT).join(' + ')} = ${formatNumberIT(portataMax)}`
+          : formatNumberIT(portataMax),
       portataScaricata: formatNumberIT(scaricato),
-      adeguato: portataMax <= scaricato,
+      adeguato: applicabile && portataVerificabile && portataMax <= scaricato,
     })
 
     const ps = s.ps_pressione_max ?? 0
@@ -92,10 +119,11 @@ export function buildValvole(
     pressione.push({
       posValvola: posV,
       nFabbricaValvola,
-      connesse: [connessa(s.codice, 'Serbatoio aria verticale', s.marca, s.modello)],
+      datiCompleti: ps > 0 && taratura > 0,
+      connesse: [connessa(s.codice, descrizioneSerbatoio(s), s.marca, s.modello)],
       psRecipiente: formatNumberIT(ps),
       pressioneTaratura: formatNumberIT(taratura),
-      adeguato: taratura <= ps,
+      adeguato: ps > 0 && taratura > 0 && taratura <= ps,
     })
   }
 
