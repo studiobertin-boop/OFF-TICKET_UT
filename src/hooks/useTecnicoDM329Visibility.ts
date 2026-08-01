@@ -55,7 +55,7 @@ export interface TecnicoDM329Visibility {
  *     )}
  *
  *     {showRecipienteFiltro && (
- *       <RecipienteFiltroFields {...} /> // Intera sezione nascosta a tecnicoDM329
+ *       <EqRow def={EQUIPMENT_DEFS.recipiente} {...} /> // Riga nascosta a tecnicoDM329
  *     )}
  *   </>
  * )
