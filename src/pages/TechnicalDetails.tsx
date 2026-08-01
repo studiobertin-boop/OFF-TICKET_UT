@@ -35,6 +35,7 @@ import type { AdditionalInfo } from '@/services/relazione/types'
 import { EquipmentCatalogProvider } from '@/components/technicalSheet/EquipmentCatalogContext'
 import type { DM329TechnicalData, SchedaDatiCompleta, OCRExtractedData, FuzzyMatch, OCRReviewData } from '@/types'
 import { isDM329Family } from '@/utils/workflow'
+import { normalizeSchedaCodes } from '@/utils/equipmentCodes'
 
 /**
  * Pagina SCHEDA DATI - Gestione dati tecnici pratiche DM329
@@ -109,7 +110,24 @@ export const TechnicalDetails = () => {
             }
           }
 
-          setFormData(parsedData)
+          // Completa i codici mancanti: il codice mostrato è quello memorizzato, quindi un record
+          // senza codice comparirebbe con la colonna vuota. Idempotente, quindi a regime non fa
+          // nulla; la persistenza non è bloccante perché la scheda è già utilizzabile.
+          const { scheda: normalized, changed } = normalizeSchedaCodes(parsedData)
+          if (changed) {
+            try {
+              await technicalDataApi.updateEquipmentData(id, normalized)
+            } catch (normErr) {
+              console.error('[normalizeSchedaCodes] Errore nel salvataggio dei codici:', normErr)
+            }
+
+            // Allinea anche lo stato locale: il dialog della relazione legge
+            // technicalData.equipment_data, non formData, e senza questo continuerebbe a
+            // vedere la scheda non normalizzata fino al ricaricamento della pagina.
+            setTechnicalData((prev) => (prev ? { ...prev, equipment_data: normalized } : prev))
+          }
+
+          setFormData(normalized)
         }
       } catch (err) {
         console.error('Error loading technical data:', err)

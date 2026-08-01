@@ -37,6 +37,7 @@ import { buildRelazioneModel } from '@/services/relazione/buildRelazioneModel'
 import { validateRelazione, haErrori } from '@/services/relazione/preflight'
 import type { AdditionalInfo, PraticaInfo, SchemaImpianto, TipoGiri } from '@/services/relazione/types'
 import { leggiSchemaImpianto } from './schemaImpiantoFile'
+import { collectCodes, pruneAdditionalInfo } from '@/utils/equipmentCodes'
 
 interface RelazioneDataDialogProps {
   open: boolean
@@ -78,24 +79,31 @@ export default function RelazioneDataDialog({
     [scheda, serbatoiCodes]
   )
 
+  /** Codici realmente presenti nella scheda: valida i riferimenti salvati in additional_info. */
+  const schedaCodes = useMemo(() => collectCodes(scheda), [scheda])
+
   const [descrizioneAttivita, setDescrizioneAttivita] = useState('')
   const [giri, setGiri] = useState<Record<string, TipoGiri>>({})
   const [spessimetrica, setSpessimetrica] = useState<string[]>([])
   const [collegamenti, setCollegamenti] = useState<Record<string, string[]>>({})
   const [schema, setSchema] = useState<SchemaImpianto | null>(null)
   const [saving, setSaving] = useState(false)
+  const [droppedRefs, setDroppedRefs] = useState<string[]>([])
 
   // Sincronizza lo stato all'apertura del dialog
   useEffect(() => {
     if (!open) return
-    const info = initialAdditionalInfo ?? {}
+    // Scarta i riferimenti ad apparecchiature non più presenti: la scheda può essere cambiata
+    // dopo che questi dati sono stati redatti.
+    const { info, dropped } = pruneAdditionalInfo(initialAdditionalInfo, schedaCodes)
     setDescrizioneAttivita(info.descrizioneAttivita || customer?.descrizione_attivita || '')
-    setGiri(info.compressoriGiri || {})
-    setSpessimetrica(info.spessimetrica || [])
-    setCollegamenti(info.collegamentiCompressoriSerbatoi || {})
+    setGiri(info.compressoriGiri ?? {})
+    setSpessimetrica(info.spessimetrica ?? [])
+    setCollegamenti(info.collegamentiCompressoriSerbatoi ?? {})
+    setDroppedRefs(dropped)
     // Lo schema non è persistito: a ogni apertura si riparte da vuoto.
     setSchema(null)
-  }, [open, initialAdditionalInfo, customer])
+  }, [open, initialAdditionalInfo, customer, schedaCodes])
 
   const handleSchemaFile = async (file: File | undefined) => {
     if (!file) return
@@ -151,7 +159,9 @@ export default function RelazioneDataDialog({
   const bloccante = haErrori(segnalazioni)
 
   const handleGenera = async () => {
-    const candidate: AdditionalInfo = additionalInfo
+    // Si persiste il solo oggetto ripulito: altrimenti una voce obsoleta sopravvivrebbe a ogni
+    // generazione successiva.
+    const { info: candidate } = pruneAdditionalInfo(additionalInfo, schedaCodes)
 
     const parsed = additionalInfoSchema.safeParse(candidate)
     if (!parsed.success) {
@@ -190,6 +200,13 @@ export default function RelazioneDataDialog({
       <DialogTitle>Dati per la relazione tecnica</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={3} sx={{ mt: 1 }}>
+          {droppedRefs.length > 0 && (
+            <Alert severity="warning">
+              Alcuni riferimenti salvati non corrispondono più ad apparecchiature presenti nella
+              scheda e sono stati rimossi: {droppedRefs.join('; ')}. Ricontrolla i dati qui sotto
+              prima di generare la relazione.
+            </Alert>
+          )}
           <TextField
             label="Descrizione attività (ATECO)"
             value={descrizioneAttivita}
