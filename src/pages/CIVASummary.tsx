@@ -29,6 +29,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useCIVAData } from '@/hooks/useCIVAData'
 import { filterCIVAEquipment } from '@/utils/civaFiltering'
 import { checkCIVACompleteness } from '@/utils/civaValidation'
+import { risolviIndirizzoImpianto } from '@/utils/indirizzoImpianto'
 import { CIVAApparecchioColumn } from '@/components/civa/CIVAApparecchioColumn'
 import { CIVADataIncompleteAlert } from '@/components/civa/CIVADataIncompleteAlert'
 
@@ -50,6 +51,11 @@ export const CIVASummary = () => {
     isLoading,
     error
   } = useCIVAData(id!)
+
+  const indirizzoImpianto = risolviIndirizzoImpianto({
+    indirizzoRichiesta: request?.indirizzo_impianto,
+    sedeImpiantoLegacy: equipmentData?.dati_impianto?.sede_impianto
+  })
 
   // Filter and classify equipment for CIVA
   const civaData = useMemo(() => {
@@ -279,7 +285,7 @@ export const CIVASummary = () => {
                     apparecchio={apparecchio}
                     customer={customer!}
                     installer={installer!}
-                    impianto={equipmentData.dati_impianto}
+                    indirizzoImpianto={indirizzoImpianto}
                   />
                 ))}
               </Box>
@@ -306,7 +312,7 @@ export const CIVASummary = () => {
                     apparecchio={apparecchio}
                     customer={customer!}
                     installer={installer!}
-                    impianto={equipmentData.dati_impianto}
+                    indirizzoImpianto={indirizzoImpianto}
                   />
                 ))}
               </Box>
@@ -341,7 +347,7 @@ export const CIVASummary = () => {
                     apparecchio={apparecchio}
                     customer={customer!}
                     installer={installer!}
-                    impianto={equipmentData.dati_impianto}
+                    indirizzoImpianto={indirizzoImpianto}
                   />
                 ))}
               </Box>
@@ -373,7 +379,7 @@ export const CIVASummary = () => {
                     apparecchio={apparecchio}
                     customer={customer!}
                     installer={installer!}
-                    impianto={equipmentData.dati_impianto}
+                    indirizzoImpianto={indirizzoImpianto}
                   />
                 ))}
               </Box>

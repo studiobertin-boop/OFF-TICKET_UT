@@ -6,13 +6,14 @@
 
 import { Card, CardContent, Typography, Box, Chip, Divider } from '@mui/material'
 import type { CIVAApparecchio } from '@/types/civa'
-import type { Customer, Installer, DatiImpianto } from '@/types'
+import type { Customer, Installer } from '@/types'
 
 interface CIVAApparecchioColumnProps {
   apparecchio: CIVAApparecchio
   customer: Customer
   installer: Installer
-  impianto: DatiImpianto
+  /** Indirizzo impianto già risolto dal chiamante (sorgente: requests.indirizzo_impianto). */
+  indirizzoImpianto: string
 }
 
 /**
@@ -104,12 +105,12 @@ export const CIVAApparecchioColumn = ({
   apparecchio,
   customer,
   installer,
-  impianto
+  indirizzoImpianto
 }: CIVAApparecchioColumnProps) => {
   const { manufacturer } = apparecchio
 
   // Parse impianto address
-  const impiantoAddress = parseAddress(impianto.sede_impianto || '')
+  const impiantoAddress = parseAddress(indirizzoImpianto)
 
   // Badge color based on tipo pratica
   const badgeColor = apparecchio.tipoPratica === 'DICHIARAZIONE' ? 'info' : 'warning'
