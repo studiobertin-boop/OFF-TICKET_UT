@@ -81,12 +81,9 @@ export const TechnicalDetails = () => {
         if (!data) {
           console.log('Technical data not found for request', id, '- creating automatically...')
 
-          // Estrai indirizzo impianto dai custom_fields della richiesta se disponibile
-          const indirizzoImpianto = request?.custom_fields?.indirizzo_impianto as string | undefined
-
           try {
             // Crea la scheda dati
-            data = await technicalDataApi.create(id, indirizzoImpianto)
+            data = await technicalDataApi.create(id)
             console.log('Technical data created successfully:', data.id)
 
             // Mostra messaggio informativo all'utente
@@ -148,27 +145,6 @@ export const TechnicalDetails = () => {
     }
   }, [id])
 
-  // Sync sede_impianto to request.custom_fields.indirizzo_immobile
-  const syncIndirizzoImmobile = async (sedeImpianto: string) => {
-    if (!id || !request) {
-      return
-    }
-
-    try {
-      const updatedFields = {
-        ...request.custom_fields,
-        indirizzo_immobile: sedeImpianto,
-      }
-
-      await requestsApi.update(id, {
-        custom_fields: updatedFields,
-      })
-    } catch (err) {
-      console.error('[syncIndirizzoImmobile] Errore sync indirizzo immobile:', err)
-      // Non-blocking, logged only
-    }
-  }
-
   // Manual save function (con feedback)
   const handleFormSubmit = async (data: SchedaDatiCompleta) => {
     if (!id) return
@@ -178,12 +154,6 @@ export const TechnicalDetails = () => {
 
       // Salva i dati nel campo equipment_data (JSONB)
       await technicalDataApi.updateEquipmentData(id, data)
-
-      // Sync sede_impianto to indirizzo_immobile
-      const sedeImpianto = data?.dati_impianto?.sede_impianto
-      if (sedeImpianto) {
-        await syncIndirizzoImmobile(sedeImpianto)
-      }
 
       setFormData(data)
       setLastSaved(new Date())
@@ -206,12 +176,6 @@ export const TechnicalDetails = () => {
 
       // Salva i dati nel campo equipment_data (JSONB)
       await technicalDataApi.updateEquipmentData(id, currentData)
-
-      // Sync sede_impianto to indirizzo_immobile
-      const sedeImpianto = currentData?.dati_impianto?.sede_impianto
-      if (sedeImpianto) {
-        await syncIndirizzoImmobile(sedeImpianto)
-      }
 
       setFormData(currentData)
       setLastSaved(new Date())
@@ -240,12 +204,6 @@ export const TechnicalDetails = () => {
       // Prima salva i dati attuali del form
       const currentData = formRef.current.getFormData()
       await technicalDataApi.updateEquipmentData(id, currentData)
-
-      // Sync sede_impianto to indirizzo_immobile
-      const sedeImpianto = currentData?.dati_impianto?.sede_impianto
-      if (sedeImpianto) {
-        await syncIndirizzoImmobile(sedeImpianto)
-      }
 
       setFormData(currentData)
 
@@ -590,6 +548,12 @@ export const TechnicalDetails = () => {
             requestId={id}
             scheda={technicalData.equipment_data as SchedaDatiCompleta}
             customer={request?.customer ?? customerByName ?? null}
+            pratica={{
+              progressivo: request?.progressivo,
+              denominazioneSala: request?.denominazione_sala,
+              impiantoUgualeSedeLegale: request?.impianto_uguale_sede_legale,
+              indirizzoImpianto: request?.indirizzo_impianto,
+            }}
             initialAdditionalInfo={technicalData.additional_info as AdditionalInfo | undefined}
             fileName={`Relazione_${customerName}.docx`}
           />

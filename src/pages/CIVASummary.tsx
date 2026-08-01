@@ -44,7 +44,6 @@ export const CIVASummary = () => {
   // Load all CIVA data
   const {
     request,
-    technicalData,
     equipmentData,
     customer,
     installer,
@@ -53,11 +52,7 @@ export const CIVASummary = () => {
     error
   } = useCIVAData(id!)
 
-  const indirizzoImpianto = risolviIndirizzoImpianto({
-    indirizzoRichiesta: request?.indirizzo_impianto,
-    indirizzoSchedaLegacy: technicalData?.indirizzo_impianto,
-    sedeImpiantoLegacy: equipmentData?.dati_impianto?.sede_impianto
-  })
+  const indirizzoImpianto = risolviIndirizzoImpianto(request?.indirizzo_impianto)
 
   // Filter and classify equipment for CIVA
   const civaData = useMemo(() => {

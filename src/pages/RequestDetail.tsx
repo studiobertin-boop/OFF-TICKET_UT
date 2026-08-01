@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Box,
@@ -39,7 +39,6 @@ import { useAuth } from '@/hooks/useAuth'
 import { useFeatureFlag } from '@/hooks/useFeatureFlag'
 import { requestsApi } from '@/services/api/requests'
 import { customersApi } from '@/services/api/customers'
-import { technicalDataApi } from '@/services/api/technicalData'
 import { StatusTransitionButtons } from '@/components/requests/StatusTransitionButtons'
 import { AssignmentSection } from '@/components/requests/AssignmentSection'
 import { RequestHistoryPanel } from '@/components/requests/RequestHistoryPanel'
@@ -116,23 +115,9 @@ export const RequestDetail = () => {
   const [offCacValue, setOffCacValue] = useState<'off' | 'cac' | ''>('')
   const [statoFatturaValue, setStatoFatturaValue] = useState<StatoFattura>('NO')
   const [togglingUrgent, setTogglingUrgent] = useState(false)
-  const [fontiLegacyImpianto, setFontiLegacyImpianto] = useState<{
-    indirizzoSchedaLegacy?: string | null
-    sedeImpiantoLegacy?: string | null
-  }>({})
 
-  // Load technical data for DM329 requests to get le fonti legacy dell'indirizzo impianto
-  // (famiglia DM329: include anche DM329-Integrazioni)
+  // Famiglia DM329: include anche DM329-Integrazioni
   const isDM329 = isDM329Family(request?.request_type?.name)
-  useEffect(() => {
-    if (!isDM329 || !id) return
-    technicalDataApi.getByRequestId(id)
-      .then((data) => setFontiLegacyImpianto({
-        indirizzoSchedaLegacy: data?.indirizzo_impianto ?? null,
-        sedeImpiantoLegacy: data?.equipment_data?.dati_impianto?.sede_impianto ?? null,
-      }))
-      .catch(() => setFontiLegacyImpianto({}))
-  }, [id, isDM329])
 
   // Extract client information from request - use useMemo to recalculate when dependencies change
   const clientInfo = useMemo(() => {
@@ -437,10 +422,7 @@ export const RequestDetail = () => {
     !!customerRecord &&
     (user?.role === 'admin' || user?.role === 'userdm329')
 
-  const indirizzoImpianto = risolviIndirizzoImpianto({
-    indirizzoRichiesta: request.indirizzo_impianto,
-    ...fontiLegacyImpianto,
-  })
+  const indirizzoImpianto = risolviIndirizzoImpianto(request.indirizzo_impianto)
 
   return (
     <Layout>

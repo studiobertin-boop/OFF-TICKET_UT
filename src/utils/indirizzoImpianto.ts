@@ -1,18 +1,10 @@
 /**
- * L'indirizzo dell'impianto e' storicamente finito in tre posti diversi. La sorgente
- * unica e' `requests.indirizzo_impianto`; le altre due restano solo come ripiego in
- * lettura per le pratiche non ancora migrate, e spariranno con il DROP delle colonne.
+ * Indirizzo dell'impianto di una pratica DM329.
+ *
+ * La sorgente e' una sola, `requests.indirizzo_impianto`. Fino ad agosto 2026 lo stesso
+ * dato viveva anche su `dm329_technical_data.indirizzo_impianto` e sulla chiave JSONB
+ * `equipment_data.dati_impianto.sede_impianto`: entrambe sono state travasate qui dalla
+ * migration `20260801000000` e non vanno piu' consultate.
  */
-export interface FontiIndirizzoImpianto {
-  /** `requests.indirizzo_impianto` — sorgente unica. */
-  indirizzoRichiesta?: string | null
-  /** `dm329_technical_data.indirizzo_impianto` — legacy. */
-  indirizzoSchedaLegacy?: string | null
-  /** `equipment_data.dati_impianto.sede_impianto` — legacy. */
-  sedeImpiantoLegacy?: string | null
-}
-
-export const risolviIndirizzoImpianto = (fonti: FontiIndirizzoImpianto): string =>
-  [fonti.indirizzoRichiesta, fonti.indirizzoSchedaLegacy, fonti.sedeImpiantoLegacy]
-    .map((v) => (v ?? '').trim())
-    .find((v) => v.length > 0) ?? ''
+export const risolviIndirizzoImpianto = (indirizzo?: string | null): string =>
+  (indirizzo ?? '').trim()

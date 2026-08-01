@@ -37,15 +37,13 @@ export const technicalDataApi = {
   },
 
   /**
-   * Crea una nuova scheda dati tecnici
+   * Crea una nuova scheda dati tecnici.
+   * L'indirizzo impianto non si scrive più qui: la sua sorgente unica è
+   * `requests.indirizzo_impianto` (vedi `risolviIndirizzoImpianto`).
    * @param requestId ID della richiesta DM329
-   * @param indirizzo_impianto Indirizzo impianto (opzionale)
    * @returns DM329TechnicalData creata
    */
-  async create(
-    requestId: string,
-    indirizzo_impianto?: string
-  ): Promise<DM329TechnicalData> {
+  async create(requestId: string): Promise<DM329TechnicalData> {
     await ensureValidSession()
 
     const {
@@ -60,7 +58,6 @@ export const technicalDataApi = {
       .from('dm329_technical_data')
       .insert({
         request_id: requestId,
-        indirizzo_impianto,
         created_by: user.id,
       })
       .select()
