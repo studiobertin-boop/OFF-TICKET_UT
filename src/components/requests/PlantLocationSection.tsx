@@ -19,6 +19,9 @@ export interface PlantLocationSectionProps {
  * editor proprio: indirizzo e denominazione sala sono legati a sala_lettera,
  * progressivo e anno, che compongono il codice pratica; modificarne solo due
  * lascerebbe il codice disallineato dalla sala.
+ *
+ * Va montata solo sulle pratiche di tipo esattamente "DM329": le DM329-Integrazioni
+ * non hanno né indirizzo impianto né denominazione sala propri.
  */
 export const PlantLocationSection = ({ request, customer, indirizzoImpianto, canEdit, onSaved }: PlantLocationSectionProps) => {
   const [editOpen, setEditOpen] = useState(false)
@@ -56,6 +59,10 @@ export const PlantLocationSection = ({ request, customer, indirizzoImpianto, can
           request={request}
           customer={customer}
           sedeLegale={customersApi.formatFullAddress(customer)}
+          // "ha già un codice" qui è !!sala_lettera perché arrivano solo pratiche DM329 base:
+          // per queste il codice nasce dalla sala. Le DM329-Integrazioni usano invece
+          // pratica_padre_id (come fa RequestDetail nel pannello codice pratica), ma non
+          // montano questo riquadro.
           hasCode={!!request.sala_lettera}
           titolo="Modifica ubicazione impianto"
           onClose={() => setEditOpen(false)}

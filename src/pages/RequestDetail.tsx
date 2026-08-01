@@ -714,7 +714,10 @@ export const RequestDetail = () => {
                   onSaved={() => refetch()}
                 />
 
-                {isDM329 && (
+                {/* Solo pratiche DM329 "base": sulle DM329-Integrazioni indirizzo impianto e
+                    denominazione sala non vengono mai valorizzati (il riquadro mostrerebbe due
+                    "N/A") e la matita aprirebbe il selettore della pratica padre. */}
+                {isDM329 && !isIntegrazione && (
                   <PlantLocationSection
                     request={request}
                     customer={customerRecord}
