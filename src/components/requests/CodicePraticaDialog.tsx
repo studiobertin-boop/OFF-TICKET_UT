@@ -12,6 +12,8 @@ interface Props {
   sedeLegale: string
   /** true se la pratica ha già un codice: dialog in modalità modifica coi campi prefillati. */
   hasCode: boolean
+  /** Titolo del dialog. Il default riflette l'ingresso da "codice pratica". */
+  titolo?: string
   onClose: () => void
   onSaved: () => void
 }
@@ -21,7 +23,7 @@ interface Props {
  * dopo la creazione, riusando la stessa logica del form di creazione. Solo admin/userdm329.
  * Va montato solo quando aperto (mount fresco = prefill applicato a ogni apertura).
  */
-export const CodicePraticaDialog = ({ request, customer, sedeLegale, hasCode, onClose, onSaved }: Props) => {
+export const CodicePraticaDialog = ({ request, customer, sedeLegale, hasCode, titolo, onClose, onSaved }: Props) => {
   const isIntegrazione = request.request_type?.name === 'DM329-Integrazioni'
 
   // Valori iniziali per la modifica (l'indirizzo NON va qui: è prefillato dai defaultValues del form).
@@ -83,7 +85,7 @@ export const CodicePraticaDialog = ({ request, customer, sedeLegale, hasCode, on
 
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{hasCode ? 'Modifica codice pratica' : 'Assegna codice pratica'}</DialogTitle>
+      <DialogTitle>{titolo ?? (hasCode ? 'Modifica codice pratica' : 'Assegna codice pratica')}</DialogTitle>
       <DialogContent dividers>
         {isIntegrazione ? (
           <DM329IntegrazioneSection
