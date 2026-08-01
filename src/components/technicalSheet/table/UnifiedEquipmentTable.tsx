@@ -1,6 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Controller, useFieldArray, useFormContext, useWatch, type Control } from 'react-hook-form'
-import { Box, Card, Typography, Button, IconButton, Tooltip, Menu, MenuItem } from '@mui/material'
+import {
+  Box, Card, Typography, Button, IconButton, Tooltip, Menu, MenuItem,
+  Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
+} from '@mui/material'
 import {
   Add as AddIcon, Delete as DeleteIcon, ChevronRight as ChevronRightIcon,
   ExpandMore as ExpandMoreIcon, AddLink as AddLinkIcon,
@@ -9,7 +12,9 @@ import { alpha } from '@mui/material/styles'
 import { radii } from '@/theme/tokens'
 import { TextCell, NumberCell, SelectCell, CheckCell, ComputedCell, cellTdSx } from './EquipmentCells'
 import { PressioneCatalogCell } from './PressioneCatalogCell'
+import { ValvoleProtezioneCell } from './ValvoleProtezioneCell'
 import { Field } from './SubBand'
+import { codiciValvoleDisoleatore, codiciValvoleSerbatoio } from '@/utils/valvoleImpianto'
 import { EquipmentAutocomplete } from '../EquipmentAutocomplete'
 import { SingleOCRButton } from '../SingleOCRButton'
 import { useTecnicoDM329Visibility } from '@/hooks/useTecnicoDM329Visibility'
@@ -71,10 +76,33 @@ const useAutoPed = (control: Control<any>, base: string, def: EquipmentTypeDef, 
 
 const extraFieldControl = (control: Control<any>, base: string, f: ExtraFieldDef): ReactNode => {
   const name = `${base}.${f.name}`
-  if (f.kind === 'select') return <SelectCell control={control} name={name} options={[...(f.options || [])]} display={f.display} />
+  if (f.kind === 'multi') return <ValvoleProtezioneCell control={control} name={name} />
+  if (f.kind === 'select') return <SelectCell control={control} name={name} options={[...(f.options || [])]} display={f.display} labels={f.labels} emptyLabel={f.emptyLabel} />
   if (f.kind === 'check') return <CheckCell control={control} name={name} />
   if (f.kind === 'number') return <NumberCell control={control} name={name} min={f.min} max={f.max} step={f.step} />
   return <TextCell control={control} name={name} placeholder={f.label} />
+}
+
+const extraFieldWidth = (f: ExtraFieldDef): number | 'auto' => {
+  if (f.kind === 'check') return 'auto'
+  if (f.kind === 'multi') return 210
+  if (f.kind === 'text') return 150
+  return f.labels ? 150 : 90 // i select con etichette estese non stanno in 90px
+}
+
+/**
+ * Campo extra della riga espandibile. È un componente e non una semplice chiamata perché
+ * i campi con `showIf` osservano un altro campo della stessa riga (es. «Quale posizione»
+ * compare solo per ubicazione ALTRO): l'hook deve stare dentro un componente proprio.
+ */
+const ExtraField = ({ control, base, f }: { control: Control<any>; base: string; f: ExtraFieldDef }) => {
+  const dep = useWatch({ control, name: f.showIf ? `${base}.${f.showIf.field}` : `${base}.__noDep` })
+  if (f.showIf && dep !== f.showIf.equals) return null
+  return (
+    <Field label={f.label} w={extraFieldWidth(f) as any}>
+      {extraFieldControl(control, base, f)}
+    </Field>
+  )
 }
 
 interface EqRowProps {
@@ -193,14 +221,62 @@ const EqRow = ({ control, def, base, code, depth, adv, ocr, onDelete, append }: 
             <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 1.5, px: 1.5, py: 1 }}>
               <Typography component="span" sx={{ fontSize: '0.7rem', fontWeight: 700, color, alignSelf: 'center', pr: 0.5 }}>{code} · dettagli</Typography>
               {def.extra.map((f) => (
-                <Field key={f.name} label={f.label} w={f.kind === 'check' ? 'auto' as any : (f.kind === 'text' ? 150 : 90)}>
-                  {extraFieldControl(control, base, f)}
-                </Field>
+                <ExtraField key={f.name} control={control} base={base} f={f} />
               ))}
             </Box>
           </Box>
         </Box>
       )}
+    </>
+  )
+}
+
+/**
+ * Conferma di eliminazione in sospeso. NON si usa `window.confirm`: basta che una volta
+ * l'utente spunti «impedisci a questa pagina di creare altre finestre di dialogo» perché
+ * il browser risponda `false` a ogni conferma successiva senza mostrarla, e da lì in poi
+ * tutti i cestini della scheda risultano muti fino al ricaricamento della pagina.
+ */
+interface PendingDelete { testo: string; conferma: () => void }
+type AskDelete = (label: string, code: string, conferma: () => void) => void
+
+interface ValveHostRowsProps {
+  control: Control<any>
+  /** Definizione del recipiente che porta le valvole (serbatoio o disoleatore). */
+  def: EquipmentTypeDef
+  base: string
+  code: string
+  depth: number
+  adv: boolean
+  ocr: OcrRef
+  ocrValvola: OcrRef
+  onDelete: () => void
+  ask: AskDelete
+  /** Posizioni delle valvole secondo la convenzione del tipo: la prima è la principale. */
+  posizioni: (count: number) => string[]
+}
+
+/**
+ * Recipiente con valvola di sicurezza obbligatoria e valvole aggiuntive appendibili
+ * (S1.1 + S1.2, C1.2 + C1.3): un recipiente può averne più d'una e la relazione le
+ * enumera tutte. Componente a sé perché `useFieldArray` non può stare in un ciclo.
+ */
+const ValveHostRows = ({ control, def, base, code, depth, adv, ocr, ocrValvola, onDelete, ask, posizioni }: ValveHostRowsProps) => {
+  const aggiuntive = useFieldArray({ control, name: `${base}.valvole_aggiuntive` })
+  const pos = posizioni(aggiuntive.fields.length + 1)
+
+  return (
+    <>
+      <EqRow control={control} def={def} base={base} code={code} depth={depth} adv={adv} ocr={ocr}
+        onDelete={onDelete}
+        append={{ label: 'Valvola di sicurezza', onClick: () => aggiuntive.append({}) }} />
+      <EqRow control={control} def={EQUIPMENT_DEFS.valvola} base={`${base}.valvola_sicurezza`} code={pos[0]}
+        depth={depth + 1} adv={adv} ocr={ocrValvola} onDelete={null} append={null} />
+      {aggiuntive.fields.map((f, j) => (
+        <EqRow key={f.id} control={control} def={EQUIPMENT_DEFS.valvola} base={`${base}.valvole_aggiuntive.${j}`}
+          code={pos[j + 1]} depth={depth + 1} adv={adv} ocr={ocrValvola}
+          onDelete={() => ask('la valvola', pos[j + 1], () => aggiuntive.remove(j))} append={null} />
+      ))}
     </>
   )
 }
@@ -214,6 +290,10 @@ export const UnifiedEquipmentTable = ({ control }: UnifiedEquipmentTableProps) =
   const { showAdvancedFields: adv, showRecipienteFiltro } = useTecnicoDM329Visibility()
   const { setValue } = useFormContext()
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null)
+  const [pending, setPending] = useState<PendingDelete | null>(null)
+
+  const ask: AskDelete = (label, code, conferma) =>
+    setPending({ testo: `Confermi di voler eliminare ${label} ${code}?`, conferma })
 
   const serbatoi = useFieldArray({ control, name: 'serbatoi' })
   const compressori = useFieldArray({ control, name: 'compressori' })
@@ -223,8 +303,6 @@ export const UnifiedEquipmentTable = ({ control }: UnifiedEquipmentTableProps) =
   const filtri = useFieldArray({ control, name: 'filtri' })
   const recipienti = useFieldArray({ control, name: 'recipienti_filtro' })
   const separatori = useFieldArray({ control, name: 'separatori' })
-
-  const confirmDel = (label: string, code: string) => window.confirm(`Confermi di voler eliminare ${label} ${code}?`)
 
   const addNew = (kind: EquipmentKind) => {
     setMenuAnchor(null)
@@ -246,12 +324,12 @@ export const UnifiedEquipmentTable = ({ control }: UnifiedEquipmentTableProps) =
 
   serbatoi.fields.forEach((f, i) => {
     const code = generateEquipmentCode('S', i + 1)
-    rows.push(<EqRow key={`s-${f.id}`} control={control} def={EQUIPMENT_DEFS.serbatoio} base={`serbatoi.${i}`} code={code} depth={0} adv={adv}
+    rows.push(<ValveHostRows key={`s-${f.id}`} control={control} def={EQUIPMENT_DEFS.serbatoio} base={`serbatoi.${i}`} code={code} depth={0} adv={adv}
       ocr={{ equipmentType: 'Serbatoi', equipmentIndex: i }}
-      onDelete={() => { if (confirmDel('il serbatoio', code)) serbatoi.remove(i) }}
-      append={null} />)
-    rows.push(<EqRow key={`s-${f.id}-v`} control={control} def={EQUIPMENT_DEFS.valvola} base={`serbatoi.${i}.valvola_sicurezza`} code={`${code}.1`} depth={1} adv={adv}
-      ocr={{ equipmentType: 'Serbatoi', equipmentIndex: i, componentType: 'valvola_sicurezza' }} onDelete={null} append={null} />)
+      ocrValvola={{ equipmentType: 'Serbatoi', equipmentIndex: i, componentType: 'valvola_sicurezza' }}
+      onDelete={() => ask('il serbatoio', code, () => serbatoi.remove(i))}
+      ask={ask}
+      posizioni={(n) => codiciValvoleSerbatoio(code, n)} />)
   })
 
   compressori.fields.forEach((f, i) => {
@@ -259,14 +337,15 @@ export const UnifiedEquipmentTable = ({ control }: UnifiedEquipmentTableProps) =
     const dIdx = disoleatori.fields.findIndex((d: any) => d.compressore_associato === code)
     rows.push(<EqRow key={`c-${f.id}`} control={control} def={EQUIPMENT_DEFS.compressore} base={`compressori.${i}`} code={code} depth={0} adv={adv}
       ocr={{ equipmentType: 'Compressori', equipmentIndex: i }}
-      onDelete={() => { if (confirmDel('il compressore', code)) { if (dIdx >= 0) disoleatori.remove(dIdx); compressori.remove(i) } }}
+      onDelete={() => ask('il compressore', code, () => { if (dIdx >= 0) disoleatori.remove(dIdx); compressori.remove(i) })}
       append={dIdx === -1 ? { label: 'Disoleatore', onClick: () => { disoleatori.append({ codice: `${code}.1`, compressore_associato: code, valvola_sicurezza: {} }); setValue(`compressori.${i}.ha_disoleatore`, true) } } : null} />)
     if (dIdx >= 0) {
-      rows.push(<EqRow key={`c-${f.id}-d`} control={control} def={EQUIPMENT_DEFS.disoleatore} base={`disoleatori.${dIdx}`} code={`${code}.1`} depth={1} adv={adv}
+      rows.push(<ValveHostRows key={`c-${f.id}-d`} control={control} def={EQUIPMENT_DEFS.disoleatore} base={`disoleatori.${dIdx}`} code={`${code}.1`} depth={1} adv={adv}
         ocr={{ equipmentType: 'Disoleatori', equipmentIndex: dIdx }}
-        onDelete={() => { if (confirmDel('il disoleatore', `${code}.1`)) { disoleatori.remove(dIdx); setValue(`compressori.${i}.ha_disoleatore`, false) } }} append={null} />)
-      rows.push(<EqRow key={`c-${f.id}-dv`} control={control} def={EQUIPMENT_DEFS.valvola} base={`disoleatori.${dIdx}.valvola_sicurezza`} code={`${code}.2`} depth={2} adv={adv}
-        ocr={{ equipmentType: 'Disoleatori', equipmentIndex: dIdx, componentType: 'valvola_sicurezza' }} onDelete={null} append={null} />)
+        ocrValvola={{ equipmentType: 'Disoleatori', equipmentIndex: dIdx, componentType: 'valvola_sicurezza' }}
+        onDelete={() => ask('il disoleatore', `${code}.1`, () => { disoleatori.remove(dIdx); setValue(`compressori.${i}.ha_disoleatore`, false) })}
+        ask={ask}
+        posizioni={(n) => codiciValvoleDisoleatore(`${code}.1`, n)} />)
     }
   })
 
@@ -275,12 +354,12 @@ export const UnifiedEquipmentTable = ({ control }: UnifiedEquipmentTableProps) =
     const sIdx = scambiatori.fields.findIndex((s: any) => s.essiccatore_associato === code)
     rows.push(<EqRow key={`e-${f.id}`} control={control} def={EQUIPMENT_DEFS.essiccatore} base={`essiccatori.${i}`} code={code} depth={0} adv={adv}
       ocr={{ equipmentType: 'Essiccatori', equipmentIndex: i }}
-      onDelete={() => { if (confirmDel("l'essiccatore", code)) { if (sIdx >= 0) scambiatori.remove(sIdx); essiccatori.remove(i) } }}
+      onDelete={() => ask("l'essiccatore", code, () => { if (sIdx >= 0) scambiatori.remove(sIdx); essiccatori.remove(i) })}
       append={sIdx === -1 ? { label: 'Scambiatore', onClick: () => { scambiatori.append({ codice: `${code}.1`, essiccatore_associato: code }); setValue(`essiccatori.${i}.ha_scambiatore`, true) } } : null} />)
     if (sIdx >= 0) {
       rows.push(<EqRow key={`e-${f.id}-s`} control={control} def={EQUIPMENT_DEFS.scambiatore} base={`scambiatori.${sIdx}`} code={`${code}.1`} depth={1} adv={adv}
         ocr={{ equipmentType: 'Scambiatori', equipmentIndex: sIdx }}
-        onDelete={() => { if (confirmDel('lo scambiatore', `${code}.1`)) { scambiatori.remove(sIdx); setValue(`essiccatori.${i}.ha_scambiatore`, false) } }} append={null} />)
+        onDelete={() => ask('lo scambiatore', `${code}.1`, () => { scambiatori.remove(sIdx); setValue(`essiccatori.${i}.ha_scambiatore`, false) })} append={null} />)
     }
   })
 
@@ -289,12 +368,12 @@ export const UnifiedEquipmentTable = ({ control }: UnifiedEquipmentTableProps) =
     const rIdx = recipienti.fields.findIndex((r: any) => r.filtro_associato === code)
     rows.push(<EqRow key={`f-${f.id}`} control={control} def={EQUIPMENT_DEFS.filtro} base={`filtri.${i}`} code={code} depth={0} adv={adv}
       ocr={{ equipmentType: 'Filtri', equipmentIndex: i }}
-      onDelete={() => { if (confirmDel('il filtro', code)) { if (rIdx >= 0) recipienti.remove(rIdx); filtri.remove(i) } }}
+      onDelete={() => ask('il filtro', code, () => { if (rIdx >= 0) recipienti.remove(rIdx); filtri.remove(i) })}
       append={(showRecipienteFiltro && rIdx === -1) ? { label: 'Recipiente', onClick: () => { recipienti.append({ codice: `${code}.1`, filtro_associato: code }); setValue(`filtri.${i}.ha_recipiente`, true) } } : null} />)
     if (rIdx >= 0 && showRecipienteFiltro) {
       rows.push(<EqRow key={`f-${f.id}-r`} control={control} def={EQUIPMENT_DEFS.recipiente} base={`recipienti_filtro.${rIdx}`} code={`${code}.1`} depth={1} adv={adv}
         ocr={{ equipmentType: 'Recipienti filtro', equipmentIndex: rIdx }}
-        onDelete={() => { if (confirmDel('il recipiente', `${code}.1`)) { recipienti.remove(rIdx); setValue(`filtri.${i}.ha_recipiente`, false) } }} append={null} />)
+        onDelete={() => ask('il recipiente', `${code}.1`, () => { recipienti.remove(rIdx); setValue(`filtri.${i}.ha_recipiente`, false) })} append={null} />)
     }
   })
 
@@ -302,7 +381,7 @@ export const UnifiedEquipmentTable = ({ control }: UnifiedEquipmentTableProps) =
     const code = generateEquipmentCode('SEP', i + 1)
     rows.push(<EqRow key={`sep-${f.id}`} control={control} def={EQUIPMENT_DEFS.separatore} base={`separatori.${i}`} code={code} depth={0} adv={adv}
       ocr={{ equipmentType: 'Separatori', equipmentIndex: i }}
-      onDelete={() => { if (confirmDel('il separatore', code)) separatori.remove(i) }} append={null} />)
+      onDelete={() => ask('il separatore', code, () => separatori.remove(i))} append={null} />)
   })
 
   const total = serbatoi.fields.length + compressori.fields.length + essiccatori.fields.length + filtri.fields.length + separatori.fields.length
@@ -364,6 +443,20 @@ export const UnifiedEquipmentTable = ({ control }: UnifiedEquipmentTableProps) =
           </tbody>
         </Box>
       </Box>
+
+      <Dialog open={!!pending} onClose={() => setPending(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Elimina apparecchiatura</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{pending?.testo}</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPending(null)}>Annulla</Button>
+          <Button color="error" variant="contained" autoFocus
+            onClick={() => { pending?.conferma(); setPending(null) }}>
+            Elimina
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Card>
   )
 }

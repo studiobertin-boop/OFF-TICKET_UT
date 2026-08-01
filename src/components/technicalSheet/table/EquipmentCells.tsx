@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Controller, type Control } from 'react-hook-form'
-import { InputBase, Select, MenuItem, Checkbox, Box, Tooltip, Typography } from '@mui/material'
+import { InputBase, Select, MenuItem, Checkbox, Box, Chip, Tooltip, Typography } from '@mui/material'
 import { alpha } from '@mui/material/styles'
 import { useNoAutofillToken } from '@/utils/noAutofill'
 
@@ -106,7 +106,13 @@ export const NumberCell = ({
   )
 }
 
-export const SelectCell = ({ control, name, options, disabled, display, w }: CellBase & { options: string[]; display?: Record<string, string>; w?: number }) => (
+/**
+ * `display` = resa compatta del valore scelto; `labels` = testo esteso nelle voci di menu
+ * (i due differiscono dove la colonna è stretta: finitura ZINCATO → «Z»).
+ * `emptyLabel` mostra in grigio il default applicato dal motore quando il campo è vuoto,
+ * così un campo non compilato non si legge come «dato mancante».
+ */
+export const SelectCell = ({ control, name, options, disabled, display, labels, emptyLabel, w }: CellBase & { options: string[]; display?: Record<string, string>; labels?: Record<string, string>; emptyLabel?: string; w?: number }) => (
   <Controller
     name={name}
     control={control}
@@ -121,15 +127,56 @@ export const SelectCell = ({ control, name, options, disabled, display, w }: Cel
         fullWidth={!w}
         renderValue={(v) => {
           const val = (v as string) || ''
-          if (!val) return <Box component="span" sx={{ color: 'text.disabled' }}>—</Box>
+          if (!val) return <Box component="span" sx={{ color: 'text.disabled' }}>{emptyLabel ?? '—'}</Box>
           return display ? (display[val] ?? val) : val
         }}
         sx={{ fontSize: '0.82rem', px: 1, '& .MuiSelect-select': { py: 0.4 }, ...(w ? { width: w } : {}) }}
       >
-        <MenuItem value=""><em>—</em></MenuItem>
-        {options.map((o) => <MenuItem key={o} value={o}>{o}</MenuItem>)}
+        <MenuItem value=""><em>{emptyLabel ? `${emptyLabel} (default)` : '—'}</em></MenuItem>
+        {options.map((o) => <MenuItem key={o} value={o}>{labels?.[o] ?? o}</MenuItem>)}
       </Select>
     )}
+  />
+)
+
+/** Selezione multipla con opzioni etichettate; il valore memorizzato è un array di stringhe. */
+export const MultiSelectCell = ({ control, name, options, disabled, emptyLabel, w }: CellBase & { options: { value: string; label: string }[]; emptyLabel?: string; w?: number }) => (
+  <Controller
+    name={name}
+    control={control}
+    render={({ field }) => {
+      const selected: string[] = Array.isArray(field.value) ? field.value : []
+      return (
+        <Select
+          {...field}
+          multiple
+          value={selected}
+          disabled={disabled || options.length === 0}
+          variant="standard"
+          disableUnderline
+          displayEmpty
+          fullWidth={!w}
+          renderValue={() => {
+            if (selected.length === 0) {
+              return <Box component="span" sx={{ color: 'text.disabled' }}>{options.length === 0 ? 'nessuna valvola censita' : (emptyLabel ?? '—')}</Box>
+            }
+            return (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                {selected.map((v) => <Chip key={v} label={v} size="small" sx={{ height: 18, fontSize: '0.68rem' }} />)}
+              </Box>
+            )
+          }}
+          sx={{ fontSize: '0.82rem', px: 1, '& .MuiSelect-select': { py: 0.4 }, ...(w ? { width: w } : {}) }}
+        >
+          {options.map((o) => (
+            <MenuItem key={o.value} value={o.value} sx={{ fontSize: '0.8rem' }}>
+              <Checkbox size="small" checked={selected.includes(o.value)} sx={{ p: 0.25, mr: 1 }} />
+              {o.label}
+            </MenuItem>
+          ))}
+        </Select>
+      )
+    }}
   />
 )
 

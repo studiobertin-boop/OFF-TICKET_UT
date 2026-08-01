@@ -1,8 +1,10 @@
+import type { ReactNode } from 'react'
 import { Control, Controller, useWatch } from 'react-hook-form'
 import {
   TextField,
   Grid,
   Box,
+  Typography,
   FormControl,
   FormHelperText,
   InputLabel,
@@ -15,6 +17,7 @@ import {
 } from '@mui/material'
 import {
   ARIA_ASPIRATA_OPTIONS,
+  DN_OPTIONS,
   RACCOLTA_CONDENSE_OPTIONS,
 } from '@/types'
 
@@ -22,6 +25,71 @@ interface DatiImpiantoSectionProps {
   control: Control<any>
   errors: any
   sedeLegale?: string
+}
+
+/**
+ * Selettore di diametro nominale. Memorizza sempre il DN in mm: l'etichetta mostra anche
+ * i pollici perché è come li dichiara l'installatore, ma il valore salvato è confrontabile
+ * con la soglia di esclusione delle tubazioni (DN 80).
+ */
+const DnSelect = ({ control, name, label }: { control: Control<any>; name: string; label: string }) => (
+  <Controller
+    name={name}
+    control={control}
+    render={({ field }) => (
+      <FormControl fullWidth size="small">
+        <InputLabel shrink>{label}</InputLabel>
+        <Select
+          {...field}
+          displayEmpty
+          value={field.value ?? ''}
+          onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+          input={<OutlinedInput notched label={label} />}
+          renderValue={(v) =>
+            v === '' || v == null
+              ? <Box component="span" sx={{ color: 'text.disabled' }}>—</Box>
+              : (DN_OPTIONS.find((o) => o.dn === v)?.label ?? `DN${v}`)
+          }
+        >
+          <MenuItem value=""><em>—</em></MenuItem>
+          {DN_OPTIONS.map((o) => (
+            <MenuItem key={o.dn} value={o.dn}>{o.label}</MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+    )}
+  />
+)
+
+/**
+ * Colonna con titolo sopra il controllo. Tutti i box della stessa riga devono usarlo,
+ * altrimenti chi ha il titolo parte più in basso e i campi non risultano allineati.
+ */
+const CampoConTitolo = ({ titolo, children }: { titolo: string; children: ReactNode }) => (
+  <Box>
+    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+      {titolo}
+    </Typography>
+    {children}
+  </Box>
+)
+
+/** Coppia DN minimo / massimo di una tratta, con controllo di coerenza dell'intervallo. */
+const DnRange = ({ control, titolo, nameMin, nameMax }: { control: Control<any>; titolo: string; nameMin: string; nameMax: string }) => {
+  const [min, max] = useWatch({ control, name: [nameMin, nameMax] })
+  const invertito = min != null && max != null && min > max
+
+  return (
+    <CampoConTitolo titolo={titolo}>
+      <Box sx={{ display: 'flex', gap: 1 }}>
+        <DnSelect control={control} name={nameMin} label="DN min" />
+        <DnSelect control={control} name={nameMax} label="DN max" />
+      </Box>
+      {invertito && (
+        <FormHelperText error>Il DN minimo supera il massimo</FormHelperText>
+      )}
+    </CampoConTitolo>
+  )
 }
 
 /**
@@ -38,6 +106,9 @@ export const DatiImpiantoSection = ({
     name: 'dati_impianto.locale_dedicato',
     defaultValue: false,
   })
+
+  const salaStorico = useWatch({ control, name: 'dati_impianto.diametri_collegamenti_sala' })
+  const diametriStorici = { sala: salaStorico }
 
   const shrink = { shrink: true }
 
@@ -152,32 +223,35 @@ export const DatiImpiantoSection = ({
 
         {/* RIGA 3 — 3 colonne uguali */}
         <Grid item xs={12} sm={6} md={4}>
-          <Controller
-            name="dati_impianto.fonti_calore_materiali_infiammabili"
-            control={control}
-            render={({ field }) => (
-              <TextField {...field} label="Fonti Calore / Mat. Infiammabili Vicini" size="small" fullWidth InputLabelProps={shrink} placeholder="Specificare fonti o materiali" />
-            )}
-          />
+          <CampoConTitolo titolo="Fonti calore / mat. infiammabili vicini">
+            <Controller
+              name="dati_impianto.fonti_calore_materiali_infiammabili"
+              control={control}
+              render={({ field }) => (
+                <TextField {...field} value={field.value ?? ''} size="small" fullWidth placeholder="Specificare fonti o materiali" />
+              )}
+            />
+          </CampoConTitolo>
         </Grid>
         <Grid item xs={12} sm={6} md={4}>
-          <Controller
-            name="dati_impianto.diametri_collegamenti_sala"
-            control={control}
-            render={({ field }) => (
-              <TextField {...field} label="Diametri Collegamenti in Sala" size="small" fullWidth InputLabelProps={shrink} placeholder={'Es: 1/2", 3/4"'} />
-            )}
-          />
+          <DnRange control={control} titolo="Collegamenti in sala"
+            nameMin="dati_impianto.dn_sala_min" nameMax="dati_impianto.dn_sala_max" />
         </Grid>
         <Grid item xs={12} sm={6} md={4}>
-          <Controller
-            name="dati_impianto.diametri_linee_distribuzione"
-            control={control}
-            render={({ field }) => (
-              <TextField {...field} label="Diametri Linee di Distribuzione" size="small" fullWidth InputLabelProps={shrink} placeholder={'Es: 1", 1 1/4"'} />
-            )}
-          />
+          <DnRange control={control} titolo="Linee di distribuzione"
+            nameMin="dati_impianto.dn_distribuzione_min" nameMax="dati_impianto.dn_distribuzione_max" />
         </Grid>
+
+        {/* RIGA 4 — diametro dichiarato a testo libero prima dei selettori DN.
+            Mostrato solo dove esiste, in sola lettura: serve a ricompilare i DN.
+            NB: il corrispettivo per le linee di distribuzione è stato rimosso su richiesta. */}
+        {diametriStorici.sala && (
+          <Grid item xs={12}>
+            <TextField label="Diametri collegamenti in sala (storico)" size="small" value={diametriStorici.sala}
+              InputProps={{ readOnly: true }} InputLabelProps={shrink} sx={{ minWidth: 260 }}
+              helperText="Campo superato: compilare i DN qui sopra" />
+          </Grid>
+        )}
       </Grid>
     </Box>
   )

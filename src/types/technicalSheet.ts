@@ -23,9 +23,16 @@ export type AriaAspirataOption = 'Pulita' | 'Vapori' | 'Acidi' | 'Polveri' | 'Um
 export type RaccoltaCondenserOption = 'Nessuna' | 'separatore' | 'tanica' | 'altro'
 
 export interface DatiImpianto {
-  sede_imp_uguale_legale: boolean // Se true, sede_impianto = sede_legale (readonly)
-  sede_impianto: string // Autocomplete indirizzo - Obbligatorio se sede_imp_uguale_legale = false
-  indirizzo_impianto: string // DEPRECATED - mantenuto per retrocompatibilità
+  /**
+   * DEPRECATED — l'ubicazione dell'impianto vive ora solo sui campi di `requests` usati
+   * dal codice pratica (`impianto_uguale_sede_legale`, `indirizzo_impianto`,
+   * `denominazione_sala`). Questi tre restano per i record esistenti ma non alimentano
+   * più la relazione: la duplicazione produceva valori discordi fra le due sorgenti.
+   */
+  sede_imp_uguale_legale: boolean
+  sede_impianto: string
+  indirizzo_impianto: string
+  /** DEPRECATED — usare `requests.denominazione_sala` */
   denominazione_sala?: string
   locale_dedicato?: boolean
   locale_condiviso_con?: string
@@ -36,8 +43,17 @@ export interface DatiImpianto {
   lontano_materiale_infiammabile?: boolean // NUOVO - Obbligatorio
   fonti_calore_materiali_infiammabili?: string // Rinominato da fonti_calore_vicine
   fonti_calore_vicine?: string // DEPRECATED - mantenuto per retrocompatibilità
-  diametri_collegamenti_sala?: string
-  diametri_linee_distribuzione?: string
+  diametri_collegamenti_sala?: string // DEPRECATED - testo libero, sostituito da dn_sala_*
+  diametri_linee_distribuzione?: string // DEPRECATED - testo libero, sostituito da dn_distribuzione_*
+  /**
+   * Diametri nominali, sempre espressi in mm anche quando l'installatore ragiona in
+   * pollici: la conversione avviene nel selettore di input, non in generazione, così
+   * il confronto con la soglia di esclusione (DN 80) è univoco.
+   */
+  dn_sala_min?: number
+  dn_sala_max?: number
+  dn_distribuzione_min?: number
+  dn_distribuzione_max?: number
 }
 
 // ============================================================================
@@ -47,6 +63,15 @@ export interface DatiImpianto {
 export type FinituraInternaOption = 'VERNICIATO' | 'ZINCATO' | 'VITROFLEX' | 'ALTRO'
 export type ScaricoOption = 'AUTOMATICO' | 'MANUALE' | 'ASSENTE'
 export type CategoriaPED = 'I' | 'II' | 'III' | 'IV'
+
+/** Orientamento del serbatoio — usato nella descrizione dell'apparecchiatura. */
+export type OrientamentoOption = 'VERTICALE' | 'ORIZZONTALE'
+
+/** Ubicazione del serbatoio rispetto alla sala compressori. */
+export type UbicazioneSerbatoioOption = 'SALA_COMPRESSORI' | 'LINEA_DISTRIBUZIONE' | 'ALTRO'
+
+/** Fluido contenuto nel circuito servito dal recipiente. */
+export type FluidoOption = 'ARIA' | 'AZOTO' | 'ALTRO'
 
 export interface ValvolaSicurezza {
   marca?: string // OCR
@@ -87,7 +112,13 @@ export interface Serbatoio {
   gia_denunciato?: boolean // NUOVO - flag "già denunciato"
   matricola_inail?: string // NUOVO - Matricola INAIL (testo libero)
   valvola_sicurezza: ValvolaSicurezza // OBBLIGATORIA
+  valvole_aggiuntive?: ValvolaSicurezza[] // Valvole oltre la principale (es. S1.1 + S1.2)
   manometro?: Manometro
+  orientamento?: OrientamentoOption // Default VERTICALE
+  ubicazione?: UbicazioneSerbatoioOption // Default SALA_COMPRESSORI
+  ubicazione_altro?: string // Obbligatorio se ubicazione = ALTRO
+  fluido?: FluidoOption // Default ARIA
+  fluido_altro?: string // Obbligatorio se fluido = ALTRO
   foto_targhetta?: string // URL o base64
 }
 
@@ -95,10 +126,19 @@ export interface Serbatoio {
 // SEZIONE 4: COMPRESSORI (C1-C5)
 // ============================================================================
 
+/**
+ * Tipo costruttivo del compressore. Proprietà dell'apparecchiatura a catalogo.
+ * Determina anche la classificazione DM329: i compressori a pistoni non hanno
+ * serbatoio disoleatore e quindi risultano privi di recipienti in pressione.
+ */
+export type TipoCompressore = 'VITE' | 'PISTONI' | 'SCROLL' | 'CENTRIFUGO'
+
 export interface Compressore {
   codice: string // C1, C2, ... C5
   marca?: string // Suggerimento DB + OCR
   modello?: string // Suggerimento DB + OCR
+  tipo?: TipoCompressore // Default VITE - da catalogo apparecchiature
+  silenziato?: boolean // Cabinato/silenziato - concorre alla descrizione dell'impianto
   n_fabbrica?: string // OCR
   materiale_n?: string // OCR
   anno?: number // intero (min 1980, max 2100)
@@ -131,6 +171,7 @@ export interface Disoleatore {
   gia_denunciato?: boolean // NUOVO - flag "già denunciato"
   matricola_inail?: string // NUOVO - Matricola INAIL (testo libero)
   valvola_sicurezza: ValvolaSicurezza // OBBLIGATORIA
+  valvole_aggiuntive?: ValvolaSicurezza[] // Valvole oltre la principale
   foto_targhetta?: string
 }
 
@@ -171,6 +212,14 @@ export interface Scambiatore {
   volume?: number // litri (intero, min 50, max 5000) - NON visibile a tecnicoDM329
   categoria_ped?: CategoriaPED // NUOVO - Select I/II/III/IV - NON visibile a tecnicoDM329 - Calcolato da PS × Volume
   note?: string
+  gia_denunciato?: boolean // Lo scambiatore è recipiente soggetto a verifica, quindi immatricolabile
+  matricola_inail?: string // Matricola INAIL (testo libero)
+  /**
+   * Posizioni delle valvole di sicurezza che proteggono questo recipiente (es. ['S1.1']).
+   * Lo scambiatore non ha una valvola propria: è protetto da valvole poste altrove
+   * nell'impianto, e quali siano non è deducibile dai dati della scheda.
+   */
+  valvole_protezione?: string[]
   foto_targhetta?: string
 }
 
@@ -189,16 +238,23 @@ export interface RecipienteFiltro {
   ts_temperatura?: number // TS (°C) - intero (min 50, max 250) - NON visibile a tecnicoDM329
   ts?: string // TS libero (valore singolo o intervallo) - precompilato da catalogo
   volume?: number // litri (intero, min 50, max 5000) - NON visibile a tecnicoDM329
+  categoria_ped?: CategoriaPED // Calcolata da PS × Volume, come per gli altri recipienti
   note?: string // NON visibile a tecnicoDM329
   gia_denunciato?: boolean // NUOVO - flag "già denunciato"
   matricola_inail?: string // NUOVO - Matricola INAIL (testo libero)
+  /** Posizioni delle valvole di sicurezza che proteggono questo recipiente (es. ['S1.1']) */
+  valvole_protezione?: string[]
   foto_targhetta?: string // NON visibile a tecnicoDM329
 }
+
+/** Prefiltro (a monte dell'essiccatore) o filtro di linea (a valle). */
+export type TipoFiltro = 'PREFILTRO' | 'LINEA'
 
 export interface Filtro {
   codice: string // F1, F2, ... F8
   marca?: string // Suggerimento DB + OCR
   modello?: string // Suggerimento DB + OCR
+  tipo?: TipoFiltro // Default LINEA
   n_fabbrica?: string // OCR
   anno?: number // intero (min 1980, max 2100)
   note?: string
@@ -308,6 +364,70 @@ export const RACCOLTA_CONDENSE_OPTIONS: RaccoltaCondenserOption[] = [
   'separatore',
   'tanica',
   'altro',
+]
+
+/**
+ * Opzioni dei campi che alimentano la relazione tecnica DM329. Per ciascuna, le etichette
+ * leggibili usate nei selettori e nel dialog del catalogo. I valori vuoti sono ammessi:
+ * il motore applica il default indicato nel commento del rispettivo campo.
+ */
+export const TIPO_COMPRESSORE_OPTIONS: TipoCompressore[] = ['VITE', 'PISTONI', 'SCROLL', 'CENTRIFUGO']
+export const TIPO_COMPRESSORE_LABELS: Record<string, string> = {
+  VITE: 'Rotativo a vite',
+  PISTONI: 'A pistoni',
+  SCROLL: 'Scroll',
+  CENTRIFUGO: 'Centrifugo',
+}
+
+export const ORIENTAMENTO_OPTIONS: OrientamentoOption[] = ['VERTICALE', 'ORIZZONTALE']
+export const ORIENTAMENTO_LABELS: Record<string, string> = {
+  VERTICALE: 'Verticale',
+  ORIZZONTALE: 'Orizzontale',
+}
+
+export const UBICAZIONE_SERBATOIO_OPTIONS: UbicazioneSerbatoioOption[] = [
+  'SALA_COMPRESSORI',
+  'LINEA_DISTRIBUZIONE',
+  'ALTRO',
+]
+export const UBICAZIONE_SERBATOIO_LABELS: Record<string, string> = {
+  SALA_COMPRESSORI: 'Sala compressori',
+  LINEA_DISTRIBUZIONE: 'Linea di distribuzione',
+  ALTRO: 'Altra posizione',
+}
+
+export const FLUIDO_OPTIONS: FluidoOption[] = ['ARIA', 'AZOTO', 'ALTRO']
+export const FLUIDO_LABELS: Record<string, string> = {
+  ARIA: 'Aria',
+  AZOTO: 'Azoto',
+  ALTRO: 'Altro fluido',
+}
+
+export const TIPO_FILTRO_OPTIONS: TipoFiltro[] = ['PREFILTRO', 'LINEA']
+export const TIPO_FILTRO_LABELS: Record<string, string> = {
+  PREFILTRO: 'Prefiltro',
+  LINEA: 'Filtro di linea',
+}
+
+/**
+ * Diametri nominali proposti nei selettori DN. Il valore memorizzato è sempre il DN in mm:
+ * l'etichetta riporta anche i pollici perché è così che l'installatore li dichiara, ma la
+ * conversione avviene qui, all'ingresso, e non in fase di generazione della relazione
+ * (la soglia di esclusione delle tubazioni, DN 80, dev'essere confrontabile).
+ */
+export const DN_OPTIONS: { dn: number; label: string }[] = [
+  { dn: 15, label: 'DN15 (1/2")' },
+  { dn: 20, label: 'DN20 (3/4")' },
+  { dn: 25, label: 'DN25 (1")' },
+  { dn: 32, label: 'DN32 (1"1/4)' },
+  { dn: 40, label: 'DN40 (1"1/2)' },
+  { dn: 50, label: 'DN50 (2")' },
+  { dn: 65, label: 'DN65 (2"1/2)' },
+  { dn: 80, label: 'DN80 (3")' },
+  { dn: 100, label: 'DN100 (4")' },
+  { dn: 125, label: 'DN125 (5")' },
+  { dn: 150, label: 'DN150 (6")' },
+  { dn: 200, label: 'DN200 (8")' },
 ]
 
 // ============================================================================
