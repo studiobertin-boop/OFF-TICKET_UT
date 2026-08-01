@@ -89,9 +89,17 @@ backups/
 supabase/migrations_backup_*/
 
 # Documentation files (Excel, Word, CSV with sensitive data)
-DOCUMENTAZIONE/*.xlsx
-DOCUMENTAZIONE/*.docx
-DOCUMENTAZIONE/*.csv
+# La regola vale a ogni livello: DOCUMENTAZIONE/relazione/ contiene relazioni
+# tecniche reali di clienti, materiale di riferimento che non va in repository.
+DOCUMENTAZIONE/**/*.xlsx
+DOCUMENTAZIONE/**/*.docx
+DOCUMENTAZIONE/**/*.csv
+DOCUMENTAZIONE/**/*.pdf
+# File di lock di Word
+~$*
+
+# Stato locale degli strumenti Claude Code (memoria di sessione, non codice)
+.claude/projects/
 
 # Problematic temporary files
 nul

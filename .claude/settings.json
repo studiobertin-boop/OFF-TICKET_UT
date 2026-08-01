@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(supabase --version)",
+      "Bash(npx supabase *)",
+      "Bash(sed 's/=.*/=<REDACTED>/' .env.local 2>&1; echo \"---MIGRATIONS---\"; ls -la supabase/migrations/ 2>&1 | tail -15)",
+      "Bash(env)",
+      "Bash(export SUPABASE_ACCESS_TOKEN=dummy)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts,null,2\\)\\)\")",
+      "Bash(node scripts/apply-migration.mjs /tmp/_wtest.sql)",
+      "Bash(grep -rniB2 -A2 \"name = 'DM329'\\\\|name='DM329'\\\\|request_types\" supabase/migrations/20251102000003_update_permissions_logic.sql supabase/migrations/20251105000001_allow_dm329_any_status.sql)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.subagents.cc)",
+      "WebFetch(domain:shop.zimaspace.com)",
+      "WebSearch",
+      "PowerShell(npm uninstall baseline-browser-mapping)",
+      "Bash(grep -rniB3 -A10 \"FOR UPDATE\" supabase/migrations/20251102000003_update_permissions_logic.sql)",
+      "Bash(npx tsc *)",
+      "Bash(git fetch *)",
+      "Bash(git stash *)",
+      "Bash(git checkout *)",
+      "Bash(gh pr create --base main --head feat/autocode-cliente --title 'feat\\(dm329\\): auto-codifica cliente alla creazione pratica' --body ' *)",
+      "Skill(artifact-design)",
+      "Skill(artifact-design:*)",
+      "Skill(dataviz)",
+      "Skill(dataviz:*)",
+      "Bash(git show *)",
+      "Bash(npx vite *)",
+      "Bash(npx vitest *)",
+      "Bash(cat \"$\\(git rev-parse --show-toplevel\\)/.superpowers/sdd/progress.md\")",
+      "Bash(ls \"C:/Users/FrancescoBertin/.claude/plugins/cache/claude-plugins-official/superpowers/6.1.1/skills/subagent-driven-development/scripts/\")",
+      "Read(//c/Users/FrancescoBertin/.claude/plugins/cache/claude-plugins-official/superpowers/6.1.1/skills/subagent-driven-development/**)",
+      "Bash(bash __TRACKED_VAR__/scripts/task-brief docs/superpowers/plans/2026-07-06-retro-coding-dm329-fase1-excel.md 1)",
+      "Bash(bash __TRACKED_VAR__/scripts/review-package 97fb35a f7516db)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\FrancescoBertin\\OneDrive - Studio Bertin\\STUDIOBERTIN\\SVILUPPO\\OFF-TICKET_UT",
+      "\\tmp"
+    ]
+  }
+}
