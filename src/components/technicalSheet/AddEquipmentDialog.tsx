@@ -19,6 +19,7 @@ import {
 import { supabase } from '@/services/supabase'
 import { equipmentCatalogApi } from '@/services/api/equipmentCatalog'
 import type { CategoriaPED, EquipmentCatalogType } from '@/types'
+import { TIPO_COMPRESSORE_LABELS, TIPO_COMPRESSORE_OPTIONS, type TipoCompressore } from '@/types/technicalSheet'
 import { calculateCategoriaPED, getCategoriaPEDDescription } from '@/utils/categoriaPedCalculator'
 
 interface AddEquipmentDialogProps {
@@ -71,6 +72,7 @@ export const AddEquipmentDialog = ({
   const [qmax, setQmax] = useState<number | ''>('') // Volume aria scaricato (Valvole)
   const [diametro, setDiametro] = useState('') // Diametro (Valvole)
   const [pressioneMax, setPressioneMax] = useState<number | ''>('') // Pressione max (Compressori)
+  const [tipoCompressore, setTipoCompressore] = useState<TipoCompressore | ''>('') // Tipologia costruttiva (Compressori)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -172,6 +174,7 @@ export const AddEquipmentDialog = ({
     setQmax('')
     setDiametro('')
     setPressioneMax('')
+    setTipoCompressore('')
     setError(null)
     setMarcheOptions([])
     setModelliOptions([])
@@ -228,6 +231,13 @@ export const AddEquipmentDialog = ({
       // ========================================
       if (pressioneMax !== '' && equipmentType === 'Compressori') {
         specs.pressione_max = pressioneMax
+      }
+
+      // ========================================
+      // TIPOLOGIA COSTRUTTIVA (Compressori) - alimenta la relazione tecnica DM329
+      // ========================================
+      if (tipoCompressore !== '' && equipmentType === 'Compressori') {
+        specs.tipo_compressore = tipoCompressore
       }
 
       // ========================================
@@ -334,6 +344,7 @@ export const AddEquipmentDialog = ({
     equipmentType === 'Recipienti filtro'
   const showFad = equipmentType === 'Compressori'
   const showPressioneMax = equipmentType === 'Compressori' // Pressione come chiave per compressori
+  const showTipoCompressore = equipmentType === 'Compressori'
   const showQ = equipmentType === 'Essiccatori' // Volume aria trattata
   const showPs =
     equipmentType === 'Serbatoi' ||
@@ -495,6 +506,32 @@ export const AddEquipmentDialog = ({
                 helperText="Opzionale - Intero da 0 a 100.000 l/min"
                 placeholder="Es: 1200"
               />
+            </Grid>
+          )}
+
+          {/* Tipologia costruttiva (Compressori) - usata dalla relazione tecnica DM329 */}
+          {showTipoCompressore && (
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth disabled={loading}>
+                <InputLabel>Tipo compressore</InputLabel>
+                <Select
+                  value={tipoCompressore}
+                  onChange={(e) => setTipoCompressore(e.target.value as TipoCompressore | '')}
+                  label="Tipo compressore"
+                >
+                  <MenuItem value="">
+                    <em>Rotativo a vite (default)</em>
+                  </MenuItem>
+                  {TIPO_COMPRESSORE_OPTIONS.map((option) => (
+                    <MenuItem key={option} value={option}>
+                      {TIPO_COMPRESSORE_LABELS[option]}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                I compressori a pistoni non hanno disoleatore: la relazione li tratta come privi di recipienti in pressione
+              </Typography>
             </Grid>
           )}
 

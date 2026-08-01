@@ -1,4 +1,5 @@
 import type { EquipmentCatalogType } from '@/types'
+import { TIPO_COMPRESSORE_LABELS } from '@/types/technicalSheet'
 import type {
   Serbatoio,
   Compressore,
@@ -59,6 +60,9 @@ const FORM_TO_SPECS_MAP: Record<string, Record<string, string>> = {
     pressione_max: 'pressione_max',
     volume_aria_prodotto: 'fad',
     fad: 'fad', // Backward compatibility
+    // Tipologia costruttiva (vite, pistoni, …): proprietà del modello, non dell'esemplare.
+    // Chiave `tipo_compressore` perché `tipo` in equipment_catalog è il tipo apparecchiatura.
+    tipo: 'tipo_compressore',
   },
   Disoleatori: {
     volume: 'volume',
@@ -278,6 +282,7 @@ export function getFieldLabel(specsField: string): string {
     ptar: 'Ptar (Pressione taratura)',
     qmax: 'Qmax (Volume aria scaricato)',
     diametro: 'Diametro',
+    tipo_compressore: 'Tipo compressore',
   }
 
   return labels[specsField] || specsField
@@ -288,6 +293,11 @@ export function getFieldLabel(specsField: string): string {
  */
 export function formatSpecsValue(specsField: string, value: any): string {
   if (isEmpty(value)) return '-'
+
+  // Enumerativi: si mostra l'etichetta leggibile, non il valore memorizzato
+  if (specsField === 'tipo_compressore') {
+    return TIPO_COMPRESSORE_LABELS[String(value)] || String(value)
+  }
 
   const units: Record<string, string> = {
     volume: 'litri',
