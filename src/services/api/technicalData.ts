@@ -128,24 +128,6 @@ export const technicalDataApi = {
   },
 
   /**
-   * Salva l'indirizzo impianto (con dati strutturati da autocomplete)
-   * @param requestId ID della richiesta
-   * @param indirizzo Indirizzo testuale
-   * @param formatted Dati strutturati da Google Places
-   * @returns DM329TechnicalData aggiornata
-   */
-  async updateAddress(
-    requestId: string,
-    indirizzo: string,
-    formatted?: any
-  ): Promise<DM329TechnicalData> {
-    return this.update(requestId, {
-      indirizzo_impianto: indirizzo,
-      indirizzo_impianto_formatted: formatted,
-    })
-  },
-
-  /**
    * Marca la scheda come completata
    * Questo trigger automaticamente il cambio stato della richiesta a 2-SCHEDA_DATI_PRONTA
    * @param requestId ID della richiesta

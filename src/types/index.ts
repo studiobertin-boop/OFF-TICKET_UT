@@ -310,7 +310,6 @@ export interface DM329TechnicalData {
 
   // Dati impianto
   indirizzo_impianto?: string
-  indirizzo_impianto_formatted?: AddressComponents
 
   // Stato compilazione
   is_completed: boolean
