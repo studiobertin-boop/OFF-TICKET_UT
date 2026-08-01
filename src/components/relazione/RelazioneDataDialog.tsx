@@ -23,6 +23,7 @@ import {
   Checkbox,
   ListItemText,
   Box,
+  Alert,
   CircularProgress,
 } from '@mui/material'
 import toast from 'react-hot-toast'
@@ -32,7 +33,10 @@ import type { SchedaDatiCompleta } from '@/types/technicalSheet'
 import { technicalDataApi } from '@/services/api/technicalData'
 import { additionalInfoSchema } from '@/services/relazione/schema'
 import { generateAndDownloadRelazione } from '@/services/relazione/generateRelazione'
-import type { AdditionalInfo, TipoGiri } from '@/services/relazione/types'
+import { buildRelazioneModel } from '@/services/relazione/buildRelazioneModel'
+import { validateRelazione, haErrori } from '@/services/relazione/preflight'
+import type { AdditionalInfo, PraticaInfo, SchemaImpianto, TipoGiri } from '@/services/relazione/types'
+import { leggiSchemaImpianto } from './schemaImpiantoFile'
 
 interface RelazioneDataDialogProps {
   open: boolean
@@ -40,6 +44,11 @@ interface RelazioneDataDialogProps {
   requestId: string
   scheda: SchedaDatiCompleta
   customer: Customer | null
+  /**
+   * Dati del codice pratica. Sono la sorgente unica di ubicazione impianto e
+   * progressivo di revisione: la scheda dati non li duplica più.
+   */
+  pratica: PraticaInfo
   initialAdditionalInfo?: AdditionalInfo
   fileName?: string
 }
@@ -50,6 +59,7 @@ export default function RelazioneDataDialog({
   requestId,
   scheda,
   customer,
+  pratica,
   initialAdditionalInfo,
   fileName,
 }: RelazioneDataDialogProps) {
@@ -69,10 +79,10 @@ export default function RelazioneDataDialog({
   )
 
   const [descrizioneAttivita, setDescrizioneAttivita] = useState('')
-  const [motivoRevisione, setMotivoRevisione] = useState('')
   const [giri, setGiri] = useState<Record<string, TipoGiri>>({})
   const [spessimetrica, setSpessimetrica] = useState<string[]>([])
   const [collegamenti, setCollegamenti] = useState<Record<string, string[]>>({})
+  const [schema, setSchema] = useState<SchemaImpianto | null>(null)
   const [saving, setSaving] = useState(false)
 
   // Sincronizza lo stato all'apertura del dialog
@@ -80,11 +90,22 @@ export default function RelazioneDataDialog({
     if (!open) return
     const info = initialAdditionalInfo ?? {}
     setDescrizioneAttivita(info.descrizioneAttivita || customer?.descrizione_attivita || '')
-    setMotivoRevisione(info.motivoRevisione || '')
     setGiri(info.compressoriGiri || {})
     setSpessimetrica(info.spessimetrica || [])
     setCollegamenti(info.collegamentiCompressoriSerbatoi || {})
+    // Lo schema non è persistito: a ogni apertura si riparte da vuoto.
+    setSchema(null)
   }, [open, initialAdditionalInfo, customer])
+
+  const handleSchemaFile = async (file: File | undefined) => {
+    if (!file) return
+    try {
+      setSchema(await leggiSchemaImpianto(file))
+    } catch (err) {
+      setSchema(null)
+      toast.error(err instanceof Error ? err.message : 'Immagine non leggibile.')
+    }
+  }
 
   const setGiroFor = (code: string, value: TipoGiri) =>
     setGiri((prev) => ({ ...prev, [code]: value }))
@@ -92,14 +113,45 @@ export default function RelazioneDataDialog({
   const setCollegamentoFor = (code: string, values: string[]) =>
     setCollegamenti((prev) => ({ ...prev, [code]: values }))
 
-  const handleGenera = async () => {
-    const candidate: AdditionalInfo = {
+  const additionalInfo: AdditionalInfo = useMemo(
+    () => ({
       descrizioneAttivita: descrizioneAttivita.trim(),
-      motivoRevisione: motivoRevisione.trim() || undefined,
       compressoriGiri: giri,
       spessimetrica,
       collegamentiCompressoriSerbatoi: collegamenti,
+    }),
+    [descrizioneAttivita, giri, spessimetrica, collegamenti]
+  )
+
+  /**
+   * Preflight ricalcolato a ogni modifica: il redattore vede sparire le segnalazioni
+   * mentre compila, invece di scoprirle solo al momento di generare.
+   */
+  const segnalazioni = useMemo(() => {
+    if (!customer) {
+      return [
+        {
+          livello: 'errore' as const,
+          codice: 'cliente-assente',
+          messaggio: 'Anagrafica cliente non caricata: impossibile generare la relazione.',
+        },
+      ]
     }
+    return validateRelazione(
+      buildRelazioneModel({
+        scheda,
+        additionalInfo,
+        customer,
+        pratica,
+        schemaImpianto: schema ?? undefined,
+      })
+    )
+  }, [customer, scheda, additionalInfo, pratica, schema])
+
+  const bloccante = haErrori(segnalazioni)
+
+  const handleGenera = async () => {
+    const candidate: AdditionalInfo = additionalInfo
 
     const parsed = additionalInfoSchema.safeParse(candidate)
     if (!parsed.success) {
@@ -118,6 +170,8 @@ export default function RelazioneDataDialog({
         scheda,
         additionalInfo: parsed.data,
         customer,
+        pratica,
+        schemaImpianto: schema ?? undefined,
         fileName,
       })
       toast.success('Relazione generata e scaricata.')
@@ -145,16 +199,6 @@ export default function RelazioneDataDialog({
             multiline
             minRows={2}
             helperText="Testo inserito così com'è nella premessa della relazione."
-          />
-
-          <TextField
-            label="Motivo revisione (opzionale)"
-            value={motivoRevisione}
-            onChange={(e) => setMotivoRevisione(e.target.value)}
-            fullWidth
-            multiline
-            minRows={2}
-            helperText="Se valorizzato, il documento è trattato come una revisione."
           />
 
           <Divider />
@@ -238,6 +282,61 @@ export default function RelazioneDataDialog({
               ))}
             </Select>
           </FormControl>
+
+          <Divider />
+          <Typography variant="subtitle2">Schema d’impianto (§2.3)</Typography>
+          <Typography variant="body2" color="text.secondary">
+            L’immagine viene incorporata nel documento a larghezza fissa e non viene
+            salvata: va riselezionata a ogni generazione. Formati PNG o JPEG, max 10 MB.
+          </Typography>
+          <Stack direction="row" spacing={2} alignItems="center">
+            <Button component="label" variant="outlined" size="small" disabled={saving}>
+              {schema ? 'Sostituisci immagine' : 'Scegli immagine'}
+              <input
+                type="file"
+                hidden
+                accept="image/png,image/jpeg"
+                onChange={(e) => {
+                  void handleSchemaFile(e.target.files?.[0])
+                  // Consente di riselezionare lo stesso file dopo una rimozione.
+                  e.target.value = ''
+                }}
+              />
+            </Button>
+            {schema ? (
+              <>
+                <Typography variant="body2">
+                  {schema.nomeFile} — {schema.larghezzaPx}×{schema.altezzaPx} px
+                </Typography>
+                <Button size="small" color="inherit" onClick={() => setSchema(null)} disabled={saving}>
+                  Rimuovi
+                </Button>
+              </>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                Nessuno schema: il paragrafo resterà vuoto.
+              </Typography>
+            )}
+          </Stack>
+
+          <Divider />
+          <Typography variant="subtitle2">Controllo di completezza</Typography>
+          {segnalazioni.length === 0 ? (
+            <Alert severity="success">Nessun dato mancante: la relazione è completa.</Alert>
+          ) : (
+            <Stack spacing={1}>
+              {segnalazioni.map((s) => (
+                <Alert key={s.codice} severity={s.livello === 'errore' ? 'error' : 'warning'}>
+                  {s.messaggio}
+                  {s.posizioni?.length ? (
+                    <Typography component="div" variant="body2" sx={{ mt: 0.5, fontWeight: 600 }}>
+                      {s.posizioni.join(' · ')}
+                    </Typography>
+                  ) : null}
+                </Alert>
+              ))}
+            </Stack>
+          )}
         </Stack>
       </DialogContent>
       <DialogActions>
@@ -245,8 +344,15 @@ export default function RelazioneDataDialog({
           Annulla
         </Button>
         <Box sx={{ position: 'relative' }}>
-          <Button variant="contained" onClick={handleGenera} disabled={saving}>
-            Genera e scarica .docx
+          {/* Le segnalazioni informano, non sbarrano: il redattore può avere ragioni per
+              generare comunque, ma l'etichetta gli ricorda che qualcosa manca. */}
+          <Button
+            variant="contained"
+            color={bloccante ? 'warning' : 'primary'}
+            onClick={handleGenera}
+            disabled={saving || !customer}
+          >
+            {bloccante ? 'Genera comunque .docx' : 'Genera e scarica .docx'}
           </Button>
           {saving && (
             <CircularProgress
