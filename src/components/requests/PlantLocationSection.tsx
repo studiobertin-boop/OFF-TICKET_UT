@@ -5,7 +5,7 @@ import { CodicePraticaDialog } from './CodicePraticaDialog'
 import { customersApi } from '@/services/api/customers'
 import type { Customer, Request } from '@/types'
 
-interface Props {
+export interface PlantLocationSectionProps {
   request: Request
   customer: Customer | null
   /** Già risolto dal chiamante con risolviIndirizzoImpianto. */
@@ -20,7 +20,7 @@ interface Props {
  * progressivo e anno, che compongono il codice pratica; modificarne solo due
  * lascerebbe il codice disallineato dalla sala.
  */
-export const PlantLocationSection = ({ request, customer, indirizzoImpianto, canEdit, onSaved }: Props) => {
+export const PlantLocationSection = ({ request, customer, indirizzoImpianto, canEdit, onSaved }: PlantLocationSectionProps) => {
   const [editOpen, setEditOpen] = useState(false)
   const modificabile = canEdit && !!customer
 

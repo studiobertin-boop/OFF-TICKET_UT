@@ -14,7 +14,7 @@ export interface InfoCliente {
   sede_legale: string
 }
 
-interface Props {
+export interface CustomerInfoSectionProps {
   info: InfoCliente
   /**
    * Record anagrafico vero. È null sulle pratiche importate senza cliente a DB:
@@ -32,7 +32,7 @@ const Campo = ({ label, value }: { label: string; value: string }) => (
   </Box>
 )
 
-export const CustomerInfoSection = ({ info, customer, canEdit, onSaved }: Props) => {
+export const CustomerInfoSection = ({ info, customer, canEdit, onSaved }: CustomerInfoSectionProps) => {
   const [editOpen, setEditOpen] = useState(false)
   const modificabile = canEdit && !!customer
 
