@@ -7,6 +7,7 @@
 import { Card, CardContent, Typography, Box, Chip, Divider } from '@mui/material'
 import type { CIVAApparecchio } from '@/types/civa'
 import type { Customer, Installer } from '@/types'
+import { parseIndirizzo } from '@/utils/parseIndirizzo'
 
 interface CIVAApparecchioColumnProps {
   apparecchio: CIVAApparecchio
@@ -55,52 +56,6 @@ const SectionHeader = ({ title }: { title: string }) => (
   </Typography>
 )
 
-/**
- * Parse address from string format
- * Expected format: "Via, 123 - 12345 Città (PR)"
- */
-function parseAddress(address: string): {
-  via: string
-  numero_civico: string
-  cap: string
-  comune: string
-  provincia: string
-} {
-  // Default empty values
-  const result = {
-    via: '',
-    numero_civico: '',
-    cap: '',
-    comune: '',
-    provincia: ''
-  }
-
-  if (!address || address.trim() === '') {
-    return result
-  }
-
-  // Try to parse structured address
-  // Pattern: "Via Name, 123 - 12345 City (PR)"
-  const match = address.match(/^(.+?),\s*(.+?)\s*-\s*(\d{5})\s+(.+?)\s*\(([A-Z]{2})\)$/)
-
-  if (match) {
-    const [, via, numero_civico, cap, comune, provincia] = match
-    return {
-      via: via.trim(),
-      numero_civico: numero_civico.trim(),
-      cap: cap.trim(),
-      comune: comune.trim(),
-      provincia: provincia.trim()
-    }
-  }
-
-  // Fallback: just return full address in via field
-  return {
-    ...result,
-    via: address
-  }
-}
-
 export const CIVAApparecchioColumn = ({
   apparecchio,
   customer,
@@ -109,8 +64,8 @@ export const CIVAApparecchioColumn = ({
 }: CIVAApparecchioColumnProps) => {
   const { manufacturer } = apparecchio
 
-  // Parse impianto address
-  const impiantoAddress = parseAddress(indirizzoImpianto)
+  // Scomposizione dell'indirizzo impianto nei campi della scheda CIVA
+  const impiantoAddress = parseIndirizzo(indirizzoImpianto)
 
   // Badge color based on tipo pratica
   const badgeColor = apparecchio.tipoPratica === 'DICHIARAZIONE' ? 'info' : 'warning'
