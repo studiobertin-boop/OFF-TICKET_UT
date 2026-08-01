@@ -54,6 +54,8 @@ import { AttachmentsSection } from '@/components/requests/AttachmentsSection'
 import { RequestDetailsEditForm } from '@/components/requests/RequestDetailsEditForm'
 import { CompleteCustomerDataDialog } from '@/components/customers/CompleteCustomerDataDialog'
 import { CodicePraticaDialog } from '@/components/requests/CodicePraticaDialog'
+import { CustomerInfoSection } from '@/components/requests/CustomerInfoSection'
+import { PlantLocationSection } from '@/components/requests/PlantLocationSection'
 import { useActiveBlock } from '@/hooks/useRequestBlocks'
 import { getStatusColor, getStatusLabel, isDM329Family } from '@/utils/workflow'
 import { StatusChip } from '@/components/common'
@@ -61,6 +63,7 @@ import { DM329StatusStepper } from '@/components/requests/DM329StatusStepper'
 import { useRequestTypes } from '@/hooks/useRequestTypes'
 import { hasIncompleteCustomerData } from '@/utils/customerValidation'
 import { STATO_FATTURA_OPTIONS, STATO_FATTURA_LABELS, type StatoFattura, type Customer } from '@/types'
+import { risolviIndirizzoImpianto } from '@/utils/indirizzoImpianto'
 
 export const RequestDetail = () => {
   const { id } = useParams<{ id: string }>()
@@ -112,22 +115,23 @@ export const RequestDetail = () => {
   const [noCivaValue, setNoCivaValue] = useState(false)
   const [offCacValue, setOffCacValue] = useState<'off' | 'cac' | ''>('')
   const [statoFatturaValue, setStatoFatturaValue] = useState<StatoFattura>('NO')
-  const [denominazioneSalaValue, setDenominazioneSalaValue] = useState('')
   const [togglingUrgent, setTogglingUrgent] = useState(false)
-  const [sedeImpianto, setSedeImpianto] = useState<string | null>(null)
+  const [fontiLegacyImpianto, setFontiLegacyImpianto] = useState<{
+    indirizzoSchedaLegacy?: string | null
+    sedeImpiantoLegacy?: string | null
+  }>({})
 
-  // Load technical data for DM329 requests to get sede_impianto
+  // Load technical data for DM329 requests to get le fonti legacy dell'indirizzo impianto
   // (famiglia DM329: include anche DM329-Integrazioni)
   const isDM329 = isDM329Family(request?.request_type?.name)
   useEffect(() => {
-    if (isDM329 && id) {
-      technicalDataApi.getByRequestId(id)
-        .then(data => {
-          const sede = data?.equipment_data?.dati_impianto?.sede_impianto
-          setSedeImpianto(sede || null)
-        })
-        .catch(() => setSedeImpianto(null))
-    }
+    if (!isDM329 || !id) return
+    technicalDataApi.getByRequestId(id)
+      .then((data) => setFontiLegacyImpianto({
+        indirizzoSchedaLegacy: data?.indirizzo_impianto ?? null,
+        sedeImpiantoLegacy: data?.equipment_data?.dati_impianto?.sede_impianto ?? null,
+      }))
+      .catch(() => setFontiLegacyImpianto({}))
   }, [id, isDM329])
 
   // Extract client information from request - use useMemo to recalculate when dependencies change
@@ -297,7 +301,6 @@ export const RequestDetail = () => {
     setNoCivaValue(cf.no_civa === true)
     setOffCacValue((cf.off_cac as 'off' | 'cac' | '') || '')
     setStatoFatturaValue((cf.stato_fattura as StatoFattura) || 'NO')
-    setDenominazioneSalaValue(request?.denominazione_sala || '')
     setIsEditingDetails(true)
   }
 
@@ -316,9 +319,6 @@ export const RequestDetail = () => {
       await updateRequest.mutateAsync({
         id: request.id,
         updates: {
-          // denominazione_sala è colonna della pratica (non custom_field): NON cambia
-          // la lettera sala né il codice pratica, solo l'etichetta descrittiva.
-          denominazione_sala: denominazioneSalaValue.trim() || null,
           custom_fields: {
             ...request.custom_fields,
             no_civa: noCivaValue,
@@ -436,6 +436,11 @@ export const RequestDetail = () => {
     isDM329 &&
     !!customerRecord &&
     (user?.role === 'admin' || user?.role === 'userdm329')
+
+  const indirizzoImpianto = risolviIndirizzoImpianto({
+    indirizzoRichiesta: request.indirizzo_impianto,
+    ...fontiLegacyImpianto,
+  })
 
   return (
     <Layout>
@@ -700,88 +705,31 @@ export const RequestDetail = () => {
               </Grid>
             </Grid>
 
-            {/* Informazioni Cliente - NEW SECTION */}
             {clientInfo && (
               <>
-                <Divider sx={{ my: 3 }} />
+                <CustomerInfoSection
+                  info={clientInfo}
+                  customer={customerRecord}
+                  canEdit={canManageCodice}
+                  onSaved={() => refetch()}
+                />
 
-                <Typography variant="h6" gutterBottom>
-                  Informazioni Cliente
-                </Typography>
-
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 2 }}>
-                  {/* Left column */}
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">
-                      Cliente
-                    </Typography>
-                    <Typography variant="body1" gutterBottom>
-                      {clientInfo.identificativo
-                        ? `${clientInfo.identificativo} — ${clientInfo.ragione_sociale}`
-                        : clientInfo.ragione_sociale}
-                    </Typography>
-                  </Box>
-
-                  {/* Right column */}
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">
-                      Sede Legale
-                    </Typography>
-                    <Typography variant="body1" gutterBottom>
-                      {clientInfo.sede_legale}
-                    </Typography>
-                  </Box>
-
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">
-                      Telefono
-                    </Typography>
-                    <Typography variant="body1" gutterBottom>
-                      {clientInfo.telefono}
-                    </Typography>
-                  </Box>
-
-                  {/* Sede Impianto - only for DM329 requests, in right column under Sede Legale */}
-                  {isDM329 && sedeImpianto && (
-                    <Box>
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Sede Impianto
-                      </Typography>
-                      <Typography variant="body1" gutterBottom>
-                        {sedeImpianto}
-                      </Typography>
-                    </Box>
-                  )}
-
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">
-                      PEC
-                    </Typography>
-                    <Typography variant="body1" gutterBottom>
-                      {clientInfo.pec}
-                    </Typography>
-                  </Box>
-
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">
-                      Descrizione Attività
-                    </Typography>
-                    <Typography variant="body1" gutterBottom>
-                      {clientInfo.descrizione_attivita}
-                    </Typography>
-                  </Box>
-                </Box>
+                {isDM329 && (
+                  <PlantLocationSection
+                    request={request}
+                    customer={customerRecord}
+                    indirizzoImpianto={indirizzoImpianto}
+                    canEdit={canManageCodice}
+                    onSaved={() => refetch()}
+                  />
+                )}
 
                 {customerRecord && hasIncompleteCustomerData(customerRecord) && (
                   <Alert
                     severity="info"
                     sx={{ mt: 2 }}
                     action={
-                      <Button
-                        color="inherit"
-                        size="small"
-                        onClick={() => setShowCompleteCustomerDialog(true)}
-                      >
+                      <Button color="inherit" size="small" onClick={() => setShowCompleteCustomerDialog(true)}>
                         Completa dati
                       </Button>
                     }
@@ -808,17 +756,6 @@ export const RequestDetail = () => {
             {isEditingDetails && (isDM329 ? (
               <Box sx={{ mb: 3, p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
                 <Grid container spacing={2}>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="Denominazione sala"
-                      value={denominazioneSalaValue}
-                      onChange={(e) => setDenominazioneSalaValue(e.target.value)}
-                      placeholder="Es. Sala principale, Verniciatura…"
-                      helperText="Solo il nome della sala; non modifica la lettera né il codice pratica."
-                    />
-                  </Grid>
                   <Grid item xs={12} sm={4}>
                     <FormControl fullWidth size="small">
                       <InputLabel id="no-civa-label">No CIVA</InputLabel>
@@ -895,12 +832,6 @@ export const RequestDetail = () => {
             {/* DM329: mostra sempre i campi fissi, anche se vuoti */}
             {isDM329 && !isEditingDetails && (
               <Grid container spacing={2} sx={{ mb: 1 }}>
-                <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Denominazione sala
-                  </Typography>
-                  <Typography variant="body1">{request.denominazione_sala || 'N/A'}</Typography>
-                </Grid>
                 <Grid item xs={12} md={6}>
                   <Typography variant="subtitle2" color="text.secondary">
                     No CIVA
