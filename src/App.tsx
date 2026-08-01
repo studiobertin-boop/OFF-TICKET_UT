@@ -1,6 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { Toaster } from 'react-hot-toast'
+import { useTheme } from '@mui/material'
 import { ThemeProvider } from '@/theme'
+import { radii } from '@/theme/tokens'
 import { AuthProvider, useAuth } from '@/hooks/useAuth'
 import { ProtectedRoute } from '@/components/common/ProtectedRoute'
 import { Login } from '@/pages/Login'
@@ -39,10 +42,49 @@ function HomeRoute() {
   return <Requests />
 }
 
+// react-hot-toast non legge il tema MUI: lo iniettiamo qui via toastOptions,
+// così i toast seguono il mode light/dark e i token dell'app.
+function ThemedToaster() {
+  const theme = useTheme()
+  const surface = theme.palette.background.paper
+
+  return (
+    <Toaster
+      position="bottom-right"
+      gutter={12}
+      toastOptions={{
+        duration: 4000,
+        style: {
+          background: surface,
+          color: theme.palette.text.primary,
+          border: `1px solid ${theme.palette.divider}`,
+          borderRadius: radii.paper,
+          boxShadow: theme.shadows[6],
+          fontFamily: theme.typography.fontFamily,
+          fontSize: '0.875rem',
+          maxWidth: 460,
+        },
+        success: {
+          duration: 3000,
+          iconTheme: { primary: theme.palette.success.main, secondary: surface },
+        },
+        error: {
+          duration: 6000,
+          iconTheme: { primary: theme.palette.error.main, secondary: surface },
+        },
+        loading: {
+          iconTheme: { primary: theme.palette.primary.main, secondary: surface },
+        },
+      }}
+    />
+  )
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
+        <ThemedToaster />
         <AuthProvider>
           <BrowserRouter>
             <Routes>
