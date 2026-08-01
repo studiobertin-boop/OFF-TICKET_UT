@@ -13,6 +13,7 @@ import type {
   Manufacturer
 } from '@/types'
 import type { CIVAApparecchio, CIVASummaryData, TipoPraticaCIVA } from '@/types/civa'
+import { classificaRecipiente, esitoToTipoPratica } from './dm329Classification'
 
 /**
  * Determina tipo pratica CIVA in base a volume e pressione
@@ -23,6 +24,10 @@ import type { CIVAApparecchio, CIVASummaryData, TipoPraticaCIVA } from '@/types/
  * - V≥50L AND PS≤12bar AND (PS×V>8000): VERIFICA
  * - V>25L AND PS>12bar: VERIFICA
  *
+ * Adattatore su `classificaRecipiente` (utils/dm329Classification), che è la sorgente
+ * di verità delle soglie DM329: la relazione tecnica ha bisogno di distinguere i motivi
+ * di esclusione, CIVA no.
+ *
  * @param volume Volume in litri
  * @param ps Pressione massima ammissibile in bar
  * @returns Tipo pratica CIVA
@@ -31,39 +36,7 @@ export function determineTipoPratica(
   volume: number | undefined,
   ps: number | undefined
 ): TipoPraticaCIVA {
-  // Valida input
-  if (!volume || !ps || volume <= 0 || ps <= 0) {
-    return 'NESSUNA'
-  }
-
-  // V < 25L: nessun caricamento
-  if (volume < 25) {
-    return 'NESSUNA'
-  }
-
-  // 25≤V<50L AND PS<12bar: nessun caricamento
-  if (volume >= 25 && volume < 50 && ps < 12) {
-    return 'NESSUNA'
-  }
-
-  // V≥50L AND PS≤12bar
-  if (volume >= 50 && ps <= 12) {
-    const psxv = ps * volume
-    // PS×V≤8000: DICHIARAZIONE
-    if (psxv <= 8000) {
-      return 'DICHIARAZIONE'
-    }
-    // PS×V>8000: VERIFICA
-    return 'VERIFICA'
-  }
-
-  // V>25L AND PS>12bar: VERIFICA
-  if (volume > 25 && ps > 12) {
-    return 'VERIFICA'
-  }
-
-  // Default: nessun caricamento
-  return 'NESSUNA'
+  return esitoToTipoPratica(classificaRecipiente(volume, ps))
 }
 
 /**
