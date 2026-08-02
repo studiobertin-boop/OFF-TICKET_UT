@@ -19,6 +19,7 @@ import AdminUsers from '@/pages/admin/AdminUsers'
 import CustomersManagement from '@/pages/admin/CustomersManagement'
 import ManufacturersManagement from '@/pages/ManufacturersManagement'
 import InstallersManagement from '@/pages/InstallersManagement'
+import EquipmentCatalogManagement from '@/pages/EquipmentCatalogManagement'
 import { CIVASummary } from '@/pages/CIVASummary'
 import BillingReport from '@/pages/BillingReport'
 
@@ -190,6 +191,14 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={['admin']}>
                     <InstallersManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/equipment-catalog"
+                element={
+                  <ProtectedRoute allowedRoles={['admin', 'userdm329']}>
+                    <EquipmentCatalogManagement />
                   </ProtectedRoute>
                 }
               />

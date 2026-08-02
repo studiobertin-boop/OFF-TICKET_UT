@@ -28,6 +28,7 @@ import {
   Archive as ArchiveIcon,
   Notifications as NotificationsIcon,
   Receipt as ReceiptIcon,
+  PrecisionManufacturing as PrecisionManufacturingIcon,
 } from '@mui/icons-material'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -77,6 +78,24 @@ export const Layout = ({ children }: LayoutProps) => {
     handleClose()
   }
 
+  /**
+   * Voci del menu di gestione, filtrate per ruolo.
+   *
+   * Il catalogo apparecchiature è l'unica voce aperta anche a userdm329, che è
+   * chi lo usa quotidianamente compilando le schede dati. Per questo il pulsante
+   * cambia etichetta: a un non-amministratore «Admin» prometterebbe altro.
+   */
+  const vociGestione = [
+    { path: '/admin/request-types', etichetta: 'Tipi Richieste', icona: <CategoryIcon fontSize="small" />, ruoli: ['admin'] },
+    { path: '/admin/users', etichetta: 'Gestione Utenti', icona: <PeopleIcon fontSize="small" />, ruoli: ['admin'] },
+    { path: '/admin/customers', etichetta: 'Gestione Clienti', icona: <BusinessIcon fontSize="small" />, ruoli: ['admin'] },
+    { path: '/admin/manufacturers', etichetta: 'Gestione Costruttori', icona: <FactoryIcon fontSize="small" />, ruoli: ['admin'] },
+    { path: '/admin/installers', etichetta: 'Gestione Installatori', icona: <BuildIcon fontSize="small" />, ruoli: ['admin'] },
+    { path: '/admin/equipment-catalog', etichetta: 'Gestisci Apparecchiature', icona: <PrecisionManufacturingIcon fontSize="small" />, ruoli: ['admin', 'userdm329'] },
+    { path: '/admin/deletion-archives', etichetta: 'Archivio Eliminazioni', icona: <ArchiveIcon fontSize="small" />, ruoli: ['admin'] },
+    { path: '/reports/billing', etichetta: 'Report Fatturazione', icona: <ReceiptIcon fontSize="small" />, ruoli: ['admin'] },
+  ].filter(voce => user?.role && voce.ruoli.includes(user.role))
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <AppBar position="static">
@@ -109,62 +128,26 @@ export const Layout = ({ children }: LayoutProps) => {
                 Dashboard
               </Button>
             )}
-            {user?.role === 'admin' && (
+            {vociGestione.length > 0 && (
               <>
                 <Button
                   color="inherit"
                   startIcon={<SettingsIcon />}
                   onClick={handleAdminMenuOpen}
                 >
-                  Admin
+                  {user?.role === 'admin' ? 'Admin' : 'Gestione'}
                 </Button>
                 <Menu
                   anchorEl={adminMenuAnchor}
                   open={Boolean(adminMenuAnchor)}
                   onClose={handleAdminMenuClose}
                 >
-                  <MenuItem onClick={() => handleAdminNavigate('/admin/request-types')}>
-                    <ListItemIcon>
-                      <CategoryIcon fontSize="small" />
-                    </ListItemIcon>
-                    <ListItemText>Tipi Richieste</ListItemText>
-                  </MenuItem>
-                  <MenuItem onClick={() => handleAdminNavigate('/admin/users')}>
-                    <ListItemIcon>
-                      <PeopleIcon fontSize="small" />
-                    </ListItemIcon>
-                    <ListItemText>Gestione Utenti</ListItemText>
-                  </MenuItem>
-                  <MenuItem onClick={() => handleAdminNavigate('/admin/customers')}>
-                    <ListItemIcon>
-                      <BusinessIcon fontSize="small" />
-                    </ListItemIcon>
-                    <ListItemText>Gestione Clienti</ListItemText>
-                  </MenuItem>
-                  <MenuItem onClick={() => handleAdminNavigate('/admin/manufacturers')}>
-                    <ListItemIcon>
-                      <FactoryIcon fontSize="small" />
-                    </ListItemIcon>
-                    <ListItemText>Gestione Costruttori</ListItemText>
-                  </MenuItem>
-                  <MenuItem onClick={() => handleAdminNavigate('/admin/installers')}>
-                    <ListItemIcon>
-                      <BuildIcon fontSize="small" />
-                    </ListItemIcon>
-                    <ListItemText>Gestione Installatori</ListItemText>
-                  </MenuItem>
-                  <MenuItem onClick={() => handleAdminNavigate('/admin/deletion-archives')}>
-                    <ListItemIcon>
-                      <ArchiveIcon fontSize="small" />
-                    </ListItemIcon>
-                    <ListItemText>Archivio Eliminazioni</ListItemText>
-                  </MenuItem>
-                  <MenuItem onClick={() => handleAdminNavigate('/reports/billing')}>
-                    <ListItemIcon>
-                      <ReceiptIcon fontSize="small" />
-                    </ListItemIcon>
-                    <ListItemText>Report Fatturazione</ListItemText>
-                  </MenuItem>
+                  {vociGestione.map(voce => (
+                    <MenuItem key={voce.path} onClick={() => handleAdminNavigate(voce.path)}>
+                      <ListItemIcon>{voce.icona}</ListItemIcon>
+                      <ListItemText>{voce.etichetta}</ListItemText>
+                    </MenuItem>
+                  ))}
                 </Menu>
               </>
             )}
