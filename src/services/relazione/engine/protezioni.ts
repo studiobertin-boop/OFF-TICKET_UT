@@ -137,5 +137,5 @@ export function buildProtezioni(
     })
   }
 
-  return { serbatoi, altre }
+  return { serbatoi, altre, haAltre: altre.length > 0 }
 }

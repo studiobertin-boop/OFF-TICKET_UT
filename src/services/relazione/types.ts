@@ -275,6 +275,13 @@ export interface ProtezioneAltraRow {
 export interface ProtezioniModel {
   serbatoi: ProtezioneRow[]
   altre: ProtezioneAltraRow[]
+  /**
+   * Il template avvolge in questo flag l'intestazione e la tabella delle altre
+   * apparecchiature: un impianto senza di esse non deve mostrare un titolo con sotto
+   * una tabella vuota. Serve un booleano perché un `{#altre}` ripeterebbe il blocco
+   * una volta per riga.
+   */
+  haAltre: boolean
 }
 
 // ============================================================================

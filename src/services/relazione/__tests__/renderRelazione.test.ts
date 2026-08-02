@@ -116,3 +116,38 @@ describe('renderRelazioneDocx', () => {
     expect(acidi).not.toContain('PIANA')
   })
 })
+
+describe('§5.3 — blocco "Altre apparecchiature soggette"', () => {
+  const p = (t: string) => `<w:p><w:r><w:t>${t}</w:t></w:r></w:p>`
+  const blocco =
+    p('{#protezioni.haAltre}') +
+    p('Altre apparecchiature soggette al D.M. 329/2004:') +
+    p('{/protezioni.haAltre}')
+
+  const rendi = (scheda: Parameters<typeof buildRelazioneModel>[0]['scheda']) =>
+    outputXml(
+      renderRelazioneDocx(
+        makeTemplateDocx(blocco),
+        buildRelazioneModel({
+          scheda,
+          additionalInfo: makeAdditionalInfo(),
+          customer: makeCustomer(),
+          pratica: makePratica(),
+        })
+      )
+    )
+
+  test('scompare quando non ci sono altre apparecchiature soggette', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ codice: 'C1', ha_disoleatore: false })],
+      disoleatori: [],
+      scambiatori: [],
+      recipienti_filtro: [],
+    })
+    expect(rendi(scheda)).not.toContain('Altre apparecchiature soggette')
+  })
+
+  test('compare quando ce ne sono', () => {
+    expect(rendi(makeScheda())).toContain('Altre apparecchiature soggette')
+  })
+})
