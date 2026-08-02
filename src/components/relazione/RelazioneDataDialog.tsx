@@ -30,7 +30,9 @@ import toast from 'react-hot-toast'
 import type { SelectChangeEvent } from '@mui/material'
 import type { Customer } from '@/types'
 import type { SchedaDatiCompleta } from '@/types/technicalSheet'
+import { TIPO_GIRI_LABELS, TIPO_GIRI_OPTIONS } from '@/types/technicalSheet'
 import { technicalDataApi } from '@/services/api/technicalData'
+import { equipmentCatalogApi } from '@/services/api/equipmentCatalog'
 import { additionalInfoSchema } from '@/services/relazione/schema'
 import { generateAndDownloadRelazione } from '@/services/relazione/generateRelazione'
 import { buildRelazioneModel } from '@/services/relazione/buildRelazioneModel'
@@ -66,6 +68,19 @@ export default function RelazioneDataDialog({
 }: RelazioneDataDialogProps) {
   const compressoriCodes = useMemo(
     () => (scheda.compressori ?? []).map((c) => c.codice),
+    [scheda]
+  )
+
+  /**
+   * Compressori per cui la regolazione dei giri va ancora chiesta: quelli che il catalogo non
+   * conosce. Il dato è una proprietà costruttiva del modello e sta in `specs.giri`; qui resta
+   * solo la coda di modelli su cui nessuno l'ha ancora osservata — e la risposta viene
+   * riscritta a catalogo, così la domanda non torna.
+   *
+   * La distinzione vale sui soli rotativi a vite: sugli altri tipi il campo resta vuoto.
+   */
+  const compressoriSenzaGiri = useMemo(
+    () => (scheda.compressori ?? []).filter((c) => !c.giri && (!c.tipo || c.tipo === 'VITE')),
     [scheda]
   )
   const serbatoiCodes = useMemo(() => (scheda.serbatoi ?? []).map((s) => s.codice), [scheda])
@@ -176,6 +191,7 @@ export default function RelazioneDataDialog({
     setSaving(true)
     try {
       await technicalDataApi.updateAdditionalInfo(requestId, parsed.data)
+      await riportaGiriACatalogo(parsed.data.compressoriGiri)
       await generateAndDownloadRelazione({
         scheda,
         additionalInfo: parsed.data,
@@ -190,6 +206,27 @@ export default function RelazioneDataDialog({
       toast.error(err instanceof Error ? err.message : 'Errore nella generazione della relazione')
     } finally {
       setSaving(false)
+    }
+  }
+
+  /**
+   * Riporta a catalogo la regolazione dei giri appena dichiarata, così la domanda non torna alla
+   * pratica successiva sullo stesso modello.
+   *
+   * Non è bloccante: se il modello non è a catalogo o il ruolo non ha il permesso di scrittura,
+   * la relazione si genera comunque con il dato preso da `additional_info`.
+   */
+  const riportaGiriACatalogo = async (giriDaSalvare: Record<string, TipoGiri> | undefined) => {
+    for (const c of compressoriSenzaGiri) {
+      const valore = giriDaSalvare?.[c.codice]
+      if (!valore || !c.marca || !c.modello) continue
+      try {
+        await equipmentCatalogApi.updateEquipmentSpecs(
+          'Compressori', c.marca, c.modello, { giri: valore }, { variante: c.pressione_max }
+        )
+      } catch (err) {
+        console.warn(`[giri] ${c.codice}: non riportato a catalogo`, err)
+      }
     }
   }
 
@@ -218,27 +255,33 @@ export default function RelazioneDataDialog({
             helperText="Testo inserito così com'è nella premessa della relazione."
           />
 
-          <Divider />
-          <Typography variant="subtitle2">Giri dei compressori</Typography>
-          {compressoriCodes.length === 0 && (
-            <Typography variant="body2" color="text.secondary">
-              Nessun compressore nella scheda.
-            </Typography>
+          {compressoriSenzaGiri.length > 0 && (
+            <>
+              <Divider />
+              <Typography variant="subtitle2">Giri dei compressori</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Il catalogo non riporta la regolazione dei giri per questi modelli. La risposta
+                viene salvata anche a catalogo, così non verrà più richiesta.
+              </Typography>
+              {compressoriSenzaGiri.map((c) => (
+                <FormControl key={c.codice} fullWidth size="small">
+                  <InputLabel id={`giri-${c.codice}`}>
+                    {`${c.codice} · ${[c.marca, c.modello].filter(Boolean).join(' ') || 'modello non indicato'}`}
+                  </InputLabel>
+                  <Select
+                    labelId={`giri-${c.codice}`}
+                    label={`${c.codice} · ${[c.marca, c.modello].filter(Boolean).join(' ') || 'modello non indicato'}`}
+                    value={giri[c.codice] ?? ''}
+                    onChange={(e: SelectChangeEvent) => setGiroFor(c.codice, e.target.value as TipoGiri)}
+                  >
+                    {TIPO_GIRI_OPTIONS.map((o) => (
+                      <MenuItem key={o} value={o}>{TIPO_GIRI_LABELS[o]}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              ))}
+            </>
           )}
-          {compressoriCodes.map((code) => (
-            <FormControl key={code} fullWidth size="small">
-              <InputLabel id={`giri-${code}`}>{`Compressore ${code}`}</InputLabel>
-              <Select
-                labelId={`giri-${code}`}
-                label={`Compressore ${code}`}
-                value={giri[code] ?? ''}
-                onChange={(e: SelectChangeEvent) => setGiroFor(code, e.target.value as TipoGiri)}
-              >
-                <MenuItem value="fissi">a giri fissi</MenuItem>
-                <MenuItem value="variabili">a giri variabili (inverter)</MenuItem>
-              </Select>
-            </FormControl>
-          ))}
 
           <Divider />
           <Typography variant="subtitle2">

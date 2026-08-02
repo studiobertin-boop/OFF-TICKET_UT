@@ -1,7 +1,7 @@
 import { describe, test, expect } from 'vitest'
 import {
   parseCode, compareCodes, nextFreeCode, childCode, codeForArrayIndex, collectCodes,
-  normalizeSchedaCodes, pruneAdditionalInfo,
+  normalizeSchedaCodes, pruneAdditionalInfo, pruneSchedaRefs,
 } from '@/utils/equipmentCodes'
 
 describe('parseCode', () => {
@@ -369,5 +369,87 @@ describe('pruneAdditionalInfo', () => {
       collegamentiCompressoriSerbatoi: {},
     })
     expect(dropped).toEqual([])
+  })
+})
+
+describe('pruneSchedaRefs', () => {
+  /** Scheda con C1 (disoleatore C1.1 + valvole C1.2/C1.3), S1 e uno scambiatore protetto da entrambi. */
+  const schedaCompleta = () => ({
+    compressori: [{ codice: 'C1', ha_disoleatore: true }],
+    disoleatori: [{
+      codice: 'C1.1',
+      compressore_associato: 'C1',
+      valvola_sicurezza: { marca: 'A' },
+      valvole_aggiuntive: [{ marca: 'B' }],
+    }],
+    serbatoi: [{ codice: 'S1', valvola_sicurezza: { marca: 'C' } }],
+    essiccatori: [{ codice: 'E1', ha_scambiatore: true }],
+    scambiatori: [{
+      codice: 'E1.1',
+      essiccatore_associato: 'E1',
+      valvole_protezione: ['C1.2', 'C1.3', 'S1.1'],
+    }],
+  })
+
+  test('non tocca una scheda coerente', () => {
+    const { changed } = pruneSchedaRefs(schedaCompleta())
+    expect(changed).toBe(false)
+  })
+
+  test('elimina il figlio orfano quando sparisce il padre', () => {
+    const s = schedaCompleta()
+    s.compressori = []
+    const { scheda, changed } = pruneSchedaRefs(s)
+    expect(changed).toBe(true)
+    expect(scheda.disoleatori).toEqual([])
+  })
+
+  test('scarta le valvole citate come protezione ma non più esistenti', () => {
+    const s = schedaCompleta()
+    s.compressori = []
+    const { scheda } = pruneSchedaRefs(s)
+    // Sparito C1 spariscono il disoleatore C1.1 e le sue valvole C1.2/C1.3; resta S1.1.
+    expect(scheda.scambiatori[0].valvole_protezione).toEqual(['S1.1'])
+  })
+
+  test('scarta la valvola aggiuntiva rimossa, tenendo la principale', () => {
+    const s = schedaCompleta()
+    s.disoleatori[0].valvole_aggiuntive = []
+    const { scheda, changed } = pruneSchedaRefs(s)
+    expect(changed).toBe(true)
+    expect(scheda.scambiatori[0].valvole_protezione).toEqual(['C1.2', 'S1.1'])
+  })
+
+  test('riallinea il flag del padre alla presenza effettiva del figlio', () => {
+    const s = schedaCompleta()
+    s.disoleatori = []
+    const { scheda } = pruneSchedaRefs(s)
+    expect(scheda.compressori[0].ha_disoleatore).toBe(false)
+  })
+
+  test('un codice riassegnato non eredita i riferimenti del precedente', () => {
+    // C1 eliminato, poi ricreato: nextFreeCode restituisce di nuovo C1.
+    const s = schedaCompleta()
+    s.compressori = []
+    const { scheda: pulita } = pruneSchedaRefs(s)
+    const conNuovoC1 = { ...pulita, compressori: [{ codice: 'C1', ha_disoleatore: false }] }
+
+    const { scheda } = pruneSchedaRefs(conNuovoC1)
+    expect(scheda.disoleatori).toEqual([])
+    expect(scheda.compressori[0].ha_disoleatore).toBe(false)
+    expect(scheda.scambiatori[0].valvole_protezione).toEqual(['S1.1'])
+  })
+
+  test('è idempotente', () => {
+    const s = schedaCompleta()
+    s.compressori = []
+    const primo = pruneSchedaRefs(s).scheda
+    const secondo = pruneSchedaRefs(primo)
+    expect(secondo.changed).toBe(false)
+    expect(secondo.scheda).toEqual(primo)
+  })
+
+  test('tollera una scheda vuota', () => {
+    expect(pruneSchedaRefs({}).changed).toBe(false)
   })
 })

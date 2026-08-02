@@ -13,12 +13,21 @@
 
 import type { EsitoDM329 } from '@/utils/dm329Classification'
 
-export type TipoGiri = 'fissi' | 'variabili'
+// Il tipo vive col resto del modello della scheda: `giri` è una proprietà costruttiva del
+// compressore a catalogo, e il layer relazione non deve esserne la fonte.
+export type { TipoGiri } from '@/types/technicalSheet'
+import type { TipoGiri } from '@/types/technicalSheet'
 
 export interface AdditionalInfo {
   /** Descrizione attività ATECO (testo libero) */
   descrizioneAttivita?: string
-  /** Giri per compressore: { C1: 'fissi' | 'variabili' } */
+  /**
+   * Giri per compressore: { C1: 'fissi' | 'variabili' }.
+   *
+   * Ripiego: il dato autorevole è `specs.giri` della voce di catalogo, riportato nella scheda.
+   * Qui restano solo i compressori per cui il catalogo non lo sa ancora, e la risposta viene
+   * comunque riscritta a catalogo.
+   */
   compressoriGiri?: Record<string, TipoGiri>
   /** Codici apparecchiature sottoposte a verifica spessimetrica, es. ['C1','S2'] */
   spessimetrica?: string[]

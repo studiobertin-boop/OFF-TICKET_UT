@@ -2,6 +2,7 @@ import type { EquipmentCatalogType } from '@/types'
 import {
   FLUIDO_LABELS, FLUIDO_OPTIONS, ORIENTAMENTO_LABELS, ORIENTAMENTO_OPTIONS,
   TIPO_COMPRESSORE_LABELS, TIPO_COMPRESSORE_OPTIONS, TIPO_FILTRO_LABELS, TIPO_FILTRO_OPTIONS,
+  TIPO_GIRI_LABELS,
   UBICAZIONE_SERBATOIO_LABELS, UBICAZIONE_SERBATOIO_OPTIONS,
 } from '@/types/technicalSheet'
 
@@ -24,7 +25,7 @@ export interface ExtraFieldDef {
    * `multi` = selezione multipla con opzioni calcolate dai valori correnti del form
    * (vedi `optionsFrom`): le valvole censite non sono una lista statica.
    */
-  kind: 'text' | 'number' | 'select' | 'check' | 'multi'
+  kind: 'text' | 'number' | 'select' | 'check' | 'multi' | 'readonly'
   options?: readonly string[]
   /** Resa compatta del valore selezionato (es. finitura ZINCATO → «Z»). */
   display?: Record<string, string>
@@ -60,13 +61,6 @@ export interface EquipmentTypeDef {
   mandatoryValvola?: boolean // valvola di sicurezza sempre presente (serbatoio, disoleatore)
   adv?: AdvKey[] // colonne nascoste a tecnicoDM329
   roleHidden?: boolean // intera riga nascosta a tecnicoDM329 (recipiente filtro)
-  /**
-   * Il catalogo è indicizzato per pressione (stesso modello ha più varianti):
-   * la colonna PS/Ptar diventa un selettore che, scelta la pressione, autocompila
-   * i dati dipendenti (FAD per compressori; TS/Qmax/diametro per valvole) e permette
-   * di aggiungere nuove pressioni/portate al catalogo. Valore = chiave pressione negli specs.
-   */
-  pressureCatalog?: 'pressione_max' | 'ptar'
 }
 
 export const FINITURA_OPTIONS = ['VERNICIATO', 'ZINCATO', 'VITROFLEX', 'ALTRO'] as const
@@ -114,6 +108,9 @@ export const EQUIPMENT_DEFS: Record<EquipmentKind, EquipmentTypeDef> = {
     extra: [
       // Il tipo è proprietà costruttiva del modello: viaggia col catalogo (specsMap).
       { name: 'tipo', label: 'Tipo', kind: 'select', options: TIPO_COMPRESSORE_OPTIONS, display: TIPO_COMPRESSORE_LABELS, labels: TIPO_COMPRESSORE_LABELS, emptyLabel: 'Rotativo a vite' },
+      // Proprietà costruttiva del modello: si modifica dal catalogo, non da qui. La colonna
+      // non è praticabile — la tabella ne ha già dieci strette e il valore è testuale e lungo.
+      { name: 'giri', label: 'Giri', kind: 'readonly', display: TIPO_GIRI_LABELS, emptyLabel: 'non a catalogo' },
       { name: 'silenziato', label: 'Silenziato', kind: 'check' },
       NOTE_EXTRA,
     ],
@@ -122,10 +119,9 @@ export const EQUIPMENT_DEFS: Record<EquipmentKind, EquipmentTypeDef> = {
     // La pressione sta sotto `pressione_max`, come la scrivono il dialog di
     // inserimento e l'indice unico delle varianti: `ps` è il nome usato dai
     // recipienti e sui compressori non è mai stato valorizzato.
-    specsMap: { fad: 'volume_aria_prodotto', pressione_max: 'pressione_max', tipo_compressore: 'tipo' },
+    specsMap: { fad: 'volume_aria_prodotto', pressione_max: 'pressione_max', tipo_compressore: 'tipo', giri: 'giri' },
     childKind: 'disoleatore',
     adv: ['capacita'],
-    pressureCatalog: 'pressione_max',
   },
   disoleatore: {
     kind: 'disoleatore', label: 'Disoleatore', prefix: 'C', catalogType: 'Disoleatori',
@@ -179,7 +175,6 @@ export const EQUIPMENT_DEFS: Record<EquipmentKind, EquipmentTypeDef> = {
     extra: [{ name: 'diametro', label: 'Diametro', kind: 'text' }],
     specsMap: { ptar: 'pressione_taratura', ts: 'ts', qmax: 'volume_aria_scaricato', diametro: 'diametro' },
     adv: ['capacita', 'ts', 'cat'],
-    pressureCatalog: 'ptar',
   },
 }
 
@@ -191,7 +186,10 @@ export const NEW_EQUIPMENT_KINDS = [
 /** Solo i tipi creabili: chi ne indicizza l'insieme deve coprirli tutti, verificato dal compilatore. */
 export type NewEquipmentKind = (typeof NEW_EQUIPMENT_KINDS)[number]
 
-/** Limiti per tipo (min/max nell'array) — riusa la logica esistente. */
+/**
+ * Nome dell'array della scheda per ogni tipo.
+ * Le valvole non ne hanno uno proprio: vivono dentro il recipiente che le porta.
+ */
 export const KIND_ARRAY: Record<EquipmentKind, string> = {
   serbatoio: 'serbatoi', compressore: 'compressori', disoleatore: 'disoleatori',
   essiccatore: 'essiccatori', scambiatore: 'scambiatori', filtro: 'filtri',

@@ -1,4 +1,4 @@
-import { Controller, type Control, type FieldErrors, type FieldValues } from 'react-hook-form'
+import { Controller, useWatch, type Control, type FieldErrors, type FieldValues } from 'react-hook-form'
 import { Grid, MenuItem, TextField, Typography } from '@mui/material'
 import type { EquipmentCatalogType } from '@/types'
 import { specsFieldsFor } from '@/utils/equipmentCatalogValidation'
@@ -18,7 +18,10 @@ interface EquipmentSpecsFieldsProps {
  * dichiararlo lì, non ritoccare l'interfaccia.
  */
 export const EquipmentSpecsFields = ({ control, errors, tipo }: EquipmentSpecsFieldsProps) => {
-  const campi = specsFieldsFor(tipo)
+  // Alcuni campi dipendono da un altro dato della stessa riga (i giri solo sui rotativi a vite):
+  // l'elenco va quindi ricalcolato a ogni modifica, non solo al cambio di tipo.
+  const specs = useWatch({ control, name: 'specs' }) as Record<string, unknown> | undefined
+  const campi = specsFieldsFor(tipo, specs ?? {})
 
   if (!tipo) {
     return (
@@ -76,7 +79,7 @@ export const EquipmentSpecsFields = ({ control, errors, tipo }: EquipmentSpecsFi
                   {def.kind === 'enum' &&
                     (def.options ?? []).map(o => (
                       <MenuItem key={o} value={o}>
-                        {o}
+                        {def.optionLabels?.[o] ?? o}
                       </MenuItem>
                     ))}
                 </TextField>

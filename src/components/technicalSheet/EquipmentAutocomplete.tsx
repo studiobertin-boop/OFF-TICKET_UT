@@ -15,6 +15,8 @@ import { equipmentCatalogApi } from '@/services/api/equipmentCatalog'
 import type { EquipmentCatalogType, EquipmentCatalogItem } from '@/types'
 import { AddEquipmentDialog } from './AddEquipmentDialog'
 import { useNoAutofillToken } from '@/utils/noAutofill'
+import { useTecnicoDM329Visibility } from '@/hooks/useTecnicoDM329Visibility'
+import { readVariantValue, variantSpecKey } from '@/services/equipmentAudit'
 
 interface EquipmentAutocompleteProps {
   // Tipo apparecchiatura (filtra le opzioni)
@@ -30,6 +32,18 @@ interface EquipmentAutocompleteProps {
 
   // Callback quando utente vuole aggiungere al catalogo
   onAddToCatalog?: (marca: string, modello: string) => void
+
+  /**
+   * Valore che identifica la variante (pressione per i compressori, Ptar per le valvole).
+   * Serve a capire se la combinazione modello + pressione manca a catalogo.
+   */
+  variantValue?: number | null
+
+  /**
+   * Valori della riga di scheda, per precompilare il dialog di inserimento a catalogo:
+   * chi crea la voce ha appena digitato quei dati e non deve ridigitarli.
+   */
+  rowValues?: Record<string, unknown>
 
   // ✅ NEW: Callback quando viene selezionata un'apparecchiatura esistente (con dati completi)
   onEquipmentSelected?: (specs: Record<string, any>, fullData: EquipmentCatalogItem) => void
@@ -68,6 +82,8 @@ export const EquipmentAutocomplete = ({
   onMarcaChange,
   onModelloChange,
   onAddToCatalog,
+  variantValue = null,
+  rowValues,
   onEquipmentSelected,
   disabled = false,
   readOnly = false,
@@ -81,7 +97,13 @@ export const EquipmentAutocomplete = ({
   const [loadingModelli, setLoadingModelli] = useState(false)
   const [showAddButton, setShowAddButton] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
+  /** Bump dopo un inserimento: obbliga a rileggere il catalogo e far sparire il pulsante. */
+  const [refreshCatalogo, setRefreshCatalogo] = useState(0)
   const ac = useNoAutofillToken()
+  const { isTecnicoDM329 } = useTecnicoDM329Visibility()
+
+  /** Il tipo ha più righe per lo stesso modello, distinte da una pressione. */
+  const indicizzatoPerVariante = variantSpecKey(equipmentType) !== null
 
   /**
    * Carica marche quando cambia il tipo
@@ -133,15 +155,45 @@ export const EquipmentAutocomplete = ({
   }, [equipmentType, marcaValue])
 
   /**
-   * Mostra il pulsante "Aggiungi al catalogo" in modo uniforme per tutti i tipi:
-   * appena marca e modello sono compilati. Non facciamo un controllo di esistenza
-   * (per compressori/valvole la stessa marca/modello può avere più varianti di
-   * pressione a catalogo, quindi "già esiste" non significa "non aggiungibile");
-   * l'unicità è garantita dal vincolo DB e segnalata nel dialog in caso di duplicato.
+   * Il pulsante «aggiungi al catalogo» compare solo quando c'è davvero qualcosa da aggiungere:
+   * una marca/modello che il catalogo non ha, oppure — per i tipi indicizzati per pressione —
+   * una combinazione modello + pressione che non esiste ancora.
+   *
+   * Mostrarlo sempre lo rendeva rumore di fondo su ogni riga compilata, e invitava a duplicare
+   * voci già presenti: l'opposto dell'obiettivo di tenere il catalogo ordinato.
+   *
+   * A `tecnicoDM329` resta comunque nascosto: la RLS non gli concede l'insert e il click
+   * finirebbe in un errore di permessi.
    */
   useEffect(() => {
-    setShowAddButton(!!onAddToCatalog && !!marcaValue && !!modelloValue)
-  }, [onAddToCatalog, marcaValue, modelloValue])
+    if (readOnly || isTecnicoDM329 || !marcaValue || !modelloValue) {
+      setShowAddButton(false)
+      return
+    }
+
+    let annullato = false
+    const timer = setTimeout(async () => {
+      try {
+        const righe = await equipmentCatalogApi.findVariants(equipmentType, marcaValue, modelloValue)
+        if (annullato) return
+
+        // Modello del tutto assente: è una voce nuova.
+        if (righe.length === 0) { setShowAddButton(true); return }
+
+        // Il modello c'è e il tipo non ha varianti: non c'è nulla da aggiungere.
+        if (!indicizzatoPerVariante) { setShowAddButton(false); return }
+
+        // Il modello c'è: resta da vedere se manca proprio questa pressione.
+        const valori = righe.map((r) => readVariantValue(equipmentType, r.specs))
+        setShowAddButton(variantValue != null && !valori.includes(variantValue))
+      } catch (error) {
+        console.error('Errore nella verifica di esistenza a catalogo:', error)
+        if (!annullato) setShowAddButton(false)
+      }
+    }, 300)
+
+    return () => { annullato = true; clearTimeout(timer) }
+  }, [readOnly, isTecnicoDM329, equipmentType, marcaValue, modelloValue, variantValue, indicizzatoPerVariante, refreshCatalogo])
 
   /**
    * Handle marca change
@@ -154,6 +206,24 @@ export const EquipmentAutocomplete = ({
       onModelloChange('')
     }
   }
+
+  /**
+   * Scrive nel form solo la digitazione dell'utente.
+   *
+   * MUI emette `onInputChange` anche con `reason: 'reset'` — al mount e ogni volta che cambia
+   * il prop `value` controllato. Senza questa guardia, quando l'eliminazione di una riga fa
+   * scalare gli indici degli array il `Controller` si ri-registra su un percorso nuovo e MUI
+   * ci riversa dentro l'`inputValue` che aveva ancora in pancia: il testo di una riga finisce
+   * in un'altra, e una riga appena creata compare precompilata.
+   * Stessa guardia di `PressioneCatalogCell`.
+   */
+  const soloDigitazione =
+    (applica: (v: string) => void) =>
+    (_event: any, newInputValue: string, reason: string) => {
+      if (reason !== 'input') return
+      if (disabled || readOnly) return
+      applica(newInputValue)
+    }
 
   /**
    * Handle modello change
@@ -208,6 +278,9 @@ export const EquipmentAutocomplete = ({
       console.error('Error refreshing equipment options:', error)
     }
 
+    // La voce ora esiste: il pulsante deve sparire
+    setRefreshCatalogo((n) => n + 1)
+
     // Callback opzionale
     if (onAddToCatalog) {
       onAddToCatalog(marca, modello)
@@ -224,12 +297,7 @@ export const EquipmentAutocomplete = ({
         disabled={disabled || readOnly}
         value={marcaValue}
         onChange={handleMarcaChange}
-        onInputChange={(_event, newInputValue) => {
-          // Permetti editing libero
-          if (!disabled && !readOnly) {
-            onMarcaChange(newInputValue)
-          }
-        }}
+        onInputChange={soloDigitazione(onMarcaChange)}
         options={marcheOptions}
         loading={loadingMarche}
         slotProps={dense ? denseSlotProps : undefined}
@@ -271,12 +339,7 @@ export const EquipmentAutocomplete = ({
         disabled={disabled || readOnly || !marcaValue}
         value={modelloValue}
         onChange={handleModelloChange}
-        onInputChange={(_event, newInputValue) => {
-          // Permetti editing libero
-          if (!disabled && !readOnly) {
-            onModelloChange(newInputValue)
-          }
-        }}
+        onInputChange={soloDigitazione(onModelloChange)}
         options={modelliOptions}
         loading={loadingModelli}
         slotProps={dense ? denseSlotProps : undefined}
@@ -309,7 +372,11 @@ export const EquipmentAutocomplete = ({
 
       {/* Bottone Aggiungi al Catalogo */}
       {showAddButton && !readOnly && (
-        <Tooltip title="Aggiungi al catalogo">
+        <Tooltip title={
+          indicizzatoPerVariante && variantValue != null
+            ? `Aggiungi al catalogo la variante a ${variantValue} bar`
+            : 'Aggiungi al catalogo'
+        }>
           <IconButton
             color="primary"
             onClick={handleAddToCatalog}
@@ -328,6 +395,7 @@ export const EquipmentAutocomplete = ({
         equipmentType={equipmentType}
         initialMarca={marcaValue}
         initialModello={modelloValue}
+        initialRow={rowValues}
         onSuccess={handleDialogSuccess}
       />
     </Box>

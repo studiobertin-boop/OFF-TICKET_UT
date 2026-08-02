@@ -9,6 +9,7 @@
 
 import { EQUIPMENT_LIMITS } from '@/types'
 import type { AdditionalInfo, TipoGiri } from '@/services/relazione/types'
+import { elencaValvole } from '@/utils/valvoleImpianto'
 
 export interface ParsedCode {
   prefix: string
@@ -191,6 +192,93 @@ export function normalizeSchedaCodes<T extends Record<string, any>>(
       return { ...item, codice: expected }
     })
 
+    if (touched) {
+      out[array] = next
+      changed = true
+    }
+  }
+
+  return { scheda: out as T, changed }
+}
+
+/** Flag del padre che dichiara la presenza del figlio, per array dipendente. */
+const CHILD_FLAG: Record<string, { parent: string; flag: string }> = {
+  disoleatori: { parent: 'compressori', flag: 'ha_disoleatore' },
+  scambiatori: { parent: 'essiccatori', flag: 'ha_scambiatore' },
+  recipienti_filtro: { parent: 'filtri', flag: 'ha_recipiente' },
+}
+
+/**
+ * Ripulisce i riferimenti interni alla scheda rimasti appesi nel vuoto.
+ *
+ * Va richiamata dopo ogni eliminazione. Serve perché i codici sono riassegnabili: `nextFreeCode`
+ * restituisce il numero libero più basso, quindi eliminando C1 e creando poi un nuovo
+ * compressore quest'ultimo torna a chiamarsi C1 ed **erediterebbe** tutto ciò che era ancora
+ * agganciato al vecchio — il disoleatore orfano, le valvole citate come protezione di uno
+ * scambiatore. È esattamente il sintomo «la riga nuova compare già precompilata».
+ *
+ * Non filtra per codice ma **ricalcola l'insieme dei riferimenti validi** e scarta il resto:
+ * la corrispondenza fra apparecchiatura e valvole non è deducibile dal codice (le valvole del
+ * disoleatore `C1.1` si chiamano `C1.2`, `C1.3`), quindi un confronto per prefisso sbaglierebbe.
+ * Idempotente: applicata al proprio risultato ritorna `changed: false`.
+ */
+export function pruneSchedaRefs<T extends Record<string, any>>(
+  scheda: T
+): { scheda: T; changed: boolean } {
+  let changed = false
+  const out: Record<string, any> = { ...(scheda ?? {}) }
+
+  // 1. Figli orfani: il padre non esiste più (o non è mai esistito).
+  for (const { array, ref } of CHILD_ARRAYS) {
+    const items = out[array]
+    if (!Array.isArray(items) || items.length === 0) continue
+
+    const parentArray = CHILD_FLAG[array].parent
+    const parentCodes = new Set(
+      (Array.isArray(out[parentArray]) ? out[parentArray] : []).map((p: any) => p?.codice)
+    )
+    const next = items.filter((item: any) => parentCodes.has(item?.[ref]))
+    if (next.length !== items.length) {
+      out[array] = next
+      changed = true
+    }
+  }
+
+  // 2. Flag del padre riallineati alla presenza effettiva del figlio.
+  for (const [array, { parent, flag }] of Object.entries(CHILD_FLAG)) {
+    const parents = out[parent]
+    if (!Array.isArray(parents) || parents.length === 0) continue
+
+    const refField = CHILD_ARRAYS.find((c) => c.array === array)!.ref
+    const children = Array.isArray(out[array]) ? out[array] : []
+    let touched = false
+    const next = parents.map((p: any) => {
+      const atteso = children.some((c: any) => c?.[refField] === p?.codice)
+      if (!!p?.[flag] === atteso) return p
+      touched = true
+      return { ...p, [flag]: atteso }
+    })
+    if (touched) {
+      out[parent] = next
+      changed = true
+    }
+  }
+
+  // 3. «Protetto dalle valvole»: le posizioni valide sono quelle che la scheda produce ora.
+  const posizioniValide = new Set(elencaValvole(out as any).map((v) => v.pos))
+  for (const array of ['scambiatori', 'recipienti_filtro'] as const) {
+    const items = out[array]
+    if (!Array.isArray(items) || items.length === 0) continue
+
+    let touched = false
+    const next = items.map((item: any) => {
+      const refs = item?.valvole_protezione
+      if (!Array.isArray(refs) || refs.length === 0) return item
+      const filtrate = refs.filter((pos: string) => posizioniValide.has(pos))
+      if (filtrate.length === refs.length) return item
+      touched = true
+      return { ...item, valvole_protezione: filtrate }
+    })
     if (touched) {
       out[array] = next
       changed = true

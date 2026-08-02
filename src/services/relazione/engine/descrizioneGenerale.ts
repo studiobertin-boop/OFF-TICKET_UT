@@ -64,7 +64,12 @@ function sezionePompaggio(
   )}`
   if (n === 0) return intro
 
-  const giriDi = (c: Compressore) => (giriMap?.[c.codice] ? GIRI[giriMap[c.codice]!] : '')
+  // Il dato di catalogo, riportato nella scheda, ha la precedenza: `additional_info` resta il
+  // ripiego per i modelli su cui il catalogo non sa ancora nulla.
+  const giriDi = (c: Compressore) => {
+    const g = c.giri ?? giriMap?.[c.codice]
+    return g ? GIRI[g] : ''
+  }
   const tipiDistinti = new Set(compressori.map(chiaveTipo))
   const giriDistinti = new Set(compressori.map(giriDi))
 

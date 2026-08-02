@@ -1,33 +1,31 @@
 import { useEffect, useState } from 'react'
 import { Controller, useWatch, type Control } from 'react-hook-form'
 import { Autocomplete, TextField, Box } from '@mui/material'
-import { equipmentCatalogApi } from '@/services/api/equipmentCatalog'
+import { equipmentCatalogApi, type VarianteCatalogo } from '@/services/api/equipmentCatalog'
 import { useNoAutofillToken } from '@/utils/noAutofill'
+import type { EquipmentCatalogItem, EquipmentCatalogType } from '@/types'
 
 /**
- * Cella per la colonna PS/Ptar dei tipi indicizzati per pressione (compressori, valvole).
+ * Cella della colonna PS/Ptar per i tipi le cui righe di catalogo sono distinte dalla pressione.
  *
- * Scelta marca+modello (nella cella accanto), questa cella:
- * - carica le pressioni disponibili a catalogo per quel modello;
- * - selezionandone una autocompila i dati dipendenti (FAD per compressori;
- *   TS/Qmax/diametro per valvole) tramite `onSelected`;
- * - permette comunque input libero.
+ * Scelta marca+modello nella cella accanto, questa cella:
+ * - propone le pressioni che il catalogo ha per quel modello;
+ * - selezionandone una autocompila i dati che ne dipendono (volume, FAD, Qmax, TS, categoria);
+ * - accetta comunque un valore fuori elenco, che è il modo per censire una variante nuova:
+ *   il pulsante «+» della cella marca/modello compare proprio in quel caso.
  *
- * L'aggiunta al catalogo NON avviene qui: è uniforme per tutti i tipi tramite il
- * pulsante "+" della cella marca/modello (EquipmentAutocomplete).
- *
- * Il numero è allineato a destra come le celle numeriche normali.
+ * La pressione viene prima della capacità, in tabella e nella compilazione: è la pressione a
+ * dire di quale variante del modello si tratta, e quindi quale capacità il catalogo propone.
  */
 interface PressioneCatalogCellProps {
   control: Control<any>
   /** Base della riga, es. `compressori.0` oppure `serbatoi.0.valvola_sicurezza`. */
   base: string
-  /** Tipo catalogo indicizzato per pressione. */
-  catalogType: 'Compressori' | 'Valvole di sicurezza'
-  /** Path relativo del campo pressione nel form (es. 'pressione_max', 'pressione_taratura'). */
+  catalogType: EquipmentCatalogType
+  /** Path relativo del campo pressione nel form (es. 'ps_pressione_max', 'pressione_taratura'). */
   pressioneField: string
   /** Applica gli specs del catalogo ai campi dipendenti (riusa la logica specsMap della riga). */
-  onSelected: (specs: Record<string, any>) => void
+  onSelected: (specs: Record<string, any>, item: EquipmentCatalogItem) => void
   min?: number
   max?: number
   step?: number
@@ -55,44 +53,38 @@ export const PressioneCatalogCell = ({
 }: PressioneCatalogCellProps) => {
   const marca = useWatch({ control, name: `${base}.marca` }) as string | undefined
   const modello = useWatch({ control, name: `${base}.modello` }) as string | undefined
-  const [options, setOptions] = useState<number[]>([])
+  const [varianti, setVarianti] = useState<VarianteCatalogo[]>([])
   const [loading, setLoading] = useState(false)
   const ac = useNoAutofillToken()
-
-  const isCompressore = catalogType === 'Compressori'
 
   useEffect(() => {
     let cancelled = false
     const load = async () => {
-      if (!marca || !modello) { setOptions([]); return }
+      if (!marca || !modello) { setVarianti([]); return }
       setLoading(true)
       try {
-        const vals = isCompressore
-          ? await equipmentCatalogApi.getPressioniByTipoMarcaModello(catalogType, marca, modello)
-          : await equipmentCatalogApi.getPtarByTipoMarcaModello(catalogType, marca, modello)
-        if (!cancelled) setOptions(vals)
+        const vals = await equipmentCatalogApi.getVarianti(catalogType, marca, modello)
+        if (!cancelled) setVarianti(vals)
       } catch (e) {
         console.error('Errore caricamento pressioni catalogo:', e)
-        if (!cancelled) setOptions([])
+        if (!cancelled) setVarianti([])
       } finally {
         if (!cancelled) setLoading(false)
       }
     }
     load()
     return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catalogType, marca, modello])
 
-  const applySpecsForPressione = async (pressione: number) => {
-    if (!marca || !modello) return
-    try {
-      const eq = isCompressore
-        ? await equipmentCatalogApi.getEquipmentByTipoMarcaModelloPressione(catalogType, marca, modello, pressione)
-        : await equipmentCatalogApi.getEquipmentByTipoMarcaModelloPtar(catalogType, marca, modello, pressione)
-      if (eq?.specs) onSelected(eq.specs as Record<string, any>)
-    } catch (e) {
-      console.error('Errore caricamento specs pressione:', e)
-    }
+  const options = varianti.map((v) => v.value)
+
+  /**
+   * La voce di catalogo è già in mano dal caricamento delle opzioni: nessuna seconda chiamata
+   * di rete, e quindi nessuna finestra in cui gli indici delle righe possano scalare sotto.
+   */
+  const applicaVariante = (pressione: number) => {
+    const scelta = varianti.find((v) => v.value === pressione)
+    if (scelta?.item?.specs) onSelected(scelta.item.specs as Record<string, any>, scelta.item)
   }
 
   return (
@@ -121,7 +113,7 @@ export const PressioneCatalogCell = ({
                 const num = typeof v === 'number' ? v : parseFloat(v)
                 if (isNaN(num)) { field.onChange(undefined); return }
                 field.onChange(num)
-                if (options.includes(num)) applySpecsForPressione(num)
+                applicaVariante(num)
               }}
               onInputChange={(_e, v, reason) => {
                 if (reason !== 'input') return
@@ -134,7 +126,7 @@ export const PressioneCatalogCell = ({
                   {...params}
                   type="number"
                   variant="standard"
-                  placeholder="—"
+                  placeholder={marca && modello ? '—' : 'Prima il modello'}
                   InputProps={{ ...params.InputProps, disableUnderline: true }}
                   inputProps={{ ...params.inputProps, min, max, step, autoComplete: ac }}
                 />
