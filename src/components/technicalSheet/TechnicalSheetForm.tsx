@@ -16,8 +16,7 @@ import { DatiImpiantoSection } from './DatiImpiantoSection'
 import { UnifiedEquipmentTable } from './table/UnifiedEquipmentTable'
 import { AltriApparecchiSection } from './AllEquipmentSections'
 import { BatchOCRDialog } from './BatchOCRDialog'
-import { UpdateCatalogDialog } from './UpdateCatalogDialog'
-import { useEquipmentCatalogUpdate } from '@/hooks/useEquipmentCatalogUpdate'
+import { useHydrateCatalogCache } from '@/hooks/useHydrateCatalogCache'
 import type { SchedaDatiCompleta } from '@/types'
 import type { BatchOCRResult, BatchOCRItem } from '@/types/ocr'
 import type { EquipmentCatalogType } from '@/types'
@@ -30,7 +29,6 @@ interface TechnicalSheetFormProps {
   onAutoSave?: (data: SchedaDatiCompleta) => void
   customerName?: string
   sedeLegale?: string
-  readOnly?: boolean
 }
 
 export interface TechnicalSheetFormRef {
@@ -99,7 +97,6 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
   onAutoSave,
   customerName,
   sedeLegale,
-  readOnly = false,
 }, ref) => {
   const methods = useForm<SchedaDatiCompleta>({
     defaultValues: {
@@ -130,73 +127,37 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
   const {
     control,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isDirty },
     watch,
     setValue,
     getValues,
     reset,
   } = methods
 
+  // Aggancia le righe già compilate alle voci di catalogo da cui provengono: senza, riaprendo
+  // una scheda salvata non si saprebbe da dove vengono i dati né si potrebbe riportarli a catalogo.
+  useHydrateCatalogCache(defaultValues as SchedaDatiCompleta | undefined)
+
   // State per Batch OCR Dialog
   const [batchOCRDialogOpen, setBatchOCRDialogOpen] = useState(false)
-
-  // ✅ Hook per gestione aggiornamenti catalogo
-  const catalogUpdate = useEquipmentCatalogUpdate()
-
-  // State per gestire submit dopo conferma catalog update
-  const [pendingSubmitData, setPendingSubmitData] = useState<SchedaDatiCompleta | null>(null)
 
   // Esponi metodi al componente parent
   useImperativeHandle(ref, () => ({
     getFormData: () => methods.getValues() as SchedaDatiCompleta,
-    submitForm: async () => {
-      // Intercetta submit per check catalog updates
-      const formData = methods.getValues() as SchedaDatiCompleta
-
-      // Raccoglie updates necessari
-      const updates = catalogUpdate.collectUpdates(formData)
-
-      if (updates.length > 0) {
-        // Ci sono aggiornamenti da proporre
-        console.log('📋 Found catalog updates, showing dialog...')
-        setPendingSubmitData(formData)
-        catalogUpdate.promptUpdates(updates)
-        // NON chiamare onSubmit qui, aspettiamo conferma dialog
-      } else {
-        // Nessun update, procedi normalmente
-        await methods.handleSubmit(onSubmit)()
-      }
-    }
+    submitForm: async () => { await methods.handleSubmit(onSubmit)() },
   }))
-
-  // ✅ Callback per conferma aggiornamento catalogo
-  const handleCatalogUpdateConfirm = async () => {
-    await catalogUpdate.confirmUpdates()
-
-    // Dopo aggiornamento catalogo, procedi con save scheda
-    if (pendingSubmitData) {
-      await methods.handleSubmit(onSubmit)()
-      setPendingSubmitData(null)
-    }
-  }
-
-  // ✅ Callback per annullamento aggiornamento catalogo
-  const handleCatalogUpdateCancel = () => {
-    catalogUpdate.cancelUpdate()
-
-    // Procedi comunque con save scheda (senza aggiornare catalogo)
-    if (pendingSubmitData) {
-      onSubmit(pendingSubmitData)
-      setPendingSubmitData(null)
-    }
-  }
 
   // Autosave con debounce
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const watchedData = watch()
 
+  /**
+   * Il gate su `isDirty` non è un'ottimizzazione: la scheda resta modificabile anche dopo il
+   * completamento, quindi senza di esso la sola apertura in consultazione la riscriverebbe
+   * dopo 120 secondi. `watch()` cambia a ogni render, `isDirty` solo su modifica reale.
+   */
   useEffect(() => {
-    if (!onAutoSave || readOnly) return
+    if (!onAutoSave || !isDirty) return
 
     // Clear existing timeout
     if (autoSaveTimeoutRef.current) {
@@ -214,7 +175,7 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
         clearTimeout(autoSaveTimeoutRef.current)
       }
     }
-  }, [watchedData, onAutoSave, readOnly])
+  }, [watchedData, onAutoSave, isDirty])
 
 
   const handleBatchOCRComplete = (results: BatchOCRResult, items: BatchOCRItem[]) => {
@@ -393,8 +354,13 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
     // il caso fuori range — "F9.jpg" con `filtri.max = 8` accoda un record con codice F9 — che la
     // normalizzazione riporta al numero libero più basso. `reset` riscrive nel form la scheda
     // normalizzata, che è un oggetto nuovo, in un colpo solo invece di un setValue per array.
-    const { scheda: normalized, changed } = normalizeSchedaCodes(getValues())
-    if (changed) reset(normalized)
+    //
+    // Il reset è incondizionato: gli array sono stati riscritti con `setValue`, che non rigenera
+    // gli id di `useFieldArray`. Senza reset `fields` e valori possono divergere in lunghezza, e
+    // la tabella — che legge il codice da `values[i]` con `i` preso da `fields` — mostrerebbe i
+    // dati di una riga sotto un'altra.
+    const { scheda: normalized } = normalizeSchedaCodes(getValues())
+    reset(normalized, { keepDirty: true })
 
     const applicati = completedItems.length - skipped.length
     alert(
@@ -451,7 +417,6 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
                 variant="contained"
                 startIcon={<AutoFixHighIcon />}
                 onClick={() => setBatchOCRDialogOpen(true)}
-                disabled={readOnly}
               >
                 Riconosci Automaticamente
               </Button>
@@ -473,15 +438,6 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
           onComplete={handleBatchOCRComplete}
         />
 
-        {/* ✅ Update Catalog Dialog */}
-        <UpdateCatalogDialog
-          open={catalogUpdate.dialogOpen}
-          updates={catalogUpdate.pendingUpdates}
-          onConfirm={handleCatalogUpdateConfirm}
-          onCancel={handleCatalogUpdateCancel}
-          loading={catalogUpdate.loading}
-          error={catalogUpdate.error}
-        />
       </Box>
     </FormProvider>
   )

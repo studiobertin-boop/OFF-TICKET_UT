@@ -161,7 +161,14 @@ export const technicalDataApi = {
   },
 
   /**
-   * Riapre la scheda (la marca come non completata)
+   * Rimette la scheda a «non completata».
+   *
+   * Non esiste più un pulsante «Riapri per Modifiche»: la scheda è sempre modificabile, quindi
+   * riaprirla non serve a nulla. L'unico chiamante è `handleCompleteSheet` in TechnicalDetails,
+   * per il caso in cui la pratica sia stata riportata a mano a `1-INCARICO_RICEVUTO` con la
+   * scheda già completata: il trigger DB scatta solo sulla transizione false→true, quindi va
+   * forzato un giro `markAsIncomplete()` + `markAsCompleted()`.
+   *
    * @param requestId ID della richiesta
    * @returns DM329TechnicalData aggiornata
    */

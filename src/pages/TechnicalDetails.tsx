@@ -15,7 +15,6 @@ import {
   ArrowBack as ArrowBackIcon,
   Save as SaveIcon,
   CheckCircle as CheckCircleIcon,
-  Edit as EditIcon,
   Share as ShareIcon,
   Assessment as AssessmentIcon,
   Description as DescriptionIcon,
@@ -206,12 +205,26 @@ export const TechnicalDetails = () => {
     }
   }
 
+  /**
+   * Salva la scheda e ne segna il completamento.
+   *
+   * Completare non blocca più la modifica: la scheda resta sempre editabile e in autosave,
+   * quindi il pulsante resta cliccabile anche dopo il primo completamento e a quel punto
+   * vale come «salva e verifica lo stato della pratica».
+   *
+   * `markAsCompleted` viene richiamata solo alla prima volta, per non sovrascrivere
+   * `completed_by`/`completed_at` originali. L'unica eccezione è la scheda già completata su
+   * una pratica rimasta a `1-INCARICO_RICEVUTO` (stato riportato indietro a mano): il trigger
+   * DB scatta solo sulla transizione false→true, quindi va forzata la transizione.
+   */
   const handleCompleteSheet = async () => {
     if (!id || !formRef.current) return
 
-    // TODO: Validare campi obbligatori prima di completare
+    const giaCompletata = !!technicalData?.is_completed
     const confirmed = window.confirm(
-      'Confermi di voler completare la scheda dati?'
+      giaCompletata
+        ? 'La scheda è già completata. Confermi il salvataggio e la verifica dello stato della pratica?'
+        : 'Confermi di voler completare la scheda dati?'
     )
 
     if (!confirmed) return
@@ -225,40 +238,22 @@ export const TechnicalDetails = () => {
 
       setFormData(currentData)
 
-      // Poi marca come completata (trigger cambio stato automatico)
-      await technicalDataApi.markAsCompleted(id)
+      // Il trigger DB porta la pratica a 2-SCHEDA_DATI_PRONTA solo sulla transizione false→true
+      const statoDaAvanzare = request?.status === '1-INCARICO_RICEVUTO'
+      if (!giaCompletata) {
+        const data = await technicalDataApi.markAsCompleted(id)
+        setTechnicalData(data)
+      } else if (statoDaAvanzare) {
+        await technicalDataApi.markAsIncomplete(id)
+        const data = await technicalDataApi.markAsCompleted(id)
+        setTechnicalData(data)
+      }
 
-      alert('Scheda dati completata! Lo stato della pratica è stato aggiornato.')
-      navigate(`/requests/${id}`)
+      setShowSaveSuccess(true)
+      setLastSaved(new Date())
     } catch (err) {
       console.error('Error completing sheet:', err)
       alert('Errore nel completamento della scheda dati')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleReopenSheet = async () => {
-    if (!id) return
-
-    const confirmed = window.confirm(
-      'Confermi di voler riaprire la scheda dati per modifiche?'
-    )
-
-    if (!confirmed) return
-
-    try {
-      setSaving(true)
-      await technicalDataApi.markAsIncomplete(id)
-
-      // Ricarica i dati
-      const data = await technicalDataApi.getByRequestId(id)
-      setTechnicalData(data)
-
-      alert('Scheda dati riaperta per modifiche')
-    } catch (err) {
-      console.error('Error reopening sheet:', err)
-      alert('Errore nella riapertura della scheda dati')
     } finally {
       setSaving(false)
     }
@@ -465,60 +460,47 @@ export const TechnicalDetails = () => {
               </Button>
             )}
 
-            {isCompleted ? (
+            {/* La scheda resta modificabile anche dopo il completamento: i pulsanti di
+                salvataggio sono sempre presenti, quelli a valle compaiono a scheda completata. */}
+            {isCompleted && (user?.role === 'admin' || user?.role === 'userdm329') && (
               <>
-                {(user?.role === 'admin' || user?.role === 'userdm329') && (
-                  <Button
-                    variant="outlined"
-                    color="primary"
-                    startIcon={<AssessmentIcon />}
-                    onClick={() => navigate(`/requests/${id}/civa-summary`)}
-                    disabled={saving}
-                  >
-                    Visualizza Dati CIVA
-                  </Button>
-                )}
-                {(user?.role === 'admin' || user?.role === 'userdm329') && (
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    startIcon={<DescriptionIcon />}
-                    onClick={() => setRelazioneDialogOpen(true)}
-                    disabled={saving}
-                  >
-                    Genera Relazione
-                  </Button>
-                )}
                 <Button
                   variant="outlined"
-                  startIcon={<EditIcon />}
-                  onClick={handleReopenSheet}
+                  color="primary"
+                  startIcon={<AssessmentIcon />}
+                  onClick={() => navigate(`/requests/${id}/civa-summary`)}
                   disabled={saving}
                 >
-                  Riapri per Modifiche
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  variant="outlined"
-                  startIcon={<SaveIcon />}
-                  onClick={handleSaveDraft}
-                  disabled={saving || autoSaving}
-                >
-                  Salva Bozza
+                  Visualizza Dati CIVA
                 </Button>
                 <Button
                   variant="contained"
-                  color="success"
-                  startIcon={<CheckCircleIcon />}
-                  onClick={handleCompleteSheet}
-                  disabled={saving || autoSaving}
+                  color="primary"
+                  startIcon={<DescriptionIcon />}
+                  onClick={() => setRelazioneDialogOpen(true)}
+                  disabled={saving}
                 >
-                  Completa Scheda
+                  Genera Relazione
                 </Button>
               </>
             )}
+            <Button
+              variant="outlined"
+              startIcon={<SaveIcon />}
+              onClick={handleSaveDraft}
+              disabled={saving || autoSaving}
+            >
+              Salva Bozza
+            </Button>
+            <Button
+              variant={isCompleted ? 'outlined' : 'contained'}
+              color="success"
+              startIcon={<CheckCircleIcon />}
+              onClick={handleCompleteSheet}
+              disabled={saving || autoSaving}
+            >
+              Completa Scheda
+            </Button>
           </Box>
         </Box>
 
@@ -534,7 +516,6 @@ export const TechnicalDetails = () => {
                 onAutoSave={handleAutoSave}
                 customerName={customerName}
                 sedeLegale={sedeLegale}
-                readOnly={isCompleted}
               />
             </EquipmentCatalogProvider>
           </CardContent>
