@@ -1,4 +1,5 @@
 import type { EquipmentCatalogType } from '@/types'
+import { readSpec } from '@/services/equipmentAudit'
 import { TIPO_COMPRESSORE_LABELS } from '@/types/technicalSheet'
 import type {
   Serbatoio,
@@ -174,10 +175,22 @@ export function compareSpecs(
   // Se non ci sono specs correnti, tratta come tutti campi nuovi
   const currentSpecsCleaned = currentSpecs ? cleanSpecs(currentSpecs) : {}
 
+  /**
+   * Lettura tollerante verso il vecchio formato del catalogo.
+   *
+   * Gran parte delle voci porta ancora le chiavi generiche dell'import massivo
+   * (`volume`, `pressione`, `temperatura`). Confrontando solo le chiavi
+   * canoniche, ogni campo risulterebbe «nuovo» e l'aggiornamento aggiungerebbe
+   * la chiave canonica accanto a quella generica, lasciando due valori per lo
+   * stesso dato.
+   */
+  const readCatalog = (specsField: string) =>
+    readSpec(equipmentType, currentSpecsCleaned, specsField)
+
   // EDGE CASE: Compressori - pressione_max fa parte della chiave
   if (equipmentType === 'Compressori' && 'pressione_max' in formData) {
     const formPressione = (formData as Compressore).pressione_max
-    const catalogPressione = currentSpecsCleaned.pressione_max
+    const catalogPressione = readCatalog('pressione_max')
 
     if (!isEmpty(formPressione) && !areValuesEqual(formPressione, catalogPressione)) {
       // Pressione diversa = chiave diversa = suggerisci nuova variante
@@ -190,7 +203,7 @@ export function compareSpecs(
   if (equipmentType === 'Valvole di sicurezza') {
     const valvola = formData as ValvolaSicurezza
     const formPtar = valvola.pressione_taratura || valvola.pressione // Backward compat
-    const catalogPtar = currentSpecsCleaned.ptar
+    const catalogPtar = readCatalog('ptar')
 
     if (!isEmpty(formPtar) && !areValuesEqual(formPtar, catalogPtar)) {
       // Ptar diverso = chiave diversa = suggerisci nuova variante
@@ -205,7 +218,7 @@ export function compareSpecs(
     if (INSTANCE_SPECIFIC_FIELDS.includes(formField)) continue
 
     const formValue = (formData as any)[formField]
-    const catalogValue = currentSpecsCleaned[specsField]
+    const catalogValue = readCatalog(specsField)
 
     // Skip se form field è vuoto (utente non ha compilato)
     if (isEmpty(formValue)) {

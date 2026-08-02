@@ -1,5 +1,6 @@
 import { supabase } from '../supabase'
 import type { EquipmentCatalogType, EquipmentCatalogItem, EquipmentSearchResult } from '@/types'
+import { readNumericSpec } from '@/services/equipmentAudit'
 
 /**
  * API Service per Equipment Catalog
@@ -245,10 +246,12 @@ export const equipmentCatalogApi = {
 
     if (error) throw error
 
-    // Estrai pressione_max da specs e rimuovi duplicati
+    // La lettura passa da readNumericSpec: nel catalogo la pressione sta sotto
+    // `pressione_max` sulle voci create dall'app e sotto il generico `pressione`
+    // su quelle dell'import massivo, per giunta come stringa.
     const pressioni = data
-      .map(item => item.specs?.pressione_max)
-      .filter((p): p is number => typeof p === 'number' && !isNaN(p))
+      .map(item => readNumericSpec(tipo, item.specs, 'pressione_max'))
+      .filter((p): p is number => p !== null)
 
     return [...new Set(pressioni)].sort((a, b) => a - b)
   },
@@ -272,9 +275,8 @@ export const equipmentCatalogApi = {
 
     if (error) throw error
 
-    // Filtra per pressione_max negli specs
     const match = data?.find(
-      item => item.specs?.pressione_max === pressione
+      item => readNumericSpec(tipo, item.specs, 'pressione_max') === pressione
     )
 
     return match as EquipmentCatalogItem | null
@@ -318,10 +320,9 @@ export const equipmentCatalogApi = {
 
     if (error) throw error
 
-    // Estrai ptar da specs e rimuovi duplicati
     const ptarValues = data
-      .map(item => item.specs?.ptar)
-      .filter((p): p is number => typeof p === 'number' && !isNaN(p))
+      .map(item => readNumericSpec(tipo, item.specs, 'ptar'))
+      .filter((p): p is number => p !== null)
 
     return [...new Set(ptarValues)].sort((a, b) => a - b)
   },
@@ -345,9 +346,8 @@ export const equipmentCatalogApi = {
 
     if (error) throw error
 
-    // Filtra per ptar negli specs
     const match = data?.find(
-      item => item.specs?.ptar === ptar
+      item => readNumericSpec(tipo, item.specs, 'ptar') === ptar
     )
 
     return match as EquipmentCatalogItem | null

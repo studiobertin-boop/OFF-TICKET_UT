@@ -119,7 +119,10 @@ export const EQUIPMENT_DEFS: Record<EquipmentKind, EquipmentTypeDef> = {
     ],
     // `tipo_compressore` e non `tipo`: in `equipment_catalog` la colonna `tipo` è già
     // il tipo di apparecchiatura («Compressori»), qui si parla di tipologia costruttiva.
-    specsMap: { fad: 'volume_aria_prodotto', ps: 'pressione_max', tipo_compressore: 'tipo' },
+    // La pressione sta sotto `pressione_max`, come la scrivono il dialog di
+    // inserimento e l'indice unico delle varianti: `ps` è il nome usato dai
+    // recipienti e sui compressori non è mai stato valorizzato.
+    specsMap: { fad: 'volume_aria_prodotto', pressione_max: 'pressione_max', tipo_compressore: 'tipo' },
     childKind: 'disoleatore',
     adv: ['capacita'],
     pressureCatalog: 'pressione_max',

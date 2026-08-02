@@ -18,6 +18,7 @@ import { codiciValvoleDisoleatore, codiciValvoleSerbatoio } from '@/utils/valvol
 import { EquipmentAutocomplete } from '../EquipmentAutocomplete'
 import { SingleOCRButton } from '../SingleOCRButton'
 import { useTecnicoDM329Visibility } from '@/hooks/useTecnicoDM329Visibility'
+import { readSpec } from '@/services/equipmentAudit'
 import { calculateCategoriaPED } from '@/utils/categoriaPedCalculator'
 import { EQUIPMENT_LIMITS, type CategoriaPED, type EquipmentCatalogType } from '@/types'
 import { compareCodes, nextFreeCode } from '@/utils/equipmentCodes'
@@ -146,10 +147,19 @@ const EqRow = ({ control, def, base, code, depth, adv, ocr, onDelete, append }: 
   const hidden = (k: AdvKey) => (def.adv?.includes(k) ?? false) && !adv
   const modelloHidden = hidden('modello')
 
+  /**
+   * Applica al form i dati tecnici della voce scelta a catalogo.
+   *
+   * La lettura passa da `readSpec` perché nel catalogo convivono due generazioni
+   * di chiavi: l'import massivo ha scritto nomi generici (`volume`, `pressione`,
+   * `temperatura`) il cui significato dipende dal tipo, mentre le voci create
+   * dall'app usano i nomi canonici. Leggendo la sola chiave canonica
+   * l'autocompilazione resterebbe muta sulla quasi totalità del catalogo.
+   */
   const handleSelected = (specs: Record<string, any>) => {
     Object.entries(def.specsMap).forEach(([specKey, field]) => {
-      const v = specs[specKey]
-      if (v === undefined || v === null) return
+      const v = readSpec(def.catalogType, specs, specKey)
+      if (v === null) return
       setValue(`${base}.${field}`, field === 'ts' ? String(v) : v)
     })
   }
