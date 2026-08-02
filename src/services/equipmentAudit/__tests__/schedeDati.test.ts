@@ -38,9 +38,9 @@ describe('confronto fra schede dati e catalogo', () => {
 
   it('raggruppa in una sola segnalazione le pratiche che citano lo stesso modello', () => {
     const f = esegui([
-      sheetRef('Compressori', 'KAESER KOMPRESSOREN SE', 'F26KA', {}, { codicePratica: 'PR-1' }),
+      sheetRef('Compressori', 'KAESER KOMPRESSOREN SE', 'F26KA', {}, { etichettaPratica: 'PR-1' }),
       sheetRef('Compressori', 'KAESER KOMPRESSOREN SE', 'F26KA', {}, {
-        codicePratica: 'PR-2',
+        etichettaPratica: 'PR-2',
         technicalDataId: 'sheet-2',
       }),
     ])
@@ -73,9 +73,9 @@ describe('confronto fra schede dati e catalogo', () => {
 
   it('non aggiorna il catalogo se le pratiche si contraddicono fra loro', () => {
     const f = esegui([
-      sheetRef('Compressori', 'KAESER KOMPRESSOREN SE', 'ASD 40', { fad: 2600 }, { codicePratica: 'PR-1' }),
+      sheetRef('Compressori', 'KAESER KOMPRESSOREN SE', 'ASD 40', { fad: 2600 }, { etichettaPratica: 'PR-1' }),
       sheetRef('Compressori', 'KAESER KOMPRESSOREN SE', 'ASD 40', { fad: 2700 }, {
-        codicePratica: 'PR-2',
+        etichettaPratica: 'PR-2',
         technicalDataId: 'sheet-2',
       }),
     ])

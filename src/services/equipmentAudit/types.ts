@@ -54,7 +54,7 @@ export interface CatalogRow {
 export interface SheetEquipmentRef {
   technicalDataId: string
   requestId: string
-  codicePratica: string | null
+  etichettaPratica: string | null
   /** Percorso nell'equipment_data, es. `serbatoi[0]` o `serbatoi[0].valvola_sicurezza`. */
   path: string
   /** Codice dell'apparecchiatura nella scheda, es. `S1`, `C2`, `S1.1`. */

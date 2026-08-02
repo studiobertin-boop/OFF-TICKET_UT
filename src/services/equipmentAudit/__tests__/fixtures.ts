@@ -165,7 +165,7 @@ export function sheetRef(
   return {
     technicalDataId: 'sheet-1',
     requestId: 'req-1',
-    codicePratica: 'PR-2026-001',
+    etichettaPratica: 'PR-2026-001',
     path: 'compressori[0]',
     codice: 'C1',
     kind: 'compressore',

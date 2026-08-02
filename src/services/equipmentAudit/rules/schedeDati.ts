@@ -27,7 +27,7 @@ function sheetEntity(ref: SheetEquipmentRef): FindingEntity {
   return {
     kind: 'sheet',
     id: `${ref.technicalDataId}:${ref.codice}`,
-    label: `${ref.codicePratica ?? 'pratica senza codice'} · ${ref.codice}`,
+    label: `${ref.etichettaPratica ?? 'pratica senza codice'} · ${ref.codice}`,
   }
 }
 
@@ -170,7 +170,7 @@ export const schedeDati: Rule = input => {
         title: `${row.marca} · ${row.modello} — ${etichetta}`,
         detail:
           `Il catalogo registra ${String(catalogValue)}, le pratiche ` +
-          `${valori.map(v => `${v.ref.codicePratica ?? '—'}: ${String(v.value)}`).join(', ')}.` +
+          `${valori.map(v => `${v.ref.etichettaPratica ?? '—'}: ${String(v.value)}`).join(', ')}.` +
           (concordi ? '' : ' Le pratiche non concordano fra loro.'),
         entities: [entityOf(row), ...valori.map(v => sheetEntity(v.ref))],
         fix: concordi

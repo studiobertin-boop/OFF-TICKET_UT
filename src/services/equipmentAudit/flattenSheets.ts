@@ -14,7 +14,7 @@ import type { SheetEquipmentRef } from './types'
 export interface RawSheet {
   id: string
   requestId: string
-  codicePratica: string | null
+  etichettaPratica: string | null
   equipmentData: Record<string, unknown> | null
 }
 
@@ -51,7 +51,7 @@ function makeRef(
   return {
     technicalDataId: sheet.id,
     requestId: sheet.requestId,
-    codicePratica: sheet.codicePratica,
+    etichettaPratica: sheet.etichettaPratica,
     path,
     codice,
     kind,

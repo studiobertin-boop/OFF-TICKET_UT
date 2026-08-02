@@ -5,7 +5,7 @@ import { EQUIPMENT_DATA_ESEMPIO } from './fixtures'
 const sheet: RawSheet = {
   id: 'sheet-1',
   requestId: 'req-1',
-  codicePratica: 'PR-2026-001',
+  etichettaPratica: 'PR-2026-001',
   equipmentData: EQUIPMENT_DATA_ESEMPIO,
 }
 
@@ -45,7 +45,7 @@ describe('appiattimento delle schede dati', () => {
   })
 
   it('conserva il riferimento alla pratica di provenienza', () => {
-    expect(refs.every(r => r.codicePratica === 'PR-2026-001')).toBe(true)
+    expect(refs.every(r => r.etichettaPratica === 'PR-2026-001')).toBe(true)
     expect(refs.every(r => r.technicalDataId === 'sheet-1')).toBe(true)
   })
 

@@ -47,7 +47,7 @@ describe('runAudit', () => {
 
   it('esamina le schede dati solo se richiesto', () => {
     const sheets = flattenSheetEquipment([
-      { id: 's1', requestId: 'r1', codicePratica: 'PR-1', equipmentData: EQUIPMENT_DATA_ESEMPIO },
+      { id: 's1', requestId: 'r1', etichettaPratica: 'PR-1', equipmentData: EQUIPMENT_DATA_ESEMPIO },
     ])
     const senza = runAudit({ catalog: [], sheets, dismissals: [], options: OPTIONS_BASE })
     const con = runAudit({ catalog: [], sheets, dismissals: [], options: OPTIONS_TUTTO })
