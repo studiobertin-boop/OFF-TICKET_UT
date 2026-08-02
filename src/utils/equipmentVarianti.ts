@@ -81,6 +81,45 @@ export function etichettaVariante(tipo: EquipmentCatalogType, v: VarianteCatalog
   return `${pressione} · ${numeroIT(capacita)}${unita ? ` ${unita}` : ''}`
 }
 
+export interface AvvisoVariante {
+  titolo: string
+  corpo: string
+}
+
+/**
+ * Avviso da mostrare prima di aggiungere a catalogo una variante di un modello che c'è già.
+ *
+ * Il pulsante «+» compare in due casi che si somigliano ma non sono la stessa cosa: il
+ * modello manca del tutto, e allora non c'è niente da segnalare, oppure c'è ad altre
+ * pressioni, e allora chi sta per aggiungerne una deve sapere quali. Restituisce `null` nel
+ * primo caso.
+ */
+export function testoAvvisoVariante(params: {
+  marca: string
+  modello: string
+  /** Pressioni che le righe già a catalogo dichiarano alla scheda dati. */
+  pressioniEsistenti: number[]
+  /** Pressione della variante che si sta per creare; `null` se la colonna PS è vuota. */
+  nuova: number | null
+}): AvvisoVariante | null {
+  const { marca, modello, pressioniEsistenti, nuova } = params
+  if (pressioniEsistenti.length === 0) return null
+
+  const elenco = [...pressioniEsistenti].sort((a, b) => a - b).map(numeroIT)
+  const esistenti =
+    elenco.length === 1
+      ? `esiste già a ${elenco[0]} bar`
+      : `esiste già in ${elenco.length} varianti: ${elenco.slice(0, -1).join(', ')} e ${elenco[elenco.length - 1]} bar`
+
+  const coda =
+    nuova === null ? "Stai per aggiungerne un'altra." : `Stai per aggiungerne una a ${numeroIT(nuova)} bar.`
+
+  return {
+    titolo: 'Variante nuova di un modello già a catalogo',
+    corpo: `A catalogo ${marca} ${modello} ${esistenti}. ${coda}`,
+  }
+}
+
 /**
  * Virgola decimale, come si scrive in italiano.
  *

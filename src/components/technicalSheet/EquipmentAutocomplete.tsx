@@ -6,6 +6,12 @@ import {
   Box,
   IconButton,
   Tooltip,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
 } from '@mui/material'
 import {
   Add as AddIcon,
@@ -17,6 +23,7 @@ import { AddEquipmentDialog } from './AddEquipmentDialog'
 import { useNoAutofillToken } from '@/utils/noAutofill'
 import { useTecnicoDM329Visibility } from '@/hooks/useTecnicoDM329Visibility'
 import { readSheetPressure, variantSpecKey } from '@/services/equipmentAudit'
+import { testoAvvisoVariante, type AvvisoVariante } from '@/utils/equipmentVarianti'
 
 interface EquipmentAutocompleteProps {
   // Tipo apparecchiatura (filtra le opzioni)
@@ -99,6 +106,14 @@ export const EquipmentAutocomplete = ({
   const [dialogOpen, setDialogOpen] = useState(false)
   /** Bump dopo un inserimento: obbliga a rileggere il catalogo e far sparire il pulsante. */
   const [refreshCatalogo, setRefreshCatalogo] = useState(0)
+  /**
+   * Righe di catalogo del modello corrente, dall'ultima verifica di esistenza.
+   *
+   * Si tengono invece di scartarle: l'avviso deve elencare esattamente le varianti su cui
+   * il pulsante è comparso, e rifare la query al momento del click potrebbe mostrarne altre.
+   */
+  const [righeCatalogo, setRigheCatalogo] = useState<EquipmentCatalogItem[]>([])
+  const [avviso, setAvviso] = useState<AvvisoVariante | null>(null)
   const ac = useNoAutofillToken()
   const { isTecnicoDM329 } = useTecnicoDM329Visibility()
 
@@ -168,6 +183,7 @@ export const EquipmentAutocomplete = ({
   useEffect(() => {
     if (readOnly || isTecnicoDM329 || !marcaValue || !modelloValue) {
       setShowAddButton(false)
+      setRigheCatalogo([])
       return
     }
 
@@ -176,6 +192,7 @@ export const EquipmentAutocomplete = ({
       try {
         const righe = await equipmentCatalogApi.findVariants(equipmentType, marcaValue, modelloValue)
         if (annullato) return
+        setRigheCatalogo(righe)
 
         // Modello del tutto assente: è una voce nuova.
         if (righe.length === 0) { setShowAddButton(true); return }
@@ -190,7 +207,7 @@ export const EquipmentAutocomplete = ({
         setShowAddButton(variantValue != null && !valori.includes(variantValue))
       } catch (error) {
         console.error('Errore nella verifica di esistenza a catalogo:', error)
-        if (!annullato) setShowAddButton(false)
+        if (!annullato) { setShowAddButton(false); setRigheCatalogo([]) }
       }
     }, 300)
 
@@ -255,9 +272,29 @@ export const EquipmentAutocomplete = ({
   }
 
   /**
-   * Handle add to catalog - Apre dialog
+   * Click sul «+»: se il modello è già a catalogo ad altre pressioni si avvisa prima, così
+   * chi sta per creare una quarta variante di una macchina che ne ha tre lo sa.
    */
   const handleAddToCatalog = () => {
+    const pressioni = righeCatalogo
+      .map((r) => readSheetPressure(equipmentType, r.specs))
+      .filter((p): p is number => p !== null)
+
+    const testo = indicizzatoPerVariante
+      ? testoAvvisoVariante({
+          marca: marcaValue,
+          modello: modelloValue,
+          pressioniEsistenti: pressioni,
+          nuova: variantValue ?? null,
+        })
+      : null
+
+    if (testo) setAvviso(testo)
+    else setDialogOpen(true)
+  }
+
+  const confermaAvviso = () => {
+    setAvviso(null)
     setDialogOpen(true)
   }
 
@@ -389,6 +426,22 @@ export const EquipmentAutocomplete = ({
           </IconButton>
         </Tooltip>
       )}
+
+      {/* Conferma prima di creare una variante di un modello che c'è già.
+          Non si usa window.confirm: basta che l'utente spunti una volta «impedisci a questa
+          pagina di creare altre finestre di dialogo» perché il browser risponda false a ogni
+          conferma successiva senza mostrarla. Stessa ragione già documentata in
+          UnifiedEquipmentTable. */}
+      <Dialog open={avviso !== null} onClose={() => setAvviso(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: '1rem' }}>{avviso?.titolo}</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ fontSize: '0.875rem' }}>{avviso?.corpo}</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAvviso(null)}>Annulla</Button>
+          <Button onClick={confermaAvviso} variant="contained">Aggiungi comunque</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Dialog Aggiungi Equipment */}
       <AddEquipmentDialog
