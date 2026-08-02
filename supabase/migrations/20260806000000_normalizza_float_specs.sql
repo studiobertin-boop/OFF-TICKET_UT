@@ -21,6 +21,14 @@
 -- Il confronto e' numerico e non testuale: `'8' <> '8.00'` e' vero come stringhe, e una
 -- condizione testuale riscriverebbe ogni valore intero del catalogo. `trim_scale` toglie
 -- gli zeri di coda introdotti da `round`, cosi' 4060.00 torna 4060 e non 4060.00.
+--
+-- La guardia di tipo (jsonb_typeof = 'number') e il cast a numeric NON vanno concatenati con
+-- AND: Postgres non garantisce l'ordine di valutazione degli operandi di AND (e' il pattern da
+-- manuale "x > 0 AND y/x > 1.5"). Se il planner valutasse il cast prima della guardia, un
+-- valore testuale del catalogo (es. l'intervallo di temperatura "-10 ÷ +200") farebbe fallire
+-- l'intera UPDATE con "invalid input syntax for type numeric". Per questo la guardia e il cast
+-- sono annidati in CASE, sia nella SET sia nella EXISTS: un CASE valuta i rami in ordine e non
+-- passa al successivo se non serve, a differenza di AND.
 
 BEGIN;
 
@@ -28,11 +36,12 @@ UPDATE equipment_catalog c
 SET specs = (
       SELECT jsonb_object_agg(
                e.key,
-               CASE
-                 WHEN jsonb_typeof(e.value) = 'number'
-                      AND e.value::text::numeric <> round(e.value::text::numeric, 2)
-                   THEN to_jsonb(trim_scale(round(e.value::text::numeric, 2)))
-                 ELSE e.value
+               CASE WHEN jsonb_typeof(e.value) = 'number' THEN
+                 CASE WHEN e.value::text::numeric <> round(e.value::text::numeric, 2)
+                      THEN to_jsonb(trim_scale(round(e.value::text::numeric, 2)))
+                      ELSE e.value
+                 END
+               ELSE e.value
                END
              )
       FROM jsonb_each(c.specs) AS e
@@ -43,8 +52,10 @@ WHERE c.is_active
   AND EXISTS (
     SELECT 1
     FROM jsonb_each(c.specs) AS e
-    WHERE jsonb_typeof(e.value) = 'number'
-      AND e.value::text::numeric <> round(e.value::text::numeric, 2)
+    WHERE CASE WHEN jsonb_typeof(e.value) = 'number'
+               THEN e.value::text::numeric <> round(e.value::text::numeric, 2)
+               ELSE false
+          END
   );
 
 COMMIT;
