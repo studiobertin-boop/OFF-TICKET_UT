@@ -19,14 +19,28 @@ template, cioè
 Ogni sostituzione dichiara il testo che si aspetta di trovare e **fallisce** se non lo
 trova: meglio interrompersi che produrre in silenzio un template mutilo.
 
+I punti d'aggancio si cercano per **testo**, non per posizione. Ancorarli al numero di
+paragrafo aveva chiuso il giro: recependo una revisione, l'indirizzo di copertina è passato
+da due paragrafi a uno con l'a capo dentro, e da lì in poi ogni conteggio slittava di uno.
+Cercando per testo, il documento può guadagnare o perdere paragrafi senza che lo script se
+ne accorga, e sono ammesse entrambe le forme dell'indirizzo.
+
 Uso
 ---
     python scripts/tag-relazione-template.py [sorgente.docx]
 
-Il flusso di lavoro previsto: si riformatta il documento di esempio in Word, si rilancia
-questo script, si rigenera l'esempio e si confronta. Se un giorno si preferisse curare
-direttamente il template, basta smettere di eseguire lo script: da quel momento la sorgente
-di verità è il `.docx` in `public/templates/`.
+Il flusso di lavoro previsto:
+
+  1. npx tsx scripts/generate-relazione-sample.ts esempio.docx schema.png
+  2. si riformatta `esempio.docx` in Word
+  3. python scripts/tag-relazione-template.py esempio.docx
+  4. si rigenera l'esempio e si confronta
+
+Lo schema d'impianto al punto 1 non è facoltativo: senza immagine il paragrafo di §2.3
+sparisce del tutto dal documento reso, e non ci sarebbe nulla da sostituire con il tag.
+
+Se un giorno si preferisse curare direttamente il template, basta smettere di eseguire lo
+script: da quel momento la sorgente di verità è il `.docx` in `public/templates/`.
 """
 
 import copy
@@ -58,6 +72,86 @@ def atteso(condizione, messaggio):
 
 def testo(p):
     return p.text.strip()
+
+
+# ---------------------------------------------------------------------------
+# Ricerca degli agganci per testo
+#
+# Si tengono riferimenti ai paragrafi, non i loro indici: cancellarne uno non invalida
+# gli altri, mentre gli indici slitterebbero tutti.
+# ---------------------------------------------------------------------------
+
+def paragrafo(P, inizio, cosa):
+    """Il primo paragrafo il cui testo inizia con `inizio`. Fallisce se non c'è o è doppio."""
+    trovati = [p for p in P if testo(p).startswith(inizio)]
+    atteso(trovati, "%s: nessun paragrafo inizia con %r" % (cosa, inizio))
+    atteso(
+        len(trovati) == 1,
+        "%s: %d paragrafi iniziano con %r, l'aggancio è ambiguo"
+        % (cosa, len(trovati), inizio),
+    )
+    return trovati[0]
+
+
+def precedente(P, p, cosa):
+    """
+    Il paragrafo che precede `p`, usato come modello di formattazione per i paragrafi di
+    tag che verranno inseriti: prende font e stile del corpo del testo, non di un titolo.
+    """
+    i = P.index(p)
+    atteso(i > 0, "%s: non c'è un paragrafo precedente da cui prendere la formattazione" % cosa)
+    return P[i - 1]
+
+
+def seguenti_che_iniziano(P, p, inizio):
+    """I paragrafi consecutivi dopo `p` che iniziano con `inizio`, per cancellarli in blocco."""
+    fuori = []
+    for q in P[P.index(p) + 1:]:
+        if not testo(q).startswith(inizio):
+            break
+        fuori.append(q)
+    return fuori
+
+
+def seguenti_con_stile(P, p):
+    """
+    I paragrafi consecutivi dopo `p` che ne condividono lo stile.
+
+    Serve per gli elenchi le cui voci non hanno un prefisso comune su cui agganciarsi:
+    delimitarli con «tutto ciò che segue» cancellerebbe anche un capoverso aggiunto in coda.
+    """
+    fuori = []
+    for q in P[P.index(p) + 1:]:
+        if q.style.name != p.style.name:
+            break
+        fuori.append(q)
+    return fuori
+
+
+def tabella(T, intestazione, cosa):
+    """
+    La tabella la cui riga di intestazione inizia con le celle indicate.
+
+    L'indice non basta a distinguerle: §4 e §5.2 aprono entrambe con
+    «Pos. · Descrizione · Costruttore e modello», e si separano solo dalla quarta colonna.
+    """
+    def combacia(t):
+        celle = [c.text.strip() for c in t.rows[0].cells]
+        if len(celle) < len(intestazione):
+            return False
+        return all(
+            attesa is None or celle[j].startswith(attesa)
+            for j, attesa in enumerate(intestazione)
+        )
+
+    trovate = [t for t in T if t.rows and combacia(t)]
+    atteso(trovate, "%s: nessuna tabella con intestazione %r" % (cosa, intestazione))
+    atteso(
+        len(trovate) == 1,
+        "%s: %d tabelle con intestazione %r, l'aggancio è ambiguo"
+        % (cosa, len(trovate), intestazione),
+    )
+    return trovate[0]
 
 
 def scrivi(p, nuovo, run_modello=None):
@@ -188,30 +282,61 @@ def riga_loop(tabella, lista, celle, attesi):
 # Conversione
 # ---------------------------------------------------------------------------
 
+def indirizzo_copertina(P, dopo, tag, cosa):
+    """
+    Sostituisce l'indirizzo di copertina col suo tag, accettando entrambe le forme.
+
+    Nel documento formattato a mano nel 2026 via e località stavano su due paragrafi; da
+    quando il motore le unisce in `sedeLegaleCopertina`, un documento reso ne ha uno solo
+    con l'a capo dentro (docxtemplater, con `linebreaks: true`, lo rende come <w:br/>).
+    Il template vuole in ogni caso un paragrafo solo: se ne trova due, il secondo si toglie.
+    """
+    i = P.index(dopo)
+    atteso(i + 1 < len(P), "%s: manca il paragrafo dell'indirizzo" % cosa)
+    riga = P[i + 1]
+    atteso(
+        testo(riga).startswith("Via Esempio"),
+        "%s: atteso l'indirizzo di esempio, trovato %r" % (cosa, testo(riga)[:40]),
+    )
+    scrivi(riga, tag)
+    # Forma a due paragrafi: la località segue e va assorbita nel tag.
+    if i + 2 < len(P) and testo(P[i + 2]).startswith("31013"):
+        elimina(P[i + 2])
+
+
 def converti(sorgente, destinazione):
     d = docx.Document(sorgente)
     P = d.paragraphs
     T = d.tables
 
+    # Tutti gli agganci si risolvono prima di modificare alcunché: dopo le cancellazioni
+    # `d.paragraphs` non corrisponderebbe più a `P`, mentre i riferimenti restano validi.
+    ragione_sociale = paragrafo(P, "ESEMPIO S.P.A.", "copertina")
+    sito_produttivo = paragrafo(P, "Sito produttivo in", "copertina")
+    premessa = paragrafo(P, "La presente relazione tecnica", "§1 premessa")
+    revisione = paragrafo(P, "L’attuale revisione", "§1 capoverso di revisione")
+    spessimetriche = paragrafo(P, "Ove previsto", "§1 capoverso spessimetriche")
+    intro_sezioni = paragrafo(P, "L’impianto in oggetto è finalizzato", "§2.1 elenco sezioni")
+    intro_schema = paragrafo(P, "Lo schema seguente rappresenta", "§2.3 schema d'impianto")
+    nocive = paragrafo(P, "Quest’ultima risulta priva", "§3 frase sulle sostanze nocive")
+    tubazioni = paragrafo(P, "Tutte le tubazioni", "§5.4 nota sulle tubazioni")
+    intro_riqualificazione = paragrafo(
+        P, "Le attrezzature rientranti nel campo", "§7 introduzione"
+    )
+    primo_allegato = paragrafo(P, "Attestazioni", "§8 elenco allegati")
+
     # --- Copertina ---------------------------------------------------------
-    atteso(testo(P[7]) == "ESEMPIO S.P.A.", "P7 non è la ragione sociale")
-    scrivi(P[7], "{premessa.ragioneSociale}")
-
-    atteso(testo(P[8]).startswith("Via Esempio"), "P8 non è la sede legale")
-    atteso(testo(P[9]).startswith("31013"), "P9 non è la località della sede legale")
-    # Le due righe diventano un tag solo: il valore porta un a capo e docxtemplater, con
-    # `linebreaks: true`, lo rende come <w:br/> dentro lo stesso paragrafo.
-    scrivi(P[8], "{premessa.sedeLegaleCopertina}")
-    elimina(P[9])
-
-    atteso(testo(P[14]).startswith("Via Esempio"), "P14 non è il sito produttivo")
-    scrivi(P[14], "{premessa.sitoProduttivoCopertina}")
-    elimina(P[15])
+    scrivi(ragione_sociale, "{premessa.ragioneSociale}")
+    indirizzo_copertina(
+        P, ragione_sociale, "{premessa.sedeLegaleCopertina}", "copertina · sede legale"
+    )
+    indirizzo_copertina(
+        P, sito_produttivo, "{premessa.sitoProduttivoCopertina}", "copertina · sito produttivo"
+    )
 
     # --- §1 Premessa -------------------------------------------------------
-    atteso(testo(P[22]).startswith("La presente relazione tecnica"), "P22 non è la premessa")
     scrivi(
-        P[22],
+        premessa,
         "La presente relazione tecnica si riferisce all’impianto a pressione installato "
         "presso il sito produttivo della ditta {premessa.ragioneSociale}, con sede sociale "
         "in {premessa.sedeLegale}, esercente attività di {premessa.descrizioneAttivita}, "
@@ -220,49 +345,59 @@ def converti(sorgente, destinazione):
 
     # I due capoversi condizionali restano intatti: quello sulla revisione contiene il
     # segnaposto giallo che il redattore compila in Word, e riscriverlo lo perderebbe.
-    atteso(testo(P[25]).startswith("L’attuale revisione"), "P25 non è il capoverso di revisione")
-    avvolgi(P[25], "premessa.haRevisione", modello=P[24])
-    atteso(testo(P[26]).startswith("Ove previsto"), "P26 non è il capoverso spessimetriche")
-    avvolgi(P[26], "premessa.haSpessimetrica", modello=P[24])
+    modello_premessa = precedente(P, revisione, "§1 capoverso di revisione")
+    avvolgi(revisione, "premessa.haRevisione", modello=modello_premessa)
+    avvolgi(spessimetriche, "premessa.haSpessimetrica", modello=modello_premessa)
 
     # --- §2.1 Sezioni dell'impianto ---------------------------------------
-    atteso(testo(P[30]).startswith("–"), "P30 non è la prima voce dell'elenco sezioni")
-    scrivi(P[30], "–\t{voce}")
-    avvolgi(P[30], "descrizioneGenerale.sezioni", modello=P[29])
-    for i in range(31, 36):
-        atteso(testo(P[i]).startswith("–"), "P%d non è una voce dell'elenco sezioni" % i)
-        elimina(P[i])
+    voci_sezioni = seguenti_che_iniziano(P, intro_sezioni, "–")
+    atteso(voci_sezioni, "§2.1: nessuna voce di elenco dopo l'introduzione")
+    scrivi(voci_sezioni[0], "–\t{voce}")
+    avvolgi(voci_sezioni[0], "descrizioneGenerale.sezioni", modello=intro_sezioni)
+    for voce in voci_sezioni[1:]:
+        elimina(voce)
 
     # --- §2.2 Condizioni di installazione ----------------------------------
     riga_loop(
-        T[2], "condizioniInstallazione",
+        tabella(T, ["Requisito", "Esito", "Note"], "§2.2 condizioni di installazione"),
+        "condizioniInstallazione",
         ["{requisito}", "{esito}", "{note}"],
         ["Ubicazione impianto", None, None],
     )
 
     # --- §2.3 Schema d'impianto -------------------------------------------
-    atteso("<w:drawing" in P[41]._p.xml, "P41 non contiene l'immagine dello schema")
-    scrivi(P[41], "{%schemaImpianto}")
+    i_schema = P.index(intro_schema)
+    atteso(
+        i_schema + 1 < len(P) and "<w:drawing" in P[i_schema + 1]._p.xml,
+        "§2.3: il paragrafo dopo l'introduzione non contiene l'immagine dello schema. "
+        "Genera l'esempio passando un file immagine come secondo argomento: senza schema "
+        "quel paragrafo non compare affatto nel documento reso",
+    )
+    scrivi(P[i_schema + 1], "{%schemaImpianto}")
 
     # --- §3 Fluidi ---------------------------------------------------------
     riga_loop(
-        T[3], "fluidi.righe",
+        tabella(
+            T, ["Circuito", "Fluido", "Gruppo", "Provenienza", "Qualit"], "§3 fluidi di processo"
+        ),
+        "fluidi.righe",
         ["{circuito}", "{fluido}", "{gruppo}", "{provenienza}", "{qualita}"],
         ["Aria compressa", "Aria ambiente", None, None, None],
     )
 
     # La frase esiste in due varianti: evidenziata quando l'aria aspirata è dichiarata non
     # pulita, piana altrimenti. Il documento reso ne conserva una sola, l'altra va ricreata.
-    atteso(testo(P[45]).startswith("Quest’ultima risulta priva"), "P45 non è la frase sulle sostanze nocive")
     atteso(
-        P[45].runs[0].font.highlight_color is not None,
-        "P45 dovrebbe essere evidenziata: l'esempio è generato con aria non pulita",
+        nocive.runs and nocive.runs[0].font.highlight_color is not None,
+        "§3: la frase sulle sostanze nocive dovrebbe essere evidenziata, l'esempio è "
+        "generato con aria non pulita",
     )
-    piana = clona_dopo(P[45], evidenzia=None)
+    modello_fluidi = precedente(P, nocive, "§3 frase sulle sostanze nocive")
+    piana = clona_dopo(nocive, evidenzia=None)
     for r in piana.runs:
         r.font.highlight_color = None
-    avvolgi(P[45], "fluidi.evidenziaNocive", modello=P[44])
-    avvolgi(piana, "^fluidi.evidenziaNocive".replace("^", ""), modello=P[44])
+    avvolgi(nocive, "fluidi.evidenziaNocive", modello=modello_fluidi)
+    avvolgi(piana, "fluidi.evidenziaNocive", modello=modello_fluidi)
     # La sezione inversa non si scrive con {#…}: si corregge il tag di apertura.
     apertura_piana = piana._p.getprevious()
     docx.text.paragraph.Paragraph(apertura_piana, piana._parent).runs[0].text = (
@@ -271,7 +406,12 @@ def converti(sorgente, destinazione):
 
     # --- §4 Caratterizzazione ---------------------------------------------
     riga_loop(
-        T[4], "caratteristiche",
+        tabella(
+            T,
+            ["Pos.", "Descrizione", "Costruttore e modello", "Capacit"],
+            "§4 caratterizzazione",
+        ),
+        "caratteristiche",
         ["{pos}", "{descrizione}", ["{costruttore}", "{modello}"], "{capacita}",
          "{pressione}", "{temperatura}", "{categoria}", "{anno}", "{nFabbrica}"],
         ["C1", "Compressore", None, "8000", None, None, None, "2025", None],
@@ -279,7 +419,8 @@ def converti(sorgente, destinazione):
 
     # --- §5.2 Esiti --------------------------------------------------------
     riga_loop(
-        T[6], "esiti",
+        tabella(T, ["Pos.", "Descrizione", "Costruttore e modello", "V"], "§5.2 esiti"),
+        "esiti",
         ["{pos}", "{apparecchiatura}", ["{costruttore}", "{modello}"], "{volume}", "{ps}",
          "{psPerV}", "{categoria}", "{adempimento}", "{statoInail}", "{verificaIntegritaMark}"],
         ["C1", "Compressore", None, None, None, None, None, "Escluso", "Nuova richiesta", None],
@@ -287,28 +428,38 @@ def converti(sorgente, destinazione):
 
     # --- §5.3 Protezioni ---------------------------------------------------
     riga_loop(
-        T[7], "protezioni.serbatoi",
+        tabella(
+            T,
+            ["Pos.", "Valvole di sicurezza", "Scarico condensa"],
+            "§5.3 protezioni dei serbatoi",
+        ),
+        "protezioni.serbatoi",
         ["{pos}", VALVOLE_ANNIDATE, "{scaricoCondensa}",
          "{finituraInterna}", "{ancoraggio}", "{manometro}"],
         ["S1", None, "Automatico", "Zincato", "Sì", None],
     )
     riga_loop(
-        T[8], "protezioni.altre",
+        tabella(
+            T,
+            ["Pos.", "Valvole di sicurezza", "Manometro"],
+            "§5.3 protezioni delle altre apparecchiature",
+        ),
+        "protezioni.altre",
         ["{pos}", VALVOLE_ANNIDATE, "{manometro}"],
         ["C1.1", None, "a bordo macchina"],
     )
 
     # --- §5.4 Tubazioni ----------------------------------------------------
-    atteso(testo(P[60]).startswith("Tutte le tubazioni"), "P60 non è la nota sulle tubazioni")
+    modello_tubazioni = precedente(P, tubazioni, "§5.4 nota sulle tubazioni")
     oltre = clona_dopo(
-        P[60],
+        tubazioni,
         "Le tubazioni dell’impianto presentano DN massimo pari a {tubazioni.dnMassimo} mm, "
         "superiore alla soglia di 80 mm dell’art. 3 comma bb): rientrano pertanto nel campo "
         "di applicazione del D.M. 329/2004 e sono soggette ai relativi obblighi di denuncia.",
         evidenzia=docx.enum.text.WD_COLOR_INDEX.YELLOW,
     )
-    avvolgi(P[60], "tubazioni.escluse", modello=P[59])
-    avvolgi(oltre, "tubazioni.escluse", modello=P[59])
+    avvolgi(tubazioni, "tubazioni.escluse", modello=modello_tubazioni)
+    avvolgi(oltre, "tubazioni.escluse", modello=modello_tubazioni)
     apertura_oltre = oltre._p.getprevious()
     docx.text.paragraph.Paragraph(apertura_oltre, oltre._parent).runs[0].text = (
         "{^tubazioni.escluse}"
@@ -321,13 +472,23 @@ def converti(sorgente, destinazione):
         "{/connesse}",
     ]
     riga_loop(
-        T[9], "valvole.portata",
+        tabella(
+            T,
+            ["Pos. valvola", "N. fabbrica", None, "Portata massima"],
+            "§6.1 portata delle valvole",
+        ),
+        "valvole.portata",
         ["{posValvola}", "{nFabbricaValvola}", connesse, "{portataMaxTesto}",
          "{portataScaricata}", "{adeguatoMark}"],
         ["C1.2", "1001913158", None, "8000", "21500", None],
     )
     riga_loop(
-        T[10], "valvole.pressione",
+        tabella(
+            T,
+            ["Pos. valvola", "N. fabbrica", None, "PS recipiente"],
+            "§6.2 pressione di taratura",
+        ),
+        "valvole.pressione",
         ["{posValvola}", "{nFabbricaValvola}", connesse, "{psRecipiente}",
          "{pressioneTaratura}", "{adeguatoMark}"],
         ["C1.2", "1001913158", None, "11", "10", None],
@@ -335,18 +496,29 @@ def converti(sorgente, destinazione):
 
     # --- §7.2 Riqualificazione --------------------------------------------
     riga_loop(
-        T[12], "riqualificazione",
+        # Non «Attrezzature contenenti…»: quella è la tabella delle frequenze di §7.1,
+        # che ha intestazioni quasi identiche ma nessuna riga da generare.
+        tabella(
+            T,
+            ["Pos.", "Apparecchiatura", "Cat.", "Verifica di funzionamento"],
+            "§7.2 scadenze di riqualificazione",
+        ),
+        "riqualificazione",
         ["{pos}", "{apparecchiatura}", "{categoria}", "{verificaFunzionamento}",
          "{verificaIntegrita}"],
         ["C1.1", "Serbatoio disoleatore", "III", None, None],
     )
 
     # --- §8 Allegati -------------------------------------------------------
-    atteso(testo(P[74]).startswith("Attestazioni"), "P74 non è la prima voce degli allegati")
-    scrivi(P[74], "{voce}")
-    avvolgi(P[74], "allegati", modello=P[68])
-    for i in (75, 76):
-        elimina(P[i])
+    # Le altre voci si cancellano una a una: sono capoversi di elenco, senza un prefisso
+    # comune su cui agganciarsi, e stanno fra la prima voce e la fine del documento.
+    altre_voci = seguenti_con_stile(P, primo_allegato)
+    # Modello dal corpo del testo e non dalla voce di elenco: i tag erediterebbero il
+    # rientro e il punto elenco.
+    scrivi(primo_allegato, "{voce}")
+    avvolgi(primo_allegato, "allegati", modello=intro_riqualificazione)
+    for voce in altre_voci:
+        elimina(voce)
 
     d.save(destinazione)
 
