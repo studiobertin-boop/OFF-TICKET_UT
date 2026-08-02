@@ -10,19 +10,92 @@ Sintassi docxtemplater: `{campo}` sostituzione · `{#lista}…{/lista}` loop/con
 `{^flag}…{/flag}` sezione inversa · `{%tag}` immagine · i `\n` diventano a capo
 (`linebreaks: true`).
 
-## Chi possiede il template
+## Come si modifica il template
 
-**Il `.docx` è la sorgente di verità.** Si modifica in Word, come qualunque documento.
-Fino alla Fase 5 era generato da uno script Python; quello script è stato ritirato, perché
-rigenerare distruggeva ogni volta la formattazione.
+Il template è un `.docx` pieno di segnaposto: al posto della ragione sociale c'è
+`{premessa.ragioneSociale}`, e ogni tabella ha **una riga sola** avvolta in un loop, che
+viene ripetuta alla generazione. Formattare un file così è scomodo, perché non si vede il
+documento vero ma il suo scheletro: la tabella degli esiti ha 2 righe nel template e 21 nel
+documento generato.
 
-`scripts/tag-relazione-template.py` è lo strumento con cui il template è stato ricavato
-**una volta** dal documento formattato dal redattore
-(`DOCUMENTAZIONE/relazione/ESEMPIO_nuova_struttura_revFB.docx`): sostituisce i valori con i
-tag, collassa le righe ripetute in loop e ricrea i rami condizionali che un documento reso
-non contiene. Serve se un domani si preferisce riformattare un documento di esempio invece
-di intervenire sul template. **Non è parte della build** e non va eseguito per abitudine:
-rilanciarlo sovrascrive il template con quanto ricavato dal documento di esempio.
+Perciò non si formatta il template. Si formatta un documento **reso**, e uno script fa il
+percorso inverso.
+
+### La procedura
+
+**1. Genera un esempio da formattare**
+
+```bash
+npx tsx scripts/generate-relazione-sample.ts esempio.docx schema.png
+```
+
+L'immagine non è facoltativa: senza schema il paragrafo di §2.3 non compare affatto nel
+documento reso, e non ci sarebbe nulla da sostituire con `{%schemaImpianto}`. Va bene un
+PNG qualsiasi — nel template torna a essere un segnaposto.
+
+**2. Formattalo in Word**
+
+Centrature, margini, interruzioni di pagina, font, larghezze delle colonne, bordi. Si
+lavora sul documento vero, con i dati sotto gli occhi.
+
+**3. Ricava il template**
+
+```bash
+python scripts/tag-relazione-template.py esempio.docx
+```
+
+Riscrive `public/templates/relazione-dm329.docx`: rimette i tag al posto dei valori,
+ricollassa le righe ripetute nel loop, ricrea i rami condizionali che un documento reso non
+contiene, e toglie dal pacchetto l'immagine di esempio. Ogni sostituzione dichiara cosa si
+aspetta di trovare e **si ferma** se non lo trova: meglio interrompersi che produrre in
+silenzio un template mutilo.
+
+**4. Verifica e committa**
+
+```bash
+npx tsx scripts/generate-relazione-sample.ts verifica.docx schema.png
+npx vitest run
+```
+
+`verifica.docx` dev'essere identico a quello che hai formattato.
+
+### Cosa si può cambiare in Word, e cosa no
+
+| | |
+|---|---|
+| **Formattazione** | Liberamente: è lo scopo di questo flusso. |
+| **Testo dei capoversi fissi** | Sì, con le eccezioni qui sotto. |
+| **Sezioni, colonne, tabelle nuove** | No: cambia anche il modello dati, serve toccare il motore. |
+
+Il testo di questi punti viene **riscritto** dallo script, quindi modificarlo in Word non
+serve — sta nello script o nel motore:
+
+- il capoverso di apertura della premessa («La presente relazione tecnica si riferisce…»);
+- le voci dell'elenco sezioni in §2.1 e dell'elenco allegati in §8;
+- il contenuto delle celle delle tabelle generate;
+- la variante «tubazioni oltre soglia» di §5.4, che nel documento reso non compare mai
+  quando le tubazioni sono escluse e viene ricreata da `tag-relazione-template.py`.
+
+### Le frasi che fanno da aggancio
+
+Lo script si orienta cercando queste frasi, e le intestazioni delle tabelle. Se ne riscrivi
+l'**inizio**, non le trova più e si ferma: non è un danno, ma va aggiornato l'aggancio
+corrispondente nello script.
+
+```
+ESEMPIO S.P.A.                     Lo schema seguente rappresenta…
+Sito produttivo in                 Quest’ultima risulta priva…
+La presente relazione tecnica…     Tutte le tubazioni…
+L’attuale revisione…               Le attrezzature rientranti nel campo…
+Ove previsto…                      Attestazioni…
+L’impianto in oggetto è finalizzato…
+```
+
+Gli agganci sono per testo e non per posizione, quindi il documento può guadagnare o
+perdere paragrafi senza conseguenze. Erano posizionali fino ad agosto 2026, e questo aveva
+rotto il giro: unendo via e località di copertina in un solo paragrafo, ogni conteggio
+successivo slittava di uno e lo script non riusciva più a leggere un documento uscito dal
+template che lui stesso aveva prodotto.
 
 ### Regole da non violare quando si modifica il template in Word
 
@@ -33,11 +106,14 @@ rilanciarlo sovrascrive il template con quanto ricavato dal documento di esempio
 2. **Nessun `vMerge` nella riga modello** delle tabelle: le fusioni le calcola il render.
 3. Il tag immagine `{%schemaImpianto}` deve stare da solo nel suo paragrafo.
 
+Valgono solo se si interviene direttamente sul template, saltando la procedura qui sopra.
+Passando dallo script se ne occupa lui.
+
 ## Verifica dopo ogni modifica
 
 ```
-npx vitest run                                   # 177 test, fra cui il template reale
-npx tsx scripts/generate-relazione-sample.ts DOCUMENTAZIONE/relazione/ESEMPIO_nuova_struttura.docx [schema.png]
+npx vitest run                                   # fra cui il template reale
+npx tsx scripts/generate-relazione-sample.ts verifica.docx [schema.png]
 ```
 
 `templateIntegration.test.ts` verifica che il template renderizzi senza lasciare tag non
