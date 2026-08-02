@@ -47,7 +47,7 @@ const modelloSchema = z
   .max(120, 'Il modello non può superare 120 caratteri')
   .refine(v => parseModello(v).pattern === 'plain', {
     message:
-      'La pressione va nei dati tecnici, non nel nome: toglila dal modello e compila «PS — pressione massima»',
+      'La pressione va nei dati tecnici, non nel nome: toglila dal modello e compilala fra i dati tecnici',
   })
 
 /**

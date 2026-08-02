@@ -27,7 +27,12 @@ describe('validazione di una voce di catalogo', () => {
       const esito = createEquipmentSchema.safeParse({ ...valida, modello })
       expect(esito.success, modello).toBe(false)
       if (!esito.success) {
-        expect(esito.error.errors[0].message).toContain('PS — pressione massima')
+        // Il messaggio vale per tutti i tipi — ognuno chiama la propria pressione in modo
+        // diverso (PS, Ptar, Pressione massima) — quindi non deve citare l'etichetta di
+        // nessun campo specifico, solo indirizzare verso i dati tecnici.
+        const messaggio = esito.error.errors[0].message
+        expect(messaggio).toContain('dati tecnici')
+        expect(messaggio).not.toMatch(/«.*»/)
       }
     }
   })
