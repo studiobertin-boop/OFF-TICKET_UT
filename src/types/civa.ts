@@ -41,7 +41,12 @@ export interface CIVAApparecchio {
   anno?: number
   volume: number // liters
   ps_pressione_max: number // bar
-  ts_temperatura?: number // °C
+  /**
+   * TS in °C, così come compilato nella scheda dati: testo libero, valore singolo o
+   * intervallo. Le schede precedenti alla tabella unica lo tenevano nel campo numerico
+   * `ts_temperatura`, da cui si ripiega.
+   */
+  ts_temperatura?: string // °C
   categoria_ped?: CategoriaPED
 
   // CIVA classification

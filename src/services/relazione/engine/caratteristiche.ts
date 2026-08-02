@@ -5,7 +5,8 @@
  * - compressore: aria producibile (FAD)
  * - valvola: portata scaricata; pressione = pressione di taratura
  * - recipienti (disoleatore/serbatoio/scambiatore/recipiente filtro): volume; pressione = PS
- * La temperatura usa un minimo convenzionale per tipo + il TS massimo salvato.
+ * La temperatura viene dal campo `ts` della scheda dati, precompilato dal catalogo e
+ * modificabile dal tecnico; vedi formatTemperatura per la resa.
  */
 import type { SchedaDatiCompleta, ValvolaSicurezza } from '@/types/technicalSheet'
 import type { CaratteristicheRow, EngineOptions } from '../types'
@@ -49,7 +50,7 @@ export function buildCaratteristiche(
     ...base(pos, 'Valvola di sicurezza', v.marca, v.modello, v.anno, v.n_fabbrica),
     capacita: formatNumberIT(v.volume_aria_scaricato),
     pressione: formatNumberIT(v.pressione_taratura),
-    temperatura: formatTemperatura(TEMP_MIN_VALVOLA, v.ts_temperatura),
+    temperatura: formatTemperatura(TEMP_MIN_VALVOLA, v.ts, v.ts_temperatura),
     categoria: v.categoria_ped ?? '',
   })
 
@@ -68,7 +69,7 @@ export function buildCaratteristiche(
         ...base(diso.codice, 'Serbatoio disoleatore', diso.marca, diso.modello, diso.anno, diso.n_fabbrica),
         capacita: formatNumberIT(diso.volume),
         pressione: formatNumberIT(diso.ps_pressione_max),
-        temperatura: formatTemperatura(TEMP_MIN_RECIPIENTE, diso.ts_temperatura),
+        temperatura: formatTemperatura(TEMP_MIN_RECIPIENTE, diso.ts, diso.ts_temperatura),
         categoria: diso.categoria_ped ?? '',
       })
       const valvole = [diso.valvola_sicurezza, ...(diso.valvole_aggiuntive ?? [])]
@@ -84,7 +85,7 @@ export function buildCaratteristiche(
       ...base(s.codice, descrizioneSerbatoio(s), s.marca, s.modello, s.anno, s.n_fabbrica),
       capacita: formatNumberIT(s.volume),
       pressione: formatNumberIT(s.ps_pressione_max),
-      temperatura: formatTemperatura(TEMP_MIN_RECIPIENTE, s.ts_temperatura),
+      temperatura: formatTemperatura(TEMP_MIN_RECIPIENTE, s.ts, s.ts_temperatura),
       categoria: s.categoria_ped ?? '',
     })
     const valvole = [s.valvola_sicurezza, ...(s.valvole_aggiuntive ?? [])]
@@ -108,7 +109,7 @@ export function buildCaratteristiche(
         ...base(scamb.codice, 'Scambiatore di calore', scamb.marca, scamb.modello, scamb.anno, scamb.n_fabbrica),
         capacita: formatNumberIT(scamb.volume),
         pressione: formatNumberIT(scamb.ps_pressione_max),
-        temperatura: formatTemperatura(TEMP_MIN_SCAMBIATORE, scamb.ts_temperatura),
+        temperatura: formatTemperatura(TEMP_MIN_SCAMBIATORE, scamb.ts, scamb.ts_temperatura),
         categoria: scamb.categoria_ped ?? '',
       })
     }
@@ -129,7 +130,7 @@ export function buildCaratteristiche(
         ...base(rec.codice, 'Recipiente filtro', rec.marca, rec.modello, rec.anno, rec.n_fabbrica),
         capacita: formatNumberIT(rec.volume),
         pressione: formatNumberIT(rec.ps_pressione_max),
-        temperatura: formatTemperatura(TEMP_MIN_RECIPIENTE, rec.ts_temperatura),
+        temperatura: formatTemperatura(TEMP_MIN_RECIPIENTE, rec.ts, rec.ts_temperatura),
         categoria: '',
       })
     }

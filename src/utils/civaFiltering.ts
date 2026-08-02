@@ -16,6 +16,17 @@ import type { CIVAApparecchio, CIVASummaryData, TipoPraticaCIVA } from '@/types/
 import { classificaRecipiente, esitoToTipoPratica } from './dm329Classification'
 
 /**
+ * TS da mostrare sulla scheda CIVA. La scheda dati lo salva nel campo di testo `ts`,
+ * precompilato dal catalogo; le schede compilate con i form per tipo ritirati lo tenevano
+ * nel campo numerico `ts_temperatura`.
+ */
+const tsScheda = (ts?: string, legacy?: number): string | undefined => {
+  const scritto = (ts ?? '').trim()
+  if (scritto) return scritto
+  return legacy === undefined || legacy === null ? undefined : String(legacy)
+}
+
+/**
  * Determina tipo pratica CIVA in base a volume e pressione
  *
  * Regole:
@@ -76,7 +87,7 @@ function extractSerbatoi(
       anno: serbatoio.anno,
       volume: serbatoio.volume,
       ps_pressione_max: serbatoio.ps_pressione_max,
-      ts_temperatura: serbatoio.ts_temperatura,
+      ts_temperatura: tsScheda(serbatoio.ts, serbatoio.ts_temperatura),
       categoria_ped: serbatoio.categoria_ped,
       tipoPratica,
       manufacturer
@@ -123,7 +134,7 @@ function extractScambiatori(
       anno: scambiatore.anno,
       volume: scambiatore.volume,
       ps_pressione_max: scambiatore.ps_pressione_max,
-      ts_temperatura: scambiatore.ts_temperatura,
+      ts_temperatura: tsScheda(scambiatore.ts, scambiatore.ts_temperatura),
       categoria_ped: scambiatore.categoria_ped,
       tipoPratica,
       manufacturer,
@@ -171,7 +182,7 @@ function extractDisoleatori(
       anno: disoleatore.anno,
       volume: disoleatore.volume,
       ps_pressione_max: disoleatore.ps_pressione_max,
-      ts_temperatura: disoleatore.ts_temperatura,
+      ts_temperatura: tsScheda(disoleatore.ts, disoleatore.ts_temperatura),
       categoria_ped: disoleatore.categoria_ped,
       tipoPratica,
       manufacturer,
@@ -219,7 +230,7 @@ function extractRecipientiFiltro(
       anno: recipiente.anno,
       volume: recipiente.volume,
       ps_pressione_max: recipiente.ps_pressione_max,
-      ts_temperatura: recipiente.ts_temperatura,
+      ts_temperatura: tsScheda(recipiente.ts, recipiente.ts_temperatura),
       categoria_ped: undefined, // RecipienteFiltro doesn't have categoria_ped field
       tipoPratica,
       manufacturer,

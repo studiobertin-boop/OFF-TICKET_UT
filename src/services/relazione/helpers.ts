@@ -98,16 +98,30 @@ export function numeroInLettere(n: number): string {
 }
 
 /**
- * Formatta la temperatura come range "min ÷ +TS" usando un minimo convenzionale
- * per tipo apparecchio (il modello scheda salva solo il TS massimo).
- * Restituisce stringa vuota se il TS non è definito.
+ * Formatta la temperatura per la tabella delle caratteristiche.
+ *
+ * Il TS lo scrive il tecnico nella scheda dati, nel campo `ts`, precompilato dal
+ * catalogo quando il modello è già censito. È testo libero: se contiene solo un numero
+ * si antepone il minimo convenzionale del tipo, come nelle relazioni storiche
+ * («-10 ÷ +120»); se il tecnico ha già scritto un intervallo lo si riporta tal quale,
+ * perché è una sua scelta esplicita e non va riscritta.
+ *
+ * `tsLegacy` è il vecchio campo numerico `ts_temperatura`, usato dai form per tipo
+ * ritirati: serve a non perdere la temperatura sulle schede compilate prima.
  */
 export function formatTemperatura(
   minConvenzionale: number,
-  ts: number | null | undefined
+  ts: string | null | undefined,
+  tsLegacy?: number | null
 ): string {
-  if (ts === null || ts === undefined || Number.isNaN(ts)) {
+  const scritto = (ts ?? '').trim()
+  if (scritto) {
+    // Un intervallo si riconosce dalla presenza di un separatore o di un secondo segno.
+    const eIntervallo = /[÷\-–—]/.test(scritto.replace(/^[-–—]/, ''))
+    return eIntervallo ? scritto : `${minConvenzionale} ÷ +${scritto}`
+  }
+  if (tsLegacy === null || tsLegacy === undefined || Number.isNaN(tsLegacy)) {
     return ''
   }
-  return `${minConvenzionale} ÷ +${formatNumberIT(ts)}`
+  return `${minConvenzionale} ÷ +${formatNumberIT(tsLegacy)}`
 }

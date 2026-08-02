@@ -91,3 +91,61 @@ describe('buildCaratteristiche', () => {
     expect(rows.map((r) => r.pos)).toEqual(['C1', 'S1', 'S1.1', 'E1'])
   })
 })
+
+describe('buildCaratteristiche — temperatura dal campo della scheda', () => {
+  test('il TS scritto nella scheda vince sul vecchio campo numerico', () => {
+    const rows = buildCaratteristiche(
+      makeScheda({
+        compressori: [],
+        disoleatori: [],
+        serbatoi: [makeSerbatoio({ codice: 'S1', ts: '150', ts_temperatura: 120 })],
+        essiccatori: [],
+        scambiatori: [],
+        filtri: [],
+      })
+    )
+    expect(rows.find((r) => r.pos === 'S1')?.temperatura).toBe('-10 ÷ +150')
+  })
+
+  test('un intervallo scritto dal tecnico si riporta tal quale', () => {
+    const rows = buildCaratteristiche(
+      makeScheda({
+        compressori: [],
+        disoleatori: [],
+        serbatoi: [makeSerbatoio({ codice: 'S1', ts: '0 ÷ +99' })],
+        essiccatori: [],
+        scambiatori: [],
+        filtri: [],
+      })
+    )
+    expect(rows.find((r) => r.pos === 'S1')?.temperatura).toBe('0 ÷ +99')
+  })
+
+  test('senza TS nella scheda si ripiega sul campo numerico delle schede vecchie', () => {
+    const rows = buildCaratteristiche(
+      makeScheda({
+        compressori: [],
+        disoleatori: [],
+        serbatoi: [makeSerbatoio({ codice: 'S1', ts_temperatura: 120 })],
+        essiccatori: [],
+        scambiatori: [],
+        filtri: [],
+      })
+    )
+    expect(rows.find((r) => r.pos === 'S1')?.temperatura).toBe('-10 ÷ +120')
+  })
+
+  test('senza nessuno dei due la cella resta vuota', () => {
+    const rows = buildCaratteristiche(
+      makeScheda({
+        compressori: [],
+        disoleatori: [],
+        serbatoi: [makeSerbatoio({ codice: 'S1', ts_temperatura: undefined })],
+        essiccatori: [],
+        scambiatori: [],
+        filtri: [],
+      })
+    )
+    expect(rows.find((r) => r.pos === 'S1')?.temperatura).toBe('')
+  })
+})
