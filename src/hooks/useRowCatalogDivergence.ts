@@ -3,7 +3,7 @@ import { useFormContext, useFormState } from 'react-hook-form'
 import { useEquipmentCatalogContext } from '@/components/technicalSheet/EquipmentCatalogContext'
 import { equipmentCatalogApi } from '@/services/api/equipmentCatalog'
 import { compareSpecs, formFieldsFor } from '@/utils/equipmentSpecsComparison'
-import { readVariantValue } from '@/services/equipmentAudit'
+import { readSheetPressure } from '@/services/equipmentAudit'
 import type { EquipmentCatalogType } from '@/types'
 import type { ScelteCampi, UpdateData } from '@/types/equipmentUpdate'
 
@@ -83,7 +83,7 @@ export function useRowCatalogDivergence() {
       newSpecs: {},
       comparison: { ...comparison, modifiedFields, newFields },
       catalogData: getCache(origine.cacheKey),
-      variante: readVariantValue(tipo, origine.appliedSpecs) ?? undefined,
+      variante: readSheetPressure(tipo, origine.appliedSpecs) ?? undefined,
       basePath: base,
     })
   }, [pending, getOrigine, getCache, getValues, dirtyFields])

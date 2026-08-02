@@ -5,7 +5,9 @@ import {
   normalizeSpecs,
   parseNumeric,
   readSpec,
+  readSheetPressure,
   readVariantValue,
+  sheetPressureKey,
   variantSpecKey,
   variantSpecKeys,
 } from '../specsNormalization'
@@ -185,5 +187,34 @@ describe('chiave di variante', () => {
     expect(readVariantValue('Filtri', { ps: 11 })).toBeNull()
     expect(readVariantValue('Compressori', { fad: 2000 })).toBeNull()
     expect(readVariantValue('Compressori', null)).toBeNull()
+  })
+})
+
+describe('pressione dichiarata dalla scheda dati', () => {
+  it('sui compressori è la massima, non quella di esercizio', () => {
+    // La colonna della scheda si intitola PS e finisce nella denuncia: è la pressione di targa.
+    // A catalogo la stessa riga si distingue invece per pressione di esercizio.
+    expect(sheetPressureKey('Compressori')).toBe('pressione_max')
+    expect(readSheetPressure('Compressori', { pressione_esercizio: 10, pressione_max: 11 })).toBe(11)
+    expect(readSheetPressure('Compressori', { pressione_esercizio: 7.5, pressione_max: 8 })).toBe(8)
+  })
+
+  it('sugli altri tipi coincide con la chiave di variante', () => {
+    expect(sheetPressureKey('Serbatoi')).toBe('ps')
+    expect(sheetPressureKey('Valvole di sicurezza')).toBe('ptar')
+    expect(readSheetPressure('Serbatoi', { ps: 11 })).toBe(11)
+    expect(readSheetPressure('Valvole di sicurezza', { ptar: 9 })).toBe(9)
+  })
+
+  it('ripiega sulla variante quando la pressione di scheda manca', () => {
+    // 162 righe di compressori a produzione hanno solo la pressione di esercizio o la generica.
+    expect(readSheetPressure('Compressori', { pressione_esercizio: 13 })).toBe(13)
+    expect(readSheetPressure('Compressori', { pressione: '10' })).toBe(10)
+  })
+
+  it('senza pressioni, o su un tipo che non ne ha, è null', () => {
+    expect(readSheetPressure('Compressori', { fad: 2000 })).toBeNull()
+    expect(readSheetPressure('Filtri', { ps: 11 })).toBeNull()
+    expect(readSheetPressure(null, { ps: 11 })).toBeNull()
   })
 })

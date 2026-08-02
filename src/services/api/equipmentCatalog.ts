@@ -1,7 +1,7 @@
 import { supabase } from '../supabase'
 import type { EquipmentCatalogType, EquipmentCatalogItem, EquipmentSearchResult } from '@/types'
 import {
-  missingCanonicalSpecs, normalizeSpecs, readVariantValue, variantSpecKey,
+  missingCanonicalSpecs, normalizeSpecs, readSheetPressure, variantSpecKey,
 } from '@/services/equipmentAudit'
 
 /**
@@ -10,7 +10,10 @@ import {
  * e aggiunta nuove associazioni al catalogo
  */
 
-/** Variante di un modello: il valore che la distingue (pressione, Ptar) e la riga di catalogo. */
+/**
+ * Variante di un modello come la vede la scheda dati: la pressione che la scheda dichiara
+ * nella colonna PS/Ptar e la riga di catalogo che le corrisponde.
+ */
 export interface VarianteCatalogo {
   value: number
   item: EquipmentCatalogItem
@@ -142,7 +145,14 @@ export const equipmentCatalogApi = {
   },
 
   /**
-   * Varianti di un modello, ordinate per valore crescente.
+   * Varianti di un modello, ordinate per pressione crescente.
+   *
+   * Le varianti sono indicizzate per la pressione che la scheda dati dichiara — la massima sui
+   * compressori, la PS sui recipienti, la Ptar sulle valvole — e non per la chiave con cui il
+   * catalogo le distingue fra loro, che sui compressori è invece la pressione di esercizio.
+   * Sono due letture della stessa riga: la scheda deve poter ritrovare la propria voce parlando
+   * della pressione che mostra, altrimenti un compressore dichiarato a 11 bar non riconosce la
+   * voce che a catalogo lavora a 10 e ha 11 di massima.
    *
    * Il catalogo contiene righe quasi-duplicate (stesso modello e stessa pressione, una con la
    * pressione di esercizio valorizzata e una senza): a parità di valore si tiene quella con più
@@ -157,7 +167,7 @@ export const equipmentCatalogApi = {
 
     const perValore = new Map<number, EquipmentCatalogItem>()
     for (const item of rows) {
-      const value = readVariantValue(tipo, item.specs)
+      const value = readSheetPressure(tipo, item.specs)
       if (value === null) continue
 
       const presente = perValore.get(value)
@@ -417,9 +427,10 @@ export const equipmentCatalogApi = {
       ptar?: number
     }
   ): Promise<void> {
-    // 1. Trova la riga di catalogo. Quale valore identifichi la variante lo decide
-    //    `variantSpecKey`, non il tipo scritto a mano qui: deve restare la stessa chiave
-    //    dell'indice unico a database, altrimenti si aggiorna la variante sbagliata.
+    // 1. Trova la riga di catalogo. Il valore che arriva è la pressione dichiarata dalla scheda,
+    //    ed è per quella che `getVarianti` indicizza: chi chiama non deve sapere con quale
+    //    chiave il catalogo distingua le varianti fra loro, altrimenti si aggiorna quella
+    //    sbagliata. Che il tipo abbia varianti lo dice `variantSpecKey`.
     const variante = options?.variante ?? options?.pressione ?? options?.ptar
     const equipment = variantSpecKey(tipo) !== null && variante !== undefined
       ? (await this.getVarianti(tipo, marca, modello)).find(v => v.value === variante)?.item ?? null

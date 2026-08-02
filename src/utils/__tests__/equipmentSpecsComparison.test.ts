@@ -47,10 +47,11 @@ describe('compareSpecs', () => {
   })
 
   it('non propone di riscrivere la pressione che identifica la variante', () => {
-    // Variante a 7,5 bar di esercizio su una macchina con targa 8 bar: la scheda porta 7,5.
+    // La colonna PS della scheda è la pressione massima: la macchina che a catalogo lavora a
+    // 7,5 bar e ne ha 8 di targa si dichiara a 8, ed è la stessa riga, non una variante nuova.
     const c = compareSpecs(
       { pressione_esercizio: 7.5, pressione_max: 8, fad: 3160 },
-      { pressione_max: 7.5, volume_aria_prodotto: 3160 } as any,
+      { pressione_max: 8, volume_aria_prodotto: 3160 } as any,
       'Compressori'
     )
     expect(c.suggestNewVariant).toBeUndefined()
@@ -64,6 +65,18 @@ describe('compareSpecs', () => {
       'Compressori'
     )
     expect(c.suggestNewVariant).toBe(true)
+    expect(c.hasChanges).toBe(false)
+  })
+
+  it('la pressione di esercizio del catalogo non fa da sola una variante nuova', () => {
+    // Il caso che faceva comparire a vuoto l'invito ad aggiungere a catalogo: la scheda
+    // dichiara gli 11 bar di targa, la voce a catalogo lavora a 10 e di targa ne ha 11.
+    const c = compareSpecs(
+      { pressione_esercizio: 10, pressione_max: 11, fad: 255 },
+      { pressione_max: 11, volume_aria_prodotto: 255 } as any,
+      'Compressori'
+    )
+    expect(c.suggestNewVariant).toBeUndefined()
     expect(c.hasChanges).toBe(false)
   })
 

@@ -18,7 +18,7 @@ import { codiciValvoleDisoleatore, codiciValvoleSerbatoio } from '@/utils/valvol
 import { EquipmentAutocomplete } from '../EquipmentAutocomplete'
 import { SingleOCRButton } from '../SingleOCRButton'
 import { useTecnicoDM329Visibility } from '@/hooks/useTecnicoDM329Visibility'
-import { readSpec, readVariantValue, variantSpecKey } from '@/services/equipmentAudit'
+import { readSheetPressure, readSpec, variantSpecKey } from '@/services/equipmentAudit'
 import { generateCacheKey, rowKeyOf, useEquipmentCatalogContext } from '../EquipmentCatalogContext'
 import { VALVOLE_ROW_PREFIX } from '@/hooks/useHydrateCatalogCache'
 import { useRowExit } from './useRowExit'
@@ -235,7 +235,7 @@ const EqRow = ({ control, def, base, code, identity, rowKey, onRowExit, depth, a
     // che l'utente ha scostato un valore dal default del catalogo.
     if (!item) return
     const cacheKey = generateCacheKey(def.catalogType, item.marca, item.modello, {
-      variante: readVariantValue(def.catalogType, item.specs) ?? undefined,
+      variante: readSheetPressure(def.catalogType, item.specs) ?? undefined,
     })
     setCache(cacheKey, item)
     setOrigine(rowKey, { cacheKey, appliedSpecs: (item.specs ?? {}) as Record<string, unknown> })

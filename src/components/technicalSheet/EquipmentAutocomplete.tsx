@@ -16,7 +16,7 @@ import type { EquipmentCatalogType, EquipmentCatalogItem } from '@/types'
 import { AddEquipmentDialog } from './AddEquipmentDialog'
 import { useNoAutofillToken } from '@/utils/noAutofill'
 import { useTecnicoDM329Visibility } from '@/hooks/useTecnicoDM329Visibility'
-import { readVariantValue, variantSpecKey } from '@/services/equipmentAudit'
+import { readSheetPressure, variantSpecKey } from '@/services/equipmentAudit'
 
 interface EquipmentAutocompleteProps {
   // Tipo apparecchiatura (filtra le opzioni)
@@ -183,8 +183,10 @@ export const EquipmentAutocomplete = ({
         // Il modello c'è e il tipo non ha varianti: non c'è nulla da aggiungere.
         if (!indicizzatoPerVariante) { setShowAddButton(false); return }
 
-        // Il modello c'è: resta da vedere se manca proprio questa pressione.
-        const valori = righe.map((r) => readVariantValue(equipmentType, r.specs))
+        // Il modello c'è: resta da vedere se manca proprio questa pressione. Il confronto è
+        // con la pressione che la riga di catalogo dichiara alla scheda — la massima sui
+        // compressori — che è la stessa che l'utente ha scritto nella colonna PS.
+        const valori = righe.map((r) => readSheetPressure(equipmentType, r.specs))
         setShowAddButton(variantValue != null && !valori.includes(variantValue))
       } catch (error) {
         console.error('Errore nella verifica di esistenza a catalogo:', error)

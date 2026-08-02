@@ -40,6 +40,15 @@ export interface CanonicalSpecDef {
   /** Fa parte della chiave che distingue le varianti dello stesso modello. */
   isVariantKey?: boolean
   /**
+   * È la pressione che la scheda dati porta nella colonna PS/Ptar.
+   *
+   * Quasi sempre coincide con la chiave di variante, ma sui compressori no: il catalogo
+   * distingue le varianti per pressione di esercizio, mentre la scheda — e la denuncia —
+   * dichiarano la pressione massima. Tenerle separate è ciò che permette alla scheda di
+   * riconoscere la propria voce di catalogo parlando la lingua della colonna che mostra.
+   */
+  isSheetPressure?: boolean
+  /**
    * Il dato ha senso solo per certe righe del tipo: quando la condizione è falsa il campo
    * non si mostra e non si valida. Serve per le proprietà che dipendono dalla tipologia
    * costruttiva — la regolazione dei giri esiste sui rotativi a vite, non su uno scroll.
@@ -62,7 +71,7 @@ const VOLUME: CanonicalSpecDef = {
  */
 const PS: CanonicalSpecDef = {
   key: 'ps', label: 'PS — pressione massima', unit: 'bar', kind: 'number', min: 0, max: 100,
-  required: true, isVariantKey: true,
+  required: true, isVariantKey: true, isSheetPressure: true,
 }
 /** Testo libero: nel catalogo TS è spesso un intervallo, es. «-10 ÷ +200». */
 const TS: CanonicalSpecDef = {
@@ -91,7 +100,7 @@ export const CANONICAL_SPECS: Record<EquipmentCatalogType, readonly CanonicalSpe
       isVariantKey: true,
       variantFallbackKey: 'pressione_max',
     },
-    { key: 'pressione_max', label: 'Pressione massima', unit: 'bar', kind: 'number', min: 0, max: 100, required: true },
+    { key: 'pressione_max', label: 'Pressione massima', unit: 'bar', kind: 'number', min: 0, max: 100, required: true, isSheetPressure: true },
     {
       key: 'tipo_compressore',
       label: 'Tipo costruttivo',
@@ -121,7 +130,7 @@ export const CANONICAL_SPECS: Record<EquipmentCatalogType, readonly CanonicalSpe
     TS,
   ],
   'Valvole di sicurezza': [
-    { key: 'ptar', label: 'Ptar — pressione di taratura', unit: 'bar', kind: 'number', min: 0, max: 100, required: true, isVariantKey: true },
+    { key: 'ptar', label: 'Ptar — pressione di taratura', unit: 'bar', kind: 'number', min: 0, max: 100, required: true, isVariantKey: true, isSheetPressure: true },
     { key: 'qmax', label: 'Qmax — aria scaricata', unit: 'l/min', kind: 'number', min: 0, max: 1000000, required: true },
     TS,
     { key: 'diametro', label: 'Diametro', unit: null, kind: 'text' },
@@ -445,6 +454,34 @@ export function readVariantValue(
     if (v !== null) return v
   }
   return null
+}
+
+/**
+ * Chiave della pressione che la scheda dati mostra nella colonna PS/Ptar.
+ *
+ * Sui recipienti e sulle valvole è la stessa che distingue le varianti; sui compressori no,
+ * perché il catalogo li distingue per pressione di esercizio e la scheda dichiara la massima.
+ */
+export function sheetPressureKey(tipo: EquipmentCatalogType | null | undefined): string | null {
+  if (!tipo) return null
+  return (CANONICAL_SPECS[tipo] ?? []).find(d => d.isSheetPressure)?.key ?? null
+}
+
+/**
+ * Pressione con cui una riga di catalogo si presenta alla scheda dati.
+ *
+ * È il valore che il selettore della colonna PS propone e quello su cui si decide se il
+ * modello esiste già «a quella pressione»: confrontare la PS di una riga con la pressione di
+ * esercizio del catalogo faceva comparire a vuoto l'invito ad aggiungere una voce già presente.
+ * Ripiega sulla chiave di variante per le righe che la pressione di scheda non ce l'hanno.
+ */
+export function readSheetPressure(
+  tipo: EquipmentCatalogType | null | undefined,
+  specs: Record<string, unknown> | null | undefined
+): number | null {
+  const key = sheetPressureKey(tipo)
+  const diretta = key ? readNumericSpec(tipo, specs, key) : null
+  return diretta ?? readVariantValue(tipo, specs)
 }
 
 /** Etichetta leggibile di una chiave canonica, con unità di misura. */

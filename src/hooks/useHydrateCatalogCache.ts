@@ -4,7 +4,7 @@ import {
   generateCacheKey, rowKeyOf, useEquipmentCatalogContext,
 } from '@/components/technicalSheet/EquipmentCatalogContext'
 import { EQUIPMENT_DEFS, KIND_ARRAY, type EquipmentKind } from '@/components/technicalSheet/table/equipmentConfig'
-import { readVariantValue, variantSpecKey } from '@/services/equipmentAudit'
+import { readSheetPressure, variantSpecKey } from '@/services/equipmentAudit'
 import { elencaValvole } from '@/utils/valvoleImpianto'
 import type { EquipmentCatalogItem, EquipmentCatalogType, SchedaDatiCompleta } from '@/types'
 
@@ -71,7 +71,9 @@ function scegliVariante(
   variante: number | null
 ): EquipmentCatalogItem | undefined {
   if (candidate.length <= 1 || variante === null) return candidate[0]
-  return candidate.find((c) => readVariantValue(tipo, c.specs) === variante) ?? candidate[0]
+  // La scheda ha in mano la propria pressione di colonna: si cerca la riga che dichiara quella,
+  // non quella che il catalogo usa per distinguere le varianti fra loro.
+  return candidate.find((c) => readSheetPressure(tipo, c.specs) === variante) ?? candidate[0]
 }
 
 /**

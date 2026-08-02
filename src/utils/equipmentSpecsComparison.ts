@@ -1,6 +1,6 @@
 import type { EquipmentCatalogType } from '@/types'
 import {
-  FORM_TO_CANONICAL, readSpec, readVariantValue, variantSpecKey, variantSpecKeys,
+  FORM_TO_CANONICAL, readSheetPressure, readSpec, variantSpecKey, variantSpecKeys,
 } from '@/services/equipmentAudit'
 import { TIPO_COMPRESSORE_LABELS } from '@/types/technicalSheet'
 import type {
@@ -157,11 +157,15 @@ export function compareSpecs(
    * Il valore che identifica la variante non è un campo aggiornabile: se cambia, cambia la riga
    * di catalogo. Vale per i compressori (pressione) come per le valvole (Ptar); quale sia la
    * chiave lo decide `variantSpecKey`, così resta allineata all'indice unico a database.
+   *
+   * Il confronto però si fa sulla pressione che la scheda dichiara, non su quella con cui il
+   * catalogo distingue le varianti: un compressore a 11 bar di massima non descrive una variante
+   * nuova solo perché la sua voce a catalogo lavora a 10.
    */
   const chiaviVariante = variantSpecKeys(equipmentType)
   if (variantSpecKey(equipmentType)) {
     const formVariante = chiaviVariante.map(readForm).find(v => !isEmpty(v))
-    const catalogVariante = readVariantValue(equipmentType, currentSpecsCleaned)
+    const catalogVariante = readSheetPressure(equipmentType, currentSpecsCleaned)
 
     if (!isEmpty(formVariante) && !areValuesEqual(formVariante, catalogVariante)) {
       result.suggestNewVariant = true
