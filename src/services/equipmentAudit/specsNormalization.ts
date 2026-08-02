@@ -49,6 +49,17 @@ export interface CanonicalSpecDef {
    */
   isSheetPressure?: boolean
   /**
+   * Il dato serve al funzionamento ma non si mostra e non si modifica.
+   *
+   * La pressione di esercizio dei compressori è la chiave che distingue le varianti
+   * nell'indice unico a database: toglierla dai dati renderebbe indistinguibili le due
+   * varianti di ASD 50 SFC, che condividono la massima di 13 bar con portate diverse.
+   * Il catalogo però ne dichiara una sola, la massima di targa, che è quella che la
+   * scheda dati porta in relazione. Resta quindi nel contratto — `variantSpecKey` la
+   * legge da qui — e l'interfaccia la salta.
+   */
+  isInternal?: boolean
+  /**
    * Il dato ha senso solo per certe righe del tipo: quando la condizione è falsa il campo
    * non si mostra e non si valida. Serve per le proprietà che dipendono dalla tipologia
    * costruttiva — la regolazione dei giri esiste sui rotativi a vite, non su uno scroll.
@@ -98,6 +109,7 @@ export const CANONICAL_SPECS: Record<EquipmentCatalogType, readonly CanonicalSpe
       min: 0,
       max: 100,
       isVariantKey: true,
+      isInternal: true,
       variantFallbackKey: 'pressione_max',
     },
     { key: 'pressione_max', label: 'Pressione massima', unit: 'bar', kind: 'number', min: 0, max: 100, required: true, isSheetPressure: true },

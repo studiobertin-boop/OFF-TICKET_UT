@@ -27,7 +27,7 @@ describe('validazione di una voce di catalogo', () => {
       const esito = createEquipmentSchema.safeParse({ ...valida, modello })
       expect(esito.success, modello).toBe(false)
       if (!esito.success) {
-        expect(esito.error.errors[0].message).toContain('Pressione di esercizio')
+        expect(esito.error.errors[0].message).toContain('PS — pressione massima')
       }
     }
   })
@@ -135,5 +135,25 @@ describe('specsFieldsFor', () => {
 
   it('non tocca i campi degli altri tipi', () => {
     expect(specsFieldsFor('Serbatoi', {}).map(d => d.key)).toEqual(['volume', 'ps', 'ts', 'categoria_ped'])
+  })
+})
+
+describe('specsFieldsFor — definizioni interne', () => {
+  it('non propone la pressione di esercizio fra i campi dei compressori', () => {
+    const chiavi = specsFieldsFor('Compressori', {}).map(d => d.key)
+    expect(chiavi).not.toContain('pressione_esercizio')
+    expect(chiavi).toContain('pressione_max')
+    expect(chiavi).toContain('fad')
+  })
+
+  it('non toglie nulla ai tipi che non hanno definizioni interne', () => {
+    expect(specsFieldsFor('Serbatoi', {}).map(d => d.key)).toEqual([
+      'volume', 'ps', 'ts', 'categoria_ped',
+    ])
+  })
+
+  it('continua a nascondere i giri sui compressori che non sono a vite', () => {
+    const chiavi = specsFieldsFor('Compressori', { tipo_compressore: 'SCROLL' }).map(d => d.key)
+    expect(chiavi).not.toContain('giri')
   })
 })
