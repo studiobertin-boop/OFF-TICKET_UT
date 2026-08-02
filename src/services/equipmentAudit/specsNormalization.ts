@@ -1,6 +1,8 @@
 import type { EquipmentCatalogType } from '@/types'
 import type { CategoriaPED } from '@/types/technicalSheet'
-import { TIPO_COMPRESSORE_OPTIONS } from '@/types/technicalSheet'
+import {
+  TIPO_COMPRESSORE_LABELS, TIPO_COMPRESSORE_OPTIONS, TIPO_GIRI_LABELS, TIPO_GIRI_OPTIONS,
+} from '@/types/technicalSheet'
 
 /** Le categorie PED non hanno una costante condivisa: il tipo le vincola comunque. */
 const CATEGORIA_PED_OPTIONS: readonly CategoriaPED[] = ['I', 'II', 'III', 'IV']
@@ -29,19 +31,38 @@ export interface CanonicalSpecDef {
   unit: string | null
   kind: SpecKind
   options?: readonly string[]
+  /** Testo leggibile delle opzioni; se assente si mostra il valore memorizzato. */
+  optionLabels?: Record<string, string>
   min?: number
   max?: number
   /** Concorre alla completezza della riga: se manca, la voce è «incompleta». */
   required?: boolean
   /** Fa parte della chiave che distingue le varianti dello stesso modello. */
   isVariantKey?: boolean
+  /**
+   * Il dato ha senso solo per certe righe del tipo: quando la condizione è falsa il campo
+   * non si mostra e non si valida. Serve per le proprietà che dipendono dalla tipologia
+   * costruttiva — la regolazione dei giri esiste sui rotativi a vite, non su uno scroll.
+   */
+  appliesWhen?: (specs: Record<string, unknown>) => boolean
+  /**
+   * Chiave da cui ripiegare quando quella di variante non è valorizzata.
+   * Rispecchia il `COALESCE` dell'indice unico a database: una riga senza pressione di
+   * esercizio si distingue comunque per pressione di targa.
+   */
+  variantFallbackKey?: string
 }
 
 const VOLUME: CanonicalSpecDef = {
   key: 'volume', label: 'Volume', unit: 'l', kind: 'number', min: 1, max: 100000, required: true,
 }
+/**
+ * `isVariantKey`: lo stesso serbatoio o essiccatore può esistere a catalogo a più PS, con
+ * volumi o portate diversi. Rispecchia `equipment_catalog_unique_ps` a database.
+ */
 const PS: CanonicalSpecDef = {
-  key: 'ps', label: 'PS — pressione massima', unit: 'bar', kind: 'number', min: 0, max: 100, required: true,
+  key: 'ps', label: 'PS — pressione massima', unit: 'bar', kind: 'number', min: 0, max: 100,
+  required: true, isVariantKey: true,
 }
 /** Testo libero: nel catalogo TS è spesso un intervallo, es. «-10 ÷ +200». */
 const TS: CanonicalSpecDef = {
@@ -68,6 +89,7 @@ export const CANONICAL_SPECS: Record<EquipmentCatalogType, readonly CanonicalSpe
       min: 0,
       max: 100,
       isVariantKey: true,
+      variantFallbackKey: 'pressione_max',
     },
     { key: 'pressione_max', label: 'Pressione massima', unit: 'bar', kind: 'number', min: 0, max: 100, required: true },
     {
@@ -76,6 +98,21 @@ export const CANONICAL_SPECS: Record<EquipmentCatalogType, readonly CanonicalSpe
       unit: null,
       kind: 'enum',
       options: TIPO_COMPRESSORE_OPTIONS,
+      optionLabels: TIPO_COMPRESSORE_LABELS,
+    },
+    {
+      // Non `required`: il motore di verifica non deve segnalare come incompleta una riga a
+      // cui il dato manca soltanto perché nessuno l'ha ancora osservato sul campo.
+      // `appliesWhen` con il tipo non specificato è deliberato: a produzione
+      // `tipo_compressore` è vuoto su tutte le righe e la scheda dati tratta «rotativo a
+      // vite» come default implicito.
+      key: 'giri',
+      label: 'Regolazione giri',
+      unit: null,
+      kind: 'enum',
+      options: TIPO_GIRI_OPTIONS,
+      optionLabels: TIPO_GIRI_LABELS,
+      appliesWhen: (specs) => !specs.tipo_compressore || specs.tipo_compressore === 'VITE',
     },
   ],
   Essiccatori: [
@@ -372,6 +409,42 @@ export function missingCanonicalSpecs(
   return (CANONICAL_SPECS[tipo] ?? []).filter(
     def => def.required && readSpec(tipo, specs, def.key) === null
   )
+}
+
+/**
+ * Chiave che distingue le varianti dello stesso modello, o null se il tipo non ne ha.
+ *
+ * Unica fonte di verità per chiunque debba scegliere «quale pressione identifica la riga»:
+ * il selettore della scheda dati, la ricerca a catalogo e l'aggiornamento degli specs devono
+ * usare la stessa, altrimenti due varianti risultano indistinguibili e si autocompila quella
+ * sbagliata. Deve restare allineata all'indice unico parziale a database.
+ */
+export function variantSpecKey(tipo: EquipmentCatalogType | null | undefined): string | null {
+  if (!tipo) return null
+  return (CANONICAL_SPECS[tipo] ?? []).find(d => d.isVariantKey)?.key ?? null
+}
+
+/** Chiave di variante e sua ricaduta, nell'ordine in cui vanno provate. */
+export function variantSpecKeys(tipo: EquipmentCatalogType | null | undefined): string[] {
+  if (!tipo) return []
+  const def = (CANONICAL_SPECS[tipo] ?? []).find(d => d.isVariantKey)
+  if (!def) return []
+  return def.variantFallbackKey ? [def.key, def.variantFallbackKey] : [def.key]
+}
+
+/**
+ * Valore che identifica la variante di una riga di catalogo.
+ * Null se il tipo non è indicizzato per variante o se il dato manca del tutto.
+ */
+export function readVariantValue(
+  tipo: EquipmentCatalogType | null | undefined,
+  specs: Record<string, unknown> | null | undefined
+): number | null {
+  for (const key of variantSpecKeys(tipo)) {
+    const v = readNumericSpec(tipo, specs, key)
+    if (v !== null) return v
+  }
+  return null
 }
 
 /** Etichetta leggibile di una chiave canonica, con unità di misura. */

@@ -109,7 +109,17 @@ export function validateEquipmentInput(input: unknown): string[] {
   })
 }
 
-/** Definizioni dei dati tecnici del tipo, per generare i campi del form. */
-export function specsFieldsFor(tipo: EquipmentCatalogType | null): readonly CanonicalSpecDef[] {
-  return tipo ? CANONICAL_SPECS[tipo] ?? [] : []
+/**
+ * Definizioni dei dati tecnici del tipo, per generare i campi del form.
+ *
+ * `specs` serve ai campi che dipendono da un altro dato della stessa riga: la regolazione dei
+ * giri compare solo sui compressori rotativi a vite. Omettendolo si ottengono tutti i campi.
+ */
+export function specsFieldsFor(
+  tipo: EquipmentCatalogType | null,
+  specs?: Record<string, unknown> | null
+): readonly CanonicalSpecDef[] {
+  const defs = tipo ? CANONICAL_SPECS[tipo] ?? [] : []
+  if (!specs) return defs
+  return defs.filter(d => !d.appliesWhen || d.appliesWhen(specs))
 }

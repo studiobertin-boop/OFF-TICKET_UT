@@ -32,19 +32,43 @@ function mergeSpecs(rows: CatalogRow[]): Record<string, unknown> {
   return out
 }
 
+/**
+ * Righe che descrivono la stessa apparecchiatura, raggruppate.
+ *
+ * Prima si raggruppa per nome base, poi si separano le varianti di pressione. Le righe che la
+ * pressione non ce l'hanno non identificano una variante: si accorpano all'unica presente, che
+ * è il caso frequente delle voci d'import spezzate a metà — una riga col solo volume, un'altra
+ * con la sola pressione. Quando le varianti sono più d'una, invece, restano fuori: non c'è modo
+ * di sapere a quale appartengano e fonderle a caso perderebbe dati.
+ */
+function raggruppa(catalog: CatalogRow[]): CatalogRow[][] {
+  const perModello = groupBy(catalog, row =>
+    [row.tipoApparecchiatura ?? '', normalizeKey(row.marca), normalizeKey(baseModello(row))].join('/')
+  )
+
+  const out: CatalogRow[][] = []
+  for (const gruppo of perModello.values()) {
+    const perVariante = groupBy(gruppo, variantValue)
+    const senzaVariante = perVariante.get('') ?? []
+    perVariante.delete('')
+
+    if (perVariante.size === 0) {
+      out.push(senzaVariante)
+      continue
+    }
+    if (perVariante.size === 1) {
+      out.push([...[...perVariante.values()][0], ...senzaVariante])
+      continue
+    }
+    out.push(...perVariante.values())
+  }
+  return out
+}
+
 export const duplicati: Rule = input => {
   const findings: Finding[] = []
 
-  const groups = groupBy(input.catalog, row =>
-    [
-      row.tipoApparecchiatura ?? '',
-      normalizeKey(row.marca),
-      normalizeKey(baseModello(row)),
-      variantValue(row),
-    ].join('/')
-  )
-
-  for (const group of groups.values()) {
+  for (const group of raggruppa(input.catalog)) {
     if (group.length < 2) continue
 
     // Si conserva la riga più usata; a parità, la prima incontrata.

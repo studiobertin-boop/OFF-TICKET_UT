@@ -29,6 +29,9 @@ export {
   parseNumeric,
   readNumericSpec,
   readSpec,
+  readVariantValue,
+  variantSpecKey,
+  variantSpecKeys,
   type CanonicalSpecDef,
   type NormalizeResult,
 } from './specsNormalization'

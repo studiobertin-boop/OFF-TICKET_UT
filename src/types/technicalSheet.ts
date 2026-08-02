@@ -133,11 +133,20 @@ export interface Serbatoio {
  */
 export type TipoCompressore = 'VITE' | 'PISTONI' | 'SCROLL' | 'CENTRIFUGO'
 
+/**
+ * Regolazione della velocità di rotazione. È una proprietà costruttiva del modello, quindi vive
+ * nel catalogo apparecchiature (`specs.giri`) e in scheda dati si legge soltanto.
+ *
+ * Ha senso solo sui compressori rotativi a vite: sugli altri tipi resta vuota.
+ */
+export type TipoGiri = 'fissi' | 'variabili'
+
 export interface Compressore {
   codice: string // C1, C2, ... C5
   marca?: string // Suggerimento DB + OCR
   modello?: string // Suggerimento DB + OCR
   tipo?: TipoCompressore // Default VITE - da catalogo apparecchiature
+  giri?: TipoGiri // Sola lettura: viene dal catalogo apparecchiature
   silenziato?: boolean // Cabinato/silenziato - concorre alla descrizione dell'impianto
   n_fabbrica?: string // OCR
   materiale_n?: string // OCR
@@ -377,6 +386,12 @@ export const TIPO_COMPRESSORE_LABELS: Record<string, string> = {
   PISTONI: 'A pistoni',
   SCROLL: 'Scroll',
   CENTRIFUGO: 'Centrifugo',
+}
+
+export const TIPO_GIRI_OPTIONS: TipoGiri[] = ['fissi', 'variabili']
+export const TIPO_GIRI_LABELS: Record<string, string> = {
+  fissi: 'a giri fissi',
+  variabili: 'a giri variabili (inverter)',
 }
 
 export const ORIENTAMENTO_OPTIONS: OrientamentoOption[] = ['VERTICALE', 'ORIZZONTALE']

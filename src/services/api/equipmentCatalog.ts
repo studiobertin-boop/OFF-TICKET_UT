@@ -1,12 +1,20 @@
 import { supabase } from '../supabase'
 import type { EquipmentCatalogType, EquipmentCatalogItem, EquipmentSearchResult } from '@/types'
-import { readNumericSpec } from '@/services/equipmentAudit'
+import {
+  missingCanonicalSpecs, normalizeSpecs, readVariantValue, variantSpecKey,
+} from '@/services/equipmentAudit'
 
 /**
  * API Service per Equipment Catalog
  * Gestisce filtri cascata TIPO → MARCA → MODELLO
  * e aggiunta nuove associazioni al catalogo
  */
+
+/** Variante di un modello: il valore che la distingue (pressione, Ptar) e la riga di catalogo. */
+export interface VarianteCatalogo {
+  value: number
+  item: EquipmentCatalogItem
+}
 
 export const equipmentCatalogApi = {
   /**
@@ -84,14 +92,18 @@ export const equipmentCatalogApi = {
   },
 
   /**
-   * Ottiene i dati completi (con specs) di un'apparecchiatura specifica
-   * Usato per popolare i campi tecnici quando si seleziona dal catalogo
+   * Tutte le righe attive di catalogo per una combinazione tipo + marca + modello.
+   *
+   * Uno stesso modello può averne più d'una: compressori e valvole sono indicizzati anche per
+   * pressione, e a produzione 160 modelli di compressore su 325 hanno da 2 a 3 varianti. Per
+   * questo la query NON usa `maybeSingle()`, che in quei casi fa fallire la richiesta con
+   * `PGRST116` invece di restituire un risultato.
    */
-  async getEquipmentByTipoMarcaModello(
+  async findVariants(
     tipo: EquipmentCatalogType,
     marca: string,
     modello: string
-  ): Promise<EquipmentCatalogItem | null> {
+  ): Promise<EquipmentCatalogItem[]> {
     const { data, error } = await supabase
       .from('equipment_catalog')
       .select('*')
@@ -99,11 +111,84 @@ export const equipmentCatalogApi = {
       .eq('marca', marca)
       .eq('modello', modello)
       .eq('is_active', true)
-      .maybeSingle()
 
     if (error) throw error
 
-    return data as EquipmentCatalogItem | null
+    return (data ?? []) as EquipmentCatalogItem[]
+  },
+
+  /**
+   * Tutte le righe attive di un tipo per un insieme di marche.
+   *
+   * Serve a precaricare in una sola query il catalogo che interessa a una scheda già compilata,
+   * invece di interrogare il database una volta per riga.
+   */
+  async findByMarche(
+    tipo: EquipmentCatalogType,
+    marche: string[]
+  ): Promise<EquipmentCatalogItem[]> {
+    if (marche.length === 0) return []
+
+    const { data, error } = await supabase
+      .from('equipment_catalog')
+      .select('*')
+      .eq('tipo_apparecchiatura', tipo)
+      .eq('is_active', true)
+      .in('marca', marche)
+
+    if (error) throw error
+
+    return (data ?? []) as EquipmentCatalogItem[]
+  },
+
+  /**
+   * Varianti di un modello, ordinate per valore crescente.
+   *
+   * Il catalogo contiene righe quasi-duplicate (stesso modello e stessa pressione, una con la
+   * pressione di esercizio valorizzata e una senza): a parità di valore si tiene quella con più
+   * dati tecnici completi, così l'autocompilazione non ripiega su una riga monca.
+   */
+  async getVarianti(
+    tipo: EquipmentCatalogType,
+    marca: string,
+    modello: string
+  ): Promise<VarianteCatalogo[]> {
+    const rows = await this.findVariants(tipo, marca, modello)
+
+    const perValore = new Map<number, EquipmentCatalogItem>()
+    for (const item of rows) {
+      const value = readVariantValue(tipo, item.specs)
+      if (value === null) continue
+
+      const presente = perValore.get(value)
+      if (!presente) {
+        perValore.set(value, item)
+        continue
+      }
+      if (missingCanonicalSpecs(tipo, item.specs).length < missingCanonicalSpecs(tipo, presente.specs).length) {
+        perValore.set(value, item)
+      }
+    }
+
+    return [...perValore.entries()]
+      .map(([value, item]) => ({ value, item }))
+      .sort((a, b) => a.value - b.value)
+  },
+
+  /**
+   * Ottiene i dati completi (con specs) di un'apparecchiatura specifica
+   * Usato per popolare i campi tecnici quando si seleziona dal catalogo
+   *
+   * Per i tipi con più varianti restituisce la prima riga: chi deve scegliere fra le varianti
+   * passa da `getVarianti`.
+   */
+  async getEquipmentByTipoMarcaModello(
+    tipo: EquipmentCatalogType,
+    marca: string,
+    modello: string
+  ): Promise<EquipmentCatalogItem | null> {
+    const rows = await this.findVariants(tipo, marca, modello)
+    return rows[0] ?? null
   },
 
   /**
@@ -158,18 +243,8 @@ export const equipmentCatalogApi = {
     marca: string,
     modello: string
   ): Promise<boolean> {
-    const { data, error } = await supabase
-      .from('equipment_catalog')
-      .select('id')
-      .eq('tipo_apparecchiatura', tipo)
-      .eq('marca', marca)
-      .eq('modello', modello)
-      .eq('is_active', true)
-      .maybeSingle()
-
-    if (error) throw error
-
-    return !!data
+    const rows = await this.findVariants(tipo, marca, modello)
+    return rows.length > 0
   },
 
   /**
@@ -236,24 +311,8 @@ export const equipmentCatalogApi = {
     marca: string,
     modello: string
   ): Promise<number[]> {
-    const { data, error } = await supabase
-      .from('equipment_catalog')
-      .select('specs')
-      .eq('tipo_apparecchiatura', tipo)
-      .eq('marca', marca)
-      .eq('modello', modello)
-      .eq('is_active', true)
-
-    if (error) throw error
-
-    // La lettura passa da readNumericSpec: nel catalogo la pressione sta sotto
-    // `pressione_max` sulle voci create dall'app e sotto il generico `pressione`
-    // su quelle dell'import massivo, per giunta come stringa.
-    const pressioni = data
-      .map(item => readNumericSpec(tipo, item.specs, 'pressione_max'))
-      .filter((p): p is number => p !== null)
-
-    return [...new Set(pressioni)].sort((a, b) => a - b)
+    const varianti = await this.getVarianti(tipo, marca, modello)
+    return varianti.map(v => v.value)
   },
 
   /**
@@ -265,21 +324,8 @@ export const equipmentCatalogApi = {
     modello: string,
     pressione: number
   ): Promise<EquipmentCatalogItem | null> {
-    const { data, error } = await supabase
-      .from('equipment_catalog')
-      .select('*')
-      .eq('tipo_apparecchiatura', tipo)
-      .eq('marca', marca)
-      .eq('modello', modello)
-      .eq('is_active', true)
-
-    if (error) throw error
-
-    const match = data?.find(
-      item => readNumericSpec(tipo, item.specs, 'pressione_max') === pressione
-    )
-
-    return match as EquipmentCatalogItem | null
+    const varianti = await this.getVarianti(tipo, marca, modello)
+    return varianti.find(v => v.value === pressione)?.item ?? null
   },
 
   /**
@@ -310,21 +356,8 @@ export const equipmentCatalogApi = {
     marca: string,
     modello: string
   ): Promise<number[]> {
-    const { data, error } = await supabase
-      .from('equipment_catalog')
-      .select('specs')
-      .eq('tipo_apparecchiatura', tipo)
-      .eq('marca', marca)
-      .eq('modello', modello)
-      .eq('is_active', true)
-
-    if (error) throw error
-
-    const ptarValues = data
-      .map(item => readNumericSpec(tipo, item.specs, 'ptar'))
-      .filter((p): p is number => p !== null)
-
-    return [...new Set(ptarValues)].sort((a, b) => a - b)
+    const varianti = await this.getVarianti(tipo, marca, modello)
+    return varianti.map(v => v.value)
   },
 
   /**
@@ -336,21 +369,8 @@ export const equipmentCatalogApi = {
     modello: string,
     ptar: number
   ): Promise<EquipmentCatalogItem | null> {
-    const { data, error } = await supabase
-      .from('equipment_catalog')
-      .select('*')
-      .eq('tipo_apparecchiatura', tipo)
-      .eq('marca', marca)
-      .eq('modello', modello)
-      .eq('is_active', true)
-
-    if (error) throw error
-
-    const match = data?.find(
-      item => readNumericSpec(tipo, item.specs, 'ptar') === ptar
-    )
-
-    return match as EquipmentCatalogItem | null
+    const varianti = await this.getVarianti(tipo, marca, modello)
+    return varianti.find(v => v.value === ptar)?.item ?? null
   },
 
   /**
@@ -380,7 +400,7 @@ export const equipmentCatalogApi = {
    * @param marca - Marca
    * @param modello - Modello
    * @param newSpecs - Nuovi specs da aggiungere/sovrascrivere
-   * @param options - Opzioni per compressori/valvole (pressione come chiave)
+   * @param options - Valore che identifica la variante, per i tipi che ne hanno più d'una
    * @returns void (throws su errore)
    */
   async updateEquipmentSpecs(
@@ -389,24 +409,21 @@ export const equipmentCatalogApi = {
     modello: string,
     newSpecs: Record<string, any>,
     options?: {
-      pressione?: number  // Per compressori (chiave univoca)
-      ptar?: number       // Per valvole (chiave univoca)
+      /** Valore della chiave di variante (pressione per i compressori, Ptar per le valvole). */
+      variante?: number
+      /** @deprecated usare `variante` */
+      pressione?: number
+      /** @deprecated usare `variante` */
+      ptar?: number
     }
   ): Promise<void> {
-    // 1. Trova equipment esistente
-    let equipment: EquipmentCatalogItem | null = null
-
-    if (tipo === 'Compressori' && options?.pressione !== undefined) {
-      equipment = await this.getEquipmentByTipoMarcaModelloPressione(
-        tipo, marca, modello, options.pressione
-      )
-    } else if (tipo === 'Valvole di sicurezza' && options?.ptar !== undefined) {
-      equipment = await this.getEquipmentByTipoMarcaModelloPtar(
-        tipo, marca, modello, options.ptar
-      )
-    } else {
-      equipment = await this.getEquipmentByTipoMarcaModello(tipo, marca, modello)
-    }
+    // 1. Trova la riga di catalogo. Quale valore identifichi la variante lo decide
+    //    `variantSpecKey`, non il tipo scritto a mano qui: deve restare la stessa chiave
+    //    dell'indice unico a database, altrimenti si aggiorna la variante sbagliata.
+    const variante = options?.variante ?? options?.pressione ?? options?.ptar
+    const equipment = variantSpecKey(tipo) !== null && variante !== undefined
+      ? (await this.getVarianti(tipo, marca, modello)).find(v => v.value === variante)?.item ?? null
+      : await this.getEquipmentByTipoMarcaModello(tipo, marca, modello)
 
     // 2. Se non trovato, silenzioso (apparecchiatura potrebbe essere stata eliminata)
     if (!equipment) {
@@ -421,11 +438,15 @@ export const equipmentCatalogApi = {
       )
     )
 
-    // 4. Merge specs (preserva specs esistenti, aggiunge/sovrascrive nuovi)
-    const mergedSpecs = {
+    // 4. Merge specs, poi normalizzazione: le chiavi generiche dell'import massivo
+    //    (`pressione`, `volume`, `temperatura`) vanno convertite e rimosse, altrimenti la riga
+    //    resta con `pressione: "8"` accanto a `ps: 8` e le due possono divergere.
+    const { canonical, legacyKeysConverted } = normalizeSpecs(tipo, {
       ...(equipment.specs || {}),
-      ...cleanedNewSpecs
-    }
+      ...cleanedNewSpecs,
+    })
+    const mergedSpecs = { ...(equipment.specs || {}), ...cleanedNewSpecs, ...canonical }
+    for (const legacy of legacyKeysConverted) delete mergedSpecs[legacy]
 
     // 5. Update database
     const { error } = await supabase

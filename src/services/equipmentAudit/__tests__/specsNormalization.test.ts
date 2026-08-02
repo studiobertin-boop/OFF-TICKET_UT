@@ -5,6 +5,9 @@ import {
   normalizeSpecs,
   parseNumeric,
   readSpec,
+  readVariantValue,
+  variantSpecKey,
+  variantSpecKeys,
 } from '../specsNormalization'
 
 describe('parseNumeric', () => {
@@ -104,6 +107,12 @@ describe('readSpec', () => {
     expect(readSpec('Compressori', { fad: 2580, volume: '999' }, 'fad')).toBe(2580)
   })
 
+  it('legge la regolazione dei giri, che è un enum e non un numero', () => {
+    // È il valore che la scheda dati riporta nella riga del compressore, in sola lettura.
+    expect(readSpec('Compressori', { giri: 'variabili' }, 'giri')).toBe('variabili')
+    expect(readSpec('Compressori', {}, 'giri')).toBeNull()
+  })
+
   it('restituisce null quando il dato manca', () => {
     expect(readSpec('Compressori', {}, 'fad')).toBeNull()
     expect(readSpec('Compressori', null, 'fad')).toBeNull()
@@ -139,5 +148,42 @@ describe('canonicalFromForm', () => {
 
   it('ignora i campi vuoti', () => {
     expect(canonicalFromForm('Serbatoi', { volume: null, ps_pressione_max: '' })).toEqual({})
+  })
+})
+
+describe('chiave di variante', () => {
+  it('individua la chiave che distingue le varianti di un modello', () => {
+    expect(variantSpecKey('Compressori')).toBe('pressione_esercizio')
+    expect(variantSpecKey('Valvole di sicurezza')).toBe('ptar')
+    expect(variantSpecKey('Serbatoi')).toBe('ps')
+    expect(variantSpecKey('Filtri')).toBeNull()
+    expect(variantSpecKey(null)).toBeNull()
+  })
+
+  it('dichiara la ricaduta dei compressori, come il COALESCE dell indice unico', () => {
+    expect(variantSpecKeys('Compressori')).toEqual(['pressione_esercizio', 'pressione_max'])
+    expect(variantSpecKeys('Valvole di sicurezza')).toEqual(['ptar'])
+    expect(variantSpecKeys('Serbatoi')).toEqual(['ps'])
+  })
+
+  it('preferisce la pressione di esercizio a quella di targa', () => {
+    expect(readVariantValue('Compressori', { pressione_esercizio: 7.5, pressione_max: 8 })).toBe(7.5)
+  })
+
+  it('ripiega sulla pressione di targa quando manca quella di esercizio', () => {
+    // 146 righe su 612 a produzione sono in questo stato.
+    expect(readVariantValue('Compressori', { pressione_max: 11 })).toBe(11)
+  })
+
+  it('legge anche la chiave generica dell import massivo', () => {
+    expect(readVariantValue('Compressori', { pressione: '10' })).toBe(10)
+    expect(readVariantValue('Valvole di sicurezza', { pressione: '11' })).toBe(11)
+  })
+
+  it('restituisce null se il tipo non ha varianti o il dato manca', () => {
+    expect(readVariantValue('Serbatoi', { ps: 11 })).toBe(11)
+    expect(readVariantValue('Filtri', { ps: 11 })).toBeNull()
+    expect(readVariantValue('Compressori', { fad: 2000 })).toBeNull()
+    expect(readVariantValue('Compressori', null)).toBeNull()
   })
 })

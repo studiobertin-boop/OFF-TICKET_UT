@@ -3,6 +3,7 @@ import {
   createEquipmentSchema,
   normalizeMarca,
   normalizeModello,
+  specsFieldsFor,
   specsSchemaFor,
   validateEquipmentInput,
 } from '../equipmentCatalogValidation'
@@ -77,5 +78,31 @@ describe('schema dei dati tecnici generato dal tipo', () => {
 
   it('i tipi senza dati tecnici non impongono nulla', () => {
     expect(specsSchemaFor('Filtri').safeParse({}).success).toBe(true)
+  })
+})
+
+describe('specsFieldsFor', () => {
+  it('senza specs restituisce tutti i campi del tipo', () => {
+    const chiavi = specsFieldsFor('Compressori').map(d => d.key)
+    expect(chiavi).toContain('giri')
+    expect(chiavi).toContain('fad')
+  })
+
+  it('la regolazione dei giri vale sui rotativi a vite', () => {
+    expect(specsFieldsFor('Compressori', { tipo_compressore: 'VITE' }).map(d => d.key)).toContain('giri')
+  })
+
+  it('con tipo costruttivo non dichiarato il campo resta: a catalogo vale il default «a vite»', () => {
+    expect(specsFieldsFor('Compressori', {}).map(d => d.key)).toContain('giri')
+  })
+
+  it('sugli altri tipi costruttivi il campo sparisce', () => {
+    for (const t of ['PISTONI', 'SCROLL', 'CENTRIFUGO']) {
+      expect(specsFieldsFor('Compressori', { tipo_compressore: t }).map(d => d.key)).not.toContain('giri')
+    }
+  })
+
+  it('non tocca i campi degli altri tipi', () => {
+    expect(specsFieldsFor('Serbatoi', {}).map(d => d.key)).toEqual(['volume', 'ps', 'ts', 'categoria_ped'])
   })
 })

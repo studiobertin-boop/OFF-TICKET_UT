@@ -1,5 +1,7 @@
 import type { EquipmentCatalogType } from '@/types'
-import { readSpec } from '@/services/equipmentAudit'
+import {
+  FORM_TO_CANONICAL, readSpec, readVariantValue, variantSpecKey, variantSpecKeys,
+} from '@/services/equipmentAudit'
 import { TIPO_COMPRESSORE_LABELS } from '@/types/technicalSheet'
 import type {
   Serbatoio,
@@ -46,61 +48,6 @@ const INSTANCE_SPECIFIC_FIELDS = [
   'ancorato_terra',
   'scarico',
 ]
-
-/**
- * Mappa campi form → campi specs per tipo apparecchiatura
- */
-const FORM_TO_SPECS_MAP: Record<string, Record<string, string>> = {
-  Serbatoi: {
-    volume: 'volume',
-    ps_pressione_max: 'ps',
-    ts_temperatura: 'ts',
-    categoria_ped: 'categoria_ped',
-  },
-  Compressori: {
-    pressione_max: 'pressione_max',
-    volume_aria_prodotto: 'fad',
-    fad: 'fad', // Backward compatibility
-    // Tipologia costruttiva (vite, pistoni, …): proprietà del modello, non dell'esemplare.
-    // Chiave `tipo_compressore` perché `tipo` in equipment_catalog è il tipo apparecchiatura.
-    tipo: 'tipo_compressore',
-  },
-  Disoleatori: {
-    volume: 'volume',
-    ps_pressione_max: 'ps',
-    pressione_max: 'ps', // Backward compatibility
-    ts_temperatura: 'ts',
-    categoria_ped: 'categoria_ped',
-  },
-  Essiccatori: {
-    ps_pressione_max: 'ps',
-    pressione_max: 'ps', // Backward compatibility
-    volume_aria_trattata: 'q',
-  },
-  Scambiatori: {
-    volume: 'volume',
-    ps_pressione_max: 'ps',
-    ts_temperatura: 'ts',
-    categoria_ped: 'categoria_ped',
-  },
-  'Valvole di sicurezza': {
-    pressione_taratura: 'ptar',
-    pressione: 'ptar', // Backward compatibility
-    ts_temperatura: 'ts',
-    temperatura_max: 'ts', // Backward compatibility
-    volume_aria_scaricato: 'qmax',
-    portata_max: 'qmax', // Backward compatibility
-    diametro: 'diametro',
-  },
-  Filtri: {},
-  Separatori: {},
-  'Recipienti filtro': {
-    volume: 'volume',
-    ps_pressione_max: 'ps',
-    ts_temperatura: 'ts',
-    categoria_ped: 'categoria_ped',
-  },
-}
 
 /**
  * Tipo unione per tutti i tipi di apparecchiature
@@ -166,8 +113,13 @@ export function compareSpecs(
     unchangedFields: [],
   }
 
-  // Se non c'è mapping per questo tipo, nessun confronto possibile
-  const fieldMap = FORM_TO_SPECS_MAP[equipmentType]
+  // Se non c'è mapping per questo tipo, nessun confronto possibile.
+  //
+  // La mappa è `FORM_TO_CANONICAL`, la stessa che usano il motore di verifica e le migration:
+  // il duplicato che viveva qui era divergente — indicizzava `ts_temperatura` mentre la tabella
+  // scrive `ts`, quindi la temperatura non veniva mai confrontata — e ignorava valvole e
+  // recipienti filtro.
+  const fieldMap = FORM_TO_CANONICAL[equipmentType]
   if (!fieldMap || Object.keys(fieldMap).length === 0) {
     return result
   }
@@ -187,37 +139,46 @@ export function compareSpecs(
   const readCatalog = (specsField: string) =>
     readSpec(equipmentType, currentSpecsCleaned, specsField)
 
-  // EDGE CASE: Compressori - pressione_max fa parte della chiave
-  if (equipmentType === 'Compressori' && 'pressione_max' in formData) {
-    const formPressione = (formData as Compressore).pressione_max
-    const catalogPressione = readCatalog('pressione_max')
+  /**
+   * Valore del form per una chiave canonica.
+   * A parità di destinazione vince il primo campo valorizzato nell'ordine della mappa: i
+   * sinonimi che seguono sono campi deprecati, tenuti solo per le schede già salvate.
+   */
+  const readForm = (specsField: string) => {
+    for (const [formField, mapped] of Object.entries(fieldMap)) {
+      if (mapped !== specsField) continue
+      const v = (formData as any)[formField]
+      if (!isEmpty(v)) return v
+    }
+    return undefined
+  }
 
-    if (!isEmpty(formPressione) && !areValuesEqual(formPressione, catalogPressione)) {
-      // Pressione diversa = chiave diversa = suggerisci nuova variante
+  /**
+   * Il valore che identifica la variante non è un campo aggiornabile: se cambia, cambia la riga
+   * di catalogo. Vale per i compressori (pressione) come per le valvole (Ptar); quale sia la
+   * chiave lo decide `variantSpecKey`, così resta allineata all'indice unico a database.
+   */
+  const chiaviVariante = variantSpecKeys(equipmentType)
+  if (variantSpecKey(equipmentType)) {
+    const formVariante = chiaviVariante.map(readForm).find(v => !isEmpty(v))
+    const catalogVariante = readVariantValue(equipmentType, currentSpecsCleaned)
+
+    if (!isEmpty(formVariante) && !areValuesEqual(formVariante, catalogVariante)) {
       result.suggestNewVariant = true
       return result
     }
   }
 
-  // EDGE CASE: Valvole - ptar fa parte della chiave
-  if (equipmentType === 'Valvole di sicurezza') {
-    const valvola = formData as ValvolaSicurezza
-    const formPtar = valvola.pressione_taratura || valvola.pressione // Backward compat
-    const catalogPtar = readCatalog('ptar')
+  // Confronta ogni campo mappato, una volta per chiave canonica
+  const daConfrontare = [...new Set(Object.entries(fieldMap)
+    .filter(([formField]) => !INSTANCE_SPECIFIC_FIELDS.includes(formField))
+    .map(([, specsField]) => specsField))]
 
-    if (!isEmpty(formPtar) && !areValuesEqual(formPtar, catalogPtar)) {
-      // Ptar diverso = chiave diversa = suggerisci nuova variante
-      result.suggestNewVariant = true
-      return result
-    }
-  }
+  for (const specsField of daConfrontare) {
+    // La chiave di variante è l'identità della riga, non un dato da aggiornare
+    if (chiaviVariante.includes(specsField)) continue
 
-  // Confronta ogni campo mappato
-  for (const [formField, specsField] of Object.entries(fieldMap)) {
-    // Skip campi specifici istanza
-    if (INSTANCE_SPECIFIC_FIELDS.includes(formField)) continue
-
-    const formValue = (formData as any)[formField]
+    const formValue = readForm(specsField)
     const catalogValue = readCatalog(specsField)
 
     // Skip se form field è vuoto (utente non ha compilato)
@@ -262,7 +223,7 @@ export function extractUpdatedSpecs(
   equipmentType: EquipmentCatalogType,
   comparison: SpecsComparison
 ): Record<string, any> {
-  const fieldMap = FORM_TO_SPECS_MAP[equipmentType]
+  const fieldMap = FORM_TO_CANONICAL[equipmentType]
   if (!fieldMap) return {}
 
   const updatedSpecs: Record<string, any> = {}
@@ -278,6 +239,16 @@ export function extractUpdatedSpecs(
   }
 
   return cleanSpecs(updatedSpecs)
+}
+
+/**
+ * Campi della scheda che alimentano una chiave canonica, nell'ordine della mappa.
+ * Il primo è quello corrente, gli altri sono sinonimi deprecati tenuti per le schede vecchie.
+ */
+export function formFieldsFor(equipmentType: EquipmentCatalogType, canonicalKey: string): string[] {
+  return Object.entries(FORM_TO_CANONICAL[equipmentType] ?? {})
+    .filter(([, mapped]) => mapped === canonicalKey)
+    .map(([formField]) => formField)
 }
 
 /**
