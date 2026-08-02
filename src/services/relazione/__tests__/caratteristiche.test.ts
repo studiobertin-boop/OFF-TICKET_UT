@@ -149,3 +149,24 @@ describe('buildCaratteristiche — temperatura dal campo della scheda', () => {
     expect(rows.find((r) => r.pos === 'S1')?.temperatura).toBe('')
   })
 })
+
+describe('buildCaratteristiche — categoria della valvola di sicurezza', () => {
+  test('vale IV anche quando la scheda non la salva, perché la mostra come costante', () => {
+    const rows = buildCaratteristiche(
+      makeScheda({
+        compressori: [],
+        disoleatori: [],
+        serbatoi: [
+          makeSerbatoio({
+            codice: 'S1',
+            valvola_sicurezza: makeValvola({ categoria_ped: undefined }),
+          }),
+        ],
+        essiccatori: [],
+        scambiatori: [],
+        filtri: [],
+      })
+    )
+    expect(rows.find((r) => r.pos === 'S1.1')?.categoria).toBe('IV')
+  })
+})

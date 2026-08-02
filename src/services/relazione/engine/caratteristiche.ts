@@ -51,7 +51,10 @@ export function buildCaratteristiche(
     capacita: formatNumberIT(v.volume_aria_scaricato),
     pressione: formatNumberIT(v.pressione_taratura),
     temperatura: formatTemperatura(TEMP_MIN_VALVOLA, v.ts, v.ts_temperatura),
-    categoria: v.categoria_ped ?? '',
+    // Una valvola di sicurezza è un accessorio di sicurezza: categoria IV per definizione.
+    // La scheda dati la mostra come costante e non la salva, quindi il dato manca quasi
+    // sempre. Stesso ripiego già in uso in esiti.ts.
+    categoria: v.categoria_ped ?? 'IV',
   })
 
   // Compressori (+ disoleatori + valvole)
