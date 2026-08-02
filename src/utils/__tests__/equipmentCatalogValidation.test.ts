@@ -32,6 +32,37 @@ describe('validazione di una voce di catalogo', () => {
     }
   })
 
+  it('non inciampa nei dati tecnici mai compilati', () => {
+    // Il form registra una chiave per ogni campo mostrato, anche se resta vuoto,
+    // e i campi che spariscono al cambio di tipo costruttivo lasciano la loro:
+    // un dato non osservato non è un dato sbagliato e non deve bloccare il salvataggio.
+    expect(
+      validateEquipmentInput({
+        ...valida,
+        specs: {
+          fad: 255,
+          pressione_esercizio: 10,
+          pressione_max: 11,
+          tipo_compressore: 'PISTONI',
+          giri: undefined,
+          ts: null,
+          diametro: '',
+        },
+      })
+    ).toEqual([])
+  })
+
+  it('scarta le chiavi vuote invece di scriverle a catalogo', () => {
+    const esito = createEquipmentSchema.safeParse({
+      ...valida,
+      specs: { fad: 255, pressione_max: 11, giri: undefined, ts: null, diametro: '' },
+    })
+    expect(esito.success).toBe(true)
+    if (esito.success) {
+      expect(esito.data.specs).toEqual({ fad: 255, pressione_max: 11 })
+    }
+  })
+
   it('pretende tipo, marca e modello', () => {
     expect(validateEquipmentInput({ marca: 'KAESER', modello: 'ASD 40' })).toEqual([
       'Tipo: Seleziona il tipo di apparecchiatura',

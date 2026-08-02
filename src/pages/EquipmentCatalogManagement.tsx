@@ -153,15 +153,13 @@ export default function EquipmentCatalogManagement() {
   }
 
   const salva = handleSubmit(async values => {
-    // I campi svuotati non vanno scritti come null: si tolgono e basta.
-    const specs = Object.fromEntries(
-      Object.entries(values.specs ?? {}).filter(([, v]) => v !== null && v !== '')
-    )
+    // I campi svuotati li toglie lo schema, per tutti i punti che salvano allo
+    // stesso modo: qui non si ripulisce nulla a mano.
     const payload = {
       tipo_apparecchiatura: values.tipo_apparecchiatura as EquipmentCatalogType,
       marca: values.marca,
       modello: values.modello,
-      specs,
+      specs: values.specs ?? {},
     }
 
     if (inModifica) await updateEquipment.mutateAsync({ id: inModifica.id, input: payload })

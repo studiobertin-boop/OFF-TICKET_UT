@@ -50,6 +50,25 @@ const modelloSchema = z
       'La pressione va nei dati tecnici, non nel nome: toglila dal modello e compila «Pressione di esercizio»',
   })
 
+/**
+ * Un dato tecnico non compilato non è un valore: la chiave si toglie prima di validare.
+ *
+ * Il form ne produce sempre — i campi svuotati valgono `null`, quelli mai toccati
+ * `undefined`, e chi sparisce al cambio di tipologia costruttiva (la regolazione dei
+ * giri quando il compressore non è a vite) lascia la propria chiave dietro di sé.
+ * Ripulire qui, e non in ogni punto che salva, è ciò che impedisce a una scheda
+ * compilata correttamente di essere respinta perché un campo che non la riguarda
+ * è rimasto vuoto.
+ */
+const rimuoviSpecsVuote = (v: unknown): unknown => {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return v
+  return Object.fromEntries(
+    Object.entries(v as Record<string, unknown>).filter(
+      ([, valore]) => valore !== null && valore !== undefined && valore !== ''
+    )
+  )
+}
+
 export const createEquipmentSchema = z.object({
   tipo_apparecchiatura: z.enum(
     EQUIPMENT_CATALOG_TYPES as [EquipmentCatalogType, ...EquipmentCatalogType[]],
@@ -57,7 +76,10 @@ export const createEquipmentSchema = z.object({
   ),
   marca: marcaSchema,
   modello: modelloSchema,
-  specs: z.record(z.union([z.number(), z.string()])).optional(),
+  specs: z.preprocess(
+    rimuoviSpecsVuote,
+    z.record(z.union([z.number(), z.string()])).optional()
+  ),
   aliases: z.array(z.string()).optional(),
 })
 
@@ -104,8 +126,12 @@ export function validateEquipmentInput(input: unknown): string[] {
   const result = createEquipmentSchema.safeParse(input)
   if (result.success) return []
   return result.error.errors.map(e => {
-    const campo = EQUIPMENT_FIELD_LABELS[String(e.path[0])] ?? String(e.path[0])
-    return `${campo}: ${e.message}`
+    // Il percorso completo, non solo la radice: «specs: Invalid input» non dice
+    // quale dato tecnico sia stato rifiutato, ed è un messaggio che non aiuta
+    // né chi compila né chi dovrà capire perché il salvataggio non è passato.
+    const [radice, ...resto] = e.path.map(String)
+    const campo = EQUIPMENT_FIELD_LABELS[radice] ?? radice
+    return `${[campo, ...resto].join(' › ')}: ${e.message}`
   })
 }
 
