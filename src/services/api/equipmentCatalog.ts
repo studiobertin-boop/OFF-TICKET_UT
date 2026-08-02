@@ -1,23 +1,15 @@
 import { supabase } from '../supabase'
 import type { EquipmentCatalogType, EquipmentCatalogItem, EquipmentSearchResult } from '@/types'
-import {
-  missingCanonicalSpecs, normalizeSpecs, readSheetPressure, variantSpecKey,
-} from '@/services/equipmentAudit'
+import { normalizeSpecs, variantSpecKey } from '@/services/equipmentAudit'
+import { raggruppaVarianti, type VarianteCatalogo } from '@/utils/equipmentVarianti'
+
+export type { VarianteCatalogo }
 
 /**
  * API Service per Equipment Catalog
  * Gestisce filtri cascata TIPO → MARCA → MODELLO
  * e aggiunta nuove associazioni al catalogo
  */
-
-/**
- * Variante di un modello come la vede la scheda dati: la pressione che la scheda dichiara
- * nella colonna PS/Ptar e la riga di catalogo che le corrisponde.
- */
-export interface VarianteCatalogo {
-  value: number
-  item: EquipmentCatalogItem
-}
 
 export const equipmentCatalogApi = {
   /**
@@ -147,42 +139,14 @@ export const equipmentCatalogApi = {
   /**
    * Varianti di un modello, ordinate per pressione crescente.
    *
-   * Le varianti sono indicizzate per la pressione che la scheda dati dichiara — la massima sui
-   * compressori, la PS sui recipienti, la Ptar sulle valvole — e non per la chiave con cui il
-   * catalogo le distingue fra loro, che sui compressori è invece la pressione di esercizio.
-   * Sono due letture della stessa riga: la scheda deve poter ritrovare la propria voce parlando
-   * della pressione che mostra, altrimenti un compressore dichiarato a 11 bar non riconosce la
-   * voce che a catalogo lavora a 10 e ha 11 di massima.
-   *
-   * Il catalogo contiene righe quasi-duplicate (stesso modello e stessa pressione, una con la
-   * pressione di esercizio valorizzata e una senza): a parità di valore si tiene quella con più
-   * dati tecnici completi, così l'autocompilazione non ripiega su una riga monca.
+   * Il raggruppamento sta in `raggruppaVarianti`: qui resta solo la lettura dal database.
    */
   async getVarianti(
     tipo: EquipmentCatalogType,
     marca: string,
     modello: string
   ): Promise<VarianteCatalogo[]> {
-    const rows = await this.findVariants(tipo, marca, modello)
-
-    const perValore = new Map<number, EquipmentCatalogItem>()
-    for (const item of rows) {
-      const value = readSheetPressure(tipo, item.specs)
-      if (value === null) continue
-
-      const presente = perValore.get(value)
-      if (!presente) {
-        perValore.set(value, item)
-        continue
-      }
-      if (missingCanonicalSpecs(tipo, item.specs).length < missingCanonicalSpecs(tipo, presente.specs).length) {
-        perValore.set(value, item)
-      }
-    }
-
-    return [...perValore.entries()]
-      .map(([value, item]) => ({ value, item }))
-      .sort((a, b) => a.value - b.value)
+    return raggruppaVarianti(tipo, await this.findVariants(tipo, marca, modello))
   },
 
   /**
