@@ -52,8 +52,8 @@ const SELECT_FIELDS =
 function describeError(error: { code?: string; message: string }, azione: string): Error {
   if (error.code === '23505') {
     return new Error(
-      'Esiste già una voce con questi tipo, marca, modello e pressione. ' +
-        'Se non compare in elenco potrebbe essere disattivata: mostra anche le voci disattivate e riattivala.'
+      'Esiste già una voce attiva con questi tipo, marca, modello e pressione. ' +
+        'Per registrare una variante diversa dello stesso modello, cambia la pressione di esercizio.'
     )
   }
   return new Error(`${azione}: ${error.message}`)
@@ -153,9 +153,8 @@ export const equipmentCatalogAdminApi = {
   /**
    * Catalogo completo per la verifica di coerenza.
    *
-   * Include le voci disattivate: gli indici di unicità non le escludono, quindi
-   * una voce disattivata continua a impedire di ricrearne una identica ed è un
-   * caso che la verifica deve poter vedere.
+   * Include le voci disattivate: restano citate dalle pratiche che le usavano,
+   * e un dato sbagliato lì continua a valere quanto uno in una voce attiva.
    */
   async listAllForAudit(): Promise<CatalogRow[]> {
     const rows = await this.listAll({ isActive: 'all' })
