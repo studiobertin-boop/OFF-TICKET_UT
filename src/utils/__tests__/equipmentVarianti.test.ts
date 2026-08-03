@@ -105,57 +105,76 @@ describe('etichettaVariante', () => {
 
 describe('testoAvvisoVariante', () => {
   it('elenca le varianti esistenti e annuncia quella nuova', () => {
-    const a = testoAvvisoVariante({
+    const varianti = raggruppaVarianti('Compressori', [
+      riga({ pressione_esercizio: 10, pressione_max: 11, fad: 1680 }),
+      riga({ pressione_esercizio: 7.5, pressione_max: 8, fad: 2000 }),
+      riga({ pressione_esercizio: 13, pressione_max: 15, fad: 1320 }),
+    ])
+    const a = testoAvvisoVariante('Compressori', {
       marca: 'KAESER KOMPRESSOREN SE',
       modello: 'SK 22',
-      pressioniEsistenti: [11, 8, 15],
+      varianti,
       nuova: 9,
     })
     expect(a?.titolo).toBe('Variante nuova di un modello già a catalogo')
-    expect(a?.corpo).toBe(
-      'A catalogo KAESER KOMPRESSOREN SE SK 22 esiste già in 3 varianti: 8, 11 e 15 bar. ' +
-        'Stai per aggiungerne una a 9 bar.'
-    )
+    expect(a?.intro).toBe('A catalogo KAESER KOMPRESSOREN SE SK 22 esiste già in 3 varianti:')
+    expect(a?.varianti).toEqual(['8 bar · 2000 l/min', '11 bar · 1680 l/min', '15 bar · 1320 l/min'])
+    expect(a?.coda).toBe('Stai per aggiungerne una a 9 bar.')
   })
 
   it('al singolare non parla di varianti', () => {
-    const a = testoAvvisoVariante({
+    const [variante] = raggruppaVarianti('Compressori', [
+      riga({ pressione_esercizio: 7.5, pressione_max: 8, fad: 4200 }),
+    ])
+    const a = testoAvvisoVariante('Compressori', {
       marca: 'CECCATO ARIA COMPRESSA S.R.L.',
       modello: 'CSA 10',
-      pressioniEsistenti: [8],
+      varianti: [variante],
       nuova: 13,
     })
-    expect(a?.corpo).toBe(
-      'A catalogo CECCATO ARIA COMPRESSA S.R.L. CSA 10 esiste già a 8 bar. ' +
-        'Stai per aggiungerne una a 13 bar.'
-    )
-  })
-
-  it('tiene la virgola decimale', () => {
-    const a = testoAvvisoVariante({
-      marca: 'KAESER KOMPRESSOREN SE',
-      modello: 'ASD 50',
-      pressioniEsistenti: [8.5, 12, 15],
-      nuova: 10.5,
-    })
-    expect(a?.corpo).toContain('8,5, 12 e 15 bar')
-    expect(a?.corpo).toContain('a 10,5 bar')
+    expect(a?.intro).toBe('A catalogo CECCATO ARIA COMPRESSA S.R.L. CSA 10 esiste già in una variante:')
+    expect(a?.coda).toBe('Stai per aggiungerne una a 13 bar.')
   })
 
   it('regge la pressione nuova non ancora scritta', () => {
-    const a = testoAvvisoVariante({
+    const varianti = raggruppaVarianti('Compressori', [
+      riga({ pressione_esercizio: 7.5, pressione_max: 8, fad: 2000 }),
+      riga({ pressione_esercizio: 10, pressione_max: 11, fad: 1680 }),
+    ])
+    const a = testoAvvisoVariante('Compressori', {
       marca: 'KAESER KOMPRESSOREN SE',
       modello: 'SK 22',
-      pressioniEsistenti: [8, 11],
+      varianti,
       nuova: null,
     })
-    expect(a?.corpo).toContain("Stai per aggiungerne un'altra.")
+    expect(a?.coda).toBe("Stai per aggiungerne un'altra.")
   })
 
   it('tace quando il modello non e a catalogo: non c e nulla da segnalare', () => {
     expect(
-      testoAvvisoVariante({ marca: 'ACME', modello: 'X1', pressioniEsistenti: [], nuova: 8 })
+      testoAvvisoVariante('Compressori', { marca: 'ACME', modello: 'X1', varianti: [], nuova: 8 })
     ).toBeNull()
+  })
+
+  it('due varianti alla stessa pressione risultano distinte nell elenco — SK 19', () => {
+    // Numeri veri di produzione: entrambe dichiarano 11 bar di massima, si distinguono solo
+    // per portata. È il caso che ha motivato il lavoro — un elenco di sole pressioni diceva
+    // «11 e 11 bar», leggibile come un errore invece che come due macchine diverse.
+    const varianti = raggruppaVarianti('Compressori', [
+      riga({ pressione_esercizio: 10, pressione_max: 11, fad: 1680 }),
+      riga({ pressione_esercizio: 7.5, pressione_max: 11, fad: 1855 }),
+    ])
+    const a = testoAvvisoVariante('Compressori', {
+      marca: 'KAESER KOMPRESSOREN SE',
+      modello: 'SK 19',
+      varianti,
+      nuova: 9,
+    })
+    expect(a?.intro).toBe('A catalogo KAESER KOMPRESSOREN SE SK 19 esiste già in 2 varianti:')
+    // Ordinate per pressione crescente e poi per variante (pressione di esercizio), come
+    // raggruppaVarianti: 7,5 bar di esercizio (1855 l/min) prima di 10 (1680 l/min).
+    expect(a?.varianti).toEqual(['11 bar · 1855 l/min', '11 bar · 1680 l/min'])
+    expect(a?.coda).toBe('Stai per aggiungerne una a 9 bar.')
   })
 })
 

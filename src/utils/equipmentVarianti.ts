@@ -163,7 +163,12 @@ export function etichettaVariante(tipo: EquipmentCatalogType, v: VarianteCatalog
 
 export interface AvvisoVariante {
   titolo: string
-  corpo: string
+  /** Apertura: quante varianti ci sono già. */
+  intro: string
+  /** Una riga per variante, nella stessa forma del menu della colonna PS. */
+  varianti: string[]
+  /** Chiusura: cosa si sta per aggiungere. */
+  coda: string
 }
 
 /**
@@ -173,30 +178,40 @@ export interface AvvisoVariante {
  * modello manca del tutto, e allora non c'è niente da segnalare, oppure c'è ad altre
  * pressioni, e allora chi sta per aggiungerne una deve sapere quali. Restituisce `null` nel
  * primo caso.
+ *
+ * L'elenco riporta la variante intera — pressione ed etichetta come nel menu della colonna
+ * PS — e non la sola pressione: su KAESER SK 19, dove due varianti dichiarano entrambe 11 bar
+ * di massima e si distinguono solo per portata (1855 e 1680 l/min), un elenco di sole
+ * pressioni diceva «11 e 11 bar», che si legge come un errore di battitura invece che come
+ * due macchine diverse.
  */
-export function testoAvvisoVariante(params: {
-  marca: string
-  modello: string
-  /** Pressioni che le righe già a catalogo dichiarano alla scheda dati. */
-  pressioniEsistenti: number[]
-  /** Pressione della variante che si sta per creare; `null` se la colonna PS è vuota. */
-  nuova: number | null
-}): AvvisoVariante | null {
-  const { marca, modello, pressioniEsistenti, nuova } = params
-  if (pressioniEsistenti.length === 0) return null
+export function testoAvvisoVariante(
+  tipo: EquipmentCatalogType,
+  params: {
+    marca: string
+    modello: string
+    /** Varianti già a catalogo per questo modello, ordinate come le restituisce `raggruppaVarianti`. */
+    varianti: VarianteCatalogo[]
+    /** Pressione della variante che si sta per creare; `null` se la colonna PS è vuota. */
+    nuova: number | null
+  }
+): AvvisoVariante | null {
+  const { marca, modello, varianti, nuova } = params
+  if (varianti.length === 0) return null
 
-  const elenco = [...pressioniEsistenti].sort((a, b) => a - b).map(numeroIT)
-  const esistenti =
-    elenco.length === 1
-      ? `esiste già a ${elenco[0]} bar`
-      : `esiste già in ${elenco.length} varianti: ${elenco.slice(0, -1).join(', ')} e ${elenco[elenco.length - 1]} bar`
+  const intro =
+    varianti.length === 1
+      ? `A catalogo ${marca} ${modello} esiste già in una variante:`
+      : `A catalogo ${marca} ${modello} esiste già in ${varianti.length} varianti:`
 
   const coda =
     nuova === null ? "Stai per aggiungerne un'altra." : `Stai per aggiungerne una a ${numeroIT(nuova)} bar.`
 
   return {
     titolo: 'Variante nuova di un modello già a catalogo',
-    corpo: `A catalogo ${marca} ${modello} ${esistenti}. ${coda}`,
+    intro,
+    varianti: varianti.map((v) => etichettaVariante(tipo, v)),
+    coda,
   }
 }
 

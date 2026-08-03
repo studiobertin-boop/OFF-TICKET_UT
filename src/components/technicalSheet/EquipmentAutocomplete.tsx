@@ -12,6 +12,8 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
+  List,
+  ListItem,
 } from '@mui/material'
 import {
   Add as AddIcon,
@@ -280,18 +282,18 @@ export const EquipmentAutocomplete = ({
    * chi sta per creare una quarta variante di una macchina che ne ha tre lo sa.
    */
   const handleAddToCatalog = () => {
-    // Le pressioni dell'avviso vengono dalle varianti raggruppate, non da una riga per riga:
-    // due righe quasi-duplicate che dichiarano la stessa pressione sono una sola variante, e
-    // l'elenco deve coincidere esattamente con le voci del menu della colonna PS. Un valore
-    // ripetuto può restare — due varianti genuine alla stessa pressione sono due macchine — ma
-    // il doppione che non è una variante deve sparire.
-    const pressioni = raggruppaVarianti(equipmentType, righeCatalogo).map((v) => v.value)
+    // Le varianti dell'avviso vengono dalle righe raggruppate, non da una riga di catalogo per
+    // riga: due righe quasi-duplicate che dichiarano la stessa pressione sono una sola variante,
+    // e l'elenco deve coincidere esattamente con le voci del menu della colonna PS — comprese le
+    // varianti genuine alla stessa pressione, che sono macchine diverse e vanno mostrate distinte
+    // (etichettaVariante ci aggiunge la portata apposta per questo).
+    const varianti = raggruppaVarianti(equipmentType, righeCatalogo)
 
     const testo = indicizzatoPerVariante
-      ? testoAvvisoVariante({
+      ? testoAvvisoVariante(equipmentType, {
           marca: marcaValue,
           modello: modelloValue,
-          pressioniEsistenti: pressioni,
+          varianti,
           nuova: variantValue ?? null,
         })
       : null
@@ -442,7 +444,19 @@ export const EquipmentAutocomplete = ({
       <Dialog open={avviso !== null} onClose={() => setAvviso(null)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontSize: '1rem' }}>{avviso?.titolo}</DialogTitle>
         <DialogContent>
-          <DialogContentText sx={{ fontSize: '0.875rem' }}>{avviso?.corpo}</DialogContentText>
+          <DialogContentText sx={{ fontSize: '0.875rem' }}>{avviso?.intro}</DialogContentText>
+          <List dense disablePadding sx={{ my: 0.5 }}>
+            {avviso?.varianti.map((v, i) => (
+              <ListItem
+                key={i}
+                disablePadding
+                sx={{ display: 'list-item', listStyleType: 'disc', ml: 3, fontSize: '0.875rem', fontVariantNumeric: 'tabular-nums' }}
+              >
+                {v}
+              </ListItem>
+            ))}
+          </List>
+          <DialogContentText sx={{ fontSize: '0.875rem' }}>{avviso?.coda}</DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setAvviso(null)}>Annulla</Button>
