@@ -374,7 +374,7 @@ export const equipmentCatalogApi = {
    * @param marca - Marca
    * @param modello - Modello
    * @param newSpecs - Nuovi specs da aggiungere/sovrascrivere
-   * @param options - Valore che identifica la variante, per i tipi che ne hanno più d'una
+   * @param options - Riga da aggiornare: per id se lo si conosce, altrimenti per pressione dichiarata
    * @returns void (throws su errore)
    */
   async updateEquipmentSpecs(
@@ -383,6 +383,12 @@ export const equipmentCatalogApi = {
     modello: string,
     newSpecs: Record<string, any>,
     options?: {
+      /**
+       * Identificativo della riga di catalogo scelta dal tecnico. Da preferire sempre che sia
+       * disponibile: da quando due varianti possono dichiarare la stessa pressione, `variante`
+       * non individua più una riga sola, e scriverci sopra rischia la riga sbagliata.
+       */
+      catalogItemId?: string
       /** Valore della chiave di variante (pressione per i compressori, Ptar per le valvole). */
       variante?: number
       /** @deprecated usare `variante` */
@@ -391,14 +397,34 @@ export const equipmentCatalogApi = {
       ptar?: number
     }
   ): Promise<void> {
-    // 1. Trova la riga di catalogo. Il valore che arriva è la pressione dichiarata dalla scheda,
-    //    ed è per quella che `getVarianti` indicizza: chi chiama non deve sapere con quale
-    //    chiave il catalogo distingua le varianti fra loro, altrimenti si aggiorna quella
-    //    sbagliata. Che il tipo abbia varianti lo dice `variantSpecKey`.
+    // 1. Trova la riga di catalogo.
+    //
+    //    Con `catalogItemId` la riga si individua senza ambiguità: è quella scelta dal tecnico
+    //    quando la scheda si è precompilata, e cortocircuita ogni altra ricerca.
+    //
+    //    Il ripiego per pressione resta per chi non porta l'id — le schede già salvate non lo
+    //    hanno — ma il valore che arriva è la pressione dichiarata dalla scheda (`readSheetPressure`),
+    //    non più la chiave dell'indice unico: da quando due varianti possono dichiararne una
+    //    uguale, `variante` può corrispondere a più righe. Se càpita, meglio non scrivere che
+    //    scrivere sulla riga sbagliata.
     const variante = options?.variante ?? options?.pressione ?? options?.ptar
-    const equipment = variantSpecKey(tipo) !== null && variante !== undefined
-      ? (await this.getVarianti(tipo, marca, modello)).find(v => v.value === variante)?.item ?? null
-      : await this.getEquipmentByTipoMarcaModello(tipo, marca, modello)
+    let equipment: EquipmentCatalogItem | null = null
+
+    if (options?.catalogItemId) {
+      equipment = await this.getById(options.catalogItemId)
+    } else if (variantSpecKey(tipo) !== null && variante !== undefined) {
+      const candidati = (await this.getVarianti(tipo, marca, modello)).filter(v => v.value === variante)
+      if (candidati.length > 1) {
+        console.warn(
+          'Variante ambigua per updateEquipmentSpecs: più righe dichiarano la stessa pressione, nessun aggiornamento eseguito.',
+          { tipo, marca, modello, variante, righe: candidati.map(c => c.item.id) }
+        )
+        return
+      }
+      equipment = candidati[0]?.item ?? null
+    } else {
+      equipment = await this.getEquipmentByTipoMarcaModello(tipo, marca, modello)
+    }
 
     // 2. Se non trovato, silenzioso (apparecchiatura potrebbe essere stata eliminata)
     if (!equipment) {

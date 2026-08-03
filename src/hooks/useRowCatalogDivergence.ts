@@ -122,9 +122,13 @@ export function useRowCatalogDivergence() {
       }
 
       if (Object.keys(daScrivere).length > 0) {
+        // `catalogData` è la stessa riga da cui vengono `appliedSpecs` (vedi `useHydrateCatalogCache`
+        // e `UnifiedEquipmentTable`, che valorizzano cache e origine dalla stessa voce): il suo id
+        // individua la riga da aggiornare senza passare dalla pressione, che da sola può non
+        // bastare più a distinguerla. `variante` resta solo come ripiego, per quando manca.
         await equipmentCatalogApi.updateEquipmentSpecs(
           pending.equipmentType, pending.marca, pending.modello, daScrivere,
-          { variante: pending.variante }
+          { catalogItemId: pending.catalogData?.id, variante: pending.variante }
         )
       }
 
