@@ -3,6 +3,7 @@ import {
   CANONICAL_SPECS,
   capacityKey,
   missingCanonicalSpecs,
+  normalizeKey,
   readNumericSpec,
   readSheetPressure,
   readVariantValue,
@@ -113,6 +114,34 @@ export function scegliVarianteSalvata(
 /** Uguaglianza fra numeri letti da JSON, indulgente quanto basta al rumore in virgola mobile. */
 function stessoNumero(a: number | null, b: number | null): boolean {
   return a !== null && b !== null && Math.abs(a - b) < 1e-6
+}
+
+/**
+ * Una voce di catalogo appartiene davvero a questa marca/modello di scheda?
+ *
+ * Serve a chi scrive per `catalogItemId`: l'id individua una riga senza passare da marca e
+ * modello, e questo va bene finché la provenienza da cui l'id arriva è ancora quella della riga
+ * di scheda che si sta salvando. Se nel frattempo il tecnico ha corretto marca o modello
+ * dall'autocomplete, la provenienza può restare quella del modello precedente — la voce trovata
+ * per id appartiene a un'altra apparecchiatura, e scriverci sopra scriverebbe FAD/PS/TS della
+ * riga sbagliata su un'altra scheda macchina.
+ *
+ * Il confronto usa `normalizeKey`, la stessa normalizzazione con cui il motore di verifica
+ * riconosce una marca o un modello scritti in una pratica con una grafia diversa da quella
+ * canonica di catalogo (`schedeDati.ts`): qui la domanda è la stessa — "questa stringa di scheda
+ * indica questa voce di catalogo?" — non l'uguaglianza esatta che usano le query dirette al
+ * database (`.eq()` su `findVariants`), pensate per righe che arrivano già con la grafia del
+ * catalogo perché scelte da un autocomplete che lo interroga.
+ */
+export function stessaVoceCatalogo(
+  equipment: Pick<EquipmentCatalogItem, 'marca' | 'modello'>,
+  marca: string,
+  modello: string
+): boolean {
+  return (
+    normalizeKey(equipment.marca) === normalizeKey(marca) &&
+    normalizeKey(equipment.modello) === normalizeKey(modello)
+  )
 }
 
 /**

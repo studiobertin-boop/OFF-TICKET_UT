@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { EquipmentCatalogItem } from '@/types'
 import {
-  etichettaVariante, raggruppaVarianti, scegliVarianteSalvata, testoAvvisoVariante,
+  etichettaVariante, raggruppaVarianti, scegliVarianteSalvata, stessaVoceCatalogo, testoAvvisoVariante,
 } from '@/utils/equipmentVarianti'
 
 /**
@@ -213,5 +213,31 @@ describe('scegliVarianteSalvata', () => {
     ]
     expect(scegliVarianteSalvata('Valvole di sicurezza', valvole, { pressione: 11, capacita: 4000 }))
       .toBe(valvole[1])
+  })
+})
+
+describe('stessaVoceCatalogo', () => {
+  /**
+   * Il caso reale che la guardia esiste per intercettare: la riga è stata precompilata da
+   * KAESER SK 19, poi il tecnico ha corretto il modello in ASD 37 SFC dall'autocomplete — che
+   * per i tipi indicizzati per variante non richiama `handleSelected` — e la provenienza è
+   * rimasta quella di SK 19.
+   */
+  const sk19 = { ...riga({ pressione_esercizio: 7.5, pressione_max: 11, fad: 1855 }), modello: 'SK 19' }
+
+  it('riconosce la voce quando marca e modello coincidono', () => {
+    expect(stessaVoceCatalogo(sk19, 'KAESER KOMPRESSOREN SE', 'SK 19')).toBe(true)
+  })
+
+  it('rifiuta un modello diverso — SK 19 corretto in ASD 37 SFC', () => {
+    expect(stessaVoceCatalogo(sk19, 'KAESER KOMPRESSOREN SE', 'ASD 37 SFC')).toBe(false)
+  })
+
+  it('rifiuta una marca diversa a parita di modello', () => {
+    expect(stessaVoceCatalogo(sk19, 'ATLAS COPCO', 'SK 19')).toBe(false)
+  })
+
+  it('non si fa ingannare da maiuscole e spaziatura diverse', () => {
+    expect(stessaVoceCatalogo(sk19, '  kaeser   kompressoren se', 'sk19')).toBe(true)
   })
 })

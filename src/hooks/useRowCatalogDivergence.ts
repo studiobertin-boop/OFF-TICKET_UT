@@ -3,6 +3,7 @@ import { useFormContext, useFormState } from 'react-hook-form'
 import { useEquipmentCatalogContext } from '@/components/technicalSheet/EquipmentCatalogContext'
 import { equipmentCatalogApi, type EsitoAggiornamentoSpecs } from '@/services/api/equipmentCatalog'
 import { compareSpecs, formFieldsFor } from '@/utils/equipmentSpecsComparison'
+import { stessaVoceCatalogo } from '@/utils/equipmentVarianti'
 import { readSheetPressure } from '@/services/equipmentAudit'
 import type { EquipmentCatalogType } from '@/types'
 import type { ScelteCampi, UpdateData } from '@/types/equipmentUpdate'
@@ -76,6 +77,14 @@ export function useRowCatalogDivergence() {
 
     const riga = getValues(base) as Record<string, any> | undefined
     if (!riga?.marca || !riga?.modello) return
+
+    // La provenienza vale per la marca/modello con cui è stata registrata. Se il tecnico corregge
+    // l'una o l'altro dall'autocomplete — che per i tipi indicizzati per variante non richiama
+    // `handleSelected` — la provenienza resta quella del modello precedente: aprire il dialog
+    // confronterebbe la riga corretta con `appliedSpecs` di un'altra apparecchiatura, e «aggiorna
+    // il catalogo» scriverebbe su quella. Meglio trattarla come riga senza provenienza: niente
+    // dialog, invece di un dialog che mostra e scrive i dati sbagliati.
+    if (!stessaVoceCatalogo(origine.catalogItem, riga.marca, riga.modello)) return
 
     const comparison = compareSpecs(origine.appliedSpecs, riga as any, tipo)
     if (!comparison.hasChanges) return

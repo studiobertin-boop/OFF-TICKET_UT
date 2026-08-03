@@ -1,7 +1,7 @@
 import { supabase } from '../supabase'
 import type { EquipmentCatalogType, EquipmentCatalogItem, EquipmentSearchResult } from '@/types'
 import { normalizeSpecs, variantSpecKey } from '@/services/equipmentAudit'
-import { raggruppaVarianti, type VarianteCatalogo } from '@/utils/equipmentVarianti'
+import { raggruppaVarianti, stessaVoceCatalogo, type VarianteCatalogo } from '@/utils/equipmentVarianti'
 
 export type { VarianteCatalogo }
 
@@ -420,7 +420,26 @@ export const equipmentCatalogApi = {
     let equipment: EquipmentCatalogItem | null = null
 
     if (options?.catalogItemId) {
-      equipment = await this.getById(options.catalogItemId)
+      const trovato = await this.getById(options.catalogItemId)
+
+      // La provenienza da cui arriva `catalogItemId` può essere rimasta quella di un modello
+      // precedente: se il tecnico ha corretto marca o modello dall'autocomplete dopo la
+      // precompilazione, l'id continua a puntare alla riga vecchia. Scriverci sopra scriverebbe i
+      // dati tecnici di questa riga su un'altra apparecchiatura del catalogo, in silenzio — è
+      // un'incoerenza di stato fra la provenienza e la riga che si sta salvando, non un caso
+      // normale, e chi legge i log deve poterla distinguere da una riga davvero rimossa.
+      if (trovato && !stessaVoceCatalogo(trovato, marca, modello)) {
+        console.warn(
+          'catalogItemId non corrisponde a marca/modello della riga: la provenienza è probabilmente ' +
+          'rimasta quella di un modello precedente. Nessun aggiornamento eseguito.',
+          {
+            tipo, marcaAttesa: marca, modelloAtteso: modello, catalogItemId: options.catalogItemId,
+            marcaTrovata: trovato.marca, modelloTrovato: trovato.modello,
+          }
+        )
+      } else {
+        equipment = trovato
+      }
     } else if (variantSpecKey(tipo) !== null && variante !== undefined) {
       const candidati = (await this.getVarianti(tipo, marca, modello)).filter(v => v.value === variante)
       if (candidati.length > 1) {
