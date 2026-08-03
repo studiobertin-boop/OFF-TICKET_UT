@@ -1,5 +1,6 @@
 import {
   Box,
+  Checkbox,
   Chip,
   IconButton,
   Paper,
@@ -34,6 +35,11 @@ interface EquipmentCatalogTableProps {
   onEdit: (item: EquipmentCatalogItem) => void
   onDelete: (item: EquipmentCatalogItem) => void
   onToggleActive: (item: EquipmentCatalogItem) => void
+  /** Id delle righe selezionate, condivise con la pagina che le raccoglie. */
+  selezionate: Set<string>
+  onToggleRiga: (id: string) => void
+  /** Seleziona o deseleziona tutte le righe della pagina corrente. */
+  onTogglePagina: (seleziona: boolean) => void
 }
 
 /** Dati tecnici della riga, compattati: al massimo tre, quelli che identificano la voce. */
@@ -61,11 +67,23 @@ export const EquipmentCatalogTable = ({
   onEdit,
   onDelete,
   onToggleActive,
+  selezionate,
+  onToggleRiga,
+  onTogglePagina,
 }: EquipmentCatalogTableProps) => (
   <TableContainer component={Paper}>
     <Table size="small">
       <TableHead>
         <TableRow>
+          <TableCell padding="checkbox">
+            <Checkbox
+              size="small"
+              checked={righe.length > 0 && righe.every(r => selezionate.has(r.id))}
+              indeterminate={righe.some(r => selezionate.has(r.id)) && !righe.every(r => selezionate.has(r.id))}
+              onChange={e => onTogglePagina(e.target.checked)}
+              inputProps={{ 'aria-label': 'Seleziona tutte le righe della pagina' }}
+            />
+          </TableCell>
           <TableCell>Tipo</TableCell>
           <TableCell>Marca</TableCell>
           <TableCell>Modello</TableCell>
@@ -78,7 +96,7 @@ export const EquipmentCatalogTable = ({
       <TableBody>
         {righe.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={6} align="center">
+            <TableCell colSpan={7} align="center">
               <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
                 Nessuna apparecchiatura corrisponde ai filtri
               </Typography>
@@ -90,6 +108,14 @@ export const EquipmentCatalogTable = ({
 
             return (
               <TableRow key={item.id} hover sx={{ opacity: item.is_active ? 1 : 0.55 }}>
+                <TableCell padding="checkbox">
+                  <Checkbox
+                    size="small"
+                    checked={selezionate.has(item.id)}
+                    onChange={() => onToggleRiga(item.id)}
+                    inputProps={{ 'aria-label': `Seleziona ${item.marca} ${item.modello}` }}
+                  />
+                </TableCell>
                 <TableCell>
                   <Typography variant="body2">{item.tipo_apparecchiatura ?? '—'}</Typography>
                 </TableCell>

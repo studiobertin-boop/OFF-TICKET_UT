@@ -103,6 +103,14 @@ export default function EquipmentCatalogManagement() {
   const [daEliminare, setDaEliminare] = useState<EquipmentCatalogItem | null>(null)
   const [auditOpen, setAuditOpen] = useState(false)
 
+  /**
+   * Righe selezionate per la modifica massiva.
+   *
+   * Si azzera a ogni cambio di filtro, di ricerca e di pagina: alla conferma non si devono
+   * trascinare righe scelte sotto un filtro diverso, che chi conferma non ha più sotto gli occhi.
+   */
+  const [selezionate, setSelezionate] = useState<Set<string>>(new Set())
+
   const searchDebounced = useValoreRitardato(search)
 
   const filters = useMemo(
@@ -152,6 +160,19 @@ export default function EquipmentCatalogManagement() {
     setFormOpen(true)
   }
 
+  const toggleRiga = (id: string) => {
+    setSelezionate(prec => {
+      const prossime = new Set(prec)
+      if (prossime.has(id)) prossime.delete(id)
+      else prossime.add(id)
+      return prossime
+    })
+  }
+
+  const togglePagina = (seleziona: boolean) => {
+    setSelezionate(seleziona ? new Set((data?.data ?? []).map(r => r.id)) : new Set())
+  }
+
   const salva = handleSubmit(async values => {
     // I campi svuotati li toglie lo schema, per tutti i punti che salvano allo
     // stesso modo: qui non si ripulisce nulla a mano.
@@ -170,7 +191,13 @@ export default function EquipmentCatalogManagement() {
 
   useEffect(() => {
     setPage(0)
+    setSelezionate(new Set())
   }, [searchDebounced, tipo, mostraDisattivate, soloIncompleti])
+
+  // La pagina cambia anche senza che cambino i filtri: la selezione non la segue.
+  useEffect(() => {
+    setSelezionate(new Set())
+  }, [page, rowsPerPage])
 
   const salvataggioInCorso = createEquipment.isPending || updateEquipment.isPending
   const erroreSalvataggio = createEquipment.error ?? updateEquipment.error
@@ -280,6 +307,9 @@ export default function EquipmentCatalogManagement() {
             onEdit={apriModifica}
             onDelete={setDaEliminare}
             onToggleActive={item => setActive.mutate({ id: item.id, isActive: !item.is_active })}
+            selezionate={selezionate}
+            onToggleRiga={toggleRiga}
+            onTogglePagina={togglePagina}
           />
         )}
       </Box>
