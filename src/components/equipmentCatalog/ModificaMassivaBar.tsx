@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Alert, Button, Menu, MenuItem, Paper, Stack, Typography } from '@mui/material'
 import type { EquipmentCatalogItem } from '@/types'
 import { CANONICAL_SPECS } from '@/services/equipmentAudit'
-import { soloCompressori, type ChiaveMassiva } from '@/utils/modificaMassiva'
+import { conta, etichettaValore, soloCompressori, type ChiaveMassiva } from '@/utils/modificaMassiva'
 
 interface ModificaMassivaBarProps {
   /** Righe selezionate, già risolte: la barra non interroga il database. */
@@ -39,6 +39,9 @@ export const ModificaMassivaBar = ({
 
   const omogenea = soloCompressori(righe)
   const nonCompressori = righe.filter(r => r.tipo_apparecchiatura !== 'Compressori').length
+  // Il menu aperto individua un'unica definizione: la si legge una volta sola, invece di
+  // interrogare due volte il contratto canonico — una per le opzioni, una per le etichette.
+  const menuDef = menu ? (CANONICAL_SPECS.Compressori ?? []).find(d => d.key === menu.chiave) : undefined
 
   return (
     <Paper variant="outlined" sx={{ p: 1.5, mb: 2 }}>
@@ -78,7 +81,7 @@ export const ModificaMassivaBar = ({
       {!omogenea && (
         <Alert severity="info" sx={{ mt: 1, py: 0 }}>
           {nonCompressori > 0
-            ? `Nella selezione ci sono ${nonCompressori} righe che non sono compressori: le proprietà costruttive si applicano ai soli compressori.`
+            ? `${conta(nonCompressori, 'riga non è un compressore', 'righe non sono compressori')} nella selezione: le proprietà costruttive si applicano ai soli compressori. Filtra per tipo «Compressori» o toglile dalla selezione.`
             : 'Le proprietà costruttive si applicano ai soli compressori.'}
         </Alert>
       )}
@@ -88,19 +91,17 @@ export const ModificaMassivaBar = ({
         anchorEl={menu?.anchor}
         onClose={() => setMenu(null)}
       >
-        {(CANONICAL_SPECS.Compressori ?? [])
-          .find(d => d.key === menu?.chiave)
-          ?.options?.map(o => (
-            <MenuItem
-              key={o}
-              onClick={() => {
-                onScegli(menu!.chiave, o)
-                setMenu(null)
-              }}
-            >
-              {(CANONICAL_SPECS.Compressori ?? []).find(d => d.key === menu?.chiave)?.optionLabels?.[o] ?? o}
-            </MenuItem>
-          ))}
+        {menuDef?.options?.map(o => (
+          <MenuItem
+            key={o}
+            onClick={() => {
+              onScegli(menu!.chiave, o)
+              setMenu(null)
+            }}
+          >
+            {etichettaValore(menu!.chiave, o)}
+          </MenuItem>
+        ))}
       </Menu>
     </Paper>
   )

@@ -20,24 +20,44 @@ export interface RipartizioneMassiva {
   daSostituire: EquipmentCatalogItem[]
   /** Il campo ha già questo valore: non si riscrive, per non sporcare `updated_at`. */
   giaUguali: EquipmentCatalogItem[]
+  /**
+   * Il campo non si applica a questa riga (`appliesWhen` del contratto canonico è falso):
+   * non si scrive, qualunque cosa porti già in `specs`. Sui giri è lo scroll o il pistoni —
+   * il form di modifica nasconde già il campo per queste righe, e scriverci sotto un valore
+   * lo lascerebbe lì, invisibile e non correggibile dall'interfaccia.
+   */
+  nonApplicabili: EquipmentCatalogItem[]
 }
 
 /**
  * Divide le righe selezionate rispetto al valore che si sta per applicare.
  *
- * I tre gruppi non sono una comodità di presentazione: `daSostituire` sono le righe il cui
+ * I gruppi non sono una comodità di presentazione: `daSostituire` sono le righe il cui
  * valore qualcuno ha già stabilito — sui giri, le 141 che il backfill aveva verificato una
  * a una — e cancellarne uno per sbaglio è silenzioso, perché il dato finisce in una frase
- * asseverata di una relazione firmata.
+ * asseverata di una relazione firmata. `nonApplicabili` sono quelle su cui il dato non ha
+ * senso del tutto, e la condizione la dichiara il contratto canonico stesso
+ * (`appliesWhen`), non una regola duplicata qui.
  */
 export function ripartisciPerValore(
   righe: EquipmentCatalogItem[],
   chiave: ChiaveMassiva,
   valore: string
 ): RipartizioneMassiva {
-  const out: RipartizioneMassiva = { daCompilare: [], daSostituire: [], giaUguali: [] }
+  const def = (CANONICAL_SPECS.Compressori ?? []).find(d => d.key === chiave)
+  const out: RipartizioneMassiva = {
+    daCompilare: [],
+    daSostituire: [],
+    giaUguali: [],
+    nonApplicabili: [],
+  }
 
   for (const riga of righe) {
+    if (def?.appliesWhen && !def.appliesWhen(riga.specs ?? {})) {
+      out.nonApplicabili.push(riga)
+      continue
+    }
+
     const attuale = riga.specs?.[chiave]
     const vuoto = attuale === null || attuale === undefined || String(attuale).trim() === ''
 
@@ -70,7 +90,7 @@ export function modelliDa(righe: EquipmentCatalogItem[], max = 10): string {
 
 export interface TestoConferma {
   titolo: string
-  /** Una riga per gruppo non vuoto, nell'ordine: da compilare, da sostituire, già uguali. */
+  /** Una riga per gruppo non vuoto, nell'ordine: da compilare, da sostituire, già uguali, non applicabili. */
   righe: string[]
   /** Etichetta del pulsante, che dichiara quante righe verranno davvero scritte. */
   azione: string
@@ -110,6 +130,19 @@ export function testoConferma(
     )
   }
 
+  if (rip.nonApplicabili.length > 0) {
+    const n = rip.nonApplicabili.length
+    // La frase nomina la condizione — «rotativi a vite» — perché oggi `giri` è l'unica
+    // chiave con un `appliesWhen`, ed è quella condizione. Se in futuro un'altra proprietà
+    // costruttiva ne guadagnasse uno diverso, questo testo andrebbe generalizzato invece di
+    // aggiungere qui un altro ramo con un'altra frase fissa.
+    righe.push(
+      n === 1
+        ? '1 riga non è un rotativo a vite e resta com è'
+        : `${n} righe non sono rotativi a vite e restano come sono`
+    )
+  }
+
   const daScrivere = rip.daCompilare.length + rip.daSostituire.length
 
   return {
@@ -125,8 +158,13 @@ export function soloCompressori(righe: EquipmentCatalogItem[]): boolean {
   return righe.length > 0 && righe.every(r => r.tipo_apparecchiatura === 'Compressori')
 }
 
-/** «2 righe hanno» — il numero davanti, una volta sola nella frase. */
-function conta(n: number, uno: string, molti: string): string {
+/**
+ * «2 righe hanno» — il numero davanti, una volta sola nella frase.
+ *
+ * Esportata perché la concordanza singolare/plurale serve anche fuori da questo file — alla
+ * barra, per dire quante righe della selezione non sono compressori — e non va riscritta lì.
+ */
+export function conta(n: number, uno: string, molti: string): string {
   return `${n} ${n === 1 ? uno : molti}`
 }
 

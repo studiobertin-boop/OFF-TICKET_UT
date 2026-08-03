@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type Control, type FieldValues, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
@@ -126,6 +126,14 @@ export default function EquipmentCatalogManagement() {
    * caricano, perché la conferma deve ripartire le righe vere e non stimarle.
    */
   const [righeSelezionate, setRigheSelezionate] = useState<EquipmentCatalogItem[]>([])
+  /**
+   * Numero di «generazione» del filtro/pagina, per scartare una risposta di
+   * `selezionaTuttoIlFiltro` arrivata dopo che l'utente è passato a un altro filtro. Si
+   * incrementa insieme all'azzeramento della selezione: se non combacia più al ritorno
+   * della chiamata, quella risposta appartiene a un filtro che chi conferma non ha più
+   * sotto gli occhi.
+   */
+  const generazioneSelezione = useRef(0)
 
   const searchDebounced = useValoreRitardato(search)
 
@@ -199,16 +207,29 @@ export default function EquipmentCatalogManagement() {
    * PostgREST non restituisce più di 1000 righe in una chiamata sola: se il filtro ne conta
    * di più, la selezione copre solo le prime 1000 e lo si dice esplicitamente, invece di
    * lasciar credere che sia completa quando non lo è.
+   *
+   * La chiamata non è annullabile: se l'utente cambia filtro mentre è in volo, la risposta
+   * arriverebbe comunque e riscriverebbe la selezione con gli id di un filtro che non è più
+   * quello sotto gli occhi. Il numero di generazione, incrementato a ogni azzeramento della
+   * selezione, scarta una risposta così — è la stessa guardia già in uso in
+   * `EquipmentAutocomplete.tsx`, qui su una richiesta innescata da un click e non da un effetto.
    */
   const selezionaTuttoIlFiltro = async () => {
-    const tutte = await equipmentCatalogAdminApi.list({ ...filters, page: 0, pageSize: 1000 })
-    setSelezionate(new Set(tutte.data.map(r => r.id)))
-    setRigheSelezionate(tutte.data)
-    if (tutte.count > tutte.data.length) {
-      toast(
-        `Il filtro conta ${tutte.count} righe: la selezione copre solo le prime ${tutte.data.length}. Restringi il filtro per selezionarle tutte.`,
-        { icon: '⚠️' }
-      )
+    const generazione = generazioneSelezione.current
+    try {
+      const tutte = await equipmentCatalogAdminApi.list({ ...filters, page: 0, pageSize: 1000 })
+      if (generazione !== generazioneSelezione.current) return
+
+      setSelezionate(new Set(tutte.data.map(r => r.id)))
+      setRigheSelezionate(tutte.data)
+      if (tutte.count > tutte.data.length) {
+        toast(
+          `Il filtro conta ${tutte.count} righe: la selezione copre solo le prime ${tutte.data.length}. Restringi il filtro per selezionarle tutte.`,
+          { icon: '⚠️' }
+        )
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Errore nel caricamento della selezione')
     }
   }
 
@@ -231,11 +252,13 @@ export default function EquipmentCatalogManagement() {
   useEffect(() => {
     setPage(0)
     setSelezionate(new Set())
+    generazioneSelezione.current++
   }, [searchDebounced, tipo, mostraDisattivate, soloIncompleti])
 
   // La pagina cambia anche senza che cambino i filtri: la selezione non la segue.
   useEffect(() => {
     setSelezionate(new Set())
+    generazioneSelezione.current++
   }, [page, rowsPerPage])
 
   useEffect(() => {
@@ -244,6 +267,20 @@ export default function EquipmentCatalogManagement() {
     // non la si sovrascrive con il solo sottoinsieme della pagina.
     if (dellaPagina.length === selezionate.size) setRigheSelezionate(dellaPagina)
   }, [selezionate, data])
+
+  /**
+   * Righe da passare alla barra e al dialog: sempre l'intersezione con `selezionate`.
+   *
+   * `righeSelezionate` può restare più ampio di `selezionate` — dopo la selezione estesa, se
+   * si toglie la spunta a una sola riga visibile, l'euristica dell'effetto sopra non si
+   * aggiorna finché la selezione resta più larga di una pagina. Filtrare qui, all'uso, fa sì
+   * che una riga appena deselezionata non venga mai scritta, indipendentemente da quando
+   * quell'euristica si aggiorna.
+   */
+  const righeScritte = useMemo(
+    () => righeSelezionate.filter(r => selezionate.has(r.id)),
+    [righeSelezionate, selezionate]
+  )
 
   const salvataggioInCorso = createEquipment.isPending || updateEquipment.isPending
   const erroreSalvataggio = createEquipment.error ?? updateEquipment.error
@@ -336,7 +373,7 @@ export default function EquipmentCatalogManagement() {
         </Paper>
 
         <ModificaMassivaBar
-          righe={righeSelezionate}
+          righe={righeScritte}
           totaleSelezionate={selezionate.size}
           totaleFiltro={data?.count ?? 0}
           onSelezionaTuttoIlFiltro={selezionaTuttoIlFiltro}
@@ -423,7 +460,7 @@ export default function EquipmentCatalogManagement() {
 
       <ModificaMassivaDialog
         open={azione !== null}
-        righe={righeSelezionate}
+        righe={righeScritte}
         chiave={azione?.chiave ?? null}
         valore={azione?.valore ?? null}
         inCorso={setProperty.isPending}
@@ -433,10 +470,15 @@ export default function EquipmentCatalogManagement() {
           setProperty.reset()
         }}
         onConferma={async ids => {
-          const n = await setProperty.mutateAsync({ ids, chiave: azione!.chiave, valore: azione!.valore })
-          setAzione(null)
-          setSelezionate(new Set())
-          toast.success(`${n} ${n === 1 ? 'riga aggiornata' : 'righe aggiornate'}.`)
+          try {
+            const n = await setProperty.mutateAsync({ ids, chiave: azione!.chiave, valore: azione!.valore })
+            setAzione(null)
+            setSelezionate(new Set())
+            toast.success(`${n} ${n === 1 ? 'riga aggiornata' : 'righe aggiornate'}.`)
+          } catch {
+            // L'errore resta visibile nel dialog tramite `setProperty.error`: qui si evita
+            // solo che la promise rifiutata risulti un rigetto non gestito in console.
+          }
         }}
       />
     </Layout>

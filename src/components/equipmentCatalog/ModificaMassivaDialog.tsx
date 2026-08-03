@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import {
   Alert,
   Button,
@@ -41,10 +42,26 @@ export const ModificaMassivaDialog = ({
   onAnnulla,
   onConferma,
 }: ModificaMassivaDialogProps) => {
-  if (!chiave || !valore) return null
+  /**
+   * MUI anima la chiusura del dialog. Se il contenuto sparisse nello stesso istante in cui
+   * `open` diventa falso — come qui, perché `chiave`/`valore` arrivano dallo stesso stato
+   * della pagina che pilota `open` — il dialog si svuoterebbe a vista per tutta la durata
+   * della transizione, invece di chiudersi con l'animazione degli altri dialog della pagina.
+   * Si tiene l'ultima scelta nota e la si sostituisce solo quando ne arriva una nuova, mai
+   * quando sparisce.
+   */
+  const ultimaScelta = useRef<{
+    chiave: ChiaveMassiva
+    valore: string
+    righe: EquipmentCatalogItem[]
+  } | null>(null)
+  if (chiave && valore) ultimaScelta.current = { chiave, valore, righe }
+  const scelta = ultimaScelta.current
 
-  const rip = ripartisciPerValore(righe, chiave, valore)
-  const testo = testoConferma(rip, chiave, valore)
+  if (!scelta) return null
+
+  const rip = ripartisciPerValore(scelta.righe, scelta.chiave, scelta.valore)
+  const testo = testoConferma(rip, scelta.chiave, scelta.valore)
   const daScrivere = [...rip.daCompilare, ...rip.daSostituire].map(r => r.id)
 
   return (

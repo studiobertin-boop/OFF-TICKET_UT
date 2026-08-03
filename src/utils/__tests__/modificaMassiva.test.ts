@@ -68,7 +68,23 @@ describe('ripartisciPerValore', () => {
 
   it('regge una selezione vuota', () => {
     const r = ripartisciPerValore([], 'giri', 'fissi')
-    expect(r).toEqual({ daCompilare: [], daSostituire: [], giaUguali: [] })
+    expect(r).toEqual({ daCompilare: [], daSostituire: [], giaUguali: [], nonApplicabili: [] })
+  })
+
+  it('esclude dai giri le righe che non sono rotativi a vite', () => {
+    const scroll = riga({ tipo_compressore: 'SCROLL' }, 'ESM 33')
+    const r = ripartisciPerValore([scroll, riga({}, 'SK 22')], 'giri', 'fissi')
+    expect(r.nonApplicabili.map(x => x.modello)).toEqual(['ESM 33'])
+    expect(r.daCompilare.map(x => x.modello)).toEqual(['SK 22'])
+    expect(r.daSostituire).toHaveLength(0)
+    expect(r.giaUguali).toHaveLength(0)
+  })
+
+  it('la stessa riga scroll si compila normalmente sul tipo costruttivo', () => {
+    const scroll = riga({ tipo_compressore: 'SCROLL' }, 'ESM 33')
+    const r = ripartisciPerValore([scroll], 'tipo_compressore', 'VITE')
+    expect(r.nonApplicabili).toHaveLength(0)
+    expect(r.daSostituire.map(x => x.modello)).toEqual(['ESM 33'])
   })
 })
 
@@ -125,6 +141,31 @@ describe('testoConferma', () => {
     const t = testoConferma(rip, 'giri', 'fissi')
     expect(t.applicabile).toBe(false)
     expect(t.azione).toBe('Niente da applicare')
+  })
+
+  it('nomina le righe che non sono rotativi a vite, senza contarle nell azione', () => {
+    const rip = ripartisciPerValore(
+      [riga({ tipo_compressore: 'SCROLL' }, 'ESM 33'), riga({}, 'SK 22')],
+      'giri',
+      'fissi'
+    )
+    const t = testoConferma(rip, 'giri', 'fissi')
+    expect(t.righe).toContain('1 riga non è un rotativo a vite e resta com è')
+    expect(t.azione).toBe('Applica a 1 riga')
+  })
+
+  it('la concordanza plurale vale anche sui non applicabili', () => {
+    const rip = ripartisciPerValore(
+      [
+        riga({ tipo_compressore: 'SCROLL' }, 'ESM 33'),
+        riga({ tipo_compressore: 'PISTONI' }, 'ABAC B24'),
+      ],
+      'giri',
+      'fissi'
+    )
+    const t = testoConferma(rip, 'giri', 'fissi')
+    expect(t.righe).toEqual(['2 righe non sono rotativi a vite e restano come sono'])
+    expect(t.applicabile).toBe(false)
   })
 })
 
