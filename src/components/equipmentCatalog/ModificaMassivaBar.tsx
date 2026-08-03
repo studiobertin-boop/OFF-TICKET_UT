@@ -39,6 +39,16 @@ export const ModificaMassivaBar = ({
 
   const omogenea = soloCompressori(righe)
   const nonCompressori = righe.filter(r => r.tipo_apparecchiatura !== 'Compressori').length
+  /**
+   * Le righe risolte devono essere tante quante quelle selezionate.
+   *
+   * La barra decide su `righe` ma annuncia `totaleSelezionate`, e i due arrivano da stati
+   * diversi: le righe risolte si calcolano in un effetto, quindi sono sempre un commit
+   * indietro. Senza questo confronto, subito dopo aver selezionato l'intera pagina `righe` è
+   * ancora vuoto e comparirebbe l'avviso «si applicano ai soli compressori» su una selezione
+   * di soli compressori — e i pulsanti si aprirebbero su un insieme parziale.
+   */
+  const risolte = righe.length === totaleSelezionate
   // Il menu aperto individua un'unica definizione: la si legge una volta sola, invece di
   // interrogare due volte il contratto canonico — una per le opzioni, una per le etichette.
   const menuDef = menu ? (CANONICAL_SPECS.Compressori ?? []).find(d => d.key === menu.chiave) : undefined
@@ -57,7 +67,7 @@ export const ModificaMassivaBar = ({
             <Button
               key={chiave}
               size="small"
-              disabled={!omogenea}
+              disabled={!omogenea || !risolte}
               onClick={e => setMenu({ chiave, anchor: e.currentTarget })}
             >
               {def.label}
@@ -78,13 +88,17 @@ export const ModificaMassivaBar = ({
         </Typography>
       )}
 
-      {!omogenea && (
+      {!risolte ? (
+        <Alert severity="info" sx={{ mt: 1, py: 0 }}>
+          {`Selezione in caricamento: ${conta(totaleSelezionate - righe.length, 'riga non è ancora disponibile', 'righe non sono ancora disponibili')}. Le azioni si riattivano quando lo sono tutte.`}
+        </Alert>
+      ) : !omogenea ? (
         <Alert severity="info" sx={{ mt: 1, py: 0 }}>
           {nonCompressori > 0
             ? `${conta(nonCompressori, 'riga non è un compressore', 'righe non sono compressori')} nella selezione: le proprietà costruttive si applicano ai soli compressori. Filtra per tipo «Compressori» o toglile dalla selezione.`
             : 'Le proprietà costruttive si applicano ai soli compressori.'}
         </Alert>
-      )}
+      ) : null}
 
       <Menu
         open={menu !== null}
