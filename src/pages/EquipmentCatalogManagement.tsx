@@ -469,15 +469,27 @@ export default function EquipmentCatalogManagement() {
           setAzione(null)
           setProperty.reset()
         }}
-        onConferma={async ids => {
+        onConferma={async (ids, rimuovi) => {
+          // Durante l'animazione di chiusura il pulsante è ancora cliccabile mentre `azione`
+          // è già tornata a null: senza questa guardia partirebbe un TypeError che finirebbe
+          // nel catch qui sotto, indistinguibile da un errore di scrittura vero.
+          if (!azione) return
+
           try {
-            const n = await setProperty.mutateAsync({ ids, chiave: azione!.chiave, valore: azione!.valore })
+            const n = await setProperty.mutateAsync({
+              ids,
+              chiave: azione.chiave,
+              valore: azione.valore,
+              rimuovi,
+            })
             setAzione(null)
             setSelezionate(new Set())
             toast.success(`${n} ${n === 1 ? 'riga aggiornata' : 'righe aggiornate'}.`)
-          } catch {
-            // L'errore resta visibile nel dialog tramite `setProperty.error`: qui si evita
-            // solo che la promise rifiutata risulti un rigetto non gestito in console.
+          } catch (e) {
+            // Il messaggio resta visibile nel dialog tramite `setProperty.error`, e la
+            // funzione a database annulla per intero una scrittura parziale: qui si registra
+            // soltanto, perché un rigetto silenzioso non lascerebbe traccia da nessuna parte.
+            console.error('Modifica massiva non applicata', e)
           }
         }}
       />

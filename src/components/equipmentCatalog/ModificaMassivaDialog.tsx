@@ -11,7 +11,12 @@ import {
   ListItemText,
 } from '@mui/material'
 import type { EquipmentCatalogItem } from '@/types'
-import { ripartisciPerValore, testoConferma, type ChiaveMassiva } from '@/utils/modificaMassiva'
+import {
+  idsDaScrivere,
+  ripartisciPerValore,
+  testoConferma,
+  type ChiaveMassiva,
+} from '@/utils/modificaMassiva'
 
 interface ModificaMassivaDialogProps {
   open: boolean
@@ -22,8 +27,13 @@ interface ModificaMassivaDialogProps {
   inCorso: boolean
   errore: string | null
   onAnnulla: () => void
-  /** Riceve i soli id da scrivere: le righe che hanno già il valore non si toccano. */
-  onConferma: (ids: string[]) => void
+  /**
+   * Riceve i soli id da scrivere — le righe che hanno già il valore non si toccano — e le
+   * chiavi che la stessa scrittura rende inapplicabili, da rimuovere nella stessa
+   * transazione: entrambe escono dalla ripartizione mostrata qui sopra, così quello che si
+   * applica è esattamente quello che la conferma ha dichiarato.
+   */
+  onConferma: (ids: string[], rimuovi: string[]) => void
 }
 
 /**
@@ -55,14 +65,17 @@ export const ModificaMassivaDialog = ({
     valore: string
     righe: EquipmentCatalogItem[]
   } | null>(null)
-  if (chiave && valore) ultimaScelta.current = { chiave, valore, righe }
+  // Verifica di nullità e non di verità: `valore` è una stringa, e una stringa vuota
+  // lascerebbe la ref ferma sull'azione precedente mentre `open` è già vero — le righe di
+  // un'azione con il valore di un'altra.
+  if (chiave != null && valore != null) ultimaScelta.current = { chiave, valore, righe }
   const scelta = ultimaScelta.current
 
   if (!scelta) return null
 
   const rip = ripartisciPerValore(scelta.righe, scelta.chiave, scelta.valore)
   const testo = testoConferma(rip, scelta.chiave, scelta.valore)
-  const daScrivere = [...rip.daCompilare, ...rip.daSostituire].map(r => r.id)
+  const daScrivere = idsDaScrivere(rip)
 
   return (
     <Dialog open={open} onClose={inCorso ? undefined : onAnnulla} maxWidth="sm" fullWidth>
@@ -82,7 +95,7 @@ export const ModificaMassivaDialog = ({
         <Button
           variant="contained"
           disabled={!testo.applicabile || inCorso}
-          onClick={() => onConferma(daScrivere)}
+          onClick={() => onConferma(daScrivere, rip.chiaviDaRipulire)}
         >
           {testo.azione}
         </Button>

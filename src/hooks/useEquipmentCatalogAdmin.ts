@@ -138,8 +138,18 @@ export function useSetEquipmentProperty() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ ids, chiave, valore }: { ids: string[]; chiave: ChiaveMassiva; valore: string }) =>
-      equipmentCatalogAdminApi.setProperty(ids, chiave, valore),
+    mutationFn: ({
+      ids,
+      chiave,
+      valore,
+      rimuovi,
+    }: {
+      ids: string[]
+      chiave: ChiaveMassiva
+      valore: string
+      /** Chiavi che la scrittura rende inapplicabili e che vanno tolte con lei. */
+      rimuovi?: string[]
+    }) => equipmentCatalogAdminApi.setProperty(ids, chiave, valore, rimuovi ?? []),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: equipmentCatalogKeys.all })
     },

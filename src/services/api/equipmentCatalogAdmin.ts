@@ -318,14 +318,25 @@ export const equipmentCatalogAdminApi = {
    *
    * Come `applyFixes`: la funzione a database verifica da sé il ruolo e le chiavi ammesse, così
    * il vincolo non dipende dal fatto che il client si comporti bene.
+   *
+   * `rimuovi` sono le chiavi che questa stessa scrittura rende inapplicabili — marcare «a
+   * pistoni» un modello a giri variabili — e che vanno tolte nella stessa transazione: il
+   * catalogo non deve restare, nemmeno per un istante, con un dato che nessuna interfaccia
+   * mostra più e che finirebbe lo stesso in relazione.
    */
-  async setProperty(ids: string[], chiave: ChiaveMassiva, valore: string): Promise<number> {
+  async setProperty(
+    ids: string[],
+    chiave: ChiaveMassiva,
+    valore: string,
+    rimuovi: string[] = []
+  ): Promise<number> {
     if (ids.length === 0) return 0
 
     const { data, error } = await supabase.rpc('set_equipment_property', {
       p_ids: ids,
       p_chiave: chiave,
       p_valore: valore,
+      p_rimuovi: rimuovi,
     })
 
     if (error) {

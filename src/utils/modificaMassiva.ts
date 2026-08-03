@@ -27,6 +27,54 @@ export interface RipartizioneMassiva {
    * lo lascerebbe lì, invisibile e non correggibile dall'interfaccia.
    */
   nonApplicabili: EquipmentCatalogItem[]
+  /**
+   * Il verso opposto di `nonApplicabili`: righe che si scrivono, e che *dopo* la scrittura
+   * porterebbero in un'altra chiave un valore diventato inapplicabile.
+   *
+   * Non è un gruppo alternativo agli altri — queste righe stanno anche in `daCompilare` o in
+   * `daSostituire` — ma un secondo effetto della stessa scrittura. Marcare «a pistoni» un
+   * modello su cui qualcuno aveva stabilito i giri variabili lascerebbe lì la regolazione:
+   * il form la nasconde, la verifica di coerenza non la guarda, e la relazione firmata
+   * finirebbe per dire «compressore a pistoni a giri variabili tramite inverter». Il dato va
+   * quindi tolto nella stessa transazione, e detto prima nella conferma.
+   */
+  daRipulire: EquipmentCatalogItem[]
+  /** Le chiavi che quella pulizia rimuove, unione sulle righe di `daRipulire`. */
+  chiaviDaRipulire: string[]
+}
+
+/** Un campo si considera vuoto anche quando porta una stringa di soli spazi. */
+function vuoto(v: unknown): boolean {
+  return v === null || v === undefined || String(v).trim() === ''
+}
+
+/**
+ * Le chiavi che, sui dati come sarebbero dopo la scrittura, portano un valore che non si
+ * applica più.
+ *
+ * La regola non è riscritta qui: si rilegge `appliesWhen` delle *altre* chiavi del contratto
+ * canonico sugli specs risultanti. Se domani una proprietà costruttiva guadagnasse una
+ * condizione — o la condizione dei giri cambiasse — questo calcolo la seguirebbe senza che
+ * nessuno debba ricordarsi di questo file.
+ *
+ * Il limite da tenere presente: l'insieme così ottenuto viene poi applicato a tutte le righe
+ * scritte, ed è corretto finché una chiave diventa inapplicabile *per effetto della chiave
+ * che si sta scrivendo* — allora l'esito è lo stesso per ogni riga. Oggi è così: i giri
+ * dipendono dal solo `tipo_compressore`, e nessun'altra chiave ha una condizione.
+ */
+function chiaviInapplicabiliDopo(
+  specsRisultanti: Record<string, unknown>,
+  chiaveScritta: ChiaveMassiva
+): string[] {
+  return (CANONICAL_SPECS.Compressori ?? [])
+    .filter(
+      d =>
+        d.key !== chiaveScritta &&
+        d.appliesWhen &&
+        !d.appliesWhen(specsRisultanti) &&
+        !vuoto(specsRisultanti[d.key])
+    )
+    .map(d => d.key)
 }
 
 /**
@@ -37,7 +85,10 @@ export interface RipartizioneMassiva {
  * a una — e cancellarne uno per sbaglio è silenzioso, perché il dato finisce in una frase
  * asseverata di una relazione firmata. `nonApplicabili` sono quelle su cui il dato non ha
  * senso del tutto, e la condizione la dichiara il contratto canonico stesso
- * (`appliesWhen`), non una regola duplicata qui.
+ * (`appliesWhen`), non una regola duplicata qui. `daRipulire` è il verso opposto della stessa
+ * condizione, riletta sui dati come sarebbero dopo la scrittura: quel che questa modifica
+ * rende privo di senso non può restare a catalogo, perché nessuna interfaccia lo mostrerebbe
+ * più mentre la relazione continuerebbe a leggerlo.
  */
 export function ripartisciPerValore(
   righe: EquipmentCatalogItem[],
@@ -50,7 +101,10 @@ export function ripartisciPerValore(
     daSostituire: [],
     giaUguali: [],
     nonApplicabili: [],
+    daRipulire: [],
+    chiaviDaRipulire: [],
   }
+  const chiavi = new Set<string>()
 
   for (const riga of righe) {
     if (def?.appliesWhen && !def.appliesWhen(riga.specs ?? {})) {
@@ -59,13 +113,24 @@ export function ripartisciPerValore(
     }
 
     const attuale = riga.specs?.[chiave]
-    const vuoto = attuale === null || attuale === undefined || String(attuale).trim() === ''
 
-    if (vuoto) out.daCompilare.push(riga)
-    else if (String(attuale) === valore) out.giaUguali.push(riga)
-    else out.daSostituire.push(riga)
+    if (vuoto(attuale)) out.daCompilare.push(riga)
+    else if (String(attuale) === valore) {
+      // Non si scrive, quindi niente cambia: quel che la riga porta resta come qualcuno
+      // l'aveva lasciato, e non è questa operazione a doverlo rimettere in ordine.
+      out.giaUguali.push(riga)
+      continue
+    } else out.daSostituire.push(riga)
+
+    const risultanti = { ...((riga.specs ?? {}) as Record<string, unknown>), [chiave]: valore }
+    const daTogliere = chiaviInapplicabiliDopo(risultanti, chiave)
+    if (daTogliere.length > 0) {
+      out.daRipulire.push(riga)
+      daTogliere.forEach(k => chiavi.add(k))
+    }
   }
 
+  out.chiaviDaRipulire = [...chiavi]
   return out
 }
 
@@ -73,6 +138,25 @@ export function ripartisciPerValore(
 export function etichettaValore(chiave: ChiaveMassiva, valore: string): string {
   const def = (CANONICAL_SPECS.Compressori ?? []).find(d => d.key === chiave)
   return def?.optionLabels?.[valore] ?? valore
+}
+
+/** Come la chiave si dice all'utente. Vale per qualsiasi chiave del contratto, non solo le due. */
+function etichettaChiave(chiave: string): string {
+  const def = (CANONICAL_SPECS.Compressori ?? []).find(d => d.key === chiave)
+  return def?.label ?? chiave
+}
+
+/**
+ * Gli identificativi che verranno davvero scritti.
+ *
+ * Sta qui e non nel dialog perché è la regola che dice quali gruppi si scrivono, e vale una
+ * volta sola: il numero annunciato dal pulsante e la lista mandata alla funzione a database
+ * devono nascere dallo stesso calcolo. Contarli in un punto e sceglierli in un altro
+ * significa che il giorno in cui uno dei due cambia il pulsante annuncia N e ne scrive M —
+ * cioè proprio la cosa da cui questa conferma esiste per proteggere.
+ */
+export function idsDaScrivere(rip: RipartizioneMassiva): string[] {
+  return [...rip.daCompilare, ...rip.daSostituire].map(r => r.id)
 }
 
 /**
@@ -90,7 +174,11 @@ export function modelliDa(righe: EquipmentCatalogItem[], max = 10): string {
 
 export interface TestoConferma {
   titolo: string
-  /** Una riga per gruppo non vuoto, nell'ordine: da compilare, da sostituire, già uguali, non applicabili. */
+  /**
+   * Una riga per gruppo non vuoto, nell'ordine: da compilare, da sostituire, da ripulire,
+   * già uguali, non applicabili. La pulizia sta accanto alle sostituzioni perché è l'altra
+   * cosa che questa scrittura toglie a un dato che qualcuno aveva stabilito.
+   */
   righe: string[]
   /** Etichetta del pulsante, che dichiara quante righe verranno davvero scritte. */
   azione: string
@@ -123,10 +211,21 @@ export function testoConferma(
     )
   }
 
+  if (rip.daRipulire.length > 0) {
+    const n = rip.daRipulire.length
+    const k = rip.chiaviDaRipulire.length
+    // «con questa scelta» e non «con questo tipo»: la frase deve reggere anche il giorno in
+    // cui è un'altra chiave a rendere inapplicabile qualcosa, senza sbagliare il genere.
+    const quali = rip.chiaviDaRipulire.map(c => `«${etichettaChiave(c)}»`).join(' e ')
+    righe.push(
+      `${conta(n, 'riga porta', 'righe portano')} ${scegli(k, 'un valore', 'valori')} in ${quali} che con questa scelta ${scegli(k, 'non si applica più e verrà rimosso', 'non si applicano più e verranno rimossi')}: ${modelliDa(rip.daRipulire)}`
+    )
+  }
+
   if (rip.giaUguali.length > 0) {
     const n = rip.giaUguali.length
     righe.push(
-      `${conta(n, 'riga ha', 'righe hanno')} già questo valore e ${scegli(n, 'resta com è', 'restano come sono')}`
+      `${conta(n, 'riga ha', 'righe hanno')} già questo valore e ${scegli(n, "resta com'è", 'restano come sono')}`
     )
   }
 
@@ -138,12 +237,12 @@ export function testoConferma(
     // aggiungere qui un altro ramo con un'altra frase fissa.
     righe.push(
       n === 1
-        ? '1 riga non è un rotativo a vite e resta com è'
+        ? "1 riga non è un rotativo a vite e resta com'è"
         : `${n} righe non sono rotativi a vite e restano come sono`
     )
   }
 
-  const daScrivere = rip.daCompilare.length + rip.daSostituire.length
+  const daScrivere = idsDaScrivere(rip).length
 
   return {
     titolo: `${def?.label ?? chiave} → ${etichettaValore(chiave, valore)}`,

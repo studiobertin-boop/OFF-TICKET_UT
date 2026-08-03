@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { EquipmentCatalogItem } from '@/types'
 import {
   etichettaValore,
+  idsDaScrivere,
   modelliDa,
   ripartisciPerValore,
   soloCompressori,
@@ -68,7 +69,14 @@ describe('ripartisciPerValore', () => {
 
   it('regge una selezione vuota', () => {
     const r = ripartisciPerValore([], 'giri', 'fissi')
-    expect(r).toEqual({ daCompilare: [], daSostituire: [], giaUguali: [], nonApplicabili: [] })
+    expect(r).toEqual({
+      daCompilare: [],
+      daSostituire: [],
+      giaUguali: [],
+      nonApplicabili: [],
+      daRipulire: [],
+      chiaviDaRipulire: [],
+    })
   })
 
   it('esclude dai giri le righe che non sono rotativi a vite', () => {
@@ -85,6 +93,82 @@ describe('ripartisciPerValore', () => {
     const r = ripartisciPerValore([scroll], 'tipo_compressore', 'VITE')
     expect(r.nonApplicabili).toHaveLength(0)
     expect(r.daSostituire.map(x => x.modello)).toEqual(['ESM 33'])
+  })
+
+  it('esclude dai giri anche una riga non applicabile che un valore ce l ha già', () => {
+    // Uno scroll con i giri già scritti: il campo non si applica, e il fatto che porti
+    // qualcosa non lo rende scrivibile. Senza questa prova la guardia potrebbe scivolare nel
+    // solo ramo dei campi vuoti e la suite non se ne accorgerebbe.
+    const scroll = riga({ tipo_compressore: 'SCROLL', giri: 'variabili' }, 'ESM 33')
+    const r = ripartisciPerValore([scroll], 'giri', 'fissi')
+    expect(r.nonApplicabili.map(x => x.modello)).toEqual(['ESM 33'])
+    expect(r.daSostituire).toHaveLength(0)
+    expect(r.daCompilare).toHaveLength(0)
+    expect(r.giaUguali).toHaveLength(0)
+    expect(idsDaScrivere(r)).toEqual([])
+  })
+
+  it('e nemmeno quando i giri già scritti coincidono con il valore chiesto', () => {
+    const scroll = riga({ tipo_compressore: 'SCROLL', giri: 'fissi' }, 'ESM 33')
+    const r = ripartisciPerValore([scroll], 'giri', 'fissi')
+    expect(r.nonApplicabili.map(x => x.modello)).toEqual(['ESM 33'])
+    expect(r.giaUguali).toHaveLength(0)
+  })
+})
+
+describe('ripartisciPerValore — il verso opposto: la pulizia', () => {
+  it('segnala i giri che il nuovo tipo costruttivo rende inapplicabili', () => {
+    const r = ripartisciPerValore(
+      [
+        riga({ giri: 'variabili' }, 'ASD 32 SFC'),
+        riga({ giri: 'fissi' }, 'SK 22'),
+        riga({ fad: 2000 }, 'SM 10'),
+      ],
+      'tipo_compressore',
+      'PISTONI'
+    )
+    expect(r.daCompilare).toHaveLength(3)
+    expect(r.daRipulire.map(x => x.modello)).toEqual(['ASD 32 SFC', 'SK 22'])
+    expect(r.chiaviDaRipulire).toEqual(['giri'])
+  })
+
+  it('non tocca niente quando il nuovo tipo lascia i giri applicabili', () => {
+    const r = ripartisciPerValore(
+      [riga({ giri: 'variabili' }, 'ASD 32 SFC')],
+      'tipo_compressore',
+      'VITE'
+    )
+    expect(r.daRipulire).toHaveLength(0)
+    expect(r.chiaviDaRipulire).toEqual([])
+  })
+
+  it('non ripulisce le righe che non si scrivono', () => {
+    // Ha già «a pistoni» e resta com'è: la regolazione giri che porta è sporcizia di prima,
+    // e non è questa scrittura — che non avviene — a doverla togliere.
+    const r = ripartisciPerValore(
+      [riga({ tipo_compressore: 'PISTONI', giri: 'variabili' }, 'ABAC B24')],
+      'tipo_compressore',
+      'PISTONI'
+    )
+    expect(r.giaUguali.map(x => x.modello)).toEqual(['ABAC B24'])
+    expect(r.daRipulire).toHaveLength(0)
+    expect(r.chiaviDaRipulire).toEqual([])
+  })
+
+  it('scrivere i giri non rende inapplicabile nient altro', () => {
+    const r = ripartisciPerValore([riga({ tipo_compressore: 'VITE' }, 'SK 22')], 'giri', 'fissi')
+    expect(r.daCompilare).toHaveLength(1)
+    expect(r.daRipulire).toHaveLength(0)
+  })
+
+  it('le righe da ripulire restano fra quelle che si scrivono', () => {
+    const r = ripartisciPerValore(
+      [riga({ giri: 'variabili' }, 'ASD 32 SFC')],
+      'tipo_compressore',
+      'SCROLL'
+    )
+    expect(idsDaScrivere(r)).toEqual(r.daCompilare.map(x => x.id))
+    expect(r.daRipulire.map(x => x.id)).toEqual(idsDaScrivere(r))
   })
 })
 
@@ -124,7 +208,7 @@ describe('testoConferma', () => {
     expect(t.righe[1]).toBe(
       '1 riga ha già «a giri variabili (inverter)» e verrà sostituita: ASD 32 SFC'
     )
-    expect(t.righe[2]).toBe('1 riga ha già questo valore e resta com è')
+    expect(t.righe[2]).toBe("1 riga ha già questo valore e resta com'è")
     expect(t.azione).toBe('Applica a 3 righe')
     expect(t.applicabile).toBe(true)
   })
@@ -150,7 +234,7 @@ describe('testoConferma', () => {
       'fissi'
     )
     const t = testoConferma(rip, 'giri', 'fissi')
-    expect(t.righe).toContain('1 riga non è un rotativo a vite e resta com è')
+    expect(t.righe).toContain("1 riga non è un rotativo a vite e resta com'è")
     expect(t.azione).toBe('Applica a 1 riga')
   })
 
@@ -166,6 +250,56 @@ describe('testoConferma', () => {
     const t = testoConferma(rip, 'giri', 'fissi')
     expect(t.righe).toEqual(['2 righe non sono rotativi a vite e restano come sono'])
     expect(t.applicabile).toBe(false)
+  })
+
+  it('dichiara la regolazione giri che il nuovo tipo costruttivo porta via', () => {
+    const rip = ripartisciPerValore(
+      [
+        riga({ giri: 'variabili' }, 'ASD 32 SFC'),
+        riga({ giri: 'fissi' }, 'SK 22 SFC'),
+        riga({ fad: 2000 }, 'SM 10'),
+      ],
+      'tipo_compressore',
+      'PISTONI'
+    )
+    const t = testoConferma(rip, 'tipo_compressore', 'PISTONI')
+    expect(t.titolo).toBe('Tipo costruttivo → A pistoni')
+    expect(t.righe[0]).toBe('3 righe hanno il campo vuoto e verranno compilate')
+    expect(t.righe[1]).toBe(
+      '2 righe portano un valore in «Regolazione giri» che con questa scelta non si applica più e verrà rimosso: ASD 32 SFC, SK 22 SFC'
+    )
+    expect(t.azione).toBe('Applica a 3 righe')
+  })
+
+  it('concorda al singolare anche la riga della pulizia', () => {
+    const rip = ripartisciPerValore(
+      [riga({ giri: 'variabili' }, 'ASD 32 SFC')],
+      'tipo_compressore',
+      'SCROLL'
+    )
+    const t = testoConferma(rip, 'tipo_compressore', 'SCROLL')
+    expect(t.righe).toContain(
+      '1 riga porta un valore in «Regolazione giri» che con questa scelta non si applica più e verrà rimosso: ASD 32 SFC'
+    )
+  })
+
+  it('l azione annunciata e le righe da scrivere vengono dallo stesso calcolo', () => {
+    // L'invariante per cui questa conferma esiste: se il pulsante contasse per conto suo,
+    // il giorno in cui una delle due regole cambia annuncerebbe N e ne scriverebbe M.
+    const casi: Array<[Parameters<typeof ripartisciPerValore>[0], 'giri' | 'tipo_compressore', string]> = [
+      [[riga({}), riga({ giri: 'variabili' }), riga({ giri: 'fissi' })], 'giri', 'fissi'],
+      [[riga({ tipo_compressore: 'SCROLL' }), riga({})], 'giri', 'variabili'],
+      [[riga({ giri: 'variabili' }), riga({ tipo_compressore: 'PISTONI' })], 'tipo_compressore', 'PISTONI'],
+      [[], 'giri', 'fissi'],
+    ]
+
+    for (const [righe, chiave, valore] of casi) {
+      const rip = ripartisciPerValore(righe, chiave, valore)
+      const t = testoConferma(rip, chiave, valore)
+      const n = idsDaScrivere(rip).length
+      expect(t.applicabile).toBe(n > 0)
+      expect(t.azione).toBe(n === 0 ? 'Niente da applicare' : `Applica a ${n} ${n === 1 ? 'riga' : 'righe'}`)
+    }
   })
 })
 
