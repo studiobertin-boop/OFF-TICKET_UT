@@ -11,10 +11,15 @@ import ImageModule from 'docxtemplater-image-module-free'
 import type { RelazioneModel, SchemaImpianto } from './types'
 import { applicaFusioneColonne } from './fusioneCelle'
 import { dimensioniGruppi } from './engine/esiti'
+import { comportaAdempimento } from '@/utils/dm329Classification'
 
 const CHECK = '✓'
 const NON_APPLICABILE = 'n.a.'
 const NON_DETERMINABILE = 'n.d.'
+/** Verifica dovuta e non eseguita. */
+const NEGATIVO = 'NO'
+/** Dato che non si applica a quella apparecchiatura: non è una dimenticanza. */
+const NON_PERTINENTE = '–'
 
 /**
  * Larghezza fissa dello schema d'impianto, in pixel a 96 dpi: pari alla larghezza utile
@@ -76,12 +81,35 @@ function nestedParser(tag: string) {
  * aggiunge i "mark" (✓/'') per le colonne booleane e incapsula le liste di stringhe.
  */
 export function buildTemplateData(model: RelazioneModel): Record<string, unknown> {
+  // L'obbligo è del gruppo, non della riga: il capogruppo è spesso un compressore o un
+  // essiccatore, esclusi in quanto tali, mentre il recipiente che portano è soggetto. La
+  // cella è fusa sul gruppo, quindi mostrerebbe il verdetto del capogruppo — sbagliato.
+  const gruppiSoggetti = new Set(
+    model.esiti.filter((r) => comportaAdempimento(r.esito)).map((r) => r.gruppo)
+  )
+
   return {
     ...model,
-    esiti: model.esiti.map((r) => ({
-      ...r,
-      verificaIntegritaMark: r.verificaIntegrita ? CHECK : '',
-    })),
+    esiti: model.esiti.map((r) => {
+      const soggetta = gruppiSoggetti.has(r.gruppo)
+      return {
+        ...r,
+        // Nessuna cella vuota in questa tabella: il vuoto si legge come dimenticanza.
+        // «–» dice «non pertinente», e va anche sulle righe delle apparecchiature escluse.
+        volume: r.volume || NON_PERTINENTE,
+        ps: r.ps || NON_PERTINENTE,
+        psPerV: r.psPerV || NON_PERTINENTE,
+        categoria: r.categoria || NON_PERTINENTE,
+        statoInail: r.statoInail || NON_PERTINENTE,
+        // Tre esiti: verifica eseguita, dovuta e non eseguita, non dovuta perché
+        // l'apparecchiatura è fuori dal campo di applicazione.
+        verificaIntegritaMark: r.verificaIntegrita
+          ? CHECK
+          : soggetta
+            ? NEGATIVO
+            : NON_PERTINENTE,
+      }
+    }),
     valvole: {
       portata: model.valvole.portata.map((r) => ({
         ...r,

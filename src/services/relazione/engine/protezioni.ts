@@ -64,7 +64,8 @@ function manometroLabel(s: Serbatoio): string {
   if (s.manometro?.segno_rosso != null) {
     parti.push(`segno rosso ${formatNumberIT(s.manometro.segno_rosso)} bar`)
   }
-  return parti.join(' · ')
+  // Separatore allineato al resto delle tabelle di §5.3 e §6.1: trattino, non punto medio.
+  return parti.join(' – ')
 }
 
 export function buildProtezioni(

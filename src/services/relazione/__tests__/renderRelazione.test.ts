@@ -77,7 +77,9 @@ describe('renderRelazioneDocx', () => {
 
     const xml = outputXml(renderRelazioneDocx(template, model))
     expect(xml).toContain('[C1]')
-    expect(xml).toContain('C1=;') // nessuna spessimetrica → mark vuoto
+    // Compressore senza recipiente: la verifica di integrità non è pertinente, e la cella
+    // lo dice invece di restare vuota.
+    expect(xml).toContain('C1=–;')
   })
 
   test('le sezioni inverse scelgono una sola variante della frase sui fluidi', () => {

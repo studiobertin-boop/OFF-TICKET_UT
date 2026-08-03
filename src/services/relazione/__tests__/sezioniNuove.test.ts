@@ -205,7 +205,7 @@ describe('buildProtezioni', () => {
       serbatoi: [makeSerbatoio({ manometro: { fondo_scala: 16, segno_rosso: 11 } })],
     })
     expect(protezioni(scheda).serbatoi.find((r) => r.pos === 'S1')?.manometro).toBe(
-      'fondo scala 16 bar · segno rosso 11 bar'
+      'fondo scala 16 bar – segno rosso 11 bar'
     )
   })
 

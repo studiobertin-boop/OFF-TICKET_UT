@@ -44,11 +44,11 @@ describe('buildCaratteristiche', () => {
     expect(c1.temperatura).toBe('')
   })
 
-  test('disoleatore: capacità = volume, temperatura = "-10 ÷ +120", categoria dal PED', () => {
+  test('disoleatore: capacità = volume, temperatura = "-10÷+120", categoria dal PED', () => {
     const rows = buildCaratteristiche(soloCompressore())
     const d = rows.find((r) => r.pos === 'C1.1')!
     expect(d.capacita).toBe('75')
-    expect(d.temperatura).toBe('-10 ÷ +120')
+    expect(d.temperatura).toBe('-10÷+120')
     expect(d.categoria).toBe('III')
   })
 
@@ -57,7 +57,7 @@ describe('buildCaratteristiche', () => {
     const v = rows.find((r) => r.pos === 'C1.2')!
     expect(v.capacita).toBe('10518')
     expect(v.pressione).toBe('14')
-    expect(v.temperatura).toBe('-10 ÷ +200')
+    expect(v.temperatura).toBe('-10÷+200')
   })
 
   test('scambiatore: temperatura con minimo convenzionale -20', () => {
@@ -74,7 +74,7 @@ describe('buildCaratteristiche', () => {
       })
     )
     const s = rows.find((r) => r.pos === 'E1.1')!
-    expect(s.temperatura).toBe('-20 ÷ +120')
+    expect(s.temperatura).toBe('-20÷+120')
   })
 
   test('mantiene l\'ordine canonico compressori → serbatoi → essiccatori', () => {
@@ -104,10 +104,10 @@ describe('buildCaratteristiche — temperatura dal campo della scheda', () => {
         filtri: [],
       })
     )
-    expect(rows.find((r) => r.pos === 'S1')?.temperatura).toBe('-10 ÷ +150')
+    expect(rows.find((r) => r.pos === 'S1')?.temperatura).toBe('-10÷+150')
   })
 
-  test('un intervallo scritto dal tecnico si riporta tal quale', () => {
+  test('un intervallo scritto dal tecnico conserva i valori, non la spaziatura', () => {
     const rows = buildCaratteristiche(
       makeScheda({
         compressori: [],
@@ -118,7 +118,7 @@ describe('buildCaratteristiche — temperatura dal campo della scheda', () => {
         filtri: [],
       })
     )
-    expect(rows.find((r) => r.pos === 'S1')?.temperatura).toBe('0 ÷ +99')
+    expect(rows.find((r) => r.pos === 'S1')?.temperatura).toBe('0÷+99')
   })
 
   test('senza TS nella scheda si ripiega sul campo numerico delle schede vecchie', () => {
@@ -132,7 +132,7 @@ describe('buildCaratteristiche — temperatura dal campo della scheda', () => {
         filtri: [],
       })
     )
-    expect(rows.find((r) => r.pos === 'S1')?.temperatura).toBe('-10 ÷ +120')
+    expect(rows.find((r) => r.pos === 'S1')?.temperatura).toBe('-10÷+120')
   })
 
   test('senza nessuno dei due la cella resta vuota', () => {

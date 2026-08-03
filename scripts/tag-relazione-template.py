@@ -55,10 +55,16 @@ import docx
 # Le valvole di un recipiente vanno una per riga dentro la cella: i tag di loop stanno in
 # paragrafi propri, che docxtemplater rimuove lasciando solo le righe ripetute. Scritti di
 # seguito nello stesso paragrafo ripeterebbero il testo senza mai andare a capo.
-VALVOLE_ANNIDATE = ["{#valvole}", "{pos} · n.f. {nFabbrica}", "{/valvole}"]
+VALVOLE_ANNIDATE = ["{#valvole}", "{pos} – n.f. {nFabbrica}", "{/valvole}"]
 
-SRC_DEFAULT = os.path.join("DOCUMENTAZIONE", "relazione", "ESEMPIO_nuova_struttura_revFB.docx")
-OUT = os.path.join("public", "templates", "relazione-dm329.docx")
+# La radice del progetto si ricava dalla posizione dello script, non dalla cartella da cui
+# lo si lancia: il template sta sempre lì, e chi segue la guida si trova spesso dentro
+# `DOCUMENTAZIONE/relazione/`. Il documento sorgente passato a riga di comando resta invece
+# relativo alla cartella corrente.
+RADICE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+SRC_DEFAULT = os.path.join(RADICE, "DOCUMENTAZIONE", "relazione", "ESEMPIO_nuova_struttura_revFB.docx")
+OUT = os.path.join(RADICE, "public", "templates", "relazione-dm329.docx")
 
 
 # ---------------------------------------------------------------------------
@@ -111,6 +117,19 @@ def seguenti_che_iniziano(P, p, inizio):
             break
         fuori.append(q)
     return fuori
+
+
+def paragrafi_fra(P, dopo, prima_di, cosa):
+    """
+    I paragrafi compresi fra due agganci. Delimitare un elenco con i capoversi che lo
+    racchiudono, invece che con la forma delle sue voci, lo rende indipendente dal fatto
+    che siano trattini scritti a mano o un elenco puntato di Word.
+    """
+    i, j = P.index(dopo), P.index(prima_di)
+    atteso(j > i, "%s: gli agganci sono in ordine inverso" % cosa)
+    fra = P[i + 1:j]
+    atteso(fra, "%s: nessun paragrafo fra i due agganci" % cosa)
+    return fra
 
 
 def seguenti_con_stile(P, p):
@@ -173,6 +192,21 @@ def scrivi(p, nuovo, run_modello=None):
 
 def elimina(p):
     p._p.getparent().remove(p._p)
+
+
+def aggiungi_run(p, testo_run, corsivo=False):
+    """
+    Accoda un run al paragrafo copiando la formattazione dell'ultimo esistente, così il
+    testo aggiunto eredita font e corpo del capoverso e non quelli di base del documento.
+    """
+    r = p.add_run()
+    modello = p.runs[0] if p.runs else None
+    if modello is not None and modello._r.rPr is not None:
+        r._r.insert(0, copy.deepcopy(modello._r.rPr))
+    r.text = testo_run
+    if corsivo:
+        r.italic = True
+    return r
 
 
 def clona_dopo(p, nuovo_testo=None, evidenzia=None):
@@ -317,6 +351,7 @@ def converti(sorgente, destinazione):
     revisione = paragrafo(P, "L’attuale revisione", "§1 capoverso di revisione")
     spessimetriche = paragrafo(P, "Ove previsto", "§1 capoverso spessimetriche")
     intro_sezioni = paragrafo(P, "L’impianto in oggetto è finalizzato", "§2.1 elenco sezioni")
+    chiusura_sezioni = paragrafo(P, "L’impianto è protetto contro i rischi", "§2.1 chiusura elenco")
     intro_schema = paragrafo(P, "Lo schema seguente rappresenta", "§2.3 schema d'impianto")
     nocive = paragrafo(P, "Quest’ultima risulta priva", "§3 frase sulle sostanze nocive")
     tubazioni = paragrafo(P, "Tutte le tubazioni", "§5.4 nota sulle tubazioni")
@@ -335,13 +370,18 @@ def converti(sorgente, destinazione):
     )
 
     # --- §1 Premessa -------------------------------------------------------
+    # La denominazione della sala va in corsivo, quindi non può stare nello stesso run del
+    # resto della frase: il capoverso si compone in quattro run, uno solo dei quali corsivo.
     scrivi(
         premessa,
         "La presente relazione tecnica si riferisce all’impianto a pressione installato "
         "presso il sito produttivo della ditta {premessa.ragioneSociale}, con sede sociale "
         "in {premessa.sedeLegale}, esercente attività di {premessa.descrizioneAttivita}, "
-        "{premessa.ubicazione}.",
+        "{premessa.ubicazione}",
     )
+    aggiungi_run(premessa, "{#premessa.haDenominazioneSala} ed individuato come ")
+    aggiungi_run(premessa, "{premessa.denominazioneSala}", corsivo=True)
+    aggiungi_run(premessa, "{/premessa.haDenominazioneSala}.")
 
     # I due capoversi condizionali restano intatti: quello sulla revisione contiene il
     # segnaposto giallo che il redattore compila in Word, e riscriverlo lo perderebbe.
@@ -350,9 +390,12 @@ def converti(sorgente, destinazione):
     avvolgi(spessimetriche, "premessa.haSpessimetrica", modello=modello_premessa)
 
     # --- §2.1 Sezioni dell'impianto ---------------------------------------
-    voci_sezioni = seguenti_che_iniziano(P, intro_sezioni, "–")
-    atteso(voci_sezioni, "§2.1: nessuna voce di elenco dopo l'introduzione")
-    scrivi(voci_sezioni[0], "–\t{voce}")
+    # L'elenco è delimitato dai due capoversi che lo racchiudono, non dalla forma delle
+    # voci: possono essere paragrafi con un trattino scritto a mano oppure un elenco
+    # puntato di Word, e la scelta è del redattore.
+    voci_sezioni = paragrafi_fra(P, intro_sezioni, chiusura_sezioni, "§2.1 elenco sezioni")
+    prefisso = "–\t" if testo(voci_sezioni[0]).startswith("–") else ""
+    scrivi(voci_sezioni[0], prefisso + "{voce}")
     avvolgi(voci_sezioni[0], "descrizioneGenerale.sezioni", modello=intro_sezioni)
     for voce in voci_sezioni[1:]:
         elimina(voce)
@@ -386,16 +429,19 @@ def converti(sorgente, destinazione):
     )
 
     # La frase esiste in due varianti: evidenziata quando l'aria aspirata è dichiarata non
-    # pulita, piana altrimenti. Il documento reso ne conserva una sola, l'altra va ricreata.
-    atteso(
-        nocive.runs and nocive.runs[0].font.highlight_color is not None,
-        "§3: la frase sulle sostanze nocive dovrebbe essere evidenziata, l'esempio è "
-        "generato con aria non pulita",
-    )
+    # pulita, piana altrimenti. Il documento reso ne contiene una sola, e qui si ricreano
+    # entrambe a partire da quella.
+    #
+    # L'evidenziatore lo mette lo script, senza guardare come sia formattata la frase nel
+    # documento sorgente: è una marcatura che il sistema deve al lettore — «qui c'è una
+    # valutazione da fare» — non una scelta tipografica del redattore. Prima si pretendeva
+    # di trovarla già gialla, e toglierla in Word bloccava la conversione.
     modello_fluidi = precedente(P, nocive, "§3 frase sulle sostanze nocive")
-    piana = clona_dopo(nocive, evidenzia=None)
+    piana = clona_dopo(nocive)
     for r in piana.runs:
         r.font.highlight_color = None
+    for r in nocive.runs:
+        r.font.highlight_color = docx.enum.text.WD_COLOR_INDEX.YELLOW
     avvolgi(nocive, "fluidi.evidenziaNocive", modello=modello_fluidi)
     avvolgi(piana, "fluidi.evidenziaNocive", modello=modello_fluidi)
     # La sezione inversa non si scrive con {#…}: si corregge il tag di apertura.
@@ -466,9 +512,13 @@ def converti(sorgente, destinazione):
     )
 
     # --- §6 Valvole di sicurezza ------------------------------------------
+    # Tre righe per apparecchiatura connessa: posizione e descrizione, poi costruttore e
+    # modello a capo. Le celle sono strette e il nome del costruttore è lungo.
     connesse = [
         "{#connesse}",
-        "Pos. {pos} – {descrizione} · {costruttore} {modello}",
+        "Pos. {pos} – {descrizione} –",
+        "{costruttore}",
+        "{modello}",
         "{/connesse}",
     ]
     riga_loop(
@@ -520,7 +570,35 @@ def converti(sorgente, destinazione):
     for voce in altre_voci:
         elimina(voce)
 
+    tabella_revisioni(d)
+
     d.save(destinazione)
+
+
+def tabella_revisioni(d):
+    """
+    Tabella delle revisioni, nel piè di pagina della copertina: l'ultima riga riporta il
+    numero di revisione desunto dal codice pratica e, alla prima emissione, la nota
+    corrispondente. Le righe superiori restano vuote: le compila il tecnico a ogni revisione.
+    """
+    trovate = [
+        t
+        for s in d.sections
+        for f in (s.footer, s.first_page_footer, s.even_page_footer)
+        for t in f.tables
+        if [c.text.strip() for c in t.rows[0].cells][:3] == ["DATA", "REV", "OGGETTO"]
+    ]
+    atteso(trovate, "tabella delle revisioni: non trovata nei piè di pagina")
+    atteso(
+        len(trovate) == 1,
+        "tabella delle revisioni: trovate %d tabelle, l'aggancio è ambiguo" % len(trovate),
+    )
+
+    ultima = trovate[0].rows[-1]
+    atteso(len(ultima.cells) >= 3, "tabella delle revisioni: attese almeno 3 colonne")
+    modello = next((p.runs[0] for c in ultima.cells for p in c.paragraphs if p.runs), None)
+    scrivi(ultima.cells[1].paragraphs[0], "{premessa.numeroRevisione}", modello)
+    scrivi(ultima.cells[2].paragraphs[0], "{premessa.notaRevisione}", modello)
 
 
 def rifinisci_pacchetto(percorso):

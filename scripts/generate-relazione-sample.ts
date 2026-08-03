@@ -13,7 +13,8 @@
  * la sceglie il redattore al momento della generazione e non viene salvata.
  */
 import { readFileSync, writeFileSync } from 'fs'
-import { resolve } from 'path'
+import { dirname, resolve } from 'path'
+import { fileURLToPath } from 'url'
 import { buildRelazioneModel } from '../src/services/relazione/buildRelazioneModel'
 import { renderRelazioneDocx } from '../src/services/relazione/renderRelazione'
 import type { SchedaDatiCompleta } from '../src/types/technicalSheet'
@@ -40,8 +41,18 @@ function leggiSchemaPng(percorso: string): SchemaImpianto {
   }
 }
 
-const TEMPLATE = resolve(process.cwd(), 'public/templates/relazione-dm329.docx')
-const OUT = resolve(process.cwd(), process.argv[2] ?? 'DOCUMENTAZIONE/relazione/ESEMPIO_nuova_struttura.docx')
+/**
+ * La radice del progetto si ricava dalla posizione dello script, non dalla cartella da cui
+ * lo si lancia: il template sta sempre lì, e chi segue la guida si trova spesso dentro
+ * `DOCUMENTAZIONE/relazione/`. I percorsi passati a riga di comando restano invece relativi
+ * alla cartella corrente, che è quello che ci si aspetta scrivendo `esempio.docx`.
+ */
+const RADICE = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+
+const TEMPLATE = resolve(RADICE, 'public/templates/relazione-dm329.docx')
+const OUT = process.argv[2]
+  ? resolve(process.cwd(), process.argv[2])
+  : resolve(RADICE, 'DOCUMENTAZIONE/relazione/ESEMPIO_nuova_struttura.docx')
 
 const customer: Customer = {
   id: 'sample',

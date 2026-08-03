@@ -85,6 +85,8 @@ export function makeCompressore(overrides: Partial<Compressore> = {}): Compresso
     codice: 'C1',
     marca: 'KAESER',
     modello: 'CSD 105 SFC',
+    // Il tipo è dichiarato: senza, la relazione non asserisce alcuna tipologia costruttiva.
+    tipo: 'VITE',
     n_fabbrica: 'CSD.5/5697',
     anno: 2019,
     pressione_max: 12,

@@ -12,13 +12,22 @@ export interface PremessaInput {
   additionalInfo: AdditionalInfo
 }
 
+/**
+ * Gli indirizzi vanno in maiuscolo comunque siano stati digitati in anagrafica: nel
+ * documento sono un'intestazione, e la loro forma non deve dipendere da chi ha compilato
+ * la scheda.
+ */
+function maiuscolo(testo: string): string {
+  return testo.toUpperCase()
+}
+
 /** Le due parti di un indirizzo cliente: "via n° civico" e "cap comune (provincia)". */
 function parti(c: Customer): { via: string; localita: string } {
   const via = [c.via, c.numero_civico ? `n° ${c.numero_civico}` : ''].filter(Boolean).join(' ')
   const comune = [c.cap, c.comune].filter(Boolean).join(' ')
   return {
-    via,
-    localita: [comune, c.provincia ? `(${c.provincia})` : ''].filter(Boolean).join(' '),
+    via: maiuscolo(via),
+    localita: maiuscolo([comune, c.provincia ? `(${c.provincia})` : ''].filter(Boolean).join(' ')),
   }
 }
 
@@ -44,19 +53,17 @@ export function buildPremessa(input: PremessaInput): PremessaModel {
   const { customer, pratica, additionalInfo } = input
 
   const sedeLegale = formatIndirizzo(customer)
-  const indirizzoImpianto = pratica.indirizzoImpianto?.trim() || ''
+  const indirizzoImpianto = maiuscolo(pratica.indirizzoImpianto?.trim() || '')
   const uguale = pratica.impiantoUgualeSedeLegale === true || indirizzoImpianto === ''
 
   const sitoProduttivo = uguale ? sedeLegale : indirizzoImpianto
 
-  // Clausola di ubicazione, con l'eventuale denominazione della sala compressori.
+  // Clausola di ubicazione. La denominazione della sala non è inclusa qui: va resa in
+  // corsivo fra virgolette, quindi il template la stampa con un run proprio.
   const sala = pratica.denominazioneSala?.trim()
-  const ubicazione = [
-    uguale ? 'ubicato presso la medesima sede sociale' : `ubicato in ${indirizzoImpianto}`,
-    sala ? `ed individuato come ${sala}` : '',
-  ]
-    .filter(Boolean)
-    .join(' ')
+  const ubicazione = uguale
+    ? 'ubicato presso la medesima sede sociale'
+    : `ubicato in ${indirizzoImpianto}`
 
   const descrizioneAttivita =
     additionalInfo.descrizioneAttivita?.trim() || customer.descrizione_attivita || ''
@@ -74,6 +81,14 @@ export function buildPremessa(input: PremessaInput): PremessaModel {
     sitoProduttivoCopertina: uguale ? sedeLegaleCopertina : indirizzoImpianto,
     descrizioneAttivita,
     ubicazione,
+    // Denominazione della sala: il flag regola la sezione condizionale, il testo virgolettato
+    // entra in un run in corsivo del template.
+    haDenominazioneSala: Boolean(sala),
+    denominazioneSala: sala ? `“${sala}”` : '',
+    // Numero di revisione dal codice pratica. Alla prima emissione la nota è generata;
+    // dalla prima revisione in poi la scrive il tecnico, perché è una valutazione sua.
+    numeroRevisione: String(pratica.progressivo ?? 0),
+    notaRevisione: (pratica.progressivo ?? 0) === 0 ? 'prima emissione' : '',
     // «Uguale» per dichiarazione esplicita è un dato; «uguale» per indirizzo assente è
     // un ripiego, e il preflight deve poterli distinguere.
     ubicazioneDichiarata:

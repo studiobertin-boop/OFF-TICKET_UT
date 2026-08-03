@@ -39,9 +39,17 @@ const GIRI: Record<TipoGiri, string> = {
   variabili: 'a giri variabili tramite inverter',
 }
 
-/** Descrittore costruttivo: "silenziati a pistoni", "rotativo a vite". */
+/**
+ * Descrittore costruttivo: "silenziati a pistoni", "rotativo a vite".
+ *
+ * Con il tipo non dichiarato il descrittore resta vuoto. Prima si assumeva «a vite», che è
+ * il caso più frequente ma non un dato: su una scheda compilata prima che il campo
+ * esistesse la relazione affermava «rotativo a vite» davanti a un compressore a pistoni.
+ * Tacere è corretto, inventare no; il tipo lo si dichiara in scheda o a catalogo.
+ */
 function descrittoreTipo(c: Compressore, count: number): string {
-  const tipo = TIPO_COMPRESSORE[c.tipo ?? 'VITE']
+  if (!c.tipo) return c.silenziato ? (count === 1 ? 'silenziato' : 'silenziati') : ''
+  const tipo = TIPO_COMPRESSORE[c.tipo]
   const base = count === 1 ? tipo.singolare : tipo.plurale
   if (!c.silenziato) return base
   return `${count === 1 ? 'silenziato' : 'silenziati'} ${base}`
@@ -49,7 +57,7 @@ function descrittoreTipo(c: Compressore, count: number): string {
 
 /** Chiave di raggruppamento costruttivo: tipo + silenziato. */
 function chiaveTipo(c: Compressore): string {
-  return `${c.tipo ?? 'VITE'}|${c.silenziato ? 'S' : ''}`
+  return `${c.tipo ?? ''}|${c.silenziato ? 'S' : ''}`
 }
 
 function sezionePompaggio(

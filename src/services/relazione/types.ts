@@ -63,8 +63,16 @@ export interface PremessaModel {
   /** Variante di copertina; se l'indirizzo è testo libero resta su una riga. */
   sitoProduttivoCopertina: string
   descrizioneAttivita: string
-  /** Clausola di ubicazione impianto, con denominazione sala se presente */
+  /** Clausola di ubicazione impianto. Senza la sala: quella ha un run proprio, in corsivo. */
   ubicazione: string
+  /** Regola la clausola «ed individuato come …» in §1. */
+  haDenominazioneSala: boolean
+  /** Denominazione della sala già virgolettata; il corsivo lo mette il template. */
+  denominazioneSala: string
+  /** Numero di revisione desunto dal codice pratica ('0' alla prima emissione). */
+  numeroRevisione: string
+  /** «prima emissione» alla revisione 0, altrimenti vuota: la compila il tecnico. */
+  notaRevisione: string
   /**
    * Falso quando l'ubicazione non è stata dichiarata da nessuna parte e la clausola
    * ripiega sulla sede legale. Il documento resta leggibile, ma l'affermazione non

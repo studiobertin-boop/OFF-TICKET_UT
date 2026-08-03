@@ -25,6 +25,27 @@ describe('buildDescrizioneGenerale — sezione di pompaggio', () => {
     )
   })
 
+  test('senza tipo dichiarato non asserisce alcuna tipologia costruttiva', () => {
+    // Prima si assumeva «a vite», il caso più frequente: su una scheda compilata prima che
+    // il campo esistesse la relazione descriveva come rotativo a vite un compressore a
+    // pistoni. Tacere è corretto, inventare no.
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ codice: 'C1', tipo: undefined })],
+    })
+    const frase = pompaggio(scheda, { C1: 'fissi' })
+    expect(frase).toBe('Sezione di pompaggio costituita da n°1 compressore a giri fissi')
+    expect(frase).not.toContain('vite')
+  })
+
+  test('senza tipo dichiarato conserva comunque il silenziato', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ codice: 'C1', tipo: undefined, silenziato: true })],
+    })
+    expect(pompaggio(scheda, { C1: 'fissi' })).toBe(
+      'Sezione di pompaggio costituita da n°1 compressore silenziato a giri fissi'
+    )
+  })
+
   test('plurale con più compressori omogenei', () => {
     const scheda = makeScheda({
       compressori: [makeCompressore({ codice: 'C1' }), makeCompressore({ codice: 'C2' })],

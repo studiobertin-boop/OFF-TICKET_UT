@@ -15,15 +15,24 @@ percorso inverso.
 
 ## La procedura
 
+> **Tutti i comandi si lanciano dalla radice del progetto**, cioè da `OFF-TICKET_UT`, non da
+> questa cartella. È lì che stanno `scripts/` e `node_modules/`. Se il terminale ti dice
+> `Cannot find module …\DOCUMENTAZIONE\relazione\scripts\…`, sei nella cartella sbagliata:
+>
+> ```bash
+> cd "C:\Users\FrancescoBertin\Desktop\CLAUDE CODE\OFF-TICKET_UT"
+> ```
+
 ### 1. Genera un esempio da formattare
 
 ```bash
-npx tsx scripts/generate-relazione-sample.ts esempio.docx schema.png
+npx tsx scripts/generate-relazione-sample.ts DOCUMENTAZIONE/relazione/esempio.docx DOCUMENTAZIONE/relazione/schema.png
 ```
 
 L'immagine non è facoltativa: senza schema il paragrafo di §2.3 non compare affatto nel
 documento reso, e non ci sarebbe nulla da sostituire con il tag dell'immagine. Va bene un
-PNG qualsiasi — nel template torna a essere un segnaposto.
+PNG qualsiasi — nel template torna a essere un segnaposto. In questa cartella ce n'è già
+uno, `schema.png`.
 
 ### 2. Formattalo in Word
 
@@ -33,7 +42,7 @@ sul documento vero, con i dati sotto gli occhi.
 ### 3. Ricava il template
 
 ```bash
-python scripts/tag-relazione-template.py esempio.docx
+python scripts/tag-relazione-template.py DOCUMENTAZIONE/relazione/esempio.docx
 ```
 
 Riscrive `public/templates/relazione-dm329.docx`: rimette i tag al posto dei valori,
@@ -45,7 +54,7 @@ silenzio un template mutilo.
 ### 4. Verifica e committa
 
 ```bash
-npx tsx scripts/generate-relazione-sample.ts verifica.docx schema.png
+npx tsx scripts/generate-relazione-sample.ts DOCUMENTAZIONE/relazione/verifica.docx DOCUMENTAZIONE/relazione/schema.png
 npx vitest run
 ```
 
@@ -58,6 +67,14 @@ npx vitest run
 | **Formattazione** | Liberamente: è lo scopo di questo flusso. |
 | **Testo dei capoversi fissi** | Sì, con le eccezioni qui sotto. |
 | **Sezioni, colonne, tabelle nuove** | No: cambia anche il modello dati, serve toccare il motore. |
+
+L'elenco di §2.1 e quello degli allegati in §8 possono essere paragrafi con un trattino
+scritto a mano oppure un elenco puntato di Word: lo script li riconosce da ciò che li
+racchiude, non dalla forma delle voci.
+
+L'evidenziazione gialla della frase «priva di sostanze nocive» in §3 la mette lo script,
+non il documento: è la marcatura con cui il sistema segnala al lettore che lì c'è una
+valutazione da fare. Toglierla in Word non ha effetto.
 
 Il testo di questi punti viene **riscritto** dallo script, quindi modificarlo in Word non
 serve — sta nello script o nel motore:
@@ -75,13 +92,16 @@ l'**inizio**, non le trova più e si ferma: non è un danno, ma va aggiornato l'
 corrispondente nello script.
 
 ```
-ESEMPIO S.P.A.                     Lo schema seguente rappresenta…
-Sito produttivo in                 Quest’ultima risulta priva…
-La presente relazione tecnica…     Tutte le tubazioni…
-L’attuale revisione…               Le attrezzature rientranti nel campo…
-Ove previsto…                      Attestazioni…
-L’impianto in oggetto è finalizzato…
+ESEMPIO S.P.A.                       Lo schema seguente rappresenta…
+Sito produttivo in                   Quest’ultima risulta priva…
+La presente relazione tecnica…       Tutte le tubazioni…
+L’attuale revisione…                 Le attrezzature rientranti nel campo…
+Ove previsto…                        Attestazioni…
+L’impianto in oggetto è finalizzato… L’impianto è protetto contro i rischi…
 ```
+
+Gli ultimi due delimitano l'elenco delle sezioni di §2.1: quell'elenco si riconosce da ciò
+che lo racchiude, non dalla forma delle sue voci.
 
 Gli agganci sono per testo e non per posizione, quindi il documento può guadagnare o perdere
 paragrafi senza conseguenze. Erano posizionali fino ad agosto 2026, e questo aveva rotto il

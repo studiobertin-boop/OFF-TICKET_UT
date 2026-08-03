@@ -12,7 +12,8 @@ describe('buildPremessa — anagrafica', () => {
       additionalInfo,
     })
     expect(premessa.ragioneSociale).toBe('ACME S.r.l.')
-    expect(premessa.sedeLegale).toBe('Via Roma n° 10, 31020 San Polo di Piave (TV)')
+    // Gli indirizzi vanno in maiuscolo comunque siano stati digitati in anagrafica.
+    expect(premessa.sedeLegale).toBe('VIA ROMA N° 10, 31020 SAN POLO DI PIAVE (TV)')
   })
 
   test('preferisce la descrizione attività di additional_info, con fallback sul cliente', () => {
@@ -52,8 +53,8 @@ describe('buildPremessa — ubicazione impianto', () => {
       }),
       additionalInfo,
     })
-    expect(premessa.ubicazione).toBe('ubicato in Via Industria 5, 31100 Treviso (TV)')
-    expect(premessa.sitoProduttivo).toBe('Via Industria 5, 31100 Treviso (TV)')
+    expect(premessa.ubicazione).toBe('ubicato in VIA INDUSTRIA 5, 31100 TREVISO (TV)')
+    expect(premessa.sitoProduttivo).toBe('VIA INDUSTRIA 5, 31100 TREVISO (TV)')
   })
 
   test('aggiunge la denominazione della sala quando valorizzata', () => {
@@ -66,9 +67,11 @@ describe('buildPremessa — ubicazione impianto', () => {
       }),
       additionalInfo,
     })
-    expect(premessa.ubicazione).toBe(
-      'ubicato in Via Toscana 14, Paese (TV) ed individuato come Padernello Principale'
-    )
+    // La sala non entra nella clausola: il template la stampa in un run proprio, in
+    // corsivo, perché una parte di frase non può cambiare formato dentro un unico tag.
+    expect(premessa.ubicazione).toBe('ubicato in VIA TOSCANA 14, PAESE (TV)')
+    expect(premessa.haDenominazioneSala).toBe(true)
+    expect(premessa.denominazioneSala).toBe('“Padernello Principale”')
   })
 
   test('ripiega sulla sede legale se l’indirizzo impianto non è dichiarato', () => {
@@ -99,6 +102,26 @@ describe('buildPremessa — revisione e spessimetriche', () => {
       additionalInfo,
     })
     expect(revisione.haRevisione).toBe(true)
+  })
+
+  test('numero e nota di revisione per la tabella di copertina', () => {
+    const prima = buildPremessa({
+      customer: makeCustomer(),
+      pratica: makePratica({ progressivo: 0 }),
+      additionalInfo,
+    })
+    expect(prima.numeroRevisione).toBe('0')
+    expect(prima.notaRevisione).toBe('prima emissione')
+
+    // Dalla prima revisione in poi la nota la scrive il tecnico: è una valutazione sua,
+    // non un dato desumibile dal codice pratica.
+    const seconda = buildPremessa({
+      customer: makeCustomer(),
+      pratica: makePratica({ progressivo: 2 }),
+      additionalInfo,
+    })
+    expect(seconda.numeroRevisione).toBe('2')
+    expect(seconda.notaRevisione).toBe('')
   })
 
   test('ha spessimetrica solo se almeno una apparecchiatura è elencata', () => {

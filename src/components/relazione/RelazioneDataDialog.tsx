@@ -26,6 +26,7 @@ import {
   Alert,
   CircularProgress,
 } from '@mui/material'
+import { useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import type { SelectChangeEvent } from '@mui/material'
 import type { Customer } from '@/types'
@@ -33,6 +34,7 @@ import type { SchedaDatiCompleta } from '@/types/technicalSheet'
 import { TIPO_GIRI_LABELS, TIPO_GIRI_OPTIONS } from '@/types/technicalSheet'
 import { technicalDataApi } from '@/services/api/technicalData'
 import { equipmentCatalogApi } from '@/services/api/equipmentCatalog'
+import { customersApi } from '@/services/api/customers'
 import { additionalInfoSchema } from '@/services/relazione/schema'
 import { generateAndDownloadRelazione } from '@/services/relazione/generateRelazione'
 import { buildRelazioneModel } from '@/services/relazione/buildRelazioneModel'
@@ -97,6 +99,8 @@ export default function RelazioneDataDialog({
   /** Codici realmente presenti nella scheda: valida i riferimenti salvati in additional_info. */
   const schedaCodes = useMemo(() => collectCodes(scheda), [scheda])
 
+  const queryClient = useQueryClient()
+
   const [descrizioneAttivita, setDescrizioneAttivita] = useState('')
   const [giri, setGiri] = useState<Record<string, TipoGiri>>({})
   const [spessimetrica, setSpessimetrica] = useState<string[]>([])
@@ -111,7 +115,11 @@ export default function RelazioneDataDialog({
     // Scarta i riferimenti ad apparecchiature non più presenti: la scheda può essere cambiata
     // dopo che questi dati sono stati redatti.
     const { info, dropped } = pruneAdditionalInfo(initialAdditionalInfo, schedaCodes)
-    setDescrizioneAttivita(info.descrizioneAttivita || customer?.descrizione_attivita || '')
+    // L'anagrafica cliente è la fonte: la copia in `additional_info` serve solo alle pratiche
+    // vecchie, redatte quando il campo in anagrafica non c'era o era vuoto.
+    setDescrizioneAttivita(
+      customer?.descrizione_attivita?.trim() || info.descrizioneAttivita || ''
+    )
     setGiri(info.compressoriGiri ?? {})
     setSpessimetrica(info.spessimetrica ?? [])
     setCollegamenti(info.collegamentiCompressoriSerbatoi ?? {})
@@ -200,12 +208,34 @@ export default function RelazioneDataDialog({
         schemaImpianto: schema ?? undefined,
         fileName,
       })
+      await riportaDescrizioneInAnagrafica(parsed.data.descrizioneAttivita)
       toast.success('Relazione generata e scaricata.')
       onClose()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Errore nella generazione della relazione')
     } finally {
       setSaving(false)
+    }
+  }
+
+  /**
+   * Riporta la descrizione dell'attività in anagrafica cliente, che ne è la sede propria: il
+   * campo è dell'azienda, non della singola pratica. Chi lo compila qui la prima volta —
+   * tipicamente perché l'anagrafica era ancora vuota — non se lo ritrova più da compilare, né
+   * qui né nelle pratiche successive dello stesso cliente.
+   *
+   * Non è bloccante: l'aggiornamento dell'anagrafica è riservato ad admin e userdm329, e un
+   * tecnico deve poter generare la relazione lo stesso.
+   */
+  const riportaDescrizioneInAnagrafica = async (valore: string) => {
+    if (!customer?.id || !valore) return
+    if (valore === (customer.descrizione_attivita ?? '').trim()) return
+    try {
+      await customersApi.update(customer.id, { descrizione_attivita: valore })
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+      queryClient.invalidateQueries({ queryKey: ['requests'] })
+    } catch (err) {
+      console.warn('[descrizioneAttivita] non riportata in anagrafica cliente', err)
     }
   }
 
@@ -252,7 +282,11 @@ export default function RelazioneDataDialog({
             required
             multiline
             minRows={2}
-            helperText="Testo inserito così com'è nella premessa della relazione."
+            helperText={
+              customer?.descrizione_attivita?.trim()
+                ? "Preso dall'anagrafica cliente e inserito così com'è nella premessa. Se lo modifichi, l'anagrafica viene aggiornata."
+                : "L'anagrafica del cliente non riporta l'attività: quanto scrivi qui finisce nella premessa e viene salvato in anagrafica."
+            }
           />
 
           {compressoriSenzaGiri.length > 0 && (

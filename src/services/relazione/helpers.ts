@@ -109,6 +109,15 @@ export function numeroInLettere(n: number): string {
  * `tsLegacy` è il vecchio campo numerico `ts_temperatura`, usato dai form per tipo
  * ritirati: serve a non perdere la temperatura sulle schede compilate prima.
  */
+/**
+ * «-10 ÷ +120» → «-10÷+120». La spaziatura attorno al separatore è una scelta tipografica
+ * del documento, non un dato: si normalizza anche quando l'intervallo l'ha scritto a mano
+ * il tecnico, che altrimenti dovrebbe ricordarsene ogni volta.
+ */
+function senzaSpaziAttornoAlSeparatore(intervallo: string): string {
+  return intervallo.replace(/\s*÷\s*/g, '÷')
+}
+
 export function formatTemperatura(
   minConvenzionale: number,
   ts: string | null | undefined,
@@ -118,10 +127,10 @@ export function formatTemperatura(
   if (scritto) {
     // Un intervallo si riconosce dalla presenza di un separatore o di un secondo segno.
     const eIntervallo = /[÷\-–—]/.test(scritto.replace(/^[-–—]/, ''))
-    return eIntervallo ? scritto : `${minConvenzionale} ÷ +${scritto}`
+    return eIntervallo ? senzaSpaziAttornoAlSeparatore(scritto) : `${minConvenzionale}÷+${scritto}`
   }
   if (tsLegacy === null || tsLegacy === undefined || Number.isNaN(tsLegacy)) {
     return ''
   }
-  return `${minConvenzionale} ÷ +${formatNumberIT(tsLegacy)}`
+  return `${minConvenzionale}÷+${formatNumberIT(tsLegacy)}`
 }
