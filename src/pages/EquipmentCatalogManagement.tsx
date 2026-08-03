@@ -27,25 +27,31 @@ import {
   FactCheck as VerificaIcon,
   Search as SearchIcon,
 } from '@mui/icons-material'
+import toast from 'react-hot-toast'
 import type { EquipmentCatalogItem, EquipmentCatalogType } from '@/types'
 import { Layout } from '@/components/common/Layout'
 import { EquipmentCatalogTable } from '@/components/equipmentCatalog/EquipmentCatalogTable'
 import { EquipmentFormFields } from '@/components/equipmentCatalog/EquipmentFormFields'
 import { DeleteEquipmentDialog } from '@/components/equipmentCatalog/DeleteEquipmentDialog'
 import { AuditPanel } from '@/components/equipmentCatalog/audit/AuditPanel'
+import { ModificaMassivaBar } from '@/components/equipmentCatalog/ModificaMassivaBar'
+import { ModificaMassivaDialog } from '@/components/equipmentCatalog/ModificaMassivaDialog'
 import {
   useCreateEquipment,
   useDeleteEquipment,
   useEquipmentCatalogList,
   useEquipmentMarche,
   useSetEquipmentActive,
+  useSetEquipmentProperty,
   useUpdateEquipment,
 } from '@/hooks/useEquipmentCatalogAdmin'
+import { equipmentCatalogAdminApi } from '@/services/api/equipmentCatalogAdmin'
 import {
   EQUIPMENT_CATALOG_TYPES,
   createEquipmentSchema,
   specsSchemaFor,
 } from '@/utils/equipmentCatalogValidation'
+import type { ChiaveMassiva } from '@/utils/modificaMassiva'
 
 /**
  * Gestione del catalogo apparecchiature.
@@ -111,6 +117,16 @@ export default function EquipmentCatalogManagement() {
    */
   const [selezionate, setSelezionate] = useState<Set<string>>(new Set())
 
+  /** Proprietà costruttiva scelta dalla barra, in attesa di conferma nel dialog. */
+  const [azione, setAzione] = useState<{ chiave: ChiaveMassiva; valore: string } | null>(null)
+  /**
+   * Righe della selezione, risolte.
+   *
+   * Nel modo «solo la pagina» sono quelle che si vedono; con «tutte quelle del filtro» si
+   * caricano, perché la conferma deve ripartire le righe vere e non stimarle.
+   */
+  const [righeSelezionate, setRigheSelezionate] = useState<EquipmentCatalogItem[]>([])
+
   const searchDebounced = useValoreRitardato(search)
 
   const filters = useMemo(
@@ -132,6 +148,7 @@ export default function EquipmentCatalogManagement() {
   const updateEquipment = useUpdateEquipment()
   const setActive = useSetEquipmentActive()
   const deleteEquipment = useDeleteEquipment()
+  const setProperty = useSetEquipmentProperty()
 
   const {
     control,
@@ -173,6 +190,28 @@ export default function EquipmentCatalogManagement() {
     setSelezionate(seleziona ? new Set((data?.data ?? []).map(r => r.id)) : new Set())
   }
 
+  /**
+   * «Seleziona tutte le N righe del filtro»: si caricano gli id, non si finge di averli.
+   * Il `pageSize` alto è deliberato — il filtro più largo del catalogo sono poche centinaia
+   * di righe, e una seconda pagina qui vorrebbe dire una selezione parziale spacciata per
+   * totale.
+   *
+   * PostgREST non restituisce più di 1000 righe in una chiamata sola: se il filtro ne conta
+   * di più, la selezione copre solo le prime 1000 e lo si dice esplicitamente, invece di
+   * lasciar credere che sia completa quando non lo è.
+   */
+  const selezionaTuttoIlFiltro = async () => {
+    const tutte = await equipmentCatalogAdminApi.list({ ...filters, page: 0, pageSize: 1000 })
+    setSelezionate(new Set(tutte.data.map(r => r.id)))
+    setRigheSelezionate(tutte.data)
+    if (tutte.count > tutte.data.length) {
+      toast(
+        `Il filtro conta ${tutte.count} righe: la selezione copre solo le prime ${tutte.data.length}. Restringi il filtro per selezionarle tutte.`,
+        { icon: '⚠️' }
+      )
+    }
+  }
+
   const salva = handleSubmit(async values => {
     // I campi svuotati li toglie lo schema, per tutti i punti che salvano allo
     // stesso modo: qui non si ripulisce nulla a mano.
@@ -198,6 +237,13 @@ export default function EquipmentCatalogManagement() {
   useEffect(() => {
     setSelezionate(new Set())
   }, [page, rowsPerPage])
+
+  useEffect(() => {
+    const dellaPagina = (data?.data ?? []).filter(r => selezionate.has(r.id))
+    // Con la selezione estesa `righeSelezionate` contiene già più righe di quelle visibili:
+    // non la si sovrascrive con il solo sottoinsieme della pagina.
+    if (dellaPagina.length === selezionate.size) setRigheSelezionate(dellaPagina)
+  }, [selezionate, data])
 
   const salvataggioInCorso = createEquipment.isPending || updateEquipment.isPending
   const erroreSalvataggio = createEquipment.error ?? updateEquipment.error
@@ -289,6 +335,15 @@ export default function EquipmentCatalogManagement() {
           </Stack>
         </Paper>
 
+        <ModificaMassivaBar
+          righe={righeSelezionate}
+          totaleSelezionate={selezionate.size}
+          totaleFiltro={data?.count ?? 0}
+          onSelezionaTuttoIlFiltro={selezionaTuttoIlFiltro}
+          onScegli={(chiave, valore) => setAzione({ chiave, valore })}
+          onAnnulla={() => setSelezionate(new Set())}
+        />
+
         {isLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
             <CircularProgress />
@@ -365,6 +420,25 @@ export default function EquipmentCatalogManagement() {
       />
 
       <AuditPanel open={auditOpen} onClose={() => setAuditOpen(false)} />
+
+      <ModificaMassivaDialog
+        open={azione !== null}
+        righe={righeSelezionate}
+        chiave={azione?.chiave ?? null}
+        valore={azione?.valore ?? null}
+        inCorso={setProperty.isPending}
+        errore={setProperty.error instanceof Error ? setProperty.error.message : null}
+        onAnnulla={() => {
+          setAzione(null)
+          setProperty.reset()
+        }}
+        onConferma={async ids => {
+          const n = await setProperty.mutateAsync({ ids, chiave: azione!.chiave, valore: azione!.valore })
+          setAzione(null)
+          setSelezionate(new Set())
+          toast.success(`${n} ${n === 1 ? 'riga aggiornata' : 'righe aggiornate'}.`)
+        }}
+      />
     </Layout>
   )
 }
