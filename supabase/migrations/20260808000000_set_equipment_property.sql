@@ -2,10 +2,12 @@
 --
 -- Serve a valorizzare `giri` e `tipo_compressore` su gruppi di righe scelti a mano dal
 -- tecnico. Quando il catalogo fu importato, `giri` venne compilato solo dove c'era prova
--- positiva — il suffisso commerciale delle macchine a velocita' variabile — e 485 righe
--- restarono vuote apposta: l'assenza del suffisso non e' prova di giri fissi, e il valore
--- finisce in una frase asseverata di una relazione firmata. Qui non decide un'euristica,
--- decide chi seleziona.
+-- positiva — il suffisso commerciale delle macchine a velocita' variabile — e oggi sono 486
+-- le righe di compressore attive con `giri` vuoto (485 delle quali hanno vuoto anche
+-- `tipo_compressore`, una ha gia' `tipo_compressore: PISTONI`): restarono vuote apposta,
+-- perche' l'assenza del suffisso non e' prova di giri fissi, e il valore finisce in una
+-- frase asseverata di una relazione firmata. Qui non decide un'euristica, decide chi
+-- seleziona.
 --
 -- Una transazione sola invece di centinaia di scritture separate, come gia' fa
 -- `apply_equipment_fixes` per le correzioni del motore di verifica: un'interruzione a meta'
@@ -34,16 +36,20 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
-  IF p_chiave NOT IN ('giri', 'tipo_compressore') THEN
+  -- `NOT IN` con un operando NULL restituisce NULL, non TRUE: la logica a tre valori di SQL
+  -- farebbe scivolare oltre l'IF un p_chiave o un p_valore nullo senza sollevare eccezione.
+  -- Il controllo del nullo va quindi esplicito, su tutte e tre le condizioni che seguono —
+  -- non e' ridondanza, e' l'unico modo per cui un valore nullo finisca davvero rifiutato.
+  IF p_chiave IS NULL OR p_chiave NOT IN ('giri', 'tipo_compressore') THEN
     RAISE EXCEPTION 'Chiave non ammessa alla modifica massiva: %', p_chiave;
   END IF;
 
-  IF p_chiave = 'giri' AND p_valore NOT IN ('fissi', 'variabili') THEN
+  IF p_chiave = 'giri' AND (p_valore IS NULL OR p_valore NOT IN ('fissi', 'variabili')) THEN
     RAISE EXCEPTION 'Valore non ammesso per la regolazione giri: %', p_valore;
   END IF;
 
   IF p_chiave = 'tipo_compressore'
-     AND p_valore NOT IN ('VITE', 'PISTONI', 'SCROLL', 'CENTRIFUGO') THEN
+     AND (p_valore IS NULL OR p_valore NOT IN ('VITE', 'PISTONI', 'SCROLL', 'CENTRIFUGO')) THEN
     RAISE EXCEPTION 'Valore non ammesso per la tipologia costruttiva: %', p_valore;
   END IF;
 
