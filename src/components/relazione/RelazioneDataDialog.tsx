@@ -200,7 +200,9 @@ export default function RelazioneDataDialog({
     setSaving(true)
     try {
       await technicalDataApi.updateAdditionalInfo(requestId, parsed.data)
-      const compressoriNonAggiornati = await riportaGiriACatalogo(parsed.data.compressoriGiri)
+      // Il documento è ciò che il tecnico sta aspettando: la scrittura a catalogo dei giri fa
+      // una manciata di query per compressore e non deve tenere fermo lo scaricamento, che non ha
+      // un timeout lato client. Va quindi dopo, non prima.
       await generateAndDownloadRelazione({
         scheda,
         additionalInfo: parsed.data,
@@ -210,16 +212,8 @@ export default function RelazioneDataDialog({
         fileName,
       })
       await riportaDescrizioneInAnagrafica(parsed.data.descrizioneAttivita)
-      // Non bloccante e non un errore: la relazione è comunque generata, il catalogo va solo
-      // sistemato a mano dal modulo di gestione apparecchiature.
-      if (compressoriNonAggiornati.length > 0) {
-        toast(
-          `Regolazione giri non registrata a catalogo per ${compressoriNonAggiornati.join(', ')}: ` +
-          'il modello ha più varianti a quella pressione. La relazione è stata generata comunque.',
-          { icon: '⚠️' }
-        )
-      }
-      toast.success('Relazione generata e scaricata.')
+      const { nonACatalogo, ambigui } = await riportaGiriACatalogo(parsed.data.compressoriGiri)
+      mostraEsitoGenerazione(nonACatalogo, ambigui)
       onClose()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Errore nella generazione della relazione')
@@ -249,6 +243,16 @@ export default function RelazioneDataDialog({
     }
   }
 
+  /** Esito di `riportaGiriACatalogo`: i codici per cui la scrittura non è avvenuta, distinti per motivo. */
+  interface EsitoRiportoGiri {
+    /** Il modello non ha righe a catalogo: mai censito, oppure marca/modello scritti con una
+     *  grafia diversa da quella di catalogo (`findVariants` confronta per uguaglianza esatta). */
+    nonACatalogo: string[]
+    /** Il modello è a catalogo in più varianti e né la pressione né la capacità della riga
+     *  bastano a scegliere quella giusta. */
+    ambigui: string[]
+  }
+
   /**
    * Riporta a catalogo la regolazione dei giri appena dichiarata, così la domanda non torna alla
    * pratica successiva sullo stesso modello.
@@ -256,41 +260,81 @@ export default function RelazioneDataDialog({
    * La sola pressione non individua più una riga sola: due varianti dello stesso modello possono
    * dichiararne una uguale (KAESER SK 19, ASD 37 SFC, ASD 60 T SFC — a produzione). Si carica
    * quindi il catalogo del modello e si sceglie la variante con lo stesso criterio con cui la
-   * scheda distingue le proprie righe — `scegliVarianteSalvata`, pressione poi capacità — passando
-   * l'id quando la scelta è univoca. Dove resta ambigua non si passa alcun id: il ripiego per
-   * pressione dentro `updateEquipmentSpecs` restituisce `variante_ambigua` e non scrive, che è
-   * l'esito giusto quando non si sa quale riga sia.
+   * scheda distingue le proprie righe — `scegliVarianteSalvata`, pressione poi capacità.
    *
-   * Non è bloccante: se il modello non è a catalogo, il ruolo non ha il permesso di scrittura, o
-   * la ricerca delle varianti fallisce, la relazione si genera comunque con il dato preso da
-   * `additional_info` — l'unico effetto è che la domanda tornerà alla pratica successiva.
+   * Quando la scelta è univoca si scrive per `catalogItemId`. Quando `scegliVarianteSalvata`
+   * restituisce `null` non si chiama affatto `updateEquipmentSpecs`: il ripiego per pressione di
+   * quella funzione userebbe `c.pressione_max`, che qui può benissimo essere `undefined` — e con
+   * `variante` indefinita quella funzione ripiegherebbe sulla prima riga del modello e scriverebbe
+   * lì, senza restituire alcun avviso. `null` copre due situazioni diverse, da non confondere
+   * nell'avviso finale: nessuna riga trovata (modello non a catalogo) oppure più righe che restano
+   * indistinguibili anche dopo il filtro per capacità (variante ambigua).
    *
-   * Restituisce i codici dei compressori per cui la scrittura non è avvenuta, perché il tecnico ha
-   * appena risposto credendo che il catalogo l'abbia registrata: chi chiama decide come dirglielo.
+   * Non è bloccante: se il ruolo non ha il permesso di scrittura o la ricerca delle varianti
+   * fallisce, la relazione si genera comunque con il dato preso da `additional_info` — l'unico
+   * effetto è che la domanda tornerà alla pratica successiva.
    */
   const riportaGiriACatalogo = async (
     giriDaSalvare: Record<string, TipoGiri> | undefined
-  ): Promise<string[]> => {
-    const nonAggiornati: string[] = []
+  ): Promise<EsitoRiportoGiri> => {
+    const nonACatalogo: string[] = []
+    const ambigui: string[] = []
     for (const c of compressoriSenzaGiri) {
       const valore = giriDaSalvare?.[c.codice]
       if (!valore || !c.marca || !c.modello) continue
       try {
         const candidate = await equipmentCatalogApi.findVariants('Compressori', c.marca, c.modello)
+        if (candidate.length === 0) {
+          nonACatalogo.push(c.codice)
+          continue
+        }
         const scelta = scegliVarianteSalvata('Compressori', candidate, {
           pressione: c.pressione_max ?? null,
           capacita: c.volume_aria_prodotto ?? null,
         })
+        if (!scelta) {
+          ambigui.push(c.codice)
+          continue
+        }
         const esito = await equipmentCatalogApi.updateEquipmentSpecs(
-          'Compressori', c.marca, c.modello, { giri: valore },
-          scelta ? { catalogItemId: scelta.id } : { variante: c.pressione_max }
+          'Compressori', c.marca, c.modello, { giri: valore }, { catalogItemId: scelta.id }
         )
-        if (esito !== 'aggiornato') nonAggiornati.push(c.codice)
+        // Con l'id già risolto questi due esiti sono residuali — la riga sparita fra la lettura e
+        // la scrittura — ma restano possibili e vanno raccontati come gli altri, non ignorati.
+        if (esito === 'variante_ambigua') ambigui.push(c.codice)
+        else if (esito === 'riga_non_trovata') nonACatalogo.push(c.codice)
       } catch (err) {
         console.warn(`[giri] ${c.codice}: non riportato a catalogo`, err)
       }
     }
-    return nonAggiornati
+    return { nonACatalogo, ambigui }
+  }
+
+  /**
+   * Un solo avviso per l'esito della generazione, invece di un toast verde di successo e uno
+   * giallo di mancato aggiornamento in contemporanea — che si leggono male perché dicono cose di
+   * segno opposto nello stesso istante. La relazione è comunque generata e scaricata in entrambi
+   * i casi: cambia solo se c'è anche qualcosa da segnalare sul catalogo.
+   */
+  const mostraEsitoGenerazione = (nonACatalogo: string[], ambigui: string[]) => {
+    const motivi: string[] = []
+    if (nonACatalogo.length > 0) {
+      motivi.push(`${nonACatalogo.join(', ')}: il modello non risulta a catalogo`)
+    }
+    if (ambigui.length > 0) {
+      motivi.push(`${ambigui.join(', ')}: il modello ha più varianti a quella pressione`)
+    }
+
+    if (motivi.length === 0) {
+      toast.success('Relazione generata e scaricata.')
+      return
+    }
+
+    toast(
+      'Relazione generata e scaricata. Regolazione giri non registrata a catalogo per ' +
+      `${motivi.join('; ')}. Il catalogo va sistemato dal modulo di gestione apparecchiature.`,
+      { icon: '⚠️', duration: 8000 }
+    )
   }
 
   const renderMultiValue = (selected: string[]) => selected.join(', ')
