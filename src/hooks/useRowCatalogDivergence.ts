@@ -36,7 +36,7 @@ interface VerificaRiga {
  */
 export function useRowCatalogDivergence() {
   const { control, getValues, setValue } = useFormContext()
-  const { getOrigine, getCache } = useEquipmentCatalogContext()
+  const { getOrigine } = useEquipmentCatalogContext()
 
   /**
    * `useFormState` e non `formState` di `useFormContext`: quest'ultimo è un Proxy che si
@@ -82,11 +82,11 @@ export function useRowCatalogDivergence() {
       codice,
       newSpecs: {},
       comparison: { ...comparison, modifiedFields, newFields },
-      catalogData: getCache(origine.cacheKey),
+      catalogData: origine.catalogItem,
       variante: readSheetPressure(tipo, origine.appliedSpecs) ?? undefined,
       basePath: base,
     })
-  }, [pending, getOrigine, getCache, getValues, dirtyFields])
+  }, [pending, getOrigine, getValues, dirtyFields])
 
   const annulla = useCallback(() => {
     setPending(null)
@@ -122,10 +122,10 @@ export function useRowCatalogDivergence() {
       }
 
       if (Object.keys(daScrivere).length > 0) {
-        // `catalogData` è la stessa riga da cui vengono `appliedSpecs` (vedi `useHydrateCatalogCache`
-        // e `UnifiedEquipmentTable`, che valorizzano cache e origine dalla stessa voce): il suo id
-        // individua la riga da aggiornare senza passare dalla pressione, che da sola può non
-        // bastare più a distinguerla. `variante` resta solo come ripiego, per quando manca.
+        // `catalogData` è la voce di catalogo registrata nella provenienza della riga, la stessa
+        // da cui vengono `appliedSpecs`: il suo id individua la riga da aggiornare senza passare
+        // dalla pressione, che da sola può non bastare più a distinguerla. `variante` resta solo
+        // come ripiego, per quando l'id manca.
         await equipmentCatalogApi.updateEquipmentSpecs(
           pending.equipmentType, pending.marca, pending.modello, daScrivere,
           { catalogItemId: pending.catalogData?.id, variante: pending.variante }

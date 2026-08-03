@@ -1,8 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { equipmentCatalogApi } from '@/services/api/equipmentCatalog'
-import {
-  generateCacheKey, rowKeyOf, useEquipmentCatalogContext,
-} from '@/components/technicalSheet/EquipmentCatalogContext'
+import { rowKeyOf, useEquipmentCatalogContext } from '@/components/technicalSheet/EquipmentCatalogContext'
 import { EQUIPMENT_DEFS, KIND_ARRAY, type EquipmentKind } from '@/components/technicalSheet/table/equipmentConfig'
 import { readSheetPressure, variantSpecKey } from '@/services/equipmentAudit'
 import { elencaValvole } from '@/utils/valvoleImpianto'
@@ -79,15 +77,15 @@ function scegliVariante(
 /**
  * Aggancia le righe di una scheda già compilata alle voci di catalogo da cui provengono.
  *
- * Senza questo, la cache del catalogo resta vuota per tutto ciò che non è stato selezionato
- * nella sessione corrente: riaprendo una scheda salvata non si saprebbe da quale voce vengono i
+ * Senza questo, le provenienze restano vuote per tutto ciò che non è stato selezionato nella
+ * sessione corrente: riaprendo una scheda salvata non si saprebbe da quale voce vengono i
  * dati, e non si potrebbe né rilevare uno scostamento né proporre di riportarlo a catalogo.
  *
  * Una query per tipo, non una per riga. Gira una sola volta per scheda: la chiave di controllo
  * è l'identità dell'oggetto `defaultValues`, che cambia solo al caricamento o dopo un `reset`.
  */
-export function useHydrateCatalogCache(scheda: SchedaDatiCompleta | null | undefined) {
-  const { setCache, setOrigine } = useEquipmentCatalogContext()
+export function useHydrateCatalogOrigini(scheda: SchedaDatiCompleta | null | undefined) {
+  const { setOrigine } = useEquipmentCatalogContext()
   const gia = useRef<unknown>(null)
 
   useEffect(() => {
@@ -111,7 +109,7 @@ export function useHydrateCatalogCache(scheda: SchedaDatiCompleta | null | undef
           try {
             return [tipo, await equipmentCatalogApi.findByMarche(tipo, [...marche])] as const
           } catch (e) {
-            console.error('[useHydrateCatalogCache] Errore nel precaricamento', tipo, e)
+            console.error('[useHydrateCatalogOrigini] Errore nel precaricamento', tipo, e)
             return [tipo, [] as EquipmentCatalogItem[]] as const
           }
         })
@@ -132,15 +130,14 @@ export function useHydrateCatalogCache(scheda: SchedaDatiCompleta | null | undef
         const item = scegliVariante(riga.tipo, candidate, riga.variante)
         if (!item) continue
 
-        const cacheKey = generateCacheKey(riga.tipo, riga.marca, riga.modello, {
-          variante: riga.variante ?? undefined,
+        setOrigine(riga.rowKey, {
+          catalogItem: item,
+          appliedSpecs: (item.specs ?? {}) as Record<string, unknown>,
         })
-        setCache(cacheKey, item)
-        setOrigine(riga.rowKey, { cacheKey, appliedSpecs: (item.specs ?? {}) as Record<string, unknown> })
       }
     }
 
     carica()
     return () => { annullato = true }
-  }, [scheda, setCache, setOrigine])
+  }, [scheda, setOrigine])
 }

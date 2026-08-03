@@ -18,9 +18,9 @@ import { codiciValvoleDisoleatore, codiciValvoleSerbatoio } from '@/utils/valvol
 import { EquipmentAutocomplete } from '../EquipmentAutocomplete'
 import { SingleOCRButton } from '../SingleOCRButton'
 import { useTecnicoDM329Visibility } from '@/hooks/useTecnicoDM329Visibility'
-import { readSheetPressure, readSpec, variantSpecKey } from '@/services/equipmentAudit'
-import { generateCacheKey, rowKeyOf, useEquipmentCatalogContext } from '../EquipmentCatalogContext'
-import { VALVOLE_ROW_PREFIX } from '@/hooks/useHydrateCatalogCache'
+import { readSpec, variantSpecKey } from '@/services/equipmentAudit'
+import { rowKeyOf, useEquipmentCatalogContext } from '../EquipmentCatalogContext'
+import { VALVOLE_ROW_PREFIX } from '@/hooks/useHydrateCatalogOrigini'
 import { useRowExit } from './useRowExit'
 import { useRowCatalogDivergence } from '@/hooks/useRowCatalogDivergence'
 import { UpdateCatalogDialog } from '../UpdateCatalogDialog'
@@ -195,7 +195,7 @@ interface EqRowProps {
 
 const EqRow = ({ control, def, base, code, identity, rowKey, onRowExit, depth, adv, ocr, onDelete, append }: EqRowProps) => {
   const { setValue, getValues } = useFormContext()
-  const { setCache, setOrigine } = useEquipmentCatalogContext()
+  const { setOrigine } = useEquipmentCatalogContext()
   const rowExit = useRowExit(onRowExit)
   const [expanded, setExpanded] = useState(false)
   useAutoPed(control, base, def, adv)
@@ -232,13 +232,11 @@ const EqRow = ({ control, def, base, code, identity, rowKey, onRowExit, depth, a
     })
 
     // Si annota da dove vengono i dati: è il termine di paragone per accorgersi, più tardi,
-    // che l'utente ha scostato un valore dal default del catalogo.
+    // che l'utente ha scostato un valore dal default del catalogo, ed è la riga su cui scrivere
+    // se decide di riportarcelo. Si conserva la voce intera, non la sua pressione: due varianti
+    // dello stesso modello possono dichiararne una uguale e si confonderebbero fra loro.
     if (!item) return
-    const cacheKey = generateCacheKey(def.catalogType, item.marca, item.modello, {
-      variante: readSheetPressure(def.catalogType, item.specs) ?? undefined,
-    })
-    setCache(cacheKey, item)
-    setOrigine(rowKey, { cacheKey, appliedSpecs: (item.specs ?? {}) as Record<string, unknown> })
+    setOrigine(rowKey, { catalogItem: item, appliedSpecs: (item.specs ?? {}) as Record<string, unknown> })
   }
 
   /**
