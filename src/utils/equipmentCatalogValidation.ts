@@ -47,7 +47,7 @@ const modelloSchema = z
   .max(120, 'Il modello non può superare 120 caratteri')
   .refine(v => parseModello(v).pattern === 'plain', {
     message:
-      'La pressione va nei dati tecnici, non nel nome: toglila dal modello e compila «Pressione di esercizio»',
+      'La pressione va nei dati tecnici, non nel nome: toglila dal modello e compilala fra i dati tecnici',
   })
 
 /**
@@ -91,6 +91,14 @@ export type UpdateEquipmentInput = z.infer<typeof updateEquipmentSchema>
 /**
  * Schema dei dati tecnici del tipo scelto, generato dal contratto canonico:
  * i campi del form e le regole di validazione restano così una cosa sola.
+ *
+ * A differenza di `specsFieldsFor`, qui **non** si filtrano le definizioni `isInternal`. Non è
+ * una svista: `pressione_esercizio` sui compressori è interna all'interfaccia — non si mostra,
+ * non si modifica — ma è comunque un dato che una riga porta con sé e che questo schema deve
+ * saper validare quando la riga si salva. Se questo filtro venisse aggiunto, per uniformarlo a
+ * `specsFieldsFor`, il parse scarterebbe silenziosamente `pressione_esercizio` da ogni scrittura
+ * fatta dal form del catalogo: la chiave dell'indice unico sparirebbe al primo salvataggio e le
+ * varianti dello stesso modello collasserebbero l'una nell'altra.
  */
 export function specsSchemaFor(tipo: EquipmentCatalogType) {
   const shape: Record<string, z.ZodTypeAny> = {}
@@ -136,16 +144,21 @@ export function validateEquipmentInput(input: unknown): string[] {
 }
 
 /**
- * Definizioni dei dati tecnici del tipo, per generare i campi del form.
+ * Definizioni dei dati tecnici del tipo che l'interfaccia deve mostrare.
  *
- * `specs` serve ai campi che dipendono da un altro dato della stessa riga: la regolazione dei
- * giri compare solo sui compressori rotativi a vite. Omettendolo si ottengono tutti i campi.
+ * È l'unico filtro di visibilità del catalogo: lo usano sia i campi del form sia le chip
+ * della tabella, così le due non possono divergere. Esclude le definizioni interne — dati
+ * che servono al funzionamento ma non si mostrano — e quelle che non si applicano alla
+ * riga: la regolazione dei giri compare solo sui compressori rotativi a vite.
+ *
+ * `specs` serve a valutare le condizioni; omettendolo si ottengono tutte le definizioni
+ * non interne.
  */
 export function specsFieldsFor(
   tipo: EquipmentCatalogType | null,
   specs?: Record<string, unknown> | null
 ): readonly CanonicalSpecDef[] {
-  const defs = tipo ? CANONICAL_SPECS[tipo] ?? [] : []
+  const defs = (tipo ? CANONICAL_SPECS[tipo] ?? [] : []).filter(d => !d.isInternal)
   if (!specs) return defs
   return defs.filter(d => !d.appliesWhen || d.appliesWhen(specs))
 }

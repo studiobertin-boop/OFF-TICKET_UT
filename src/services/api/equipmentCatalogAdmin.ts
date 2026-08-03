@@ -51,9 +51,18 @@ const SELECT_FIELDS =
 
 function describeError(error: { code?: string; message: string }, azione: string): Error {
   if (error.code === '23505') {
+    // Il messaggio non può nominare la pressione di esercizio: da quando i compressori
+    // dichiarano una pressione sola, quel campo non compare più né in tabella né nel form —
+    // chi legge l'errore non avrebbe modo di agire su un dato che non vede. La violazione
+    // dell'indice unico resta possibile (è la stessa chiave di sempre).
+    //
+    // Non si rimanda nemmeno a un amministratore: questa pagina è aperta anche a loro, e a un
+    // amministratore direbbe di segnalarlo a se stesso. Si dice quindi cosa sta succedendo e
+    // dove si ferma questo modulo, senza prescrivere un'azione che da qui non è possibile.
     return new Error(
-      'Esiste già una voce attiva con questi tipo, marca, modello e pressione. ' +
-        'Per registrare una variante diversa dello stesso modello, cambia la pressione di esercizio.'
+      'Esiste già una variante di questo modello registrata a questa pressione. ' +
+        'Se si tratta di una macchina diversa, per distinguerla dall’altra servirebbe un dato ' +
+        'che questa pagina non gestisce: da qui la seconda variante non è registrabile.'
     )
   }
   return new Error(`${azione}: ${error.message}`)

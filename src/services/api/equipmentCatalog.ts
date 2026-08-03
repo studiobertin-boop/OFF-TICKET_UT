@@ -1,23 +1,24 @@
 import { supabase } from '../supabase'
 import type { EquipmentCatalogType, EquipmentCatalogItem, EquipmentSearchResult } from '@/types'
-import {
-  missingCanonicalSpecs, normalizeSpecs, readSheetPressure, variantSpecKey,
-} from '@/services/equipmentAudit'
+import { normalizeSpecs, variantSpecKey } from '@/services/equipmentAudit'
+import { raggruppaVarianti, stessaVoceCatalogo, type VarianteCatalogo } from '@/utils/equipmentVarianti'
+
+export type { VarianteCatalogo }
+
+/**
+ * Come è andata una scrittura di ritorno a catalogo.
+ *
+ * Non tutte le rinunce sono errori — la riga può essere stata rimossa, o la pressione può non
+ * bastare a individuarne una sola — ma tutte vanno raccontate a chi ha confermato: un dialog che
+ * si chiude senza dire niente lascia credere che il catalogo sia stato aggiornato.
+ */
+export type EsitoAggiornamentoSpecs = 'aggiornato' | 'variante_ambigua' | 'riga_non_trovata'
 
 /**
  * API Service per Equipment Catalog
  * Gestisce filtri cascata TIPO → MARCA → MODELLO
  * e aggiunta nuove associazioni al catalogo
  */
-
-/**
- * Variante di un modello come la vede la scheda dati: la pressione che la scheda dichiara
- * nella colonna PS/Ptar e la riga di catalogo che le corrisponde.
- */
-export interface VarianteCatalogo {
-  value: number
-  item: EquipmentCatalogItem
-}
 
 export const equipmentCatalogApi = {
   /**
@@ -147,42 +148,14 @@ export const equipmentCatalogApi = {
   /**
    * Varianti di un modello, ordinate per pressione crescente.
    *
-   * Le varianti sono indicizzate per la pressione che la scheda dati dichiara — la massima sui
-   * compressori, la PS sui recipienti, la Ptar sulle valvole — e non per la chiave con cui il
-   * catalogo le distingue fra loro, che sui compressori è invece la pressione di esercizio.
-   * Sono due letture della stessa riga: la scheda deve poter ritrovare la propria voce parlando
-   * della pressione che mostra, altrimenti un compressore dichiarato a 11 bar non riconosce la
-   * voce che a catalogo lavora a 10 e ha 11 di massima.
-   *
-   * Il catalogo contiene righe quasi-duplicate (stesso modello e stessa pressione, una con la
-   * pressione di esercizio valorizzata e una senza): a parità di valore si tiene quella con più
-   * dati tecnici completi, così l'autocompilazione non ripiega su una riga monca.
+   * Il raggruppamento sta in `raggruppaVarianti`: qui resta solo la lettura dal database.
    */
   async getVarianti(
     tipo: EquipmentCatalogType,
     marca: string,
     modello: string
   ): Promise<VarianteCatalogo[]> {
-    const rows = await this.findVariants(tipo, marca, modello)
-
-    const perValore = new Map<number, EquipmentCatalogItem>()
-    for (const item of rows) {
-      const value = readSheetPressure(tipo, item.specs)
-      if (value === null) continue
-
-      const presente = perValore.get(value)
-      if (!presente) {
-        perValore.set(value, item)
-        continue
-      }
-      if (missingCanonicalSpecs(tipo, item.specs).length < missingCanonicalSpecs(tipo, presente.specs).length) {
-        perValore.set(value, item)
-      }
-    }
-
-    return [...perValore.entries()]
-      .map(([value, item]) => ({ value, item }))
-      .sort((a, b) => a.value - b.value)
+    return raggruppaVarianti(tipo, await this.findVariants(tipo, marca, modello))
   },
 
   /**
@@ -410,8 +383,8 @@ export const equipmentCatalogApi = {
    * @param marca - Marca
    * @param modello - Modello
    * @param newSpecs - Nuovi specs da aggiungere/sovrascrivere
-   * @param options - Valore che identifica la variante, per i tipi che ne hanno più d'una
-   * @returns void (throws su errore)
+   * @param options - Riga da aggiornare: per id se lo si conosce, altrimenti per pressione dichiarata
+   * @returns come è andata: chi chiama deve poter dire all'utente che non si è scritto (throws sugli errori del database)
    */
   async updateEquipmentSpecs(
     tipo: EquipmentCatalogType,
@@ -419,6 +392,12 @@ export const equipmentCatalogApi = {
     modello: string,
     newSpecs: Record<string, any>,
     options?: {
+      /**
+       * Identificativo della riga di catalogo scelta dal tecnico. Da preferire sempre che sia
+       * disponibile: da quando due varianti possono dichiarare la stessa pressione, `variante`
+       * non individua più una riga sola, e scriverci sopra rischia la riga sbagliata.
+       */
+      catalogItemId?: string
       /** Valore della chiave di variante (pressione per i compressori, Ptar per le valvole). */
       variante?: number
       /** @deprecated usare `variante` */
@@ -426,20 +405,59 @@ export const equipmentCatalogApi = {
       /** @deprecated usare `variante` */
       ptar?: number
     }
-  ): Promise<void> {
-    // 1. Trova la riga di catalogo. Il valore che arriva è la pressione dichiarata dalla scheda,
-    //    ed è per quella che `getVarianti` indicizza: chi chiama non deve sapere con quale
-    //    chiave il catalogo distingua le varianti fra loro, altrimenti si aggiorna quella
-    //    sbagliata. Che il tipo abbia varianti lo dice `variantSpecKey`.
+  ): Promise<EsitoAggiornamentoSpecs> {
+    // 1. Trova la riga di catalogo.
+    //
+    //    Con `catalogItemId` la riga si individua senza ambiguità: è quella scelta dal tecnico
+    //    quando la scheda si è precompilata, e cortocircuita ogni altra ricerca.
+    //
+    //    Il ripiego per pressione resta per chi non porta l'id — le schede già salvate non lo
+    //    hanno — ma il valore che arriva è la pressione dichiarata dalla scheda (`readSheetPressure`),
+    //    non più la chiave dell'indice unico: da quando due varianti possono dichiararne una
+    //    uguale, `variante` può corrispondere a più righe. Se càpita, meglio non scrivere che
+    //    scrivere sulla riga sbagliata.
     const variante = options?.variante ?? options?.pressione ?? options?.ptar
-    const equipment = variantSpecKey(tipo) !== null && variante !== undefined
-      ? (await this.getVarianti(tipo, marca, modello)).find(v => v.value === variante)?.item ?? null
-      : await this.getEquipmentByTipoMarcaModello(tipo, marca, modello)
+    let equipment: EquipmentCatalogItem | null = null
 
-    // 2. Se non trovato, silenzioso (apparecchiatura potrebbe essere stata eliminata)
+    if (options?.catalogItemId) {
+      const trovato = await this.getById(options.catalogItemId)
+
+      // La provenienza da cui arriva `catalogItemId` può essere rimasta quella di un modello
+      // precedente: se il tecnico ha corretto marca o modello dall'autocomplete dopo la
+      // precompilazione, l'id continua a puntare alla riga vecchia. Scriverci sopra scriverebbe i
+      // dati tecnici di questa riga su un'altra apparecchiatura del catalogo, in silenzio — è
+      // un'incoerenza di stato fra la provenienza e la riga che si sta salvando, non un caso
+      // normale, e chi legge i log deve poterla distinguere da una riga davvero rimossa.
+      if (trovato && !stessaVoceCatalogo(trovato, marca, modello)) {
+        console.warn(
+          'catalogItemId non corrisponde a marca/modello della riga: la provenienza è probabilmente ' +
+          'rimasta quella di un modello precedente. Nessun aggiornamento eseguito.',
+          {
+            tipo, marcaAttesa: marca, modelloAtteso: modello, catalogItemId: options.catalogItemId,
+            marcaTrovata: trovato.marca, modelloTrovato: trovato.modello,
+          }
+        )
+      } else {
+        equipment = trovato
+      }
+    } else if (variantSpecKey(tipo) !== null && variante !== undefined) {
+      const candidati = (await this.getVarianti(tipo, marca, modello)).filter(v => v.value === variante)
+      if (candidati.length > 1) {
+        console.warn(
+          'Variante ambigua per updateEquipmentSpecs: più righe dichiarano la stessa pressione, nessun aggiornamento eseguito.',
+          { tipo, marca, modello, variante, righe: candidati.map(c => c.item.id) }
+        )
+        return 'variante_ambigua'
+      }
+      equipment = candidati[0]?.item ?? null
+    } else {
+      equipment = await this.getEquipmentByTipoMarcaModello(tipo, marca, modello)
+    }
+
+    // 2. Se non trovato non si scrive: l'apparecchiatura può essere stata eliminata dal catalogo.
     if (!equipment) {
       console.warn('Equipment not found for update:', { tipo, marca, modello, options })
-      return
+      return 'riga_non_trovata'
     }
 
     // 3. Pulisci newSpecs (rimuovi null/undefined/empty)
@@ -480,5 +498,7 @@ export const equipmentCatalogApi = {
       modello,
       updatedFields: Object.keys(cleanedNewSpecs)
     })
+
+    return 'aggiornato'
   }
 }

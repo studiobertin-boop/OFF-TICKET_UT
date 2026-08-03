@@ -16,7 +16,7 @@ import { DatiImpiantoSection } from './DatiImpiantoSection'
 import { UnifiedEquipmentTable } from './table/UnifiedEquipmentTable'
 import { AltriApparecchiSection } from './AllEquipmentSections'
 import { BatchOCRDialog } from './BatchOCRDialog'
-import { useHydrateCatalogCache } from '@/hooks/useHydrateCatalogCache'
+import { useHydrateCatalogOrigini } from '@/hooks/useHydrateCatalogOrigini'
 import type { SchedaDatiCompleta } from '@/types'
 import type { BatchOCRResult, BatchOCRItem } from '@/types/ocr'
 import type { EquipmentCatalogType } from '@/types'
@@ -136,7 +136,7 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
 
   // Aggancia le righe già compilate alle voci di catalogo da cui provengono: senza, riaprendo
   // una scheda salvata non si saprebbe da dove vengono i dati né si potrebbe riportarli a catalogo.
-  useHydrateCatalogCache(defaultValues as SchedaDatiCompleta | undefined)
+  useHydrateCatalogOrigini(defaultValues as SchedaDatiCompleta | undefined)
 
   // State per Batch OCR Dialog
   const [batchOCRDialogOpen, setBatchOCRDialogOpen] = useState(false)

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Controller, useWatch, type Control } from 'react-hook-form'
 import { Autocomplete, TextField, Box } from '@mui/material'
-import { equipmentCatalogApi, type VarianteCatalogo } from '@/services/api/equipmentCatalog'
+import { equipmentCatalogApi } from '@/services/api/equipmentCatalog'
+import { etichettaVariante, type VarianteCatalogo } from '@/utils/equipmentVarianti'
 import { useNoAutofillToken } from '@/utils/noAutofill'
 import type { EquipmentCatalogItem, EquipmentCatalogType } from '@/types'
 
@@ -76,15 +77,24 @@ export const PressioneCatalogCell = ({
     return () => { cancelled = true }
   }, [catalogType, marca, modello])
 
-  const options = varianti.map((v) => v.value)
-
   /**
    * La voce di catalogo è già in mano dal caricamento delle opzioni: nessuna seconda chiamata
    * di rete, e quindi nessuna finestra in cui gli indici delle righe possano scalare sotto.
    */
-  const applicaVariante = (pressione: number) => {
+  const applica = (v: VarianteCatalogo) => {
+    if (v.item?.specs) onSelected(v.item.specs as Record<string, any>, v.item)
+  }
+
+  /**
+   * Digitazione libera: si applica la prima variante che dichiara quella pressione.
+   *
+   * Due varianti possono dichiararne una uguale — SK 19 ha la 7,5 bar e la 10 bar
+   * entrambe a 11 di massima — e in quel caso solo la scelta dal menu, dove le distingue la
+   * portata, dice quale si intende.
+   */
+  const applicaPressione = (pressione: number) => {
     const scelta = varianti.find((v) => v.value === pressione)
-    if (scelta?.item?.specs) onSelected(scelta.item.specs as Record<string, any>, scelta.item)
+    if (scelta) applica(scelta)
   }
 
   return (
@@ -102,18 +112,25 @@ export const PressioneCatalogCell = ({
               disableClearable
               forcePopupIcon={false}
               disabled={!marca || !modello}
-              value={current ?? ''}
-              options={options}
+              // Il tipo delle opzioni è ora VarianteCatalogo: il valore corrente, che resta un
+              // numero nel form, va in stringa per rientrare nel tipo che freeSolo accetta.
+              value={current === undefined ? '' : String(current)}
+              options={varianti}
               loading={loading}
               slotProps={denseSlotProps}
-              getOptionLabel={(o) => (o === null || o === undefined || o === '' ? '' : typeof o === 'number' ? String(o) : o)}
-              isOptionEqualToValue={(o, v) => o === v}
+              getOptionLabel={(o) =>
+                o === null || o === undefined || o === '' ? '' : typeof o === 'object' ? String(o.value) : String(o)
+              }
+              // Il valore del campo è un numero, non una variante, e due varianti possono
+              // dichiarare la stessa pressione: nessuna voce del menu si marca come scelta.
+              isOptionEqualToValue={() => false}
               onChange={(_e, v) => {
                 if (v === null || (v as any) === '') { field.onChange(undefined); return }
+                if (typeof v === 'object') { field.onChange(v.value); applica(v); return }
                 const num = typeof v === 'number' ? v : parseFloat(v)
                 if (isNaN(num)) { field.onChange(undefined); return }
                 field.onChange(num)
-                applicaVariante(num)
+                applicaPressione(num)
               }}
               onInputChange={(_e, v, reason) => {
                 if (reason !== 'input') return
@@ -131,9 +148,19 @@ export const PressioneCatalogCell = ({
                   inputProps={{ ...params.inputProps, min, max, step, autoComplete: ac }}
                 />
               )}
-              renderOption={(props, option) => (
-                <Box component="li" {...props}>{option} bar</Box>
-              )}
+              renderOption={(props, option) => {
+                // La chiave che MUI mette in `props` deriva dall'etichetta, che due varianti
+                // possono avere uguale: si scarta e si usa l'id della riga di catalogo.
+                // Niente destrutturazione con `_key`: il progetto non copre le variabili non
+                // usate con `varsIgnorePattern`, solo gli argomenti (`argsIgnorePattern`).
+                const rest = { ...props }
+                delete (rest as any).key
+                return (
+                  <Box component="li" key={option.item.id} {...rest}>
+                    {etichettaVariante(catalogType, option)}
+                  </Box>
+                )
+              }}
             />
           </Box>
         )

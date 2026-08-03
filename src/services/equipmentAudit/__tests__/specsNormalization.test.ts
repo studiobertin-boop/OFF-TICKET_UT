@@ -218,3 +218,22 @@ describe('pressione dichiarata dalla scheda dati', () => {
     expect(readSheetPressure(null, { ps: 11 })).toBeNull()
   })
 })
+
+describe('pressione_esercizio resta operativa pur essendo interna', () => {
+  it('regge ancora la chiave di variante', () => {
+    expect(variantSpecKey('Compressori')).toBe('pressione_esercizio')
+    expect(variantSpecKeys('Compressori')).toEqual(['pressione_esercizio', 'pressione_max'])
+    expect(readVariantValue('Compressori', { pressione_esercizio: 7.5, pressione_max: 8 })).toBe(7.5)
+  })
+
+  it('non entra fra i campi obbligatori mancanti', () => {
+    expect(
+      missingCanonicalSpecs('Compressori', { fad: 2000, pressione_max: 8 }).map(d => d.key)
+    ).toEqual([])
+  })
+
+  it('sopravvive alla normalizzazione', () => {
+    const r = normalizeSpecs('Compressori', { pressione_esercizio: '10', pressione_max: '11', volume: '1680' })
+    expect(r.canonical).toEqual({ pressione_esercizio: 10, pressione_max: 11, fad: 1680 })
+  })
+})

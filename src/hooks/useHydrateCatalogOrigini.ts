@@ -1,10 +1,11 @@
 import { useEffect, useRef } from 'react'
 import { equipmentCatalogApi } from '@/services/api/equipmentCatalog'
+import { rowKeyOf, useEquipmentCatalogContext } from '@/components/technicalSheet/EquipmentCatalogContext'
 import {
-  generateCacheKey, rowKeyOf, useEquipmentCatalogContext,
-} from '@/components/technicalSheet/EquipmentCatalogContext'
-import { EQUIPMENT_DEFS, KIND_ARRAY, type EquipmentKind } from '@/components/technicalSheet/table/equipmentConfig'
-import { readSheetPressure, variantSpecKey } from '@/services/equipmentAudit'
+  EQUIPMENT_DEFS, KIND_ARRAY, type EquipmentKind, type EquipmentTypeDef,
+} from '@/components/technicalSheet/table/equipmentConfig'
+import { variantSpecKey } from '@/services/equipmentAudit'
+import { scegliVarianteSalvata } from '@/utils/equipmentVarianti'
 import { elencaValvole } from '@/utils/valvoleImpianto'
 import type { EquipmentCatalogItem, EquipmentCatalogType, SchedaDatiCompleta } from '@/types'
 
@@ -16,8 +17,10 @@ interface RigaDaAgganciare {
   tipo: EquipmentCatalogType
   marca: string
   modello: string
-  /** Valore che identifica la variante, per i tipi che ne hanno più d'una. */
-  variante: number | null
+  /** Pressione dichiarata dalla scheda, per i tipi che hanno più varianti. */
+  pressione: number | null
+  /** Capacità compilata: è ciò che distingue due varianti che dichiarano la stessa pressione. */
+  capacita: number | null
 }
 
 /** Tipi con dati tecnici da agganciare: filtri e separatori non ne hanno (`specsMap` vuota). */
@@ -33,15 +36,18 @@ function righeDaAgganciare(scheda: SchedaDatiCompleta | null | undefined): RigaD
   if (!scheda) return []
   const out: RigaDaAgganciare[] = []
 
-  const aggiungi = (rowKey: string, tipo: EquipmentCatalogType, row: any, pressioneField?: string) => {
+  const numero = (v: unknown): number | null => (typeof v === 'number' ? v : null)
+
+  const aggiungi = (rowKey: string, def: EquipmentTypeDef, row: any) => {
     if (!row?.marca || !row?.modello) return
-    const variante = variantSpecKey(tipo) && pressioneField ? row[pressioneField] : null
+    const tipo = def.catalogType
     out.push({
       rowKey,
       tipo,
       marca: row.marca,
       modello: row.modello,
-      variante: typeof variante === 'number' ? variante : null,
+      pressione: variantSpecKey(tipo) && def.pressioneField ? numero(row[def.pressioneField]) : null,
+      capacita: def.capacitaField ? numero(row[def.capacitaField]) : null,
     })
   }
 
@@ -51,43 +57,31 @@ function righeDaAgganciare(scheda: SchedaDatiCompleta | null | undefined): RigaD
     const items = (scheda as any)[arrayName]
     if (!Array.isArray(items)) continue
     for (const row of items) {
-      aggiungi(rowKeyOf(arrayName, row?.codice), def.catalogType, row, def.pressioneField)
+      aggiungi(rowKeyOf(arrayName, row?.codice), def, row)
     }
   }
 
   // Le valvole non stanno in un array proprio: la loro identità è la posizione nell'impianto.
   const defValvola = EQUIPMENT_DEFS.valvola
   for (const v of elencaValvole(scheda)) {
-    aggiungi(rowKeyOf(VALVOLE_ROW_PREFIX, v.pos), defValvola.catalogType, v.valvola, defValvola.pressioneField)
+    aggiungi(rowKeyOf(VALVOLE_ROW_PREFIX, v.pos), defValvola, v.valvola)
   }
 
   return out
 }
 
-/** Sceglie fra le righe di catalogo di un modello quella che corrisponde alla variante della scheda. */
-function scegliVariante(
-  tipo: EquipmentCatalogType,
-  candidate: EquipmentCatalogItem[],
-  variante: number | null
-): EquipmentCatalogItem | undefined {
-  if (candidate.length <= 1 || variante === null) return candidate[0]
-  // La scheda ha in mano la propria pressione di colonna: si cerca la riga che dichiara quella,
-  // non quella che il catalogo usa per distinguere le varianti fra loro.
-  return candidate.find((c) => readSheetPressure(tipo, c.specs) === variante) ?? candidate[0]
-}
-
 /**
  * Aggancia le righe di una scheda già compilata alle voci di catalogo da cui provengono.
  *
- * Senza questo, la cache del catalogo resta vuota per tutto ciò che non è stato selezionato
- * nella sessione corrente: riaprendo una scheda salvata non si saprebbe da quale voce vengono i
+ * Senza questo, le provenienze restano vuote per tutto ciò che non è stato selezionato nella
+ * sessione corrente: riaprendo una scheda salvata non si saprebbe da quale voce vengono i
  * dati, e non si potrebbe né rilevare uno scostamento né proporre di riportarlo a catalogo.
  *
  * Una query per tipo, non una per riga. Gira una sola volta per scheda: la chiave di controllo
  * è l'identità dell'oggetto `defaultValues`, che cambia solo al caricamento o dopo un `reset`.
  */
-export function useHydrateCatalogCache(scheda: SchedaDatiCompleta | null | undefined) {
-  const { setCache, setOrigine } = useEquipmentCatalogContext()
+export function useHydrateCatalogOrigini(scheda: SchedaDatiCompleta | null | undefined) {
+  const { setOrigine } = useEquipmentCatalogContext()
   const gia = useRef<unknown>(null)
 
   useEffect(() => {
@@ -111,7 +105,7 @@ export function useHydrateCatalogCache(scheda: SchedaDatiCompleta | null | undef
           try {
             return [tipo, await equipmentCatalogApi.findByMarche(tipo, [...marche])] as const
           } catch (e) {
-            console.error('[useHydrateCatalogCache] Errore nel precaricamento', tipo, e)
+            console.error('[useHydrateCatalogOrigini] Errore nel precaricamento', tipo, e)
             return [tipo, [] as EquipmentCatalogItem[]] as const
           }
         })
@@ -129,18 +123,34 @@ export function useHydrateCatalogCache(scheda: SchedaDatiCompleta | null | undef
 
       for (const riga of righe) {
         const candidate = perChiave.get(`${riga.tipo}|${riga.marca}|${riga.modello}`) ?? []
-        const item = scegliVariante(riga.tipo, candidate, riga.variante)
-        if (!item) continue
+        const item = scegliVarianteSalvata(riga.tipo, candidate, riga)
+        if (!item) {
+          if (candidate.length > 1) {
+            console.warn(
+              '[useHydrateCatalogOrigini] Variante non identificabile: né la pressione né la capacità ' +
+                'della scheda bastano a scegliere fra le righe di catalogo. La riga resta senza provenienza.',
+              {
+                rowKey: riga.rowKey,
+                tipo: riga.tipo,
+                marca: riga.marca,
+                modello: riga.modello,
+                pressione: riga.pressione,
+                capacita: riga.capacita,
+                candidate: candidate.map(c => c.id),
+              }
+            )
+          }
+          continue
+        }
 
-        const cacheKey = generateCacheKey(riga.tipo, riga.marca, riga.modello, {
-          variante: riga.variante ?? undefined,
+        setOrigine(riga.rowKey, {
+          catalogItem: item,
+          appliedSpecs: (item.specs ?? {}) as Record<string, unknown>,
         })
-        setCache(cacheKey, item)
-        setOrigine(riga.rowKey, { cacheKey, appliedSpecs: (item.specs ?? {}) as Record<string, unknown> })
       }
     }
 
     carica()
     return () => { annullato = true }
-  }, [scheda, setCache, setOrigine])
+  }, [scheda, setOrigine])
 }

@@ -21,7 +21,8 @@ import {
   Visibility as RiattivaIcon,
 } from '@mui/icons-material'
 import type { EquipmentCatalogItem } from '@/types'
-import { missingCanonicalSpecs, readSpec, CANONICAL_SPECS } from '@/services/equipmentAudit'
+import { missingCanonicalSpecs, readSpec } from '@/services/equipmentAudit'
+import { specsFieldsFor } from '@/utils/equipmentCatalogValidation'
 
 interface EquipmentCatalogTableProps {
   righe: EquipmentCatalogItem[]
@@ -38,9 +39,8 @@ interface EquipmentCatalogTableProps {
 /** Dati tecnici della riga, compattati: al massimo tre, quelli che identificano la voce. */
 function chipsSpecs(item: EquipmentCatalogItem) {
   const tipo = item.tipo_apparecchiatura ?? null
-  const defs = tipo ? CANONICAL_SPECS[tipo] ?? [] : []
 
-  return defs
+  return specsFieldsFor(tipo, item.specs)
     .map(def => {
       const v = readSpec(tipo, item.specs, def.key)
       if (v === null) return null
