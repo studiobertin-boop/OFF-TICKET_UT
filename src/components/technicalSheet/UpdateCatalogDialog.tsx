@@ -76,9 +76,7 @@ export const UpdateCatalogDialog = ({
     setScelte((prev) => ({ ...prev, [campo]: valore }))
   }
 
-  const opzioniVisibili = OPZIONI.filter(
-    (o) => o.value !== 'catalogo' || (puoScrivereACatalogo && update?.catalogData)
-  )
+  const opzioniVisibili = OPZIONI.filter((o) => o.value !== 'catalogo' || puoScrivereACatalogo)
 
   const selettore = (campo: string, opzioni = opzioniVisibili) => (
     <ToggleButtonGroup
@@ -116,13 +114,6 @@ export const UpdateCatalogDialog = ({
         </Typography>
 
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-
-        {!update?.catalogData && (
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            La voce di catalogo di partenza non è più raggiungibile: si può solo tenere o annullare
-            la modifica.
-          </Alert>
-        )}
 
         <TableContainer>
           <Table size="small">

@@ -155,7 +155,7 @@ export function useRowCatalogDivergence() {
         // come ripiego, per quando l'id manca.
         const esito = await equipmentCatalogApi.updateEquipmentSpecs(
           pending.equipmentType, pending.marca, pending.modello, daScrivere,
-          { catalogItemId: pending.catalogData?.id, variante: pending.variante }
+          { catalogItemId: pending.catalogData.id, variante: pending.variante }
         )
 
         // Il dialog resta aperto: chiuderlo qui equivarrebbe a dire che si è scritto.

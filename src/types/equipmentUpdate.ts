@@ -17,8 +17,10 @@ export interface UpdateData {
   // Risultato confronto
   comparison: SpecsComparison
 
-  // Dati catalogo correnti (se esistono)
-  catalogData: EquipmentCatalogItem | null
+  // Dati catalogo correnti: la voce da cui la riga è stata precompilata. `UpdateData` nasce in
+  // un solo punto (`useRowCatalogDivergence`), da `RigaOrigine.catalogItem`, che non è opzionale
+  // — una riga senza provenienza non arriva mai a diventare un `UpdateData`.
+  catalogData: EquipmentCatalogItem
 
   /** Valore che identifica la variante (pressione per i compressori, Ptar per le valvole). */
   variante?: number
