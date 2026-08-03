@@ -54,12 +54,15 @@ function describeError(error: { code?: string; message: string }, azione: string
     // Il messaggio non può nominare la pressione di esercizio: da quando i compressori
     // dichiarano una pressione sola, quel campo non compare più né in tabella né nel form —
     // chi legge l'errore non avrebbe modo di agire su un dato che non vede. La violazione
-    // dell'indice unico resta possibile (è la stessa chiave di sempre), ma la si racconta in
-    // termini di cosa fare, non del campo che la determina.
+    // dell'indice unico resta possibile (è la stessa chiave di sempre).
+    //
+    // Non si rimanda nemmeno a un amministratore: questa pagina è aperta anche a loro, e a un
+    // amministratore direbbe di segnalarlo a se stesso. Si dice quindi cosa sta succedendo e
+    // dove si ferma questo modulo, senza prescrivere un'azione che da qui non è possibile.
     return new Error(
       'Esiste già una variante di questo modello registrata a questa pressione. ' +
-        'Se si tratta di una macchina diversa, segnalala a un amministratore: va distinta a ' +
-        'catalogo con un dato che qui non è modificabile.'
+        'Se si tratta di una macchina diversa, per distinguerla dall’altra servirebbe un dato ' +
+        'che questa pagina non gestisce: da qui la seconda variante non è registrabile.'
     )
   }
   return new Error(`${azione}: ${error.message}`)
