@@ -115,6 +115,15 @@ describe('schema dei dati tecnici generato dal tipo', () => {
   it('i tipi senza dati tecnici non impongono nulla', () => {
     expect(specsSchemaFor('Filtri').safeParse({}).success).toBe(true)
   })
+
+  it('lo schema valida ciò che è memorizzato, definizioni interne comprese', () => {
+    // Protegge da un `.filter(d => !d.isInternal)` aggiunto qui per uniformare questa funzione a
+    // `specsFieldsFor`: se sparisse, `pressione_esercizio` — la chiave dell'indice unico dei
+    // compressori — verrebbe scartata a ogni salvataggio dal form del catalogo, e le varianti
+    // dello stesso modello collasserebbero l'una nell'altra.
+    const r = specsSchemaFor('Compressori').parse({ pressione_esercizio: 7.5, pressione_max: 8, fad: 2000 })
+    expect(r.pressione_esercizio).toBe(7.5)
+  })
 })
 
 describe('specsFieldsFor', () => {

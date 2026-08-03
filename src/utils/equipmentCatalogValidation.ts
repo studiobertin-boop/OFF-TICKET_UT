@@ -91,6 +91,14 @@ export type UpdateEquipmentInput = z.infer<typeof updateEquipmentSchema>
 /**
  * Schema dei dati tecnici del tipo scelto, generato dal contratto canonico:
  * i campi del form e le regole di validazione restano così una cosa sola.
+ *
+ * A differenza di `specsFieldsFor`, qui **non** si filtrano le definizioni `isInternal`. Non è
+ * una svista: `pressione_esercizio` sui compressori è interna all'interfaccia — non si mostra,
+ * non si modifica — ma è comunque un dato che una riga porta con sé e che questo schema deve
+ * saper validare quando la riga si salva. Se questo filtro venisse aggiunto, per uniformarlo a
+ * `specsFieldsFor`, il parse scarterebbe silenziosamente `pressione_esercizio` da ogni scrittura
+ * fatta dal form del catalogo: la chiave dell'indice unico sparirebbe al primo salvataggio e le
+ * varianti dello stesso modello collasserebbero l'una nell'altra.
  */
 export function specsSchemaFor(tipo: EquipmentCatalogType) {
   const shape: Record<string, z.ZodTypeAny> = {}
