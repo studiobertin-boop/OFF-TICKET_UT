@@ -22,8 +22,8 @@ import type { EquipmentCatalogType, EquipmentCatalogItem } from '@/types'
 import { AddEquipmentDialog } from './AddEquipmentDialog'
 import { useNoAutofillToken } from '@/utils/noAutofill'
 import { useTecnicoDM329Visibility } from '@/hooks/useTecnicoDM329Visibility'
-import { readSheetPressure, variantSpecKey } from '@/services/equipmentAudit'
-import { testoAvvisoVariante, type AvvisoVariante } from '@/utils/equipmentVarianti'
+import { variantSpecKey } from '@/services/equipmentAudit'
+import { raggruppaVarianti, testoAvvisoVariante, type AvvisoVariante } from '@/utils/equipmentVarianti'
 
 interface EquipmentAutocompleteProps {
   // Tipo apparecchiatura (filtra le opzioni)
@@ -202,9 +202,13 @@ export const EquipmentAutocomplete = ({
 
         // Il modello c'è: resta da vedere se manca proprio questa pressione. Il confronto è
         // con la pressione che la riga di catalogo dichiara alla scheda — la massima sui
-        // compressori — che è la stessa che l'utente ha scritto nella colonna PS.
-        const valori = righe.map((r) => readSheetPressure(equipmentType, r.specs))
-        setShowAddButton(variantValue != null && !valori.includes(variantValue))
+        // compressori — che è la stessa che l'utente ha scritto nella colonna PS. Si passa da
+        // `raggruppaVarianti` e non dalle righe grezze: due righe possono dichiarare la stessa
+        // pressione (sono varianti distinte, indicizzate da un altro dato), e contarle entrambe
+        // non cambierebbe l'esito qui ma lo farebbe nell'avviso più sotto — stessa fonte in
+        // entrambi i punti, per non doverli tenere allineati a mano.
+        const varianti = raggruppaVarianti(equipmentType, righe)
+        setShowAddButton(variantValue != null && !varianti.some((v) => v.value === variantValue))
       } catch (error) {
         console.error('Errore nella verifica di esistenza a catalogo:', error)
         if (!annullato) { setShowAddButton(false); setRigheCatalogo([]) }
@@ -276,9 +280,12 @@ export const EquipmentAutocomplete = ({
    * chi sta per creare una quarta variante di una macchina che ne ha tre lo sa.
    */
   const handleAddToCatalog = () => {
-    const pressioni = righeCatalogo
-      .map((r) => readSheetPressure(equipmentType, r.specs))
-      .filter((p): p is number => p !== null)
+    // Le pressioni dell'avviso vengono dalle varianti raggruppate, non da una riga per riga:
+    // due righe quasi-duplicate che dichiarano la stessa pressione sono una sola variante, e
+    // l'elenco deve coincidere esattamente con le voci del menu della colonna PS. Un valore
+    // ripetuto può restare — due varianti genuine alla stessa pressione sono due macchine — ma
+    // il doppione che non è una variante deve sparire.
+    const pressioni = raggruppaVarianti(equipmentType, righeCatalogo).map((v) => v.value)
 
     const testo = indicizzatoPerVariante
       ? testoAvvisoVariante({
