@@ -5,7 +5,8 @@ import { etichettaVariante, raggruppaVarianti, testoAvvisoVariante } from '@/uti
 /**
  * I numeri sono quelli di produzione, verificati sulle brochure KAESER:
  * SK 22 ha tre varianti con pressioni di lavoro 7,5/10/13 e massime 8/11/15;
- * ASD 50 SFC ne ha tre di cui due condividono la massima di 13 bar.
+ * SK 19 ne ha due che condividono la massima di 11 bar, con portate distinte
+ * (1855 e 1680 l/min).
  */
 let seq = 0
 const riga = (specs: Record<string, unknown>): EquipmentCatalogItem =>
@@ -34,14 +35,13 @@ describe('raggruppaVarianti', () => {
     expect(v.map(x => x.variante)).toEqual([7.5, 10, 13])
   })
 
-  it('tiene distinte due varianti che condividono la massima — ASD 50 SFC', () => {
+  it('tiene distinte due varianti che condividono la massima — SK 19', () => {
     const v = raggruppaVarianti('Compressori', [
-      riga({ pressione_esercizio: 7.5, pressione_max: 8.5, fad: 5270 }),
-      riga({ pressione_esercizio: 10, pressione_max: 13, fad: 4580 }),
-      riga({ pressione_esercizio: 13, pressione_max: 13, fad: 3820 }),
+      riga({ pressione_esercizio: 7.5, pressione_max: 11, fad: 1855 }),
+      riga({ pressione_esercizio: 10, pressione_max: 11, fad: 1680 }),
     ])
-    expect(v).toHaveLength(3)
-    expect(v.map(x => [x.value, x.variante])).toEqual([[8.5, 7.5], [13, 10], [13, 13]])
+    expect(v).toHaveLength(2)
+    expect(v.map(x => [x.value, x.variante])).toEqual([[11, 7.5], [11, 10]])
   })
 
   it('collassa le righe quasi-duplicate tenendo quella piu completa', () => {

@@ -53,7 +53,7 @@ export interface CanonicalSpecDef {
    *
    * La pressione di esercizio dei compressori è la chiave che distingue le varianti
    * nell'indice unico a database: toglierla dai dati renderebbe indistinguibili le due
-   * varianti di ASD 50 SFC, che condividono la massima di 13 bar con portate diverse.
+   * varianti di SK 19, che condividono la massima di 11 bar con portate diverse.
    * Il catalogo però ne dichiara una sola, la massima di targa, che è quella che la
    * scheda dati porta in relazione. Resta quindi nel contratto — `variantSpecKey` la
    * legge da qui — e l'interfaccia la salta.

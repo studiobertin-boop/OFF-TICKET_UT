@@ -96,16 +96,16 @@ equipment_catalog_unique_compressori
   WHERE tipo_apparecchiatura = 'Compressori' AND is_active
 ```
 
-Riadattare l'indice sulla sola `pressione_max` romperebbe **ASD 50 SFC** e
-**ASD 50 T SFC**, che hanno due varianti distinte con la stessa massima:
+Riadattare l'indice sulla sola `pressione_max` romperebbe modelli come **KAESER
+SK 19**, che ha due varianti distinte con la stessa massima:
 
 | variante | `pressione_esercizio` | `pressione_max` | `fad` |
 |---|---|---|---|
-| a | 10 | 13 | 4580 |
-| b | 13 | 13 | 3820 |
+| a | 7,5 | 11 | 1855 |
+| b | 10 | 11 | 1680 |
 
-Non è una scoria d'import: il dato è confermato su due brochure indipendenti
-(serie ASD 2018 e P-651-2-IT-16-25 del 2025). Sotto un indice sulla sola massima
+Non è una scoria d'import: sono due macchine distinte, con portate diverse
+(1855 e 1680 l/min) registrate a catalogo. Sotto un indice sulla sola massima
 le due righe collidono, e `getVarianti` — che deduplica per valore — ne
 scarterebbe una in silenzio.
 
@@ -148,7 +148,7 @@ Chi deve continuare a vederle, invariato:
 mano (`VarianteCatalogo.item`), senza chiamate di rete aggiuntive.
 
 Serve a distinguere le varianti quando la pressione da sola non basta a
-riconoscere la macchina — e sui due modelli ASD 50 SFC è l'unica cosa che le
+riconoscere la macchina — e su modelli come SK 19 è l'unica cosa che le
 distingue nel menu.
 
 La pressione di lavoro non si mostra: sarebbe rimettere in scena il secondo
@@ -214,16 +214,17 @@ intere.
 
 ## Difetto adiacente emerso in revisione
 
-Su ASD 50 SFC e ASD 50 T SFC una delle due varianti **non è oggi raggiungibile
-dalla scheda dati**, e la specifica sopra non basta a sistemarla.
+Su SK 19 (e altri modelli con la stessa forma, come ASD 37 SFC e ASD 60 T SFC)
+una delle due varianti **non è oggi raggiungibile dalla scheda dati**, e la
+specifica sopra non basta a sistemarla.
 
 `getVarianti` deduplica le righe indicizzandole per `readSheetPressure`, cioè
 per la massima di targa ([equipmentCatalog.ts:161-186](../../../src/services/api/equipmentCatalog.ts)).
-Su questi due modelli entrambe le varianti dichiarano 13 bar, quindi finiscono
-sulla stessa chiave e una viene scartata. Conseguenze:
+Su questi modelli entrambe le varianti dichiarano la stessa massima — 11 bar su
+SK 19 — quindi finiscono sulla stessa chiave e una viene scartata. Conseguenze:
 
-- il menu a tendina della colonna PS elenca `8,5` e `13`, non tre voci;
-- chi scrive 13 ottiene la portata della riga sopravvissuta — 4580 o 3820 a
+- il menu a tendina della colonna PS elenca un solo `11`, non due voci;
+- chi scrive 11 ottiene la portata della riga sopravvissuta — 1855 o 1680 a
   seconda dell'ordine con cui il database restituisce le righe, che non è
   garantito — e quel numero finisce in una relazione firmata senza alcun
   segnale che ne esistesse un altro.
@@ -238,8 +239,8 @@ invece la sola `pressione_max`, ed è più grossolana dell'indice.
 **Rimedio.** Allineare la deduplica all'indice: raggruppare per
 `readVariantValue` invece che per `readSheetPressure`. Le righe quasi-duplicate
 continuano a collassare (hanno lo stesso valore di variante), le due varianti
-ASD tornano distinte. `VarianteCatalogo` acquisisce un campo per il valore di
-variante, restando `value` la pressione dichiarata.
+di SK 19 tornano distinte. `VarianteCatalogo` acquisisce un campo per il valore
+di variante, restando `value` la pressione dichiarata.
 
 Ne discende che due opzioni del menu possono portare lo stesso `value`. Il
 `PressioneCatalogCell` deve quindi passare da opzioni numeriche a opzioni
@@ -247,15 +248,14 @@ oggetto, e distinguerle a video con la portata — che è già ciò che il punto
 design introduce:
 
 ```
-8,5 bar · 5270 l/min
-13 bar · 4580 l/min
-13 bar · 3820 l/min
+11 bar · 1855 l/min
+11 bar · 1680 l/min
 ```
 
-Selezionandone una si scrive 13 nella colonna PS e si applicano gli `specs`
+Selezionandone una si scrive 11 nella colonna PS e si applicano gli `specs`
 della riga scelta. La digitazione libera di un valore resta possibile: quando
 corrisponde a più varianti si applica la prima e nessuna scelta è implicita
-oltre a quella — caso che riguarda 2 modelli su 325.
+oltre a quella — caso che riguarda pochi modelli su 325.
 
 ## Cosa non cambia
 
@@ -273,8 +273,8 @@ Vitest, secondo la convenzione del progetto (logica, non UI):
   `readSheetPressure`, `normalizeSpecs`, `missingCanonicalSpecs` sui compressori.
 - Il filtro applicato dall'interfaccia esclude `pressione_esercizio` dai
   compressori e non toglie nulla agli altri tipi.
-- `getVarianti` su ASD 50 SFC restituisce tre varianti, due delle quali a 13 bar
-  con portate 4580 e 3820. È il test che oggi fallisce e che il rimedio del
+- `getVarianti` su SK 19 restituisce due varianti, entrambe a 11 bar, con
+  portate 1855 e 1680. È il test che oggi fallisce e che il rimedio del
   difetto adiacente deve far passare.
 - `getVarianti` continua a collassare le righe quasi-duplicate: stesso modello,
   stessa pressione, una con `pressione_esercizio` valorizzata e una senza →

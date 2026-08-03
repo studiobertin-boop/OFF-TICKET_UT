@@ -30,9 +30,9 @@ export interface VarianteCatalogo {
  *
  * Il raggruppamento avviene sulla chiave di variante — `COALESCE(pressione_esercizio,
  * pressione_max)` sui compressori — la stessa dell'indice unico a database. Indicizzare
- * per la sola pressione di targa era più grossolano dell'indice: su ASD 50 SFC, dove la
- * variante da 10 bar e quella da 13 dichiarano entrambe 13 di massima, una delle due
- * spariva e chi scriveva 13 nella colonna PS si prendeva 4580 o 3820 l/min a seconda
+ * per la sola pressione di targa era più grossolano dell'indice: su KAESER SK 19, dove la
+ * variante da 7,5 bar e quella da 10 dichiarano entrambe 11 di massima, una delle due
+ * spariva e chi scriveva 11 nella colonna PS si prendeva 1855 o 1680 l/min a seconda
  * dell'ordine con cui il database restituiva le righe.
  *
  * Il catalogo contiene righe quasi-duplicate — stesso modello e stessa pressione, una con
@@ -68,7 +68,7 @@ export function raggruppaVarianti(
  * Come la variante si presenta nel menu della colonna PS: pressione e capacità.
  *
  * La capacità non è decorazione: è ciò che distingue due varianti che dichiarano la stessa
- * pressione, e senza di essa il menu di ASD 50 SFC mostrerebbe due voci identiche.
+ * pressione, e senza di essa il menu di SK 19 mostrerebbe due voci identiche.
  */
 export function etichettaVariante(tipo: EquipmentCatalogType, v: VarianteCatalogo): string {
   const pressione = `${numeroIT(v.value)} bar`

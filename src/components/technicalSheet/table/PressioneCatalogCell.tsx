@@ -88,8 +88,8 @@ export const PressioneCatalogCell = ({
   /**
    * Digitazione libera: si applica la prima variante che dichiara quella pressione.
    *
-   * Due varianti possono dichiararne una uguale — ASD 50 SFC ha la 10 bar e la 13 bar
-   * entrambe a 13 di massima — e in quel caso solo la scelta dal menu, dove le distingue la
+   * Due varianti possono dichiararne una uguale — SK 19 ha la 7,5 bar e la 10 bar
+   * entrambe a 11 di massima — e in quel caso solo la scelta dal menu, dove le distingue la
    * portata, dice quale si intende.
    */
   const applicaPressione = (pressione: number) => {
