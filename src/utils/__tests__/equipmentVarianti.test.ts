@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { EquipmentCatalogItem } from '@/types'
-import { etichettaVariante, raggruppaVarianti, testoAvvisoVariante } from '@/utils/equipmentVarianti'
+import {
+  etichettaVariante, raggruppaVarianti, scegliVarianteSalvata, testoAvvisoVariante,
+} from '@/utils/equipmentVarianti'
 
 /**
  * I numeri sono quelli di produzione, verificati sulle brochure KAESER:
@@ -154,5 +156,62 @@ describe('testoAvvisoVariante', () => {
     expect(
       testoAvvisoVariante({ marca: 'ACME', modello: 'X1', pressioniEsistenti: [], nuova: 8 })
     ).toBeNull()
+  })
+})
+
+describe('scegliVarianteSalvata', () => {
+  /** Le due righe di SK 19: stessa massima di 11 bar, portate diverse. */
+  const sk19 = [
+    riga({ pressione_esercizio: 7.5, pressione_max: 11, fad: 1855 }),
+    riga({ pressione_esercizio: 10, pressione_max: 11, fad: 1680 }),
+  ]
+
+  it('con una riga sola non sta a guardare i valori: la provenienza e quella', () => {
+    const sola = [riga({ pressione_esercizio: 7.5, pressione_max: 8, fad: 2000 })]
+    // Il tecnico ha scostato la portata: e proprio lo scostamento che si vuole poter rilevare.
+    expect(scegliVarianteSalvata('Compressori', sola, { pressione: 8, capacita: 1900 })).toBe(sola[0])
+  })
+
+  it('sceglie per pressione quando la pressione basta', () => {
+    const sk22 = [
+      riga({ pressione_esercizio: 7.5, pressione_max: 8, fad: 2000 }),
+      riga({ pressione_esercizio: 10, pressione_max: 11, fad: 1680 }),
+      riga({ pressione_esercizio: 13, pressione_max: 15, fad: 1320 }),
+    ]
+    expect(scegliVarianteSalvata('Compressori', sk22, { pressione: 11, capacita: null })).toBe(sk22[1])
+  })
+
+  it('dove la pressione non distingue, distingue la portata — SK 19', () => {
+    expect(scegliVarianteSalvata('Compressori', sk19, { pressione: 11, capacita: 1855 })).toBe(sk19[0])
+    expect(scegliVarianteSalvata('Compressori', sk19, { pressione: 11, capacita: 1680 })).toBe(sk19[1])
+  })
+
+  it('senza portata compilata non indovina: meglio nessuna provenienza', () => {
+    expect(scegliVarianteSalvata('Compressori', sk19, { pressione: 11, capacita: null })).toBeNull()
+  })
+
+  it('con una portata che non e di nessuna delle due non indovina', () => {
+    expect(scegliVarianteSalvata('Compressori', sk19, { pressione: 11, capacita: 1700 })).toBeNull()
+  })
+
+  it('la portata da sola basta anche se la pressione della scheda e vuota', () => {
+    expect(scegliVarianteSalvata('Compressori', sk19, { pressione: null, capacita: 1680 })).toBe(sk19[1])
+  })
+
+  it('una pressione che non e di nessuna candidata non fa ripiegare sulla prima', () => {
+    expect(scegliVarianteSalvata('Compressori', sk19, { pressione: 9, capacita: 1855 })).toBeNull()
+  })
+
+  it('senza candidate non c e nulla da scegliere', () => {
+    expect(scegliVarianteSalvata('Compressori', [], { pressione: 11, capacita: 1855 })).toBeNull()
+  })
+
+  it('legge la capacita col nome giusto per il tipo — qmax sulle valvole', () => {
+    const valvole = [
+      riga({ ptar: 11, qmax: 2500 }),
+      riga({ ptar: 11, qmax: 4000 }),
+    ]
+    expect(scegliVarianteSalvata('Valvole di sicurezza', valvole, { pressione: 11, capacita: 4000 }))
+      .toBe(valvole[1])
   })
 })

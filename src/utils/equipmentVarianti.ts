@@ -64,6 +64,57 @@ export function raggruppaVarianti(
   return [...perVariante.values()].sort((a, b) => a.value - b.value || a.variante - b.variante)
 }
 
+/** Dati di una riga di scheda già salvata, per quel poco che serve a ritrovarne l'origine. */
+export interface RigaSalvata {
+  /** Pressione della colonna PS/Ptar; `null` se il campo è vuoto. */
+  pressione: number | null
+  /** Capacità della riga — portata per i compressori, volume per i recipienti. */
+  capacita: number | null
+}
+
+/**
+ * Sceglie, fra le righe di catalogo di un modello, quella da cui vengono i dati di una riga di
+ * scheda già salvata.
+ *
+ * La pressione da sola non basta più: su KAESER SK 19 le due varianti dichiarano entrambe 11 bar
+ * di massima, e prendere la prima che capita significa dare alla riga una provenienza sbagliata.
+ * Le conseguenze non sono cosmetiche — `appliedSpecs` è il termine di paragone del confronto di
+ * divergenza, quindi una portata salvata correttamente risulterebbe «modificata» rispetto a una
+ * variante che non è quella scelta a suo tempo, e all'utente verrebbe proposto di riportare a
+ * catalogo uno scostamento che non esiste.
+ *
+ * Dove la pressione non distingue, distingue la capacità: è appunto ciò che cambia fra due
+ * varianti dello stesso modello. E dove non basta neanche quella si restituisce `null`: senza
+ * provenienza il confronto di divergenza non parte per quella riga, che è molto meglio di un
+ * confronto contro la riga sbagliata.
+ */
+export function scegliVarianteSalvata(
+  tipo: EquipmentCatalogType,
+  candidate: EquipmentCatalogItem[],
+  riga: RigaSalvata
+): EquipmentCatalogItem | null {
+  // Una riga sola non ha sorelle da cui distinguersi: è quella, anche se il tecnico ne ha nel
+  // frattempo scostato i valori — ed è proprio quello scostamento che si vuole poter rilevare.
+  if (candidate.length <= 1) return candidate[0] ?? null
+
+  let rimaste = candidate
+  if (riga.pressione !== null) {
+    rimaste = rimaste.filter(c => stessoNumero(readSheetPressure(tipo, c.specs), riga.pressione))
+  }
+  if (rimaste.length === 1) return rimaste[0]
+
+  if (riga.capacita !== null) {
+    const chiave = capacityKey(tipo)
+    rimaste = rimaste.filter(c => stessoNumero(readNumericSpec(tipo, c.specs, chiave), riga.capacita))
+  }
+  return rimaste.length === 1 ? rimaste[0] : null
+}
+
+/** Uguaglianza fra numeri letti da JSON, indulgente quanto basta al rumore in virgola mobile. */
+function stessoNumero(a: number | null, b: number | null): boolean {
+  return a !== null && b !== null && Math.abs(a - b) < 1e-6
+}
+
 /**
  * Come la variante si presenta nel menu della colonna PS: pressione e capacità.
  *
