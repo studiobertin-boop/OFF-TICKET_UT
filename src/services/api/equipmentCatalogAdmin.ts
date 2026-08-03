@@ -11,6 +11,7 @@ import {
   type CreateEquipmentInput,
   type UpdateEquipmentInput,
 } from '@/utils/equipmentCatalogValidation'
+import type { ChiaveMassiva } from '@/utils/modificaMassiva'
 
 /**
  * Gestione del catalogo apparecchiature.
@@ -310,5 +311,30 @@ export const equipmentCatalogAdminApi = {
     }
 
     return (data as { applied?: number } | null)?.applied ?? applicabili.length
+  },
+
+  /**
+   * Valorizza una proprietà costruttiva su più righe di compressore, in una transazione sola.
+   *
+   * Come `applyFixes`: la funzione a database verifica da sé il ruolo e le chiavi ammesse, così
+   * il vincolo non dipende dal fatto che il client si comporti bene.
+   */
+  async setProperty(ids: string[], chiave: ChiaveMassiva, valore: string): Promise<number> {
+    if (ids.length === 0) return 0
+
+    const { data, error } = await supabase.rpc('set_equipment_property', {
+      p_ids: ids,
+      p_chiave: chiave,
+      p_valore: valore,
+    })
+
+    if (error) {
+      if (error.code === '42501') {
+        throw new Error('Non hai i permessi per modificare il catalogo apparecchiature')
+      }
+      throw describeError(error, 'Errore nella modifica massiva')
+    }
+
+    return (data as { applied?: number } | null)?.applied ?? 0
   },
 }

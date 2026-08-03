@@ -10,6 +10,7 @@ import type {
   CreateEquipmentInput,
   UpdateEquipmentInput,
 } from '@/utils/equipmentCatalogValidation'
+import type { ChiaveMassiva } from '@/utils/modificaMassiva'
 
 /** Chiavi di cache del catalogo apparecchiature. */
 export const equipmentCatalogKeys = {
@@ -123,6 +124,24 @@ export function useApplyFixes() {
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Correzioni non applicate')
+    },
+  })
+}
+
+/**
+ * Modifica massiva di una proprietà costruttiva.
+ *
+ * Invalida l'intera lista e non una riga sola: la modifica tocca righe che possono stare su
+ * pagine diverse da quella visibile, e i conteggi dei filtri cambiano con loro.
+ */
+export function useSetEquipmentProperty() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ ids, chiave, valore }: { ids: string[]; chiave: ChiaveMassiva; valore: string }) =>
+      equipmentCatalogAdminApi.setProperty(ids, chiave, valore),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: equipmentCatalogKeys.all })
     },
   })
 }
