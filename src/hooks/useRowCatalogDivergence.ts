@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useFormContext, useFormState } from 'react-hook-form'
 import { useEquipmentCatalogContext } from '@/components/technicalSheet/EquipmentCatalogContext'
-import { equipmentCatalogApi } from '@/services/api/equipmentCatalog'
+import { equipmentCatalogApi, type EsitoAggiornamentoSpecs } from '@/services/api/equipmentCatalog'
 import { compareSpecs, formFieldsFor } from '@/utils/equipmentSpecsComparison'
 import { readSheetPressure } from '@/services/equipmentAudit'
 import type { EquipmentCatalogType } from '@/types'
@@ -10,6 +10,24 @@ import type { ScelteCampi, UpdateData } from '@/types/equipmentUpdate'
 /** Legge un valore annidato da un percorso a punti, senza dipendenze esterne. */
 const atPath = (obj: any, path: string): any =>
   path.split('.').reduce((acc, k) => (acc == null ? undefined : acc[k]), obj)
+
+/**
+ * Cosa dire quando la scrittura a catalogo non è avvenuta.
+ *
+ * Rinunciare in silenzio è la cosa peggiore: chi ha scelto «aggiorna il catalogo» e ha visto il
+ * dialog chiudersi dà per fatto un aggiornamento che non c'è stato, e il dato sbagliato resta a
+ * catalogo per la prossima pratica. In entrambi i casi la scheda in corso non perde nulla — il
+ * valore digitato resta dov'è — ed è la prima cosa da dire.
+ */
+const MESSAGGIO_MANCATO_AGGIORNAMENTO: Record<Exclude<EsitoAggiornamentoSpecs, 'aggiornato'>, string> = {
+  variante_ambigua:
+    'Il catalogo non è stato aggiornato: di questo modello esistono più varianti a questa ' +
+    'pressione e non è possibile stabilire quale aggiornare. La modifica resta in questa scheda; ' +
+    'il catalogo va sistemato dal modulo di gestione apparecchiature.',
+  riga_non_trovata:
+    'Il catalogo non è stato aggiornato: la voce di partenza non è più raggiungibile, ' +
+    'probabilmente è stata rimossa. La modifica resta in questa scheda.',
+}
 
 interface VerificaRiga {
   tipo: EquipmentCatalogType
@@ -126,10 +144,16 @@ export function useRowCatalogDivergence() {
         // da cui vengono `appliedSpecs`: il suo id individua la riga da aggiornare senza passare
         // dalla pressione, che da sola può non bastare più a distinguerla. `variante` resta solo
         // come ripiego, per quando l'id manca.
-        await equipmentCatalogApi.updateEquipmentSpecs(
+        const esito = await equipmentCatalogApi.updateEquipmentSpecs(
           pending.equipmentType, pending.marca, pending.modello, daScrivere,
           { catalogItemId: pending.catalogData?.id, variante: pending.variante }
         )
+
+        // Il dialog resta aperto: chiuderlo qui equivarrebbe a dire che si è scritto.
+        if (esito !== 'aggiornato') {
+          setError(MESSAGGIO_MANCATO_AGGIORNAMENTO[esito])
+          return
+        }
       }
 
       setPending(null)

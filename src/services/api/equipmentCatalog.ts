@@ -6,6 +6,15 @@ import { raggruppaVarianti, type VarianteCatalogo } from '@/utils/equipmentVaria
 export type { VarianteCatalogo }
 
 /**
+ * Come è andata una scrittura di ritorno a catalogo.
+ *
+ * Non tutte le rinunce sono errori — la riga può essere stata rimossa, o la pressione può non
+ * bastare a individuarne una sola — ma tutte vanno raccontate a chi ha confermato: un dialog che
+ * si chiude senza dire niente lascia credere che il catalogo sia stato aggiornato.
+ */
+export type EsitoAggiornamentoSpecs = 'aggiornato' | 'variante_ambigua' | 'riga_non_trovata'
+
+/**
  * API Service per Equipment Catalog
  * Gestisce filtri cascata TIPO → MARCA → MODELLO
  * e aggiunta nuove associazioni al catalogo
@@ -375,7 +384,7 @@ export const equipmentCatalogApi = {
    * @param modello - Modello
    * @param newSpecs - Nuovi specs da aggiungere/sovrascrivere
    * @param options - Riga da aggiornare: per id se lo si conosce, altrimenti per pressione dichiarata
-   * @returns void (throws su errore)
+   * @returns come è andata: chi chiama deve poter dire all'utente che non si è scritto (throws sugli errori del database)
    */
   async updateEquipmentSpecs(
     tipo: EquipmentCatalogType,
@@ -396,7 +405,7 @@ export const equipmentCatalogApi = {
       /** @deprecated usare `variante` */
       ptar?: number
     }
-  ): Promise<void> {
+  ): Promise<EsitoAggiornamentoSpecs> {
     // 1. Trova la riga di catalogo.
     //
     //    Con `catalogItemId` la riga si individua senza ambiguità: è quella scelta dal tecnico
@@ -419,17 +428,17 @@ export const equipmentCatalogApi = {
           'Variante ambigua per updateEquipmentSpecs: più righe dichiarano la stessa pressione, nessun aggiornamento eseguito.',
           { tipo, marca, modello, variante, righe: candidati.map(c => c.item.id) }
         )
-        return
+        return 'variante_ambigua'
       }
       equipment = candidati[0]?.item ?? null
     } else {
       equipment = await this.getEquipmentByTipoMarcaModello(tipo, marca, modello)
     }
 
-    // 2. Se non trovato, silenzioso (apparecchiatura potrebbe essere stata eliminata)
+    // 2. Se non trovato non si scrive: l'apparecchiatura può essere stata eliminata dal catalogo.
     if (!equipment) {
       console.warn('Equipment not found for update:', { tipo, marca, modello, options })
-      return
+      return 'riga_non_trovata'
     }
 
     // 3. Pulisci newSpecs (rimuovi null/undefined/empty)
@@ -470,5 +479,7 @@ export const equipmentCatalogApi = {
       modello,
       updatedFields: Object.keys(cleanedNewSpecs)
     })
+
+    return 'aggiornato'
   }
 }
