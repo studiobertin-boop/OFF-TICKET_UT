@@ -35,6 +35,7 @@ import { TIPO_GIRI_LABELS, TIPO_GIRI_OPTIONS } from '@/types/technicalSheet'
 import { technicalDataApi } from '@/services/api/technicalData'
 import { equipmentCatalogApi } from '@/services/api/equipmentCatalog'
 import { customersApi } from '@/services/api/customers'
+import { scegliVarianteSalvata } from '@/utils/equipmentVarianti'
 import { additionalInfoSchema } from '@/services/relazione/schema'
 import { generateAndDownloadRelazione } from '@/services/relazione/generateRelazione'
 import { buildRelazioneModel } from '@/services/relazione/buildRelazioneModel'
@@ -199,7 +200,7 @@ export default function RelazioneDataDialog({
     setSaving(true)
     try {
       await technicalDataApi.updateAdditionalInfo(requestId, parsed.data)
-      await riportaGiriACatalogo(parsed.data.compressoriGiri)
+      const compressoriNonAggiornati = await riportaGiriACatalogo(parsed.data.compressoriGiri)
       await generateAndDownloadRelazione({
         scheda,
         additionalInfo: parsed.data,
@@ -209,6 +210,15 @@ export default function RelazioneDataDialog({
         fileName,
       })
       await riportaDescrizioneInAnagrafica(parsed.data.descrizioneAttivita)
+      // Non bloccante e non un errore: la relazione è comunque generata, il catalogo va solo
+      // sistemato a mano dal modulo di gestione apparecchiature.
+      if (compressoriNonAggiornati.length > 0) {
+        toast(
+          `Regolazione giri non registrata a catalogo per ${compressoriNonAggiornati.join(', ')}: ` +
+          'il modello ha più varianti a quella pressione. La relazione è stata generata comunque.',
+          { icon: '⚠️' }
+        )
+      }
       toast.success('Relazione generata e scaricata.')
       onClose()
     } catch (err) {
@@ -243,21 +253,44 @@ export default function RelazioneDataDialog({
    * Riporta a catalogo la regolazione dei giri appena dichiarata, così la domanda non torna alla
    * pratica successiva sullo stesso modello.
    *
-   * Non è bloccante: se il modello non è a catalogo o il ruolo non ha il permesso di scrittura,
-   * la relazione si genera comunque con il dato preso da `additional_info`.
+   * La sola pressione non individua più una riga sola: due varianti dello stesso modello possono
+   * dichiararne una uguale (KAESER SK 19, ASD 37 SFC, ASD 60 T SFC — a produzione). Si carica
+   * quindi il catalogo del modello e si sceglie la variante con lo stesso criterio con cui la
+   * scheda distingue le proprie righe — `scegliVarianteSalvata`, pressione poi capacità — passando
+   * l'id quando la scelta è univoca. Dove resta ambigua non si passa alcun id: il ripiego per
+   * pressione dentro `updateEquipmentSpecs` restituisce `variante_ambigua` e non scrive, che è
+   * l'esito giusto quando non si sa quale riga sia.
+   *
+   * Non è bloccante: se il modello non è a catalogo, il ruolo non ha il permesso di scrittura, o
+   * la ricerca delle varianti fallisce, la relazione si genera comunque con il dato preso da
+   * `additional_info` — l'unico effetto è che la domanda tornerà alla pratica successiva.
+   *
+   * Restituisce i codici dei compressori per cui la scrittura non è avvenuta, perché il tecnico ha
+   * appena risposto credendo che il catalogo l'abbia registrata: chi chiama decide come dirglielo.
    */
-  const riportaGiriACatalogo = async (giriDaSalvare: Record<string, TipoGiri> | undefined) => {
+  const riportaGiriACatalogo = async (
+    giriDaSalvare: Record<string, TipoGiri> | undefined
+  ): Promise<string[]> => {
+    const nonAggiornati: string[] = []
     for (const c of compressoriSenzaGiri) {
       const valore = giriDaSalvare?.[c.codice]
       if (!valore || !c.marca || !c.modello) continue
       try {
-        await equipmentCatalogApi.updateEquipmentSpecs(
-          'Compressori', c.marca, c.modello, { giri: valore }, { variante: c.pressione_max }
+        const candidate = await equipmentCatalogApi.findVariants('Compressori', c.marca, c.modello)
+        const scelta = scegliVarianteSalvata('Compressori', candidate, {
+          pressione: c.pressione_max ?? null,
+          capacita: c.volume_aria_prodotto ?? null,
+        })
+        const esito = await equipmentCatalogApi.updateEquipmentSpecs(
+          'Compressori', c.marca, c.modello, { giri: valore },
+          scelta ? { catalogItemId: scelta.id } : { variante: c.pressione_max }
         )
+        if (esito !== 'aggiornato') nonAggiornati.push(c.codice)
       } catch (err) {
         console.warn(`[giri] ${c.codice}: non riportato a catalogo`, err)
       }
     }
+    return nonAggiornati
   }
 
   const renderMultiValue = (selected: string[]) => selected.join(', ')
