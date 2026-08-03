@@ -136,9 +136,12 @@ set_equipment_property(p_ids uuid[], p_chiave text, p_valore text) returns jsonb
 - `jsonb_set` sulla chiave, `updated_at = now()`;
 - restituisce `{"applied": n}`.
 
-La funzione è `SECURITY INVOKER`: la RLS continua a valere e chi non ha il
-permesso di scrivere non scrive. Il client traduce il codice `42501` nello
-stesso messaggio già in uso in `applyFixes` — «Non hai i permessi per…».
+La funzione segue il pattern di `apply_equipment_fixes` anche nei permessi:
+`SECURITY DEFINER` con `SET search_path = public`, e il controllo del ruolo
+**dentro** la funzione — `admin` o `userdm329`, altrimenti eccezione con
+`ERRCODE = '42501'`. Poi `REVOKE ALL … FROM public`, `GRANT EXECUTE … TO
+authenticated` e `NOTIFY pgrst, 'reload schema'`. Il client traduce il `42501`
+nello stesso messaggio già in uso in `applyFixes` — «Non hai i permessi per…».
 
 Il metodo client sta in `equipmentCatalogAdminApi`, accanto ad `applyFixes`.
 
