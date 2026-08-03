@@ -299,8 +299,11 @@ export default function RelazioneDataDialog({
         const esito = await equipmentCatalogApi.updateEquipmentSpecs(
           'Compressori', c.marca, c.modello, { giri: valore }, { catalogItemId: scelta.id }
         )
-        // Con l'id già risolto questi due esiti sono residuali — la riga sparita fra la lettura e
-        // la scrittura — ma restano possibili e vanno raccontati come gli altri, non ignorati.
+        // Qui catalogItemId è sempre valorizzato, quindi updateEquipmentSpecs non imbocca mai il
+        // ramo che restituisce 'variante_ambigua' — quello scatta solo per il ripiego a pressione,
+        // che si usa solo in assenza di id. Il controllo resta come difesa nel caso in cui in
+        // futuro questa chiamata smettesse di passare l'id. L'esito davvero raggiungibile da qui è
+        // 'riga_non_trovata': la riga sparita fra la lettura di findVariants e questa scrittura.
         if (esito === 'variante_ambigua') ambigui.push(c.codice)
         else if (esito === 'riga_non_trovata') nonACatalogo.push(c.codice)
       } catch (err) {
@@ -319,10 +322,20 @@ export default function RelazioneDataDialog({
   const mostraEsitoGenerazione = (nonACatalogo: string[], ambigui: string[]) => {
     const motivi: string[] = []
     if (nonACatalogo.length > 0) {
-      motivi.push(`${nonACatalogo.join(', ')}: il modello non risulta a catalogo`)
+      // findVariants confronta marca/modello per uguaglianza esatta: "non risulta a catalogo"
+      // può voler dire "non è mai stato censito", ma anche "è censito con una grafia diversa" —
+      // uno spazio in più, una sigla staccata. Chi conosce il modello ha bisogno di questo indizio,
+      // altrimenti non sa cosa controllare.
+      const clausola = nonACatalogo.length > 1
+        ? 'i modelli non risultano a catalogo — verifica marca e modello, o censiscili dal modulo di gestione apparecchiature'
+        : 'il modello non risulta a catalogo — verifica marca e modello, o censiscilo dal modulo di gestione apparecchiature'
+      motivi.push(`${nonACatalogo.join(', ')}: ${clausola}`)
     }
     if (ambigui.length > 0) {
-      motivi.push(`${ambigui.join(', ')}: il modello ha più varianti a quella pressione`)
+      const clausola = ambigui.length > 1
+        ? 'i modelli hanno più varianti a quella pressione, vanno sistemati dal modulo di gestione apparecchiature'
+        : 'il modello ha più varianti a quella pressione, va sistemato dal modulo di gestione apparecchiature'
+      motivi.push(`${ambigui.join(', ')}: ${clausola}`)
     }
 
     if (motivi.length === 0) {
@@ -331,8 +344,7 @@ export default function RelazioneDataDialog({
     }
 
     toast(
-      'Relazione generata e scaricata. Regolazione giri non registrata a catalogo per ' +
-      `${motivi.join('; ')}. Il catalogo va sistemato dal modulo di gestione apparecchiature.`,
+      `Relazione generata e scaricata. Regolazione giri non registrata a catalogo per ${motivi.join('; ')}.`,
       { icon: '⚠️', duration: 8000 }
     )
   }
