@@ -15,7 +15,6 @@
       "Bash(curl:*)",
       "Bash(tasklist:*)",
       "Bash(taskkill:*)",
-
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
@@ -25,7 +24,6 @@
       "Bash(git stash:*)",
       "Bash(git stash push:*)",
       "Bash(git ls-tree:*)",
-
       "Bash(npm run *)",
       "Bash(npm install *)",
       "Bash(npm install:*)",
@@ -38,10 +36,13 @@
       "Bash(node -e:*)",
       "Bash(node -c:*)",
       "Bash(python:*)",
-
       "Bash(psql:*)",
       "Bash(supabase functions deploy:*)",
-      "Bash(supabase functions list:*)"
+      "Bash(supabase functions list:*)",
+      "PowerShell(npx vitest run src/utils/__tests__/equipmentCatalogValidation.test.ts 2>&1)",
+      "PowerShell(npx tsc --noEmit 2>&1)",
+      "PowerShell(npx vitest run 2>&1)",
+      "PowerShell(npx tsc --noEmit)"
     ],
     "deny": [],
     "ask": []
