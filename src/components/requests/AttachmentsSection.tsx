@@ -153,7 +153,7 @@ export function AttachmentsSection({
 
   if (isLoading) {
     return (
-      <Card sx={{ mt: 3 }}>
+      <Card>
         <CardContent>
           <Box display="flex" justifyContent="center" p={2}>
             <CircularProgress />
@@ -164,7 +164,7 @@ export function AttachmentsSection({
   }
 
   return (
-    <Card sx={{ mt: 3 }}>
+    <Card>
       <CardContent>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h6">

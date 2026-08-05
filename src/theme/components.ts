@@ -29,6 +29,13 @@ export const components: Components<Theme> = {
       root: { borderRadius: radii.paper, backgroundImage: 'none' },
     },
   },
+  MuiTab: {
+    // Come per i Button: il maiuscolo forzato di MUI stona con il resto dell'interfaccia,
+    // che è tutta in caso frase.
+    styleOverrides: {
+      root: { textTransform: 'none' },
+    },
+  },
   MuiChip: {
     defaultProps: { size: 'small' },
     styleOverrides: {

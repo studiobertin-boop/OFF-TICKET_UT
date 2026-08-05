@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Box, Typography, IconButton, Tooltip, Divider } from '@mui/material'
+import { Box, IconButton, Tooltip, Divider } from '@mui/material'
 import { Edit as EditIcon } from '@mui/icons-material'
 import { CodicePraticaDialog } from './CodicePraticaDialog'
+import { FieldValue, SectionLabel } from '@/components/common'
 import { customersApi } from '@/services/api/customers'
 import type { Customer, Request } from '@/types'
 
@@ -31,7 +32,7 @@ export const PlantLocationSection = ({ request, customer, indirizzoImpianto, can
     <>
       <Divider sx={{ my: 3 }} />
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-        <Typography variant="h6">Ubicazione impianto</Typography>
+        <SectionLabel>Ubicazione impianto</SectionLabel>
         {canEdit && (
           <Tooltip title={modificabile ? 'Modifica ubicazione impianto' : 'Pratica senza anagrafica cliente collegata'}>
             <span>
@@ -43,15 +44,16 @@ export const PlantLocationSection = ({ request, customer, indirizzoImpianto, can
         )}
       </Box>
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 2 }}>
-        <Box>
-          <Typography variant="subtitle2" color="text.secondary">Indirizzo impianto</Typography>
-          <Typography variant="body1" gutterBottom>{indirizzoImpianto || 'N/A'}</Typography>
-        </Box>
-        <Box>
-          <Typography variant="subtitle2" color="text.secondary">Denominazione sala</Typography>
-          <Typography variant="body1" gutterBottom>{request.denominazione_sala || 'N/A'}</Typography>
-        </Box>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+          columnGap: 3,
+          rowGap: 1.5,
+        }}
+      >
+        <FieldValue label="Indirizzo impianto" value={indirizzoImpianto} />
+        <FieldValue label="Denominazione sala" value={request.denominazione_sala} />
       </Box>
 
       {editOpen && customer && (

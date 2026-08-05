@@ -14,6 +14,7 @@ import {
   InputLabel,
 } from '@mui/material'
 import { PersonAdd as PersonAddIcon, PersonRemove as PersonRemoveIcon } from '@mui/icons-material'
+import { SectionLabel } from '@/components/common'
 import { User } from '@/types'
 import { getTechnicians, assignRequest, unassignRequest } from '@/services/requestService'
 import { getDM329Technicians } from '@/services/api/users'
@@ -111,9 +112,9 @@ export const AssignmentSection = ({
   return (
     <Card sx={{ mt: 3 }}>
       <CardContent>
-        <Typography variant="h6" gutterBottom>
-          Assegnazione
-        </Typography>
+        <Box sx={{ mb: 1.5 }}>
+          <SectionLabel>Assegnazione</SectionLabel>
+        </Box>
 
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>

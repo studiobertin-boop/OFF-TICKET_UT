@@ -1,4 +1,6 @@
 export { StatusChip } from './StatusChip'
+export { FieldValue } from './FieldValue'
+export { SectionLabel } from './SectionLabel'
 export { PageHeader } from './PageHeader'
 export { SectionCard } from './SectionCard'
 export { KpiTile } from './KpiTile'

@@ -150,13 +150,17 @@ export function DM329StatusStepper({
         })}
       </Box>
 
-      {blockedForUser ? (
+      {/* Niente riga di istruzioni fissa sotto lo stepper: che gli stati siano
+          cliccabili lo dicono già il cursore e il tooltip "Imposta stato: …".
+          Restano solo i due avvisi che portano informazione. */}
+      {blockedForUser && (
         <Typography variant="caption" color="warning.main" sx={{ display: 'block', textAlign: 'center', mt: 1 }}>
           Richiesta bloccata: risolvi il blocco per cambiare stato.
         </Typography>
-      ) : (
+      )}
+      {!blockedForUser && currentStatus === 'ARCHIVIATA NON FINITA' && (
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 1 }}>
-          {currentStatus === 'ARCHIVIATA NON FINITA' ? 'Pratica archiviata (non finita)' : 'Clicca uno stato per cambiarlo'}
+          Pratica archiviata (non finita)
         </Typography>
       )}
 

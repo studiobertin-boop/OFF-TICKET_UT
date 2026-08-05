@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import {
   Box,
   Typography,
   Card,
   CardContent,
-  Chip,
   Grid,
   CircularProgress,
   Alert,
@@ -13,23 +13,15 @@ import {
   Divider,
   TextField,
   IconButton,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
+  Tabs,
+  Tab,
 } from '@mui/material'
 import {
-  ArrowBack as ArrowBackIcon,
-  VisibilityOff as VisibilityOffIcon,
-  Delete as DeleteIcon,
-  Block as BlockIcon,
   CheckCircle as CheckCircleIcon,
   Edit as EditIcon,
   Save as SaveIcon,
   Close as CloseIcon,
   Assignment as AssignmentIcon,
-  PersonAdd as PersonAddIcon,
-  PriorityHigh as PriorityHighIcon,
 } from '@mui/icons-material'
 import { Layout } from '@/components/common/Layout'
 import { useRequest, useHideRequest, useDeleteRequest, useUpdateRequest, useClientDm329Overview } from '@/hooks/useRequests'
@@ -39,11 +31,15 @@ import { useAuth } from '@/hooks/useAuth'
 import { useFeatureFlag } from '@/hooks/useFeatureFlag'
 import { requestsApi } from '@/services/api/requests'
 import { customersApi } from '@/services/api/customers'
+import { attachmentsApi } from '@/services/api/attachments'
+import { requestMessagesApi } from '@/services/api/requestMessages'
 import { StatusTransitionButtons } from '@/components/requests/StatusTransitionButtons'
 import { AssignmentSection } from '@/components/requests/AssignmentSection'
 import { RequestHistoryPanel } from '@/components/requests/RequestHistoryPanel'
 import { RequestChatBox } from '@/components/requests/RequestChatBox'
-import { BlockIndicator } from '@/components/requests/BlockIndicator'
+import { RequestDetailHeader } from '@/components/requests/RequestDetailHeader'
+import { RequestActionsMenu } from '@/components/requests/RequestActionsMenu'
+import { RequestPropertiesRail } from '@/components/requests/RequestPropertiesRail'
 import { BlockRequestDialog } from '@/components/requests/BlockRequestDialog'
 import { UnblockRequestDialog } from '@/components/requests/UnblockRequestDialog'
 import { AttributeRequestDialog } from '@/components/requests/AttributeRequestDialog'
@@ -56,13 +52,15 @@ import { CodicePraticaDialog } from '@/components/requests/CodicePraticaDialog'
 import { CustomerInfoSection } from '@/components/requests/CustomerInfoSection'
 import { PlantLocationSection } from '@/components/requests/PlantLocationSection'
 import { useActiveBlock } from '@/hooks/useRequestBlocks'
-import { getStatusColor, getStatusLabel, isDM329Family } from '@/utils/workflow'
-import { StatusChip } from '@/components/common'
+import { isDM329Family } from '@/utils/workflow'
+import { FieldValue, SectionLabel } from '@/components/common'
 import { DM329StatusStepper } from '@/components/requests/DM329StatusStepper'
 import { useRequestTypes } from '@/hooks/useRequestTypes'
 import { hasIncompleteCustomerData } from '@/utils/customerValidation'
-import { STATO_FATTURA_OPTIONS, STATO_FATTURA_LABELS, type StatoFattura, type Customer } from '@/types'
+import { type StatoFattura, type Customer } from '@/types'
 import { risolviIndirizzoImpianto } from '@/utils/indirizzoImpianto'
+
+const TAB_DETTAGLIO = ['dettagli', 'storico', 'messaggi', 'allegati'] as const
 
 export const RequestDetail = () => {
   const { id } = useParams<{ id: string }>()
@@ -115,6 +113,31 @@ export const RequestDetail = () => {
   const [offCacValue, setOffCacValue] = useState<'off' | 'cac' | ''>('')
   const [statoFatturaValue, setStatoFatturaValue] = useState<StatoFattura>('NO')
   const [togglingUrgent, setTogglingUrgent] = useState(false)
+
+  // Il tab attivo vive nella querystring: un refresh, un "indietro" o un link
+  // condiviso riportano dove si stava guardando.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tabRichiesto = searchParams.get('tab') || ''
+  const tab = (TAB_DETTAGLIO as readonly string[]).includes(tabRichiesto) ? tabRichiesto : 'dettagli'
+  const cambiaTab = (nuovo: string) => {
+    const params = new URLSearchParams(searchParams)
+    if (nuovo === 'dettagli') params.delete('tab')
+    else params.set('tab', nuovo)
+    setSearchParams(params, { replace: true })
+  }
+
+  // Contatori sulle linguette. Stesse queryKey dei pannelli: TanStack condivide
+  // la cache, quindi leggerli qui non aggiunge richieste di rete.
+  const { data: messaggi } = useQuery({
+    queryKey: ['request-messages', id],
+    queryFn: () => requestMessagesApi.getByRequestId(id!),
+    enabled: !!id,
+  })
+  const { data: allegati } = useQuery({
+    queryKey: ['attachments', id],
+    queryFn: () => attachmentsApi.getByRequestId(id!),
+    enabled: !!id,
+  })
 
   // Famiglia DM329: include anche DM329-Integrazioni
   const isDM329 = isDM329Family(request?.request_type?.name)
@@ -205,6 +228,54 @@ export const RequestDetail = () => {
     [clientDm329Overview]
   )
   const codicePratica = request ? codiceForRequest(request, clientSalaCount) : ''
+
+  /**
+   * Campi di custom_fields che non hanno già un posto proprio nella pagina.
+   * Il filtro è lo stesso di prima, spostato fuori dal JSX perché ora produce
+   * anche l'etichetta e il valore formattato per FieldValue.
+   */
+  const campiExtra = useMemo(() => {
+    if (!request?.custom_fields) return []
+
+    const campiCliente = ['cliente', 'sede_legale', 'telefono', 'pec', 'descrizione_attivita', 'indirizzo_immobile']
+    const campiTecnici = ['original_csv_row', 'assignment_category', 'workflow_dates']
+
+    return Object.entries(request.custom_fields)
+      .filter(([key]) => {
+        if (key === 'note') return false                                               // ha una sezione dedicata
+        if (isDM329 && ['no_civa', 'off_cac', 'stato_fattura'].includes(key)) return false // colonna proprietà
+        if (campiCliente.includes(key)) return false                                   // sezione Cliente
+        if (campiTecnici.includes(key)) return false                                   // interni
+        return true
+      })
+      .map(([key, value]) => {
+        // undefined = campo vuoto: FieldValue lo rende con un trattino spento.
+        let display: string | undefined
+
+        if (value === null || value === undefined || value === '') {
+          display = undefined
+        } else if (typeof value === 'boolean') {
+          display = value ? 'Sì' : 'No'
+        } else if (Array.isArray(value)) {
+          display = value.length > 0 && typeof value[0] === 'object'
+            ? `${value.length} elementi`
+            : value.join(', ')
+        } else if (typeof value === 'object') {
+          const oggetto = value as any
+          if ('ragione_sociale' in oggetto) display = oggetto.ragione_sociale
+          else if ('id' in oggetto && 'label' in oggetto) display = oggetto.label
+          else display = JSON.stringify(oggetto)
+        } else {
+          display = String(value)
+        }
+
+        return {
+          key,
+          label: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          value: display,
+        }
+      })
+  }, [request, isDM329])
 
   const [showCompleteCustomerDialog, setShowCompleteCustomerDialog] = useState(false)
   const [codiceDialogOpen, setCodiceDialogOpen] = useState(false)
@@ -340,6 +411,25 @@ export const RequestDetail = () => {
     setIsEditingDetails(false)
   }
 
+  const handleChangeType = async (newTypeId: string) => {
+    if (!request || newTypeId === request.request_type_id) return
+    const newType = requestTypes.find(t => t.id === newTypeId)
+    if (!newType) return
+
+    setChangingType(true)
+    try {
+      // Il titolo porta in testa il nome del tipo: cambiandolo va riallineato.
+      const newTitle = request.title.replace(/^(DM329-Integrazioni|DM329)/, newType.name)
+      await updateRequest.mutateAsync({
+        id: request.id,
+        updates: { request_type_id: newTypeId, title: newTitle },
+      })
+      refetch()
+    } finally {
+      setChangingType(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <Layout>
@@ -423,188 +513,68 @@ export const RequestDetail = () => {
     (user?.role === 'admin' || user?.role === 'userdm329')
 
   const indirizzoImpianto = risolviIndirizzoImpianto(request.indirizzo_impianto)
+  const noteSalvata = (request.custom_fields?.note as string) || ''
 
   return (
     <Layout>
       <Box>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/requests')}>
-            Torna alla lista
-          </Button>
-
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            {/* Technical Details button (DM329 only, with feature flag) */}
-            {canAccessTechnicalDetails && (
-              <Button
-                variant="contained"
-                color="primary"
-                startIcon={<AssignmentIcon />}
-                onClick={() => navigate(`/requests/${id}/technical-details`)}
-                size="small"
-              >
-                SCHEDA DATI
-              </Button>
-            )}
-
-            {/* Urgent toggle button - Only for admin and userdm329 */}
-            {canToggleUrgent && (
-              <Button
-                variant={request.is_urgent ? 'contained' : 'outlined'}
-                color="error"
-                startIcon={<PriorityHighIcon />}
-                onClick={handleToggleUrgent}
-                disabled={togglingUrgent}
-                size="small"
-              >
-                {request.is_urgent ? 'URGENTE' : 'SEGNA URGENTE'}
-              </Button>
-            )}
-
-            {/* Block/Unblock buttons */}
-            {canBlock && !request.is_blocked && (
-              <Button
-                variant="outlined"
-                color="warning"
-                startIcon={<BlockIcon />}
-                onClick={() => setBlockDialogOpen(true)}
-                size="small"
-              >
-                Blocca Richiesta
-              </Button>
-            )}
-
-            {canUnblock && request.is_blocked && activeBlock && (
-              <Button
-                variant="contained"
-                color="success"
-                startIcon={<CheckCircleIcon />}
-                onClick={() => setUnblockDialogOpen(true)}
-                size="small"
-              >
-                Sblocca Richiesta
-              </Button>
-            )}
-
-            {/* Attribuisci: admin sempre, userdm329 su pratiche DM329-family */}
-            {(user?.role === 'admin' || (user?.role === 'userdm329' && isDM329)) && (
-              <Button
-                variant="outlined"
-                color="primary"
-                startIcon={<PersonAddIcon />}
-                onClick={() => setAttributeDialogOpen(true)}
-                size="small"
-              >
-                {request.attributed_to ? 'Modifica Attribuzione' : 'Attribuisci'}
-              </Button>
-            )}
-
-            {/* Admin actions */}
-            {user?.role === 'admin' && (
-              <>
+        <RequestDetailHeader
+          request={request}
+          title={isDM329 ? clientInfo?.ragione_sociale || request.title : request.title}
+          isDM329={isDM329}
+          codicePratica={codicePratica}
+          canManageCodice={canManageCodice}
+          onEditCodice={() => setCodiceDialogOpen(true)}
+          blockReason={activeBlock?.reason}
+          onBack={() => navigate('/requests')}
+          primaryActions={
+            <>
+              {canAccessTechnicalDetails && (
                 <Button
-                  variant="outlined"
-                  color="warning"
-                  startIcon={<VisibilityOffIcon />}
-                  onClick={() => setHideDialogOpen(true)}
+                  variant="contained"
+                  color="primary"
                   size="small"
+                  startIcon={<AssignmentIcon />}
+                  onClick={() => navigate(`/requests/${id}/technical-details`)}
                 >
-                  Nascondi
+                  Scheda dati
                 </Button>
-              </>
-            )}
-
-            {/* Elimina: admin (qualsiasi) + userdm329 (pratiche DM329) */}
-            {canDelete && (
-              <Button
-                variant="outlined"
-                color="error"
-                startIcon={<DeleteIcon />}
-                onClick={() => setDeleteDialogOpen(true)}
-                size="small"
-              >
-                Elimina
-              </Button>
-            )}
-          </Box>
-        </Box>
-
-        {/* HERO: cliente, codice/sala, stato + date, workflow */}
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 2, flexWrap: 'wrap' }}>
-              <Box sx={{ minWidth: 0 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-                  {request.is_blocked && (
-                    <BlockIndicator isBlocked={true} reason={activeBlock?.reason} />
-                  )}
-                  <Typography variant="h4" sx={{ wordBreak: 'break-word' }}>
-                    {isDM329 ? clientInfo?.ragione_sociale || request.title : request.title}
-                  </Typography>
-                </Box>
-                {isDM329 && (codicePratica || request.denominazione_sala || canManageCodice) && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
-                    {codicePratica ? (
-                      <Typography component="span" sx={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '1.05rem' }}>
-                        {codicePratica}
-                      </Typography>
-                    ) : canManageCodice ? (
-                      <Typography component="span" variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                        Codice pratica non assegnato
-                      </Typography>
-                    ) : null}
-                    {request.denominazione_sala && (
-                      <Typography component="span" variant="subtitle1" color="text.secondary" sx={{ fontWeight: 500 }}>
-                        · {request.denominazione_sala}
-                      </Typography>
-                    )}
-                    {canManageCodice && (
-                      <IconButton
-                        size="small"
-                        color="primary"
-                        onClick={() => setCodiceDialogOpen(true)}
-                        title={codicePratica ? 'Modifica codice pratica' : 'Assegna codice pratica'}
-                      >
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                    )}
-                  </Box>
-                )}
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center', mt: 1 }}>
-                  <StatusChip status={request.status} />
-                  <Chip
-                    size="small"
-                    variant="outlined"
-                    label={request.request_type?.name === 'DM329-Integrazioni' ? 'Integrazioni' : request.request_type?.name || 'N/A'}
-                  />
-                  <Chip
-                    size="small"
-                    variant="outlined"
-                    label={`Creata ${new Date(request.created_at).toLocaleDateString('it-IT')} · ${request.creator?.full_name || 'N/A'}`}
-                  />
-                  <Chip
-                    size="small"
-                    variant="outlined"
-                    label={`Ultimo cambio stato: ${new Date(request.updated_at).toLocaleString('it-IT')}`}
-                  />
-                </Box>
-              </Box>
-              {isDM329 && (
-                <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-                  <Typography variant="overline" color="text.secondary" display="block">
-                    Attribuita a
-                  </Typography>
-                  {request.attributed_user ? (
-                    <Typography variant="body2">{request.attributed_user.full_name}</Typography>
-                  ) : (
-                    <Typography variant="body2" color="text.disabled">Non attribuita</Typography>
-                  )}
-                </Box>
               )}
-            </Box>
-
-            <Divider sx={{ my: 2 }} />
-
-            {isDM329 ? (
+              {/* Sbloccare è ciò che rimette in moto la pratica: fuori dal menu,
+                  a differenza delle altre azioni secondarie. */}
+              {canUnblock && request.is_blocked && activeBlock && (
+                <Button
+                  variant="contained"
+                  color="success"
+                  size="small"
+                  startIcon={<CheckCircleIcon />}
+                  onClick={() => setUnblockDialogOpen(true)}
+                >
+                  Sblocca
+                </Button>
+              )}
+            </>
+          }
+          actionsMenu={
+            <RequestActionsMenu
+              isUrgent={!!request.is_urgent}
+              isBlocked={!!request.is_blocked}
+              hasAttribution={!!request.attributed_to}
+              canToggleUrgent={canToggleUrgent}
+              canBlock={canBlock}
+              canAttribute={user?.role === 'admin' || (user?.role === 'userdm329' && isDM329)}
+              canHide={user?.role === 'admin'}
+              canDelete={canDelete}
+              togglingUrgent={togglingUrgent}
+              onToggleUrgent={handleToggleUrgent}
+              onBlock={() => setBlockDialogOpen(true)}
+              onAttribute={() => setAttributeDialogOpen(true)}
+              onHide={() => setHideDialogOpen(true)}
+              onDelete={() => setDeleteDialogOpen(true)}
+            />
+          }
+          workflow={
+            isDM329 ? (
               <DM329StatusStepper
                 requestId={request.id}
                 currentStatus={request.status}
@@ -621,9 +591,9 @@ export const RequestDetail = () => {
                 isBlocked={request.is_blocked}
                 onStatusChanged={refetch}
               />
-            )}
-          </CardContent>
-        </Card>
+            )
+          }
+        />
 
         {codiceDialogOpen && canManageCodice && customerRecord && (
           <CodicePraticaDialog
@@ -636,329 +606,175 @@ export const RequestDetail = () => {
           />
         )}
 
-        {/* Contenuto: sinistra info, destra storico/messaggi/allegati */}
-        <Grid container spacing={3}>
-          {/* Left column: Request details */}
-          <Grid item xs={12} lg={8}>
-            <Card>
-              <CardContent>
+        <Tabs
+          value={tab}
+          onChange={(_, valore) => cambiaTab(valore)}
+          sx={{ mb: 2, borderBottom: 1, borderColor: 'divider', minHeight: 40 }}
+        >
+          <Tab value="dettagli" label="Dettagli" sx={{ minHeight: 40 }} />
+          <Tab value="storico" label="Storico" sx={{ minHeight: 40 }} />
+          <Tab value="messaggi" label={`Messaggi (${messaggi?.length ?? 0})`} sx={{ minHeight: 40 }} />
+          <Tab value="allegati" label={`Allegati (${allegati?.length ?? 0})`} sx={{ minHeight: 40 }} />
+        </Tabs>
 
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                  Tipo Richiesta
-                </Typography>
-                {(user?.role === 'admin' || user?.role === 'userdm329') && isDM329 ? (
-                  <FormControl size="small" sx={{ minWidth: 220 }}>
-                    <Select
-                      value={request.request_type_id}
-                      disabled={changingType}
-                      onChange={async (e) => {
-                        const newTypeId = e.target.value
-                        if (newTypeId === request.request_type_id) return
-                        const newType = requestTypes.find(t => t.id === newTypeId)
-                        if (!newType) return
-                        setChangingType(true)
-                        try {
-                          const newTitle = request.title.replace(
-                            /^(DM329-Integrazioni|DM329)/,
-                            newType.name
-                          )
-                          await updateRequest.mutateAsync({
-                            id: request.id,
-                            updates: { request_type_id: newTypeId, title: newTitle },
-                          })
-                          refetch()
-                        } finally {
-                          setChangingType(false)
-                        }
-                      }}
-                    >
-                      {requestTypes.filter(t => isDM329Family(t.name)).map(t => (
-                        <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                ) : (
-                  <Typography variant="body1" gutterBottom>
-                    {request.request_type?.name || 'N/A'}
-                  </Typography>
-                )}
-              </Grid>
-            </Grid>
+        <Grid container spacing={2}>
+          {/* Pannello del tab attivo */}
+          <Grid item xs={12} md={8} lg={9}>
+            {tab === 'dettagli' && (
+              <Card>
+                <CardContent>
+                  {clientInfo && (
+                    <>
+                      <CustomerInfoSection
+                        info={clientInfo}
+                        customer={customerRecord}
+                        canEdit={canManageCodice}
+                        onSaved={() => refetch()}
+                      />
 
-            {clientInfo && (
-              <>
-                <CustomerInfoSection
-                  info={clientInfo}
-                  customer={customerRecord}
-                  canEdit={canManageCodice}
-                  onSaved={() => refetch()}
-                />
+                      {/* Solo pratiche DM329 "base": sulle DM329-Integrazioni indirizzo impianto e
+                          denominazione sala non vengono mai valorizzati e la matita aprirebbe il
+                          selettore della pratica padre. */}
+                      {isDM329 && !isIntegrazione && (
+                        <PlantLocationSection
+                          request={request}
+                          customer={customerRecord}
+                          indirizzoImpianto={indirizzoImpianto}
+                          canEdit={canManageCodice}
+                          onSaved={() => refetch()}
+                        />
+                      )}
+                    </>
+                  )}
 
-                {/* Solo pratiche DM329 "base": sulle DM329-Integrazioni indirizzo impianto e
-                    denominazione sala non vengono mai valorizzati (il riquadro mostrerebbe due
-                    "N/A") e la matita aprirebbe il selettore della pratica padre. */}
-                {isDM329 && !isIntegrazione && (
-                  <PlantLocationSection
-                    request={request}
-                    customer={customerRecord}
-                    indirizzoImpianto={indirizzoImpianto}
-                    canEdit={canManageCodice}
-                    onSaved={() => refetch()}
-                  />
-                )}
+                  {/* Richieste non DM329: campi dinamici generati dal fields_schema.
+                      Sulle DM329 i tre campi fissi stanno nella colonna proprietà. */}
+                  {!isDM329 && (
+                    <>
+                      <Divider sx={{ my: 3 }} />
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                        <SectionLabel>Dettagli richiesta</SectionLabel>
+                        {canEditDetails && !isEditingDetails && (
+                          <IconButton size="small" onClick={handleEditDetails} color="primary">
+                            <EditIcon />
+                          </IconButton>
+                        )}
+                      </Box>
+                      {isEditingDetails && (
+                        <RequestDetailsEditForm
+                          request={request}
+                          saving={updateRequest.isPending}
+                          onSave={handleSaveDynamicDetails}
+                          onCancel={handleCancelDetails}
+                        />
+                      )}
+                    </>
+                  )}
 
-                {customerRecord && hasIncompleteCustomerData(customerRecord) && (
-                  <Alert
-                    severity="info"
-                    sx={{ mt: 2 }}
-                    action={
-                      <Button color="inherit" size="small" onClick={() => setShowCompleteCustomerDialog(true)}>
-                        Completa dati
-                      </Button>
-                    }
-                  >
-                    Alcuni dati anagrafici del cliente sono incompleti. Puoi integrarli ora.
-                  </Alert>
-                )}
-              </>
-            )}
-
-            <Divider sx={{ my: 3 }} />
-
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-              <Typography variant="h6">
-                Dettagli Richiesta
-              </Typography>
-              {canEditDetails && !isEditingDetails && (
-                <IconButton size="small" onClick={handleEditDetails} color="primary">
-                  <EditIcon />
-                </IconButton>
-              )}
-            </Box>
-
-            {isEditingDetails && (isDM329 ? (
-              <Box sx={{ mb: 3, p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} sm={4}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel id="no-civa-label">No CIVA</InputLabel>
-                      <Select
-                        labelId="no-civa-label"
-                        label="No CIVA"
-                        value={noCivaValue ? 'true' : 'false'}
-                        onChange={(e) => setNoCivaValue(e.target.value === 'true')}
+                  {campiExtra.length > 0 && (
+                    <>
+                      <Divider sx={{ my: 3 }} />
+                      <Box
+                        sx={{
+                          display: 'grid',
+                          gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' },
+                          gap: 2,
+                        }}
                       >
-                        <MenuItem value="false">No</MenuItem>
-                        <MenuItem value="true">Sì</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel id="off-cac-label">Off / Cac</InputLabel>
-                      <Select
-                        labelId="off-cac-label"
-                        label="Off / Cac"
-                        value={offCacValue}
-                        onChange={(e) => setOffCacValue(e.target.value as 'off' | 'cac' | '')}
-                      >
-                        <MenuItem value=""><em>Nessuno</em></MenuItem>
-                        <MenuItem value="off">OFF</MenuItem>
-                        <MenuItem value="cac">CAC</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel id="stato-fattura-label">Stato Fattura</InputLabel>
-                      <Select
-                        labelId="stato-fattura-label"
-                        label="Stato Fattura"
-                        value={statoFatturaValue}
-                        onChange={(e) => setStatoFatturaValue(e.target.value as StatoFattura)}
-                      >
-                        {STATO_FATTURA_OPTIONS.map((opt) => (
-                          <MenuItem key={opt} value={opt}>{STATO_FATTURA_LABELS[opt]}</MenuItem>
+                        {campiExtra.map(({ key, label, value }) => (
+                          <FieldValue key={key} label={label} value={value} />
                         ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                </Grid>
-                <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
-                  <Button
-                    variant="contained"
-                    startIcon={<SaveIcon />}
-                    onClick={handleSaveDetails}
-                    disabled={updateRequest.isPending}
-                  >
-                    Salva
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    startIcon={<CloseIcon />}
-                    onClick={handleCancelDetails}
-                    disabled={updateRequest.isPending}
-                  >
-                    Annulla
-                  </Button>
-                </Box>
-              </Box>
-            ) : (
-              <RequestDetailsEditForm
-                request={request}
-                saving={updateRequest.isPending}
-                onSave={handleSaveDynamicDetails}
-                onCancel={handleCancelDetails}
+                      </Box>
+                    </>
+                  )}
+
+                  <Divider sx={{ my: 3 }} />
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                    <SectionLabel>Note</SectionLabel>
+                    {canEditNote && !isEditingNote && (
+                      <IconButton size="small" onClick={handleEditNote} color="primary">
+                        <EditIcon />
+                      </IconButton>
+                    )}
+                  </Box>
+
+                  {isEditingNote ? (
+                    <Box>
+                      <TextField
+                        fullWidth
+                        multiline
+                        rows={4}
+                        value={noteValue}
+                        onChange={(e) => setNoteValue(e.target.value)}
+                        placeholder="Aggiungi note..."
+                        variant="outlined"
+                      />
+                      <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                        <Button
+                          variant="contained"
+                          startIcon={<SaveIcon />}
+                          onClick={handleSaveNote}
+                          disabled={updateRequest.isPending}
+                        >
+                          Salva
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          startIcon={<CloseIcon />}
+                          onClick={handleCancelNote}
+                          disabled={updateRequest.isPending}
+                        >
+                          Annulla
+                        </Button>
+                      </Box>
+                    </Box>
+                  ) : (
+                    <Typography variant="body2" color={noteSalvata ? 'text.primary' : 'text.disabled'} sx={{ whiteSpace: 'pre-wrap' }}>
+                      {noteSalvata || 'Nessuna nota'}
+                    </Typography>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {tab === 'storico' && <RequestHistoryPanel requestId={request.id} />}
+
+            {tab === 'messaggi' && <RequestChatBox requestId={request.id} />}
+
+            {tab === 'allegati' && (
+              <AttachmentsSection
+                requestId={request.id}
+                requestCreatedBy={request.created_by}
+                requestAssignedTo={request.assigned_to}
               />
-            ))}
-
-            {/* DM329: mostra sempre i campi fissi, anche se vuoti */}
-            {isDM329 && !isEditingDetails && (
-              <Grid container spacing={2} sx={{ mb: 1 }}>
-                <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    No CIVA
-                  </Typography>
-                  <Typography variant="body1">
-                    {request.custom_fields?.no_civa ? 'Sì' : 'No'}
-                  </Typography>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Off / Cac
-                  </Typography>
-                  <Typography variant="body1">
-                    {request.custom_fields?.off_cac
-                      ? String(request.custom_fields.off_cac).toUpperCase()
-                      : 'N/A'}
-                  </Typography>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Stato Fattura
-                  </Typography>
-                  <Typography variant="body1">
-                    {STATO_FATTURA_LABELS[(request.custom_fields?.stato_fattura as StatoFattura) || 'NO']}
-                  </Typography>
-                </Grid>
-              </Grid>
             )}
+          </Grid>
 
-            <Grid container spacing={2}>
-              {Object.entries(request.custom_fields)
-                .filter(([key]) => {
-                  // Escludi note (mostrata separatamente)
-                  if (key === 'note') return false
+          {/* Colonna proprietà: sempre visibile, indipendente dal tab */}
+          <Grid item xs={12} md={4} lg={3}>
+            <RequestPropertiesRail
+              request={request}
+              isDM329={isDM329}
+              canChangeType={(user?.role === 'admin' || user?.role === 'userdm329') && isDM329}
+              requestTypes={requestTypes}
+              changingType={changingType}
+              onChangeType={handleChangeType}
+              canEditDetails={canEditDetails}
+              isEditingDetails={isEditingDetails}
+              onEditDetails={handleEditDetails}
+              onSaveDetails={handleSaveDetails}
+              onCancelDetails={handleCancelDetails}
+              saving={updateRequest.isPending}
+              noCivaValue={noCivaValue}
+              setNoCivaValue={setNoCivaValue}
+              offCacValue={offCacValue}
+              setOffCacValue={setOffCacValue}
+              statoFatturaValue={statoFatturaValue}
+              setStatoFatturaValue={setStatoFatturaValue}
+              showIncompleteCustomer={!!customerRecord && hasIncompleteCustomerData(customerRecord)}
+              onCompleteCustomer={() => setShowCompleteCustomerDialog(true)}
+            />
 
-                  // Campi DM329 fissi: mostrati sempre nel riquadro qui sopra
-                  if (isDM329 && ['no_civa', 'off_cac', 'stato_fattura'].includes(key)) return false
-
-                  // Escludi campi cliente (mostrati in sezione dedicata)
-                  const clientFields = ['cliente', 'sede_legale', 'telefono', 'pec', 'descrizione_attivita', 'indirizzo_immobile']
-                  if (clientFields.includes(key)) return false
-
-                  // Escludi campi tecnici/interni
-                  const technicalFields = ['original_csv_row', 'assignment_category', 'workflow_dates']
-                  if (technicalFields.includes(key)) return false
-
-                  return true
-                })
-                .map(([key, value]) => {
-                // Determina come visualizzare il valore
-                let displayValue: string
-
-                if (value === null || value === undefined || value === '') {
-                  displayValue = 'N/A'
-                } else if (typeof value === 'boolean') {
-                  displayValue = value ? 'Sì' : 'No'
-                } else if (Array.isArray(value)) {
-                  // Gestisci array di oggetti (es: compressori)
-                  if (value.length > 0 && typeof value[0] === 'object') {
-                    displayValue = `${value.length} elementi`
-                  } else {
-                    displayValue = value.join(', ')
-                  }
-                } else if (typeof value === 'object') {
-                  // Gestisci oggetti (es: cliente autocomplete)
-                  if ('ragione_sociale' in value) {
-                    displayValue = value.ragione_sociale
-                  } else if ('id' in value && 'label' in value) {
-                    displayValue = value.label
-                  } else {
-                    displayValue = JSON.stringify(value)
-                  }
-                } else {
-                  displayValue = String(value)
-                }
-
-                return (
-                  <Grid item xs={12} md={6} key={key}>
-                    <Typography variant="subtitle2" color="text.secondary">
-                      {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                    </Typography>
-                    <Typography variant="body1">
-                      {displayValue}
-                    </Typography>
-                  </Grid>
-                )
-              })}
-            </Grid>
-          </CardContent>
-        </Card>
-
-        {/* Notes Section - Available for all request types */}
-        <Card sx={{ mt: 3 }}>
-          <CardContent>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6">Note</Typography>
-              {canEditNote && !isEditingNote && (
-                <IconButton size="small" onClick={handleEditNote} color="primary">
-                  <EditIcon />
-                </IconButton>
-              )}
-            </Box>
-
-            {isEditingNote ? (
-              <Box>
-                <TextField
-                  fullWidth
-                  multiline
-                  rows={4}
-                  value={noteValue}
-                  onChange={(e) => setNoteValue(e.target.value)}
-                  placeholder="Aggiungi note..."
-                  variant="outlined"
-                />
-                <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
-                  <Button
-                    variant="contained"
-                    startIcon={<SaveIcon />}
-                    onClick={handleSaveNote}
-                    disabled={updateRequest.isPending}
-                  >
-                    Salva
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    startIcon={<CloseIcon />}
-                    onClick={handleCancelNote}
-                    disabled={updateRequest.isPending}
-                  >
-                    Annulla
-                  </Button>
-                </Box>
-              </Box>
-            ) : (
-              <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-                {(request.custom_fields?.note as string) || <em>Nessuna nota disponibile</em>}
-              </Typography>
-            )}
-          </CardContent>
-        </Card>
-
-            {/* Assignment Section */}
             <AssignmentSection
               requestId={request.id}
               currentAssignedTo={request.assigned_to}
@@ -966,20 +782,6 @@ export const RequestDetail = () => {
               requestTypeName={request.request_type?.name}
               onAssignmentChanged={refetch}
             />
-
-          </Grid>
-
-          {/* Colonna destra: storico, messaggi, allegati */}
-          <Grid item xs={12} lg={4}>
-            <Box sx={{ position: 'sticky', top: 16, display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <RequestHistoryPanel requestId={request.id} />
-              <RequestChatBox requestId={request.id} />
-              <AttachmentsSection
-                requestId={request.id}
-                requestCreatedBy={request.created_by}
-                requestAssignedTo={request.assigned_to}
-              />
-            </Box>
           </Grid>
         </Grid>
       </Box>

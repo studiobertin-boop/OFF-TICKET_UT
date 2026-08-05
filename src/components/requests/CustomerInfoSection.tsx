@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Box, Typography, IconButton, Tooltip, Divider } from '@mui/material'
+import { Box, IconButton, Tooltip } from '@mui/material'
 import { Edit as EditIcon } from '@mui/icons-material'
 import { CustomerEditDialog } from '@/components/customers/CustomerEditDialog'
+import { FieldValue, SectionLabel } from '@/components/common'
 import type { Customer } from '@/types'
 
 /** Valori da mostrare: già risolti dal chiamante con la sua catena di fallback. */
@@ -25,22 +26,14 @@ export interface CustomerInfoSectionProps {
   onSaved: () => void
 }
 
-const Campo = ({ label, value }: { label: string; value: string }) => (
-  <Box>
-    <Typography variant="subtitle2" color="text.secondary">{label}</Typography>
-    <Typography variant="body1" gutterBottom>{value || 'N/A'}</Typography>
-  </Box>
-)
-
 export const CustomerInfoSection = ({ info, customer, canEdit, onSaved }: CustomerInfoSectionProps) => {
   const [editOpen, setEditOpen] = useState(false)
   const modificabile = canEdit && !!customer
 
   return (
     <>
-      <Divider sx={{ my: 3 }} />
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-        <Typography variant="h6">Cliente</Typography>
+        <SectionLabel>Cliente</SectionLabel>
         {canEdit && (
           <Tooltip title={modificabile ? 'Modifica dati cliente' : 'Pratica senza anagrafica cliente collegata'}>
             <span>
@@ -52,15 +45,26 @@ export const CustomerInfoSection = ({ info, customer, canEdit, onSaved }: Custom
         )}
       </Box>
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 2 }}>
-        <Campo
+      {/* Colonne a riempimento: i campi corti (telefono, PEC) si affiancano invece
+          di occupare una riga intera a testa, come faceva la griglia fissa a due. */}
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+          columnGap: 3,
+          rowGap: 1.5,
+        }}
+      >
+        <FieldValue
           label="Ragione sociale"
           value={info.identificativo ? `${info.identificativo} — ${info.ragione_sociale}` : info.ragione_sociale}
         />
-        <Campo label="Sede legale" value={info.sede_legale} />
-        <Campo label="Telefono" value={info.telefono} />
-        <Campo label="PEC" value={info.pec} />
-        <Campo label="Descrizione attività" value={info.descrizione_attivita} />
+        <FieldValue label="Sede legale" value={info.sede_legale} />
+        <FieldValue label="Descrizione attività" value={info.descrizione_attivita} />
+        {/* I due recapiti restano vicini: separarli su righe diverse li farebbe
+            leggere come campi slegati fra loro. */}
+        <FieldValue label="Telefono" value={info.telefono} />
+        <FieldValue label="PEC" value={info.pec} />
       </Box>
 
       {editOpen && customer && (
