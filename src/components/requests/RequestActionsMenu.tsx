@@ -68,11 +68,16 @@ export const RequestActionsMenu = ({
 
   return (
     <>
+      {/* Contornato e non pieno: deve staccare dallo sfondo senza competere con
+          l'azione primaria, che è l'unico bottone a fondo pieno della pagina. */}
       <Button
         variant="outlined"
-        color="inherit"
+        color="primary"
         size="small"
         endIcon={<MoreVertIcon />}
+        // MUI disegna il bordo dei contornati al 50% di opacità: su fondo scuro
+        // sparisce. A piena opacità il bottone si stacca senza doverlo riempire.
+        sx={{ borderColor: 'primary.main' }}
         onClick={(e) => setAnchorEl(e.currentTarget)}
         aria-haspopup="true"
         aria-expanded={Boolean(anchorEl)}
