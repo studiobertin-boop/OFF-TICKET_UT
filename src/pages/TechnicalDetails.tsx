@@ -194,60 +194,6 @@ export const TechnicalDetails = () => {
     }
   }
 
-  /**
-   * Salva la scheda e ne segna il completamento.
-   *
-   * Completare non blocca più la modifica: la scheda resta sempre editabile e in autosave,
-   * quindi il pulsante resta cliccabile anche dopo il primo completamento e a quel punto
-   * vale come «salva e verifica lo stato della pratica».
-   *
-   * `markAsCompleted` viene richiamata solo alla prima volta, per non sovrascrivere
-   * `completed_by`/`completed_at` originali. L'unica eccezione è la scheda già completata su
-   * una pratica rimasta a `1-INCARICO_RICEVUTO` (stato riportato indietro a mano): il trigger
-   * DB scatta solo sulla transizione false→true, quindi va forzata la transizione.
-   */
-  const handleCompleteSheet = async () => {
-    if (!id || !formRef.current) return
-
-    const giaCompletata = !!technicalData?.is_completed
-    const confirmed = window.confirm(
-      giaCompletata
-        ? 'La scheda è già completata. Confermi il salvataggio e la verifica dello stato della pratica?'
-        : 'Confermi di voler completare la scheda dati?'
-    )
-
-    if (!confirmed) return
-
-    try {
-      setSaving(true)
-
-      // Prima salva i dati attuali del form
-      const currentData = formRef.current.getFormData()
-      await technicalDataApi.updateEquipmentData(id, currentData)
-
-      setFormData(currentData)
-
-      // Il trigger DB porta la pratica a 2-SCHEDA_DATI_PRONTA solo sulla transizione false→true
-      const statoDaAvanzare = request?.status === '1-INCARICO_RICEVUTO'
-      if (!giaCompletata) {
-        const data = await technicalDataApi.markAsCompleted(id)
-        setTechnicalData(data)
-      } else if (statoDaAvanzare) {
-        await technicalDataApi.markAsIncomplete(id)
-        const data = await technicalDataApi.markAsCompleted(id)
-        setTechnicalData(data)
-      }
-
-      setShowSaveSuccess(true)
-      setLastSaved(new Date())
-    } catch (err) {
-      console.error('Error completing sheet:', err)
-      alert('Errore nel completamento della scheda dati')
-    } finally {
-      setSaving(false)
-    }
-  }
-
   // OCR handlers
   const handleOCRConfirm = useCallback((editedData: OCRExtractedData, selectedMatch?: FuzzyMatch) => {
     if (!ocrReviewData?.equipment_code) {
@@ -381,8 +327,6 @@ export const TechnicalDetails = () => {
     )
   }
 
-  const isCompleted = technicalData.is_completed
-
   // Estrai il nome cliente dai dati tecnici come fallback prioritario per i dati storici
   const technicalDataClientName = technicalData?.equipment_data?.dati_generali?.cliente
 
@@ -396,9 +340,16 @@ export const TechnicalDetails = () => {
   // queryKey del dettaglio, quindi TanStack la serve dalla cache.
   const codicePratica = codiceForRequest(request, clientSalaCount)
 
-  /** Dati CIVA e relazione hanno senso solo a scheda completata. */
-  const canGenerateDocs =
-    isCompleted && (user?.role === 'admin' || user?.role === 'userdm329')
+  /**
+   * Dati CIVA e relazione: questione di ruolo, non di stato della scheda.
+   *
+   * Erano legati a `is_completed`, che si accendeva solo dal pulsante «Completa scheda» in
+   * testata. Tolto quello, restare agganciati a quel flag li avrebbe resi irraggiungibili —
+   * la pagina CIVA non ha altri punti d'ingresso in tutta l'app. Del resto la relazione si
+   * genera anche su una scheda ancora in lavorazione: è il suo preflight a dire cosa manca,
+   * e lo dice meglio di un flag binario acceso a mano.
+   */
+  const canGenerateDocs = user?.role === 'admin' || user?.role === 'userdm329'
 
   // Determina se l'utente può gestire la condivisione
   const canManageSharing =
@@ -433,7 +384,6 @@ export const TechnicalDetails = () => {
                 customerName={customerName}
                 codicePratica={codicePratica}
                 denominazioneSala={request.denominazione_sala}
-                isCompleted={isCompleted}
                 completezza={completezza}
                 saving={saving}
                 autoSaving={autoSaving}
@@ -445,7 +395,6 @@ export const TechnicalDetails = () => {
                 onCivaSummary={() => navigate(`/requests/${id}/civa-summary`)}
                 onRelazione={() => setRelazioneDialogOpen(true)}
                 onSaveDraft={handleSaveDraft}
-                onComplete={handleCompleteSheet}
               />
             )}
           />

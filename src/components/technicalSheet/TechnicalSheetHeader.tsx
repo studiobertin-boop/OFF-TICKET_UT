@@ -1,14 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
-import {
-  Box, Button, Chip, CircularProgress, Divider, IconButton, ListItemIcon, ListItemText,
-  Menu, MenuItem, Tooltip, Typography,
-} from '@mui/material'
+import { useEffect, useRef, type ReactElement } from 'react'
+import { Box, Button, Chip, CircularProgress, Tooltip, Typography } from '@mui/material'
 import {
   ArrowBack as ArrowBackIcon,
   Assessment as AssessmentIcon,
   CheckCircle as CheckCircleIcon,
   Description as DescriptionIcon,
-  MoreVert as MoreVertIcon,
   Save as SaveIcon,
   Share as ShareIcon,
 } from '@mui/icons-material'
@@ -25,24 +21,78 @@ import { eCompleta, percentuale, type Completezza } from '@/utils/schedaComplete
 const VAR_BARRA = '--altezza-barra-scheda'
 export const ALTEZZA_BARRA = `var(${VAR_BARRA}, 48px)`
 
+interface AzioneBarraProps {
+  icona: ReactElement
+  testo: string
+  onClick: () => void
+  disabled?: boolean
+}
+
+/**
+ * Azione della barra: icona sempre in vista, parola che si apre al passaggio del mouse.
+ *
+ * Quattro parole in fila occupavano tutta la barra e la mandavano a capo sulle finestre
+ * strette, ma nasconderle dietro tre puntini le rendeva introvabili — è lo stesso equivoco
+ * della freccina dei dettagli. Così le icone restano tutte visibili e la parola arriva a
+ * chiedere.
+ *
+ * L'apertura è una griglia da `0fr` a `1fr` e non una larghezza in pixel: la parola detta la
+ * propria misura, quindi «Visualizza dati CIVA» e «Salva bozza» si aprono ciascuna per quel
+ * che è lunga, senza numeri da tenere allineati a mano.
+ *
+ * Dove il passaggio del mouse non esiste — un tablet in cantiere — la parola sta sempre
+ * aperta: `@media (hover: none)`. E `aria-label` porta comunque il nome dell'azione a chi
+ * naviga con la tastiera o con un lettore di schermo, che l'animazione non la vede.
+ */
+const AzioneBarra = ({ icona, testo, onClick, disabled }: AzioneBarraProps) => (
+  <Tooltip title={testo} placement="bottom">
+    <span>
+      <Button
+        size="small"
+        variant="outlined"
+        color="primary"
+        onClick={onClick}
+        disabled={disabled}
+        aria-label={testo}
+        // Bordo a piena opacità: il 50% di default di MUI su fondo scuro sparisce.
+        sx={{
+          minWidth: 0, px: 0.9, borderColor: 'primary.main', whiteSpace: 'nowrap',
+          '& .etichetta': {
+            display: 'grid', gridTemplateColumns: '0fr', ml: 0, opacity: 0,
+            transition: 'grid-template-columns .18s ease, opacity .18s ease, margin-left .18s ease',
+          },
+          '& .etichetta > span': { overflow: 'hidden', minWidth: 0 },
+          '&:hover .etichetta, &:focus-visible .etichetta': {
+            gridTemplateColumns: '1fr', ml: 0.75, opacity: 1,
+          },
+          '@media (hover: none)': {
+            '& .etichetta': { gridTemplateColumns: '1fr', ml: 0.75, opacity: 1 },
+          },
+        }}
+      >
+        {icona}
+        <Box component="span" className="etichetta"><span>{testo}</span></Box>
+      </Button>
+    </span>
+  </Tooltip>
+)
+
 export interface TechnicalSheetHeaderProps {
   customerName: string
   codicePratica: string
   denominazioneSala?: string | null
-  isCompleted: boolean
   completezza: Completezza
   saving: boolean
   autoSaving: boolean
   lastSaved: Date | null
   canManageSharing: boolean
-  /** Dati CIVA e relazione: solo a scheda completata, per admin e userdm329. */
+  /** Dati CIVA e relazione: per admin e userdm329. */
   canGenerateDocs: boolean
   onBack: () => void
   onShare: () => void
   onCivaSummary: () => void
   onRelazione: () => void
   onSaveDraft: () => void
-  onComplete: () => void
 }
 
 /**
@@ -53,15 +103,15 @@ export interface TechnicalSheetHeaderProps {
  * Deve essere figlia diretta del corpo pagina: dentro un wrapper alto quanto sé stessa
  * si stacca al primo scorrimento.
  *
- * Delle sette azioni che stavano in fila resta pieno il solo «Completa scheda»;
- * «Salva bozza» è contornato perché è l'azione di tutti i giorni, e assegnazione,
- * dati CIVA e relazione passano in un menu.
+ * Le azioni sono tutte in fila e tutte visibili, ciascuna ridotta alla propria icona finché
+ * il mouse non ci passa sopra (vedi `AzioneBarra`). Non c'è più un «Completa scheda»: lo
+ * stato della pratica si governa dallo stepper del dettaglio, dove stanno già tutti gli
+ * altri passaggi.
  */
 export const TechnicalSheetHeader = ({
   customerName,
   codicePratica,
   denominazioneSala,
-  isCompleted,
   completezza,
   saving,
   autoSaving,
@@ -73,12 +123,7 @@ export const TechnicalSheetHeader = ({
   onCivaSummary,
   onRelazione,
   onSaveDraft,
-  onComplete,
 }: TechnicalSheetHeaderProps) => {
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
-  const chiudi = () => setAnchorEl(null)
-  const esegui = (azione: () => void) => () => { chiudi(); azione() }
-
   const pieno = eCompleta(completezza)
 
   const barra = useRef<HTMLDivElement>(null)
@@ -133,11 +178,10 @@ export const TechnicalSheetHeader = ({
             {[customerName, denominazioneSala].filter(Boolean).join(' · ')}
           </Typography>
 
-          {/* Due cose distinte in un chip solo: la parola dice a che punto è la pratica
-              («Completata» è lo stato di workflow, deciso da chi preme il pulsante), il
-              colore dice se i dati ci sono tutti. Il verde arriva solo a scheda piena:
-              una scheda marcata completata con campi mancanti resta ambra, e la
-              percentuale accanto dice quanti ne mancano. */}
+          {/* Il chip dice una cosa sola: se i dati ci sono tutti. Prima ne diceva due, e la
+              prima delle due — «Completata» / «Bozza» — era lo stato di workflow: informazione
+              che appartiene alla pratica, la porta il suo stepper, e qui si limitava a
+              contraddire il colore su ogni scheda piena ma non marcata. */}
           <Tooltip
             title={
               pieno
@@ -151,15 +195,15 @@ export const TechnicalSheetHeader = ({
               variant={pieno ? 'filled' : 'outlined'}
               color={pieno ? 'success' : 'warning'}
               icon={pieno ? <CheckCircleIcon /> : undefined}
-              label={
-                (isCompleted ? 'Completata' : 'Bozza') +
-                (pieno ? '' : ` · ${percentuale(completezza)}% compilata`)
-              }
+              label={pieno ? 'Compilata' : `${percentuale(completezza)}% compilata`}
             />
           </Tooltip>
         </Box>
 
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', ml: 'auto' }}>
+        {/* Le azioni vanno a capo invece di sfondare: dove il mouse non c'è le etichette
+            stanno tutte aperte, e quattro parole in fila non entrano in una finestra stretta.
+            La barra si rimisura da sé, quindi una seconda riga non nasconde nulla sotto. */}
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end', ml: 'auto' }}>
           {autoSaving && (
             <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <CircularProgress size={14} />
@@ -172,67 +216,23 @@ export const TechnicalSheetHeader = ({
             </Typography>
           )}
 
-          <Button
-            variant="outlined"
-            size="small"
-            color="primary"
-            startIcon={<SaveIcon />}
+          <AzioneBarra
+            icona={<SaveIcon fontSize="small" />}
+            testo="Salva bozza"
             onClick={onSaveDraft}
             disabled={saving || autoSaving}
-            // Bordo a piena opacità: il 50% di default di MUI su fondo scuro sparisce.
-            sx={{ borderColor: 'primary.main' }}
-          >
-            Salva bozza
-          </Button>
+          />
 
-          <Button
-            variant="contained"
-            size="small"
-            color="primary"
-            startIcon={<CheckCircleIcon />}
-            onClick={onComplete}
-            disabled={saving || autoSaving}
-          >
-            Completa scheda
-          </Button>
+          {canManageSharing && (
+            <AzioneBarra icona={<ShareIcon fontSize="small" />} testo="Assegna scheda" onClick={onShare} />
+          )}
 
-          {(canManageSharing || canGenerateDocs) && (
-            <>
-              <IconButton
-                size="small"
-                color="primary"
-                onClick={(e) => setAnchorEl(e.currentTarget)}
-                aria-label="Altre azioni"
-                aria-haspopup="true"
-                aria-expanded={Boolean(anchorEl)}
-              >
-                <MoreVertIcon />
-              </IconButton>
+          {canGenerateDocs && (
+            <AzioneBarra icona={<AssessmentIcon fontSize="small" />} testo="Visualizza dati CIVA" onClick={onCivaSummary} />
+          )}
 
-              <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={chiudi}>
-                {canManageSharing && (
-                  <MenuItem onClick={esegui(onShare)}>
-                    <ListItemIcon><ShareIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText>Assegna scheda</ListItemText>
-                  </MenuItem>
-                )}
-
-                {canManageSharing && canGenerateDocs && <Divider />}
-
-                {canGenerateDocs && (
-                  <MenuItem onClick={esegui(onCivaSummary)}>
-                    <ListItemIcon><AssessmentIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText>Visualizza dati CIVA</ListItemText>
-                  </MenuItem>
-                )}
-                {canGenerateDocs && (
-                  <MenuItem onClick={esegui(onRelazione)}>
-                    <ListItemIcon><DescriptionIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText>Genera relazione</ListItemText>
-                  </MenuItem>
-                )}
-              </Menu>
-            </>
+          {canGenerateDocs && (
+            <AzioneBarra icona={<DescriptionIcon fontSize="small" />} testo="Genera relazione" onClick={onRelazione} />
           )}
         </Box>
       </Box>

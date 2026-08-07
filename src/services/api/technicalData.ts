@@ -124,75 +124,14 @@ export const technicalDataApi = {
     return this.update(requestId, { additional_info: additionalInfo })
   },
 
-  /**
-   * Marca la scheda come completata
-   * Questo trigger automaticamente il cambio stato della richiesta a 2-SCHEDA_DATI_PRONTA
-   * @param requestId ID della richiesta
-   * @returns DM329TechnicalData aggiornata
+  /*
+   * Qui stavano `markAsCompleted` e `markAsIncomplete`, uniche scritture di `is_completed`.
+   * Le muoveva il pulsante «Completa scheda», che non esiste più: lo stato della pratica si
+   * governa dallo stepper del dettaglio, dove stanno già tutti gli altri passaggi, e dati CIVA
+   * e relazione dipendono ora dal solo ruolo. La colonna e il trigger
+   * `trigger_update_request_status_on_completion` restano a database, dormienti: nessuno
+   * scrive più quel flag, quindi la pratica non avanza più da sé da 1 a 2.
    */
-  async markAsCompleted(requestId: string): Promise<DM329TechnicalData> {
-    await ensureValidSession()
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      throw new Error('Utente non autenticato')
-    }
-
-    const { data, error } = await supabase
-      .from('dm329_technical_data')
-      .update({
-        is_completed: true,
-        completed_by: user.id,
-        completed_at: new Date().toISOString(),
-      })
-      .eq('request_id', requestId)
-      .select()
-      .single()
-
-    if (error) {
-      console.error('Error marking technical data as completed:', error)
-      throw new Error(`Errore nel completamento della scheda dati: ${error.message}`)
-    }
-
-    return data
-  },
-
-  /**
-   * Rimette la scheda a «non completata».
-   *
-   * Non esiste più un pulsante «Riapri per Modifiche»: la scheda è sempre modificabile, quindi
-   * riaprirla non serve a nulla. L'unico chiamante è `handleCompleteSheet` in TechnicalDetails,
-   * per il caso in cui la pratica sia stata riportata a mano a `1-INCARICO_RICEVUTO` con la
-   * scheda già completata: il trigger DB scatta solo sulla transizione false→true, quindi va
-   * forzato un giro `markAsIncomplete()` + `markAsCompleted()`.
-   *
-   * @param requestId ID della richiesta
-   * @returns DM329TechnicalData aggiornata
-   */
-  async markAsIncomplete(requestId: string): Promise<DM329TechnicalData> {
-    await ensureValidSession()
-
-    const { data, error } = await supabase
-      .from('dm329_technical_data')
-      .update({
-        is_completed: false,
-        completed_by: null,
-        completed_at: null,
-      })
-      .eq('request_id', requestId)
-      .select()
-      .single()
-
-    if (error) {
-      console.error('Error marking technical data as incomplete:', error)
-      throw new Error(`Errore nella riapertura della scheda dati: ${error.message}`)
-    }
-
-    return data
-  },
 
   /**
    * Salva i risultati OCR
