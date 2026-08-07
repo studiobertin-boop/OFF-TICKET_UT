@@ -194,15 +194,16 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
   /**
    * Completezza, ricalcolata a ogni modifica osservata. È un conteggio su oggetti già
    * in memoria: non tocca il form né la rete, e non entra in quello che si salva.
+   *
+   * Niente `useMemo` sulle singole bande. React Hook Form muta i propri valori sul posto e
+   * `watch()` ne restituisce solo una copia superficiale: `watchedData.dati_generali` è
+   * sempre lo *stesso* oggetto, riempito man mano. Una memoizzazione su quella referenza non
+   * si invalida mai, e le due bande del contesto restavano ferme al conteggio del primo
+   * render — «1 di 4» e «5 di 12» su una scheda compilata per intero. Le apparecchiature si
+   * salvavano perché contate sulla radice, che la copia superficiale rinnova a ogni giro.
    */
-  const compGenerali = useMemo(
-    () => completezzaDatiGenerali(watchedData?.dati_generali),
-    [watchedData?.dati_generali],
-  )
-  const compImpianto = useMemo(
-    () => completezzaDatiImpianto(watchedData?.dati_impianto),
-    [watchedData?.dati_impianto],
-  )
+  const compGenerali = completezzaDatiGenerali(watchedData?.dati_generali)
+  const compImpianto = completezzaDatiImpianto(watchedData?.dati_impianto)
   const compApparecchi = useMemo(() => completezzaApparecchiature(watchedData), [watchedData])
   const righe = useMemo(() => righeComplete(watchedData), [watchedData])
   const compContesto = somma([compGenerali, compImpianto])
