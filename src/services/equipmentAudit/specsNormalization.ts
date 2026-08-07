@@ -213,6 +213,7 @@ export const FORM_TO_CANONICAL: Record<EquipmentCatalogType, Readonly<Record<str
     fad: 'fad',
     pressione_max: 'pressione_max',
     tipo: 'tipo_compressore',
+    giri: 'giri',
   },
   Essiccatori: {
     volume_aria_trattata: 'q',

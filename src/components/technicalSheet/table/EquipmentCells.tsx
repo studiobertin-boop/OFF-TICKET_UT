@@ -26,6 +26,12 @@ const baseInputSx = {
   color: 'text.primary',
   '& input': { p: 0 },
   '& input::placeholder': { color: 'text.disabled', opacity: 1 },
+  // Niente frecce su/giù: in una tabella fitta rubano spazio al numero e invitano a
+  // cambiare un valore di targa un passo alla volta, che non è mai il gesto giusto.
+  '& input[type=number]': { MozAppearance: 'textfield' },
+  '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
+    WebkitAppearance: 'none', margin: 0,
+  },
   '&:hover:not(.Mui-focused)': { bgcolor: (t: any) => alpha(t.palette.text.primary, 0.04) },
   '&.Mui-focused': {
     outline: '2px solid',

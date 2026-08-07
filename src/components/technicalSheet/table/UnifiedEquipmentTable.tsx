@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Controller, useFieldArray, useFormContext, useWatch, type Control } from 'react-hook-form'
 import {
-  Box, Card, Typography, Button, IconButton, Tooltip, Menu, MenuItem, Drawer,
+  Box, Card, Typography, Button, Tooltip, Menu, MenuItem, Drawer,
   Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, useMediaQuery,
 } from '@mui/material'
 import {
@@ -15,13 +15,14 @@ import { RowDetailPanel } from './RowDetailPanel'
 import { ALTEZZA_BARRA } from '../TechnicalSheetHeader'
 import { TextCell, NumberCell, SelectCell, CheckCell, ComputedCell, cellTdSx } from './EquipmentCells'
 import { PressioneCatalogCell } from './PressioneCatalogCell'
+import { CatalogValueCell } from './CatalogValueCell'
 import { ValvoleProtezioneCell } from './ValvoleProtezioneCell'
 import { Field } from './SubBand'
 import { codiciValvoleDisoleatore, codiciValvoleSerbatoio } from '@/utils/valvoleImpianto'
 import { EquipmentAutocomplete } from '../EquipmentAutocomplete'
 import { SingleOCRButton } from '../SingleOCRButton'
 import { useTecnicoDM329Visibility } from '@/hooks/useTecnicoDM329Visibility'
-import { readSpec, variantSpecKey } from '@/services/equipmentAudit'
+import { capacityKey, readSpec, variantSpecKey } from '@/services/equipmentAudit'
 import { rowKeyOf, useEquipmentCatalogContext } from '../EquipmentCatalogContext'
 import { VALVOLE_ROW_PREFIX } from '@/hooks/useHydrateCatalogOrigini'
 import { useRowExit } from './useRowExit'
@@ -33,7 +34,7 @@ import { EQUIPMENT_LIMITS, type CategoriaPED, type EquipmentCatalogType } from '
 import { compareCodes, nextFreeCode, pruneSchedaRefs } from '@/utils/equipmentCodes'
 import type { OCRExtractedData } from '@/types/ocr'
 import {
-  EQUIPMENT_DEFS, NEW_EQUIPMENT_KINDS,
+  EQUIPMENT_DEFS, NEW_EQUIPMENT_KINDS, nuovaRiga,
   type EquipmentKind, type NewEquipmentKind, type EquipmentTypeDef, type AdvKey, type ExtraFieldDef,
 } from './equipmentConfig'
 
@@ -63,16 +64,16 @@ const PAD_GRONDA = '20px'
  */
 const COLONNE = [
   { w: 34, sticky: 0 },   // stato di compilazione
-  { w: 56, sticky: 34 },  // azioni
-  { w: 58, sticky: 90 },  // codice
-  { w: 32, sticky: 148 }, // aggiunta a catalogo
+  { w: 108, sticky: 34 }, // azioni (il pulsante «Dettagli» più la lettura targhetta)
+  { w: 58, sticky: 142 }, // codice
+  { w: 32, sticky: 200 }, // aggiunta a catalogo
   // Marca e modello della stessa larghezza: la cella le contiene entrambe, e a colonne
   // disuguali il confine fra i due input non coincide con quello fra le due testate.
   { w: 181 },             // marca
   { w: 181 },             // modello
   { w: 76 },              // PS / Ptar
-  { w: 88 },              // capacità
-  { w: 90 },              // TS (più larga: porta la gronda che la stacca dalla capacità)
+  { w: 106 },             // capacità (il valore più il pulsante che sblocca l'inserimento libero)
+  { w: 116 },             // TS (più larga: porta anche la gronda che la stacca dalla capacità)
   { w: 54 },              // categoria PED
   { w: 60 },              // anno
   { w: 168 },             // numero di fabbrica
@@ -103,24 +104,6 @@ const sortedEntries = (fields: any[], values: any[] | undefined) =>
 /** Codici correnti di un array, per calcolare il prossimo numero libero. */
 const codesOf = (fields: any[], values: any[] | undefined) =>
   fields.map((f: any, i: number) => values?.[i]?.codice ?? f?.codice)
-
-/**
- * Record di partenza di una nuova riga: tutti i campi legati a una cella sono presenti, e vuoti.
- * Un campo assente rende l'input non controllato al primo render, e in quel caso MUI conserva
- * il proprio stato interno invece di seguire il form.
- */
-const nuovaRiga = (def: EquipmentTypeDef, codice: string, extra: Record<string, any> = {}) => ({
-  codice,
-  marca: undefined,
-  modello: undefined,
-  ...(def.capacitaField ? { [def.capacitaField]: undefined } : {}),
-  ...(def.pressioneField ? { [def.pressioneField]: undefined } : {}),
-  ...(def.ts ? { ts: undefined } : {}),
-  ...(def.cat === 'edit' ? { categoria_ped: undefined } : {}),
-  anno: undefined,
-  n_fabbrica: undefined,
-  ...extra,
-})
 
 const KIND_COLOR: Record<EquipmentKind, string> = {
   serbatoio: '#5aa6d6', compressore: '#d8a900', disoleatore: '#c99a00', essiccatore: '#4fa564',
@@ -164,23 +147,8 @@ const useAutoPed = (control: Control<any>, base: string, def: EquipmentTypeDef, 
   }, [ps, cap, enabled, base, def.autoPed, setValue])
 }
 
-/**
- * Campo di sola lettura: il valore viene dal catalogo e lì si modifica.
- * Componente a sé perché deve osservare il proprio campo.
- */
-const ReadonlyField = ({ control, name, f }: { control: Control<any>; name: string; f: ExtraFieldDef }) => {
-  const v = useWatch({ control, name }) as string | undefined
-  const testo = v ? (f.display?.[v] ?? v) : (f.emptyLabel ?? '—')
-  return (
-    <Typography component="span" sx={{ fontSize: '0.8rem', color: v ? 'text.primary' : 'text.disabled', px: 0.5 }}>
-      {testo}
-    </Typography>
-  )
-}
-
 const extraFieldControl = (control: Control<any>, base: string, f: ExtraFieldDef): ReactNode => {
   const name = `${base}.${f.name}`
-  if (f.kind === 'readonly') return <ReadonlyField control={control} name={name} f={f} />
   if (f.kind === 'multi') return <ValvoleProtezioneCell control={control} name={name} />
   if (f.kind === 'select') return <SelectCell control={control} name={name} options={[...(f.options || [])]} display={f.display} labels={f.labels} emptyLabel={f.emptyLabel} />
   if (f.kind === 'check') return <CheckCell control={control} name={name} />
@@ -189,7 +157,7 @@ const extraFieldControl = (control: Control<any>, base: string, f: ExtraFieldDef
 }
 
 const extraFieldWidth = (f: ExtraFieldDef): number | 'auto' => {
-  if (f.kind === 'check' || f.kind === 'readonly') return 'auto'
+  if (f.kind === 'check') return 'auto'
   if (f.kind === 'multi') return 210
   if (f.kind === 'text') return 150
   return f.labels ? 150 : 90 // i select con etichette estese non stanno in 90px
@@ -363,25 +331,52 @@ const EqRow = ({ control, def, base, code, identity, rowKey, onRowExit, depth, a
           <CompletenessDot completezza={completezza} soggetto={code} />
         </Box>
 
-        {/* AZIONI: dettagli e lettura targhetta. Eliminazione e apparecchiature
-            collegate stanno nel pannello dei dettagli, dove c'è spazio per dire
-            cosa fanno invece di affidarlo a due icone da 20px. */}
+        {/* AZIONI: dettagli e lettura targhetta. Il pulsante porta la parola «Dettagli» e non
+            una sola freccia: era l'unica via al pannello di destra e nessuno la trovava.
+            Eliminazione e apparecchiature collegate stanno nel pannello, dove c'è spazio per
+            dire cosa fanno invece di affidarlo a due icone da 20px. */}
         <Box component="td" sx={{ ...cellTdSx, ...congelata(COLONNE[1].sticky!), bgcolor: fondoCongelato ?? 'background.paper', px: 0.25, whiteSpace: 'nowrap' }}>
-          <Box sx={{ display: 'flex', gap: 0, alignItems: 'center', '& .MuiIconButton-root': { p: 0.25 } }}>
-            <Tooltip title={`Dettagli di ${code}`}>
-              <IconButton size="small" onClick={apri} aria-label={`Dettagli di ${code}`}>
-                <ChevronRightIcon
-                  fontSize="small"
-                  sx={{ transition: 'transform .15s', transform: selezionata ? 'rotate(90deg)' : 'none' }}
-                />
-              </IconButton>
-            </Tooltip>
+          <Box sx={{ display: 'flex', gap: 0.25, alignItems: 'center', '& .MuiIconButton-root': { p: 0.25 } }}>
+            <Button
+              size="small"
+              variant={selezionata ? 'contained' : 'outlined'}
+              onClick={apri}
+              aria-label={`Dettagli di ${code}`}
+              aria-expanded={selezionata}
+              endIcon={
+                <ChevronRightIcon sx={{ transition: 'transform .15s', transform: selezionata ? 'rotate(90deg)' : 'none' }} />
+              }
+              sx={{
+                minWidth: 0, px: 0.6, py: 0, fontSize: '0.66rem', lineHeight: 1.9,
+                textTransform: 'none', whiteSpace: 'nowrap',
+                '& .MuiButton-endIcon': { ml: 0.2, '& svg': { fontSize: '0.85rem' } },
+              }}
+            >
+              Dettagli
+            </Button>
             <SingleOCRButton equipmentType={ocr.equipmentType} equipmentIndex={ocr.equipmentIndex} componentType={ocr.componentType} onOCRComplete={(d) => applyOcr(def, base, d, setValue)} />
           </Box>
         </Box>
 
-        {/* COD. */}
-        <Box component="td" sx={{ ...cellTdSx, ...congelata(COLONNE[2].sticky!), bgcolor: fondoCongelato ?? 'background.paper', pl: `${8 + depth * 12}px`, pr: 0.5, whiteSpace: 'nowrap', fontWeight: depth === 0 ? 700 : 600, color: depth === 0 ? color : 'text.secondary', fontSize: depth === 0 ? '0.82rem' : '0.76rem' }}>{code}</Box>
+        {/* COD. — anche il codice apre i dettagli: è il modo più diretto di dire «questa riga». */}
+        <Box component="td" sx={{ ...cellTdSx, ...congelata(COLONNE[2].sticky!), bgcolor: fondoCongelato ?? 'background.paper', pl: `${8 + depth * 12}px`, pr: 0.5, whiteSpace: 'nowrap', fontWeight: depth === 0 ? 700 : 600, color: depth === 0 ? color : 'text.secondary', fontSize: depth === 0 ? '0.82rem' : '0.76rem' }}>
+          <Tooltip title={`Dettagli di ${code}`} placement="top">
+            <Box
+              component="button"
+              type="button"
+              onClick={apri}
+              aria-label={`Dettagli di ${code}`}
+              sx={{
+                p: 0, border: 0, background: 'none', font: 'inherit', color: 'inherit',
+                cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted',
+                textUnderlineOffset: '3px', textDecorationColor: alpha(color, 0.5),
+                '&:hover': { textDecorationStyle: 'solid', textDecorationColor: 'currentColor' },
+              }}
+            >
+              {code}
+            </Box>
+          </Tooltip>
+        </Box>
 
         {/* MARCA / MOD. */}
         {/* AGGIUNTA A CATALOGO: colonna propria, subito dopo il codice. Il pulsante
@@ -431,18 +426,22 @@ const EqRow = ({ control, def, base, code, identity, rowKey, onRowExit, depth, a
             )
           ) : null}
         </Box>
-        {/* CAPACITÀ (numerica, allineata a destra: riempie la colonna) */}
+        {/* CAPACITÀ — si sceglie fra i valori che il catalogo dichiara per il modello */}
         <Box component="td" sx={cellTdSx}>
           {def.capacitaField && !hidden('capacita') ? (
-            <Tooltip title={capacitaBloccata ? 'Compila prima la PS' : ''} placement="top">
-              <span>
-                <NumberCell control={control} name={`${base}.${def.capacitaField}`} min={0} max={100000} step={1} disabled={capacitaBloccata} />
-              </span>
-            </Tooltip>
+            <CatalogValueCell control={control} base={base} catalogType={def.catalogType}
+              campo={def.capacitaField} specKey={capacityKey(def.catalogType)} kind="number"
+              disabled={capacitaBloccata} motivoBlocco="Compila prima la PS"
+              min={0} max={100000} step={1} />
           ) : null}
         </Box>
-        {/* TS (testo libero, allineata a sinistra, con la gronda che la stacca dalla capacità) */}
-        <Box component="td" sx={{ ...cellTdSx, pl: `calc(${PAD_GRONDA} - ${PAD_CELLA})` }}>{def.ts && !hidden('ts') ? <TextCell control={control} name={`${base}.ts`} placeholder="°C / ÷" /> : null}</Box>
+        {/* TS (con la gronda che la stacca dalla capacità) */}
+        <Box component="td" sx={{ ...cellTdSx, pl: `calc(${PAD_GRONDA} - ${PAD_CELLA})` }}>
+          {def.ts && !hidden('ts') ? (
+            <CatalogValueCell control={control} base={base} catalogType={def.catalogType}
+              campo="ts" specKey="ts" kind="text" placeholder="°C / ÷" />
+          ) : null}
+        </Box>
         {/* CAT. */}
         <Box component="td" sx={cellTdSx}>{catCell()}</Box>
         {/* ANNO */}
@@ -531,7 +530,7 @@ const ValveHostRows = ({ control, def, base, code, rowKey, depth, adv, ocr, ocrV
       <EqRow control={control} def={def} base={base} code={code} identity={identity} rowKey={rowKey}
         onRowExit={uscita(def, base, rowKey, code)} depth={depth} adv={adv} ocr={ocr}
         onDelete={onDelete} onSelect={onSelect} selezionata={selezione === base}
-        append={{ label: 'Valvola di sicurezza', onClick: () => aggiuntive.append({}) }} />
+        append={{ label: 'Valvola di sicurezza', onClick: () => aggiuntive.append(nuovaRiga(EQUIPMENT_DEFS.valvola, null)) }} />
       <EqRow control={control} def={EQUIPMENT_DEFS.valvola} base={`${base}.valvola_sicurezza`} code={pos[0]}
         identity={identity} rowKey={rowKeyOf(VALVOLE_ROW_PREFIX, pos[0])}
         onRowExit={uscita(EQUIPMENT_DEFS.valvola, `${base}.valvola_sicurezza`, rowKeyOf(VALVOLE_ROW_PREFIX, pos[0]), pos[0])}
@@ -637,7 +636,7 @@ export const UnifiedEquipmentTable = ({ control, completezza, righeComplete, azi
     switch (kind) {
       case 'serbatoio': {
         const codice = nextFreeCode(EQUIPMENT_LIMITS.serbatoi.prefix, codesOf(serbatoi.fields, serbatoiVals), EQUIPMENT_LIMITS.serbatoi.max)
-        if (codice) serbatoi.append(nuovaRiga(EQUIPMENT_DEFS.serbatoio, codice, { valvola_sicurezza: {}, manometro: {} }))
+        if (codice) serbatoi.append(nuovaRiga(EQUIPMENT_DEFS.serbatoio, codice))
         break
       }
       case 'compressore': {
@@ -693,7 +692,7 @@ export const UnifiedEquipmentTable = ({ control, completezza, righeComplete, azi
     rows.push(<EqRow key={`c-${f.id}`} control={control} def={EQUIPMENT_DEFS.compressore} base={`compressori.${i}`} {...sel(`compressori.${i}`)} code={code} identity={identitaDi(`compressori.${i}`, code)} rowKey={rowKeyOf('compressori', code)} onRowExit={uscita(EQUIPMENT_DEFS.compressore, `compressori.${i}`, rowKeyOf('compressori', code), code)} depth={0} adv={adv}
       ocr={{ equipmentType: 'Compressori', equipmentIndex: i }}
       onDelete={() => ask('il compressore', code, () => { if (dIdx >= 0) disoleatori.remove(dIdx); compressori.remove(i); dopoEliminazione() })}
-      append={dIdx === -1 ? { label: 'Disoleatore', onClick: () => { disoleatori.append(nuovaRiga(EQUIPMENT_DEFS.disoleatore, `${code}.1`, { compressore_associato: code, valvola_sicurezza: {} })); setValue(`compressori.${i}.ha_disoleatore`, true) } } : null} />)
+      append={dIdx === -1 ? { label: 'Disoleatore', onClick: () => { disoleatori.append(nuovaRiga(EQUIPMENT_DEFS.disoleatore, `${code}.1`, { compressore_associato: code })); setValue(`compressori.${i}.ha_disoleatore`, true) } } : null} />)
     if (dIdx >= 0) {
       rows.push(<ValveHostRows key={`c-${f.id}-d`} control={control} def={EQUIPMENT_DEFS.disoleatore} base={`disoleatori.${dIdx}`} code={`${code}.1`} rowKey={rowKeyOf('disoleatori', `${code}.1`)} depth={1} adv={adv}
         ocr={{ equipmentType: 'Disoleatori', equipmentIndex: dIdx }}

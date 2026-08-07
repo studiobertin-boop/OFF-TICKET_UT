@@ -2,7 +2,7 @@ import type { EquipmentCatalogType } from '@/types'
 import {
   FLUIDO_LABELS, FLUIDO_OPTIONS, ORIENTAMENTO_LABELS, ORIENTAMENTO_OPTIONS,
   TIPO_COMPRESSORE_LABELS, TIPO_COMPRESSORE_OPTIONS, TIPO_FILTRO_LABELS, TIPO_FILTRO_OPTIONS,
-  TIPO_GIRI_LABELS,
+  TIPO_GIRI_LABELS, TIPO_GIRI_OPTIONS,
   UBICAZIONE_SERBATOIO_LABELS, UBICAZIONE_SERBATOIO_OPTIONS,
 } from '@/types/technicalSheet'
 
@@ -25,7 +25,7 @@ export interface ExtraFieldDef {
    * `multi` = selezione multipla con opzioni calcolate dai valori correnti del form
    * (vedi `optionsFrom`): le valvole censite non sono una lista statica.
    */
-  kind: 'text' | 'number' | 'select' | 'check' | 'multi' | 'readonly'
+  kind: 'text' | 'number' | 'select' | 'check' | 'multi'
   options?: readonly string[]
   /** Resa compatta del valore selezionato (es. finitura ZINCATO → «Z»). */
   display?: Record<string, string>
@@ -108,9 +108,9 @@ export const EQUIPMENT_DEFS: Record<EquipmentKind, EquipmentTypeDef> = {
     extra: [
       // Il tipo è proprietà costruttiva del modello: viaggia col catalogo (specsMap).
       { name: 'tipo', label: 'Tipo', kind: 'select', options: TIPO_COMPRESSORE_OPTIONS, display: TIPO_COMPRESSORE_LABELS, labels: TIPO_COMPRESSORE_LABELS, emptyLabel: 'Rotativo a vite' },
-      // Proprietà costruttiva del modello: si modifica dal catalogo, non da qui. La colonna
-      // non è praticabile — la tabella ne ha già dieci strette e il valore è testuale e lungo.
-      { name: 'giri', label: 'Giri', kind: 'readonly', display: TIPO_GIRI_LABELS, emptyLabel: 'non a catalogo' },
+      // Come il tipo: viaggia col catalogo ma si corregge da qui, e lo scostamento passa
+      // dal dialog che chiede se aggiornare la voce di catalogo o tenerlo in questa scheda.
+      { name: 'giri', label: 'Giri', kind: 'select', options: TIPO_GIRI_OPTIONS, display: TIPO_GIRI_LABELS, labels: TIPO_GIRI_LABELS },
       { name: 'silenziato', label: 'Silenziato', kind: 'check' },
       NOTE_EXTRA,
     ],
@@ -176,6 +176,61 @@ export const EQUIPMENT_DEFS: Record<EquipmentKind, EquipmentTypeDef> = {
     specsMap: { ptar: 'pressione_taratura', ts: 'ts', qmax: 'volume_aria_scaricato', diametro: 'diametro' },
     adv: ['capacita', 'ts', 'cat'],
   },
+}
+
+/** Scrive `valore` in `obj` seguendo un percorso a punti, creando gli oggetti intermedi. */
+const scriviInProfondita = (obj: Record<string, any>, path: string, valore: unknown) => {
+  const parti = path.split('.')
+  const ultima = parti.pop()!
+  let cur = obj
+  for (const p of parti) cur = (cur[p] ??= {})
+  cur[ultima] = valore
+}
+
+/**
+ * Record di partenza di una nuova riga: **ogni** campo che la riga può portare è presente e
+ * vale `null`.
+ *
+ * Non è pignoleria. React Hook Form, quando un campo si registra e la chiave manca dai valori
+ * correnti, ripiega sui `defaultValues` del form — che sono ancora quelli della scheda
+ * caricata. Eliminata un'apparecchiatura e creatane un'altra, la nuova riga riprende lo stesso
+ * percorso posizionale (`compressori.0`) e si ritrova compilata con i dati di quella eliminata,
+ * campo per campo. Dichiararli tutti, e a `null` e non a `undefined`, è ciò che toglie di mezzo
+ * quel ripiego: `undefined` per React Hook Form significa «chiave assente» e riaprirebbe la
+ * stessa porta.
+ *
+ * Come effetto secondario nessun input resta non controllato al primo render, cosa che faceva
+ * conservare a MUI il proprio stato interno invece di seguire il form.
+ */
+export const nuovaRiga = (
+  def: EquipmentTypeDef,
+  /** `null` per le valvole, che non hanno un codice proprio: la loro posizione è calcolata. */
+  codice: string | null,
+  extra: Record<string, any> = {}
+): Record<string, any> => {
+  const riga: Record<string, any> = {
+    codice,
+    marca: null,
+    modello: null,
+    anno: null,
+    n_fabbrica: null,
+  }
+
+  if (def.capacitaField) riga[def.capacitaField] = null
+  if (def.pressioneField) riga[def.pressioneField] = null
+  if (def.ts) riga.ts = null
+  if (def.cat === 'edit') riga.categoria_ped = null
+
+  for (const f of def.extra) scriviInProfondita(riga, f.name, f.kind === 'check' ? false : null)
+
+  // Le valvole non stanno in un array proprio: vivono dentro il recipiente che le porta, e
+  // senza questa inizializzazione erediterebbero i loro campi esattamente come la riga ospite.
+  if (def.mandatoryValvola) {
+    riga.valvola_sicurezza = nuovaRiga(EQUIPMENT_DEFS.valvola, null)
+    riga.valvole_aggiuntive = []
+  }
+
+  return { ...riga, ...extra }
 }
 
 /** Tipi selezionabili dal pulsante "Nuova apparecchiatura". */

@@ -2,7 +2,7 @@ import type { EquipmentCatalogType } from '@/types'
 import {
   FORM_TO_CANONICAL, readSheetPressure, readSpec, variantSpecKey, variantSpecKeys,
 } from '@/services/equipmentAudit'
-import { TIPO_COMPRESSORE_LABELS } from '@/types/technicalSheet'
+import { TIPO_COMPRESSORE_LABELS, TIPO_GIRI_LABELS } from '@/types/technicalSheet'
 import type {
   Serbatoio,
   Compressore,
@@ -271,9 +271,16 @@ export function getFieldLabel(specsField: string): string {
     qmax: 'Qmax (Volume aria scaricato)',
     diametro: 'Diametro',
     tipo_compressore: 'Tipo compressore',
+    giri: 'Regolazione giri',
   }
 
   return labels[specsField] || specsField
+}
+
+/** Chiavi il cui valore memorizzato è un codice: nel dialog si mostra il testo leggibile. */
+const ENUM_LABELS: Record<string, Record<string, string>> = {
+  tipo_compressore: TIPO_COMPRESSORE_LABELS,
+  giri: TIPO_GIRI_LABELS,
 }
 
 /**
@@ -283,9 +290,8 @@ export function formatSpecsValue(specsField: string, value: any): string {
   if (isEmpty(value)) return '-'
 
   // Enumerativi: si mostra l'etichetta leggibile, non il valore memorizzato
-  if (specsField === 'tipo_compressore') {
-    return TIPO_COMPRESSORE_LABELS[String(value)] || String(value)
-  }
+  const etichette = ENUM_LABELS[specsField]
+  if (etichette) return etichette[String(value)] || String(value)
 
   const units: Record<string, string> = {
     volume: 'litri',

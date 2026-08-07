@@ -46,6 +46,11 @@ const autocompleteSx = {
     fontSize: '0.82rem',
     fontVariantNumeric: 'tabular-nums',
     p: '4px 8px !important',
+    MozAppearance: 'textfield',
+  },
+  // Come nelle celle numeriche: il valore si scrive o si sceglie, non si incrementa.
+  '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
+    WebkitAppearance: 'none', margin: 0,
   },
 } as const
 

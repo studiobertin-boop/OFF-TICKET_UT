@@ -31,6 +31,7 @@ describe('completezzaRiga — il denominatore lo detta il tipo', () => {
       ...targhetta,
       pressione_max: 11,
       volume_aria_prodotto: 2350,
+      giri: 'fissi',
     })
     expect(c.mancanti).toEqual([])
     expect(eCompleta(c)).toBe(true)
@@ -84,10 +85,16 @@ describe('completezzaRiga — campi del pannello dettagli', () => {
     expect(c.mancanti).not.toContain('Man. segno rosso')
   })
 
-  it('esclude le note e i campi che vengono dal catalogo', () => {
+  it('esclude le note, che sono un commento e non un dato', () => {
     const c = completezzaRiga(EQUIPMENT_DEFS.compressore, targhetta)
     expect(c.mancanti).not.toContain('Note')
-    expect(c.mancanti).not.toContain('Giri')
+  })
+
+  it('conta i giri: il catalogo li propone ma la scheda può correggerli', () => {
+    expect(completezzaRiga(EQUIPMENT_DEFS.compressore, targhetta).mancanti).toContain('Giri')
+    expect(
+      completezzaRiga(EQUIPMENT_DEFS.compressore, { ...targhetta, giri: 'fissi' }).mancanti
+    ).not.toContain('Giri')
   })
 
   it('prevede «quale fluido» solo a fluido ALTRO', () => {

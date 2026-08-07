@@ -82,14 +82,8 @@ class Conteggio {
   }
 }
 
-/**
- * Campi del pannello dettagli che non entrano nel conteggio.
- *
- * `note` è un commento, non un dato. I campi `readonly` (i giri del compressore)
- * arrivano dal catalogo e da qui non sono compilabili: conteggiarli significherebbe
- * addebitare al tecnico un campo che non può riempire.
- */
-const extraDaIgnorare = (f: ExtraFieldDef) => f.kind === 'readonly' || f.name === 'note'
+/** `note` è un commento, non un dato: non entra nel conteggio della completezza. */
+const extraDaIgnorare = (f: ExtraFieldDef) => f.name === 'note'
 
 /**
  * Un campo extra risulta compilato anche da vuoto quando:
