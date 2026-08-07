@@ -1,11 +1,12 @@
 import { useForm, FormProvider } from 'react-hook-form'
-import { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react'
+import { useEffect, useMemo, useRef, useState, useImperativeHandle, forwardRef, type ReactNode } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Box,
   Card,
-  CardContent,
-  Typography,
-  Chip,
+  Divider,
+  Tab,
+  Tabs,
   Button,
 } from '@mui/material'
 import {
@@ -16,6 +17,12 @@ import { DatiImpiantoSection } from './DatiImpiantoSection'
 import { UnifiedEquipmentTable } from './table/UnifiedEquipmentTable'
 import { AltriApparecchiSection } from './AllEquipmentSections'
 import { BatchOCRDialog } from './BatchOCRDialog'
+import { CompletenessBar, SectionLabel } from '@/components/common'
+import { radii } from '@/theme/tokens'
+import {
+  completezzaApparecchiature, completezzaDatiGenerali, completezzaDatiImpianto,
+  righeComplete, somma, type Completezza,
+} from '@/utils/schedaCompleteness'
 import { useHydrateCatalogOrigini } from '@/hooks/useHydrateCatalogOrigini'
 import type { SchedaDatiCompleta } from '@/types'
 import type { BatchOCRResult, BatchOCRItem } from '@/types/ocr'
@@ -29,6 +36,26 @@ interface TechnicalSheetFormProps {
   onAutoSave?: (data: SchedaDatiCompleta) => void
   customerName?: string
   sedeLegale?: string
+  /**
+   * Barra agganciata della pagina. La disegna il chiamante (che ha stato di
+   * salvataggio e permessi) ma la rende il form, perché la completezza si calcola
+   * dai valori osservati: passarla al genitore rimonterebbe l'intero form a ogni
+   * tasto premuto.
+   */
+  header?: (completezza: Completezza) => ReactNode
+}
+
+/** Linguette della scheda; la prima è quella predefinita. */
+const TAB_SCHEDA = ['apparecchiature', 'contesto', 'altri'] as const
+
+/**
+ * La data di sopralluogo è memorizzata come la scrive un `input[type=date]`
+ * (`2026-07-01`): nel riepilogo va letta come la legge chi compila.
+ */
+const dataItaliana = (iso?: string) => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('it-IT')
 }
 
 export interface TechnicalSheetFormRef {
@@ -97,6 +124,7 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
   onAutoSave,
   customerName,
   sedeLegale,
+  header,
 }, ref) => {
   const methods = useForm<SchedaDatiCompleta>({
     defaultValues: {
@@ -150,6 +178,50 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
   // Autosave con debounce
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const watchedData = watch()
+
+  // Il tab attivo vive nella querystring: un refresh o un link condiviso tornano
+  // dove si stava compilando.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tabRichiesto = searchParams.get('scheda') || ''
+  const tab = (TAB_SCHEDA as readonly string[]).includes(tabRichiesto) ? tabRichiesto : TAB_SCHEDA[0]
+  const cambiaTab = (nuovo: string) => {
+    const params = new URLSearchParams(searchParams)
+    if (nuovo === TAB_SCHEDA[0]) params.delete('scheda')
+    else params.set('scheda', nuovo)
+    setSearchParams(params, { replace: true })
+  }
+
+  /**
+   * Completezza, ricalcolata a ogni modifica osservata. È un conteggio su oggetti già
+   * in memoria: non tocca il form né la rete, e non entra in quello che si salva.
+   */
+  const compGenerali = useMemo(
+    () => completezzaDatiGenerali(watchedData?.dati_generali),
+    [watchedData?.dati_generali],
+  )
+  const compImpianto = useMemo(
+    () => completezzaDatiImpianto(watchedData?.dati_impianto),
+    [watchedData?.dati_impianto],
+  )
+  const compApparecchi = useMemo(() => completezzaApparecchiature(watchedData), [watchedData])
+  const righe = useMemo(() => righeComplete(watchedData), [watchedData])
+  const compContesto = somma([compGenerali, compImpianto])
+  const compTotale = somma([compContesto, compApparecchi])
+
+  /** Righe principali: le valvole non si contano, sono un componente del recipiente. */
+  const principali = [
+    watchedData?.serbatoi, watchedData?.compressori, watchedData?.essiccatori,
+    watchedData?.filtri, watchedData?.separatori,
+  ].reduce((n, a) => n + (a?.length ?? 0), 0)
+
+  /** Riepilogo del contesto in coda alle linguette: non sparisce cambiando tab. */
+  const riepilogoContesto = [
+    dataItaliana(watchedData?.dati_generali?.data_sopralluogo),
+    watchedData?.dati_generali?.nome_tecnico,
+    (watchedData?.dati_impianto?.aria_aspirata ?? []).join(', '),
+    watchedData?.dati_impianto?.raccolta_condense,
+    watchedData?.dati_impianto?.locale_dedicato ? 'locale dedicato' : '',
+  ].filter(Boolean).join(' · ')
 
   /**
    * Il gate su `isDirty` non è un'ottimizzazione: la scheda resta modificabile anche dopo il
@@ -381,55 +453,124 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
   return (
     <FormProvider {...methods}>
       <Box component="form" onSubmit={handleSubmit(onSubmit)}>
-        {/* Sezione 1: Informazioni Pratica */}
-        <Card sx={{ mb: 1.5 }}>
-          <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>1 · Informazioni Pratica</Typography>
-              <Chip label="Obbligatorio" size="small" color="error" sx={{ height: 18, fontSize: '0.65rem' }} />
+        {header?.(compTotale)}
+
+        {/* Le linguette portano la propria barra di avanzamento: si vede da qui dove
+            manca qualcosa, senza dover entrare in ogni sezione. */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+        {/* Le linguette portavano una barra di avanzamento accanto al nome e si
+            leggevano come titoli di sezione invece che come comandi. Qui prendono un
+            fondo al passaggio del mouse, il nome attivo in chiaro e gli altri spenti,
+            e un indicatore più marcato: la differenza fra «dove sono» e «dove posso
+            andare» si vede prima di provare a cliccare. */}
+        <Tabs
+          value={tab}
+          onChange={(_, valore) => cambiaTab(valore)}
+          TabIndicatorProps={{ sx: { height: 3, borderRadius: '3px 3px 0 0' } }}
+          sx={{
+            minHeight: 44,
+            '& .MuiTab-root': {
+              minHeight: 44,
+              color: 'text.secondary',
+              fontWeight: 400,
+              borderRadius: `${radii.control}px ${radii.control}px 0 0`,
+              transition: 'background-color .15s, color .15s',
+              '&:hover': { bgcolor: 'action.hover', color: 'text.primary' },
+              '&.Mui-selected': { color: 'text.primary', fontWeight: 600 },
+            },
+          }}
+        >
+          <Tab
+            value="apparecchiature"
+
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                Apparecchiature
+                <Box component="span" sx={{ color: 'text.disabled' }}>{principali}</Box>
+                <CompletenessBar completezza={compApparecchi} larghezza={46} />
+              </Box>
+            }
+          />
+          <Tab
+            value="contesto"
+
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                Contesto
+                <CompletenessBar completezza={compContesto} larghezza={46} />
+              </Box>
+            }
+          />
+          <Tab value="altri" label="Altri apparecchi" />
+        </Tabs>
+
+        {/* Riepilogo del contesto: resta leggibile anche dal tab apparecchiature,
+            così spostarlo in una linguetta non lo fa sparire dalla vista. */}
+        <Box
+          sx={{
+            ml: 'auto', minWidth: 0, pr: 0.5,
+            fontSize: '0.72rem', color: 'text.disabled',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            display: { xs: 'none', lg: 'block' },
+          }}
+        >
+          {riepilogoContesto}
+        </Box>
+        </Box>
+
+        {tab === 'apparecchiature' && (
+          <UnifiedEquipmentTable
+            control={control}
+            errors={errors}
+            completezza={compApparecchi}
+            righeComplete={righe}
+            azioni={
+              <Button
+                size="small"
+                variant="outlined"
+                color="primary"
+                startIcon={<AutoFixHighIcon />}
+                onClick={() => setBatchOCRDialogOpen(true)}
+                sx={{ borderColor: 'primary.main' }}
+              >
+                Riconosci automaticamente
+              </Button>
+            }
+          />
+        )}
+
+        {tab === 'contesto' && (
+          <Card sx={{ p: 2 }}>
+            {/* Una card sola con due bande separate da un filetto: cinque campi non
+                meritano una card propria, e due card affiancate non si allineavano. */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mb: 1.5 }}>
+              <SectionLabel>Sopralluogo</SectionLabel>
+              <CompletenessBar completezza={compGenerali} mostraMancanti />
             </Box>
             <DatiGeneraliSection
               control={control}
               errors={errors}
               defaultCustomer={customerName}
             />
-          </CardContent>
-        </Card>
 
-        {/* Sezione 2: Dati Sala Compressori */}
-        <Card sx={{ mb: 1.5 }}>
-          <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>2 · Dati Sala Compressori</Typography>
-              <Chip label="Obbligatorio" size="small" color="error" sx={{ height: 18, fontSize: '0.65rem' }} />
+            <Divider sx={{ my: 2.5 }} />
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mb: 1.5 }}>
+              <SectionLabel>Sala compressori</SectionLabel>
+              <CompletenessBar completezza={compImpianto} mostraMancanti />
             </Box>
             <DatiImpiantoSection control={control} errors={errors} sedeLegale={sedeLegale} />
-          </CardContent>
-        </Card>
+          </Card>
+        )}
 
-        {/* Sezione 3: Dati Apparecchiature */}
-        <Card sx={{ mb: 1.5 }}>
-          <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.25 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>3 · Dati Apparecchiature</Typography>
-              <Button
-                size="small"
-                variant="contained"
-                startIcon={<AutoFixHighIcon />}
-                onClick={() => setBatchOCRDialogOpen(true)}
-              >
-                Riconosci Automaticamente
-              </Button>
+        {tab === 'altri' && (
+          <Card sx={{ p: 2 }}>
+            <Box sx={{ mb: 1.5 }}>
+              <SectionLabel>Altri apparecchi</SectionLabel>
             </Box>
-
-            <UnifiedEquipmentTable control={control} errors={errors} />
-
-            {/* AA - Altri Apparecchi (campo libero) */}
-            <Box sx={{ mt: 1.5 }}>
-              <AltriApparecchiSection control={control} errors={errors} />
-            </Box>
-          </CardContent>
-        </Card>
+            <AltriApparecchiSection control={control} errors={errors} />
+          </Card>
+        )}
 
         {/* Batch OCR Dialog */}
         <BatchOCRDialog

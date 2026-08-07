@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Autocomplete,
   TextField,
@@ -64,6 +65,16 @@ interface EquipmentAutocompleteProps {
   fullWidth?: boolean
   /** Modalità cella: input senza bordo/etichetta, opzioni piccole, popup più largo */
   dense?: boolean
+
+  /**
+   * Dove disegnare il pulsante «aggiungi al catalogo».
+   *
+   * Nella tabella della scheda dati è una colonna a sé, subito dopo il codice: tenendolo
+   * in coda alla cella marca/modello, le righe che lo mostrano avevano gli autocomplete
+   * più stretti delle altre e i modelli non si allineavano più in colonna. La logica
+   * (esistenza a catalogo, avviso varianti, dialog) resta qui: cambia solo dove esce.
+   */
+  contenitoreAggiunta?: HTMLElement | null
 }
 
 // Slot props condivisi per la modalità dense (popup più largo della colonna, opzioni piccole)
@@ -72,7 +83,14 @@ const denseSlotProps = {
   paper: { sx: { '& .MuiAutocomplete-option': { fontSize: '0.78rem', minHeight: 30, py: 0.25 } } },
 } as const
 
-const denseInputSx = { '& .MuiInputBase-input': { fontSize: '0.8rem', py: 0.5 } }
+/**
+ * Il rientro orizzontale sta qui e non sul contenitore della cella: MUI azzera il padding
+ * dell'input con `.MuiAutocomplete-root .MuiInput-root .MuiInput-input`, tre classi, e
+ * qualunque regola scritta da fuori perde. Senza, marca e modello partivano 8px più a
+ * sinistra delle proprie intestazioni. `!important` come già fa PressioneCatalogCell,
+ * che si scontra con la stessa regola.
+ */
+const denseInputSx = { '& .MuiInputBase-input': { fontSize: '0.8rem', py: 0.5, padding: '4px 8px !important' } }
 
 /**
  * Componente Autocomplete con filtri cascata per apparecchiature
@@ -99,6 +117,7 @@ export const EquipmentAutocomplete = ({
   size = 'small',
   fullWidth = true,
   dense = false,
+  contenitoreAggiunta,
 }: EquipmentAutocompleteProps) => {
   const [marcheOptions, setMarcheOptions] = useState<string[]>([])
   const [modelliOptions, setModelliOptions] = useState<string[]>([])
@@ -418,23 +437,26 @@ export const EquipmentAutocomplete = ({
         )}
       />
 
-      {/* Bottone Aggiungi al Catalogo */}
-      {showAddButton && !readOnly && (
-        <Tooltip title={
-          indicizzatoPerVariante && variantValue != null
-            ? `Aggiungi al catalogo la variante a ${variantValue} bar`
-            : 'Aggiungi al catalogo'
-        }>
-          <IconButton
-            color="primary"
-            onClick={handleAddToCatalog}
-            size={size}
-            sx={{ mt: size === 'small' ? 0.5 : 1 }}
-          >
-            <AddIcon />
-          </IconButton>
-        </Tooltip>
-      )}
+      {/* Bottone Aggiungi al Catalogo: in linea, oppure nella colonna dedicata. */}
+      {showAddButton && !readOnly && (() => {
+        const bottone = (
+          <Tooltip title={
+            indicizzatoPerVariante && variantValue != null
+              ? `Aggiungi al catalogo la variante a ${variantValue} bar`
+              : 'Aggiungi al catalogo'
+          }>
+            <IconButton
+              color="primary"
+              onClick={handleAddToCatalog}
+              size={size}
+              sx={contenitoreAggiunta ? { p: 0.25 } : { mt: size === 'small' ? 0.5 : 1 }}
+            >
+              <AddIcon fontSize={contenitoreAggiunta ? 'small' : undefined} />
+            </IconButton>
+          </Tooltip>
+        )
+        return contenitoreAggiunta ? createPortal(bottone, contenitoreAggiunta) : bottone
+      })()}
 
       {/* Conferma prima di creare una variante di un modello che c'è già.
           Non si usa window.confirm: basta che l'utente spunti una volta «impedisci a questa

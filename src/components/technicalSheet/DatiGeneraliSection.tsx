@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { Control, Controller } from 'react-hook-form'
 import {
   TextField,
-  Grid,
   Box,
   Autocomplete,
 } from '@mui/material'
+import { FieldValue } from '@/components/common'
 import { useInstallers } from '@/hooks/useInstallers'
 import { AddInstallerDialog } from '@/components/installers/AddInstallerDialog'
 
@@ -41,9 +41,10 @@ export const DatiGeneraliSection = ({
 
   return (
     <Box>
-      <Grid container spacing={1.5}>
-        {/* Data Sopralluogo */}
-        <Grid item xs={12} sm={6} md={2}>
+      {/* Griglia a riempimento: i campi si affiancano finché ci stanno, invece di
+          occupare frazioni fisse che a metà larghezza lasciano buchi. */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 1.5, alignItems: 'start' }}>
+        <Box>
           <Controller
             name="dati_generali.data_sopralluogo"
             control={control}
@@ -51,7 +52,7 @@ export const DatiGeneraliSection = ({
             render={({ field }) => (
               <TextField
                 {...field}
-                label="Data Sopralluogo"
+                label="Data sopralluogo"
                 type="date"
                 size="small"
                 fullWidth
@@ -64,10 +65,10 @@ export const DatiGeneraliSection = ({
               />
             )}
           />
-        </Grid>
+        </Box>
 
         {/* Nome Tecnico */}
-        <Grid item xs={12} sm={6} md={2}>
+        <Box>
           <Controller
             name="dati_generali.nome_tecnico"
             control={control}
@@ -75,7 +76,7 @@ export const DatiGeneraliSection = ({
             render={({ field }) => (
               <TextField
                 {...field}
-                label="Nome Tecnico"
+                label="Nome tecnico"
                 size="small"
                 fullWidth
                 required
@@ -85,33 +86,10 @@ export const DatiGeneraliSection = ({
               />
             )}
           />
-        </Grid>
-
-        {/* Cliente */}
-        <Grid item xs={12} sm={6} md={2}>
-          <Controller
-            name="dati_generali.cliente"
-            control={control}
-            rules={{ required: 'Campo obbligatorio' }}
-            defaultValue={defaultCustomer || ''}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label="Cliente"
-                size="small"
-                fullWidth
-                required
-                disabled
-                error={!!errors?.dati_generali?.cliente}
-                helperText={errors?.dati_generali?.cliente?.message}
-                placeholder="Ragione sociale cliente"
-              />
-            )}
-          />
-        </Grid>
+        </Box>
 
         {/* Installatore */}
-        <Grid item xs={12} sm={6} md={3}>
+        <Box>
           <Controller
             name="dati_generali.installatore"
             control={control}
@@ -173,30 +151,42 @@ export const DatiGeneraliSection = ({
               />
             )}
           />
-        </Grid>
+        </Box>
 
-        {/* Note Generali */}
-        <Grid item xs={12} md={3}>
-          <Controller
-            name="dati_generali.note_generali"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label="Note Generali"
-                size="small"
-                fullWidth
-                multiline
-                minRows={1}
-                maxRows={6}
-                error={!!errors?.dati_generali?.note_generali}
-                helperText={errors?.dati_generali?.note_generali?.message}
-                placeholder="Note aggiuntive sul sopralluogo..."
-              />
-            )}
-          />
-        </Grid>
-      </Grid>
+        {/* Cliente: non è compilabile qui — arriva dall'anagrafica della pratica.
+            Resta registrato nel form (il Controller c'è) ma smette di occupare una
+            casella di testo che invita a scriverci dentro. */}
+        <Controller
+          name="dati_generali.cliente"
+          control={control}
+          rules={{ required: 'Campo obbligatorio' }}
+          defaultValue={defaultCustomer || ''}
+          render={({ field }) => <FieldValue label="Cliente" value={field.value} sx={{ pt: 0.5 }} />}
+        />
+      </Box>
+
+      {/* Note generali: campo lungo, a piena larghezza sotto la griglia, così non
+          costringe gli altri campi a una colonna stretta. */}
+      <Box sx={{ mt: 1.5 }}>
+        <Controller
+          name="dati_generali.note_generali"
+          control={control}
+          render={({ field }) => (
+            <TextField
+              {...field}
+              label="Note generali"
+              size="small"
+              fullWidth
+              multiline
+              minRows={1}
+              maxRows={6}
+              error={!!errors?.dati_generali?.note_generali}
+              helperText={errors?.dati_generali?.note_generali?.message}
+              placeholder="Note aggiuntive sul sopralluogo…"
+            />
+          )}
+        />
+      </Box>
 
       {/* Dialog per aggiungere nuovo installatore */}
       <AddInstallerDialog

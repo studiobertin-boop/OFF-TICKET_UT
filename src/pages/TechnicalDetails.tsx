@@ -2,25 +2,14 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Box,
-  Typography,
-  Card,
-  CardContent,
-  Button,
   CircularProgress,
   Alert,
-  Chip,
   Snackbar,
 } from '@mui/material'
-import {
-  ArrowBack as ArrowBackIcon,
-  Save as SaveIcon,
-  CheckCircle as CheckCircleIcon,
-  Share as ShareIcon,
-  Assessment as AssessmentIcon,
-  Description as DescriptionIcon,
-} from '@mui/icons-material'
 import { Layout } from '@/components/common/Layout'
-import { useRequest } from '@/hooks/useRequests'
+import { TechnicalSheetHeader } from '@/components/technicalSheet/TechnicalSheetHeader'
+import { codiceForRequest } from '@/utils/practiceCode'
+import { useRequest, useClientDm329Overview } from '@/hooks/useRequests'
 import { useAuth } from '@/hooks/useAuth'
 import { useCustomers } from '@/hooks/useCustomers'
 import { technicalDataApi } from '@/services/api/technicalData'
@@ -330,6 +319,14 @@ export const TechnicalDetails = () => {
     syncCustomerId()
   }, [id, customerByName, request?.customer_id])
 
+  // Sale distinte del cliente: la lettera compare nel codice pratica solo se ne ha
+  // più d'una. Prima delle uscite anticipate, come tutti gli altri hook.
+  const { data: clientDm329Overview = [] } = useClientDm329Overview(request?.customer_id)
+  const clientSalaCount = useMemo(
+    () => new Set(clientDm329Overview.map((p) => p.sala_lettera)).size,
+    [clientDm329Overview]
+  )
+
   // IMPORTANT: Calculate sedeLegale BEFORE early returns to avoid React Hook ordering issues
   // Get sede legale from customer data using formatFullAddress
   // Priority: request.customer > customerByName > custom_fields.sede_legale
@@ -395,6 +392,14 @@ export const TechnicalDetails = () => {
     technicalDataClientName ||
     'N/A'
 
+  // Codice pratica: la stessa identità che porta il dettaglio pratica. Stessa
+  // queryKey del dettaglio, quindi TanStack la serve dalla cache.
+  const codicePratica = codiceForRequest(request, clientSalaCount)
+
+  /** Dati CIVA e relazione hanno senso solo a scheda completata. */
+  const canGenerateDocs =
+    isCompleted && (user?.role === 'admin' || user?.role === 'userdm329')
+
   // Determina se l'utente può gestire la condivisione
   const canManageSharing =
     user?.role === 'admin' ||
@@ -411,115 +416,40 @@ export const TechnicalDetails = () => {
           </Alert>
         )}
 
-        {/* Header */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Button
-              startIcon={<ArrowBackIcon />}
-              onClick={() => navigate(`/requests/${id}`)}
-            >
-              Torna alla Richiesta
-            </Button>
-            <Typography variant="h4">
-              Scheda Dati - {customerName}
-            </Typography>
-            {isCompleted && (
-              <Chip
-                label="Completata"
-                color="success"
-                icon={<CheckCircleIcon />}
-                size="small"
-              />
-            )}
-          </Box>
-
-          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-            {/* Indicatore autosave */}
-            {autoSaving && (
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <CircularProgress size={14} />
-                Salvataggio automatico...
-              </Typography>
-            )}
-            {lastSaved && !autoSaving && (
-              <Typography variant="caption" color="text.secondary">
-                Ultimo salvataggio: {lastSaved.toLocaleTimeString('it-IT')}
-              </Typography>
-            )}
-
-            {/* Bottone Assegna Scheda */}
-            {canManageSharing && (
-              <Button
-                variant="outlined"
-                color="primary"
-                startIcon={<ShareIcon />}
-                onClick={() => setShareDialogOpen(true)}
-                size="small"
-              >
-                Assegna Scheda
-              </Button>
-            )}
-
-            {/* La scheda resta modificabile anche dopo il completamento: i pulsanti di
-                salvataggio sono sempre presenti, quelli a valle compaiono a scheda completata. */}
-            {isCompleted && (user?.role === 'admin' || user?.role === 'userdm329') && (
-              <>
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  startIcon={<AssessmentIcon />}
-                  onClick={() => navigate(`/requests/${id}/civa-summary`)}
-                  disabled={saving}
-                >
-                  Visualizza Dati CIVA
-                </Button>
-                <Button
-                  variant="contained"
-                  color="primary"
-                  startIcon={<DescriptionIcon />}
-                  onClick={() => setRelazioneDialogOpen(true)}
-                  disabled={saving}
-                >
-                  Genera Relazione
-                </Button>
-              </>
-            )}
-            <Button
-              variant="outlined"
-              startIcon={<SaveIcon />}
-              onClick={handleSaveDraft}
-              disabled={saving || autoSaving}
-            >
-              Salva Bozza
-            </Button>
-            <Button
-              variant={isCompleted ? 'outlined' : 'contained'}
-              color="success"
-              startIcon={<CheckCircleIcon />}
-              onClick={handleCompleteSheet}
-              disabled={saving || autoSaving}
-            >
-              Completa Scheda
-            </Button>
-          </Box>
-        </Box>
-
-        {/* Form Dati Tecnici - PASSO 2 COMPLETATO */}
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            {/* ✅ Wrap form con EquipmentCatalogProvider per cache specs */}
-            <EquipmentCatalogProvider>
-              <TechnicalSheetForm
-                ref={formRef}
-                defaultValues={formData || undefined}
-                onSubmit={handleFormSubmit}
-                onAutoSave={handleAutoSave}
+        {/* Niente card attorno al form: le sezioni hanno già la propria, e una card
+            dentro la card raddoppiava bordi e padding senza aggiungere struttura.
+            L'intestazione la rende il form perché deve mostrare la completezza, che
+            si calcola dai valori osservati. */}
+        <EquipmentCatalogProvider>
+          <TechnicalSheetForm
+            ref={formRef}
+            defaultValues={formData || undefined}
+            onSubmit={handleFormSubmit}
+            onAutoSave={handleAutoSave}
+            customerName={customerName}
+            sedeLegale={sedeLegale}
+            header={(completezza) => (
+              <TechnicalSheetHeader
                 customerName={customerName}
-                sedeLegale={sedeLegale}
+                codicePratica={codicePratica}
+                denominazioneSala={request.denominazione_sala}
+                isCompleted={isCompleted}
+                completezza={completezza}
+                saving={saving}
+                autoSaving={autoSaving}
+                lastSaved={lastSaved}
+                canManageSharing={canManageSharing}
+                canGenerateDocs={canGenerateDocs}
+                onBack={() => navigate(`/requests/${id}`)}
+                onShare={() => setShareDialogOpen(true)}
+                onCivaSummary={() => navigate(`/requests/${id}/civa-summary`)}
+                onRelazione={() => setRelazioneDialogOpen(true)}
+                onSaveDraft={handleSaveDraft}
+                onComplete={handleCompleteSheet}
               />
-            </EquipmentCatalogProvider>
-          </CardContent>
-        </Card>
+            )}
+          />
+        </EquipmentCatalogProvider>
 
         {/* OCR Review Dialog */}
         <OCRReviewDialog

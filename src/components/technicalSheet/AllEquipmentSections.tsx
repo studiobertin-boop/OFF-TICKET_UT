@@ -7,7 +7,7 @@
  */
 
 import { Control, Controller } from 'react-hook-form'
-import { Grid, TextField } from '@mui/material'
+import { TextField } from '@mui/material'
 
 interface SectionProps {
   control: Control<any>
@@ -15,22 +15,18 @@ interface SectionProps {
 }
 
 export const AltriApparecchiSection = ({ control }: SectionProps) => (
-  <Grid container spacing={2}>
-    <Grid item xs={12}>
-      <Controller
-        name="altri_apparecchi.descrizione"
-        control={control}
-        render={({ field }) => (
-          <TextField
-            {...field}
-            label="10. Altri Apparecchi - Descrizione"
-            fullWidth
-            multiline
-            rows={4}
-            placeholder="Inserire descrizione di eventuali altre apparecchiature presenti..."
-          />
-        )}
+  <Controller
+    name="altri_apparecchi.descrizione"
+    control={control}
+    render={({ field }) => (
+      <TextField
+        {...field}
+        label="Descrizione"
+        fullWidth
+        multiline
+        rows={4}
+        placeholder="Descrizione di eventuali altre apparecchiature presenti…"
       />
-    </Grid>
-  </Grid>
+    )}
+  />
 )
