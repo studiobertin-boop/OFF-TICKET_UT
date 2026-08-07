@@ -38,7 +38,7 @@ import { AssignmentSection } from '@/components/requests/AssignmentSection'
 import { RequestHistoryPanel } from '@/components/requests/RequestHistoryPanel'
 import { RequestChatBox } from '@/components/requests/RequestChatBox'
 import { RequestDetailHeader } from '@/components/requests/RequestDetailHeader'
-import { RequestActionsMenu } from '@/components/requests/RequestActionsMenu'
+import { RequestActionsBar } from '@/components/requests/RequestActionsBar'
 import { RequestPropertiesRail } from '@/components/requests/RequestPropertiesRail'
 import { BlockRequestDialog } from '@/components/requests/BlockRequestDialog'
 import { UnblockRequestDialog } from '@/components/requests/UnblockRequestDialog'
@@ -555,8 +555,8 @@ export const RequestDetail = () => {
               )}
             </>
           }
-          actionsMenu={
-            <RequestActionsMenu
+          actions={
+            <RequestActionsBar
               isUrgent={!!request.is_urgent}
               isBlocked={!!request.is_blocked}
               hasAttribution={!!request.attributed_to}

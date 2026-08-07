@@ -1,3 +1,4 @@
+export { AzioneIcona } from './AzioneIcona'
 export { StatusChip } from './StatusChip'
 export { FieldValue } from './FieldValue'
 export { SectionLabel } from './SectionLabel'

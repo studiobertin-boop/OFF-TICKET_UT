@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactElement } from 'react'
+import { useEffect, useRef } from 'react'
 import { Box, Button, Chip, CircularProgress, Tooltip, Typography } from '@mui/material'
 import {
   ArrowBack as ArrowBackIcon,
@@ -8,6 +8,7 @@ import {
   Save as SaveIcon,
   Share as ShareIcon,
 } from '@mui/icons-material'
+import { AzioneIcona } from '@/components/common'
 import { eCompleta, percentuale, type Completezza } from '@/utils/schedaCompleteness'
 
 /**
@@ -20,62 +21,6 @@ import { eCompleta, percentuale, type Completezza } from '@/utils/schedaComplete
  */
 const VAR_BARRA = '--altezza-barra-scheda'
 export const ALTEZZA_BARRA = `var(${VAR_BARRA}, 48px)`
-
-interface AzioneBarraProps {
-  icona: ReactElement
-  testo: string
-  onClick: () => void
-  disabled?: boolean
-}
-
-/**
- * Azione della barra: icona sempre in vista, parola che si apre al passaggio del mouse.
- *
- * Quattro parole in fila occupavano tutta la barra e la mandavano a capo sulle finestre
- * strette, ma nasconderle dietro tre puntini le rendeva introvabili — è lo stesso equivoco
- * della freccina dei dettagli. Così le icone restano tutte visibili e la parola arriva a
- * chiedere.
- *
- * L'apertura è una griglia da `0fr` a `1fr` e non una larghezza in pixel: la parola detta la
- * propria misura, quindi «Visualizza dati CIVA» e «Salva bozza» si aprono ciascuna per quel
- * che è lunga, senza numeri da tenere allineati a mano.
- *
- * Dove il passaggio del mouse non esiste — un tablet in cantiere — la parola sta sempre
- * aperta: `@media (hover: none)`. E `aria-label` porta comunque il nome dell'azione a chi
- * naviga con la tastiera o con un lettore di schermo, che l'animazione non la vede.
- */
-const AzioneBarra = ({ icona, testo, onClick, disabled }: AzioneBarraProps) => (
-  <Tooltip title={testo} placement="bottom">
-    <span>
-      <Button
-        size="small"
-        variant="outlined"
-        color="primary"
-        onClick={onClick}
-        disabled={disabled}
-        aria-label={testo}
-        // Bordo a piena opacità: il 50% di default di MUI su fondo scuro sparisce.
-        sx={{
-          minWidth: 0, px: 0.9, borderColor: 'primary.main', whiteSpace: 'nowrap',
-          '& .etichetta': {
-            display: 'grid', gridTemplateColumns: '0fr', ml: 0, opacity: 0,
-            transition: 'grid-template-columns .18s ease, opacity .18s ease, margin-left .18s ease',
-          },
-          '& .etichetta > span': { overflow: 'hidden', minWidth: 0 },
-          '&:hover .etichetta, &:focus-visible .etichetta': {
-            gridTemplateColumns: '1fr', ml: 0.75, opacity: 1,
-          },
-          '@media (hover: none)': {
-            '& .etichetta': { gridTemplateColumns: '1fr', ml: 0.75, opacity: 1 },
-          },
-        }}
-      >
-        {icona}
-        <Box component="span" className="etichetta"><span>{testo}</span></Box>
-      </Button>
-    </span>
-  </Tooltip>
-)
 
 export interface TechnicalSheetHeaderProps {
   customerName: string
@@ -104,7 +49,7 @@ export interface TechnicalSheetHeaderProps {
  * si stacca al primo scorrimento.
  *
  * Le azioni sono tutte in fila e tutte visibili, ciascuna ridotta alla propria icona finché
- * il mouse non ci passa sopra (vedi `AzioneBarra`). Non c'è più un «Completa scheda»: lo
+ * il mouse non ci passa sopra (vedi `AzioneIcona`). Non c'è più un «Completa scheda»: lo
  * stato della pratica si governa dallo stepper del dettaglio, dove stanno già tutti gli
  * altri passaggi.
  */
@@ -216,7 +161,7 @@ export const TechnicalSheetHeader = ({
             </Typography>
           )}
 
-          <AzioneBarra
+          <AzioneIcona
             icona={<SaveIcon fontSize="small" />}
             testo="Salva bozza"
             onClick={onSaveDraft}
@@ -224,15 +169,15 @@ export const TechnicalSheetHeader = ({
           />
 
           {canManageSharing && (
-            <AzioneBarra icona={<ShareIcon fontSize="small" />} testo="Assegna scheda" onClick={onShare} />
+            <AzioneIcona icona={<ShareIcon fontSize="small" />} testo="Assegna scheda" onClick={onShare} />
           )}
 
           {canGenerateDocs && (
-            <AzioneBarra icona={<AssessmentIcon fontSize="small" />} testo="Visualizza dati CIVA" onClick={onCivaSummary} />
+            <AzioneIcona icona={<AssessmentIcon fontSize="small" />} testo="Visualizza dati CIVA" onClick={onCivaSummary} />
           )}
 
           {canGenerateDocs && (
-            <AzioneBarra icona={<DescriptionIcon fontSize="small" />} testo="Genera relazione" onClick={onRelazione} />
+            <AzioneIcona icona={<DescriptionIcon fontSize="small" />} testo="Genera relazione" onClick={onRelazione} />
           )}
         </Box>
       </Box>

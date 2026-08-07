@@ -18,8 +18,8 @@ export interface RequestDetailHeaderProps {
   onBack: () => void
   /** Azione primaria a destra (Scheda dati) e, se la pratica è ferma, Sblocca. */
   primaryActions?: ReactNode
-  /** Menu delle azioni secondarie. */
-  actionsMenu?: ReactNode
+  /** Fila delle azioni secondarie, ciascuna con la propria icona. */
+  actions?: ReactNode
   /** Stepper DM329 o bottoni di transizione, a seconda del tipo di richiesta. */
   workflow: ReactNode
 }
@@ -43,7 +43,7 @@ export const RequestDetailHeader = ({
   blockReason,
   onBack,
   primaryActions,
-  actionsMenu,
+  actions,
   workflow,
 }: RequestDetailHeaderProps) => {
   const tipo = request.request_type?.name === 'DM329-Integrazioni'
@@ -116,9 +116,11 @@ export const RequestDetailHeader = ({
           {request.is_blocked && <BlockIndicator isBlocked reason={blockReason} />}
         </Box>
 
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+        {/* Le azioni vanno a capo invece di sfondare: dove il mouse non c'è le etichette
+            stanno tutte aperte, e sei parole in fila non entrano in una finestra stretta. */}
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {primaryActions}
-          {actionsMenu}
+          {actions}
         </Box>
       </Box>
 
