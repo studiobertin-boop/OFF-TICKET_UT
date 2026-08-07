@@ -99,18 +99,25 @@ export const Layout = ({ children }: LayoutProps) => {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <AppBar position="static">
-        <Toolbar>
+        {/* La barra portava sette elementi a larghezza fissa in un flex che non poteva
+            restringersi: sotto i 768px sfondava in orizzontale su tutta l'applicazione.
+            Ora va a capo invece di traboccare, e i due pezzi ridondanti — il nome
+            dell'applicazione, che il logo dice già, e il nome dell'utente, che resta
+            nel menu del suo avatar — si ritirano prima di arrivarci. Sopra i 900px
+            non cambia nulla. */}
+        <Toolbar sx={{ flexWrap: 'wrap', rowGap: 1, columnGap: 1 }}>
           <Logo height={40} onClick={() => navigate('/')} />
           <Typography
             variant="h6"
             component="div"
-            sx={{ cursor: 'pointer' }}
+            noWrap
+            sx={{ cursor: 'pointer', display: { xs: 'none', md: 'block' } }}
             onClick={() => navigate('/')}
           >
             Sistema Ticketing UT
           </Typography>
 
-          <Box sx={{ flexGrow: 1, display: 'flex', gap: 2, ml: 4 }}>
+          <Box sx={{ flexGrow: 1, display: 'flex', flexWrap: 'wrap', gap: 1, ml: { xs: 0, md: 4 }, minWidth: 0 }}>
             <Button
               color="inherit"
               startIcon={<AssignmentIcon />}
@@ -153,13 +160,12 @@ export const Layout = ({ children }: LayoutProps) => {
             )}
           </Box>
 
-          <IconButton sx={{ mr: 1 }} onClick={toggleTheme} color="inherit">
+          <IconButton onClick={toggleTheme} color="inherit">
             {mode === 'dark' ? <LightIcon /> : <DarkIcon />}
           </IconButton>
 
           {user && (
             <IconButton
-              sx={{ mr: 1 }}
               onClick={() => setNotificationDrawerOpen(true)}
               color="inherit"
             >
@@ -170,8 +176,8 @@ export const Layout = ({ children }: LayoutProps) => {
           )}
 
           {user && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Typography variant="body2">
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+              <Typography variant="body2" noWrap sx={{ display: { xs: 'none', md: 'block' } }}>
                 {user.full_name} ({user.role})
               </Typography>
               <IconButton
