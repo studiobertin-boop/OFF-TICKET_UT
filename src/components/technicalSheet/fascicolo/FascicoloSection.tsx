@@ -223,9 +223,13 @@ export const FascicoloSection = ({ contesto, nomeFile, documenti, onCambia }: Fa
                   renderValue={(scelti) =>
                     scelti.length === 0
                       ? <Typography component="span" variant="caption" color="warning.main">da assegnare</Typography>
-                      : <Typography component="span" variant="caption" noWrap>{scelti.map((r) => etichettaRuolo(r, contesto)).join(' + ')}</Typography>
+                      : <Typography component="span" variant="caption" color="text.secondary" noWrap>
+                        {scelti.map((r) => etichettaRuolo(r, contesto)).join(' + ')}
+                      </Typography>
                   }
-                  sx={{ flex: '1 1 45%', minWidth: 0, '& .MuiSelect-select': { py: 0.25 } }}
+                  // Il nome del file è ciò che il tecnico riconosce, il ruolo è ciò che il
+                  // sistema propone: il primo pesa, il secondo si legge accanto.
+                  sx={{ flex: '1 1 45%', minWidth: 0, fontWeight: 400, '& .MuiSelect-select': { py: 0.25 } }}
                 >
                   {ORDINE_RUOLI.map((r) => (
                     <MenuItem key={r} value={r} dense sx={{ fontSize: '0.8rem' }}>
@@ -239,11 +243,15 @@ export const FascicoloSection = ({ contesto, nomeFile, documenti, onCambia }: Fa
                   ))}
                 </Select>
 
-                {d.origine === 'ai' && (
-                  <Tooltip title={d.motivazione || 'Riconosciuto automaticamente'}>
-                    <AutoIcon sx={{ fontSize: 14, color: 'text.disabled', flex: 'none' }} />
-                  </Tooltip>
-                )}
+                {/* Lo spazio del segno resta occupato anche quando il segno non c'è: senza,
+                    le righe riconosciute a mano disallineerebbero menu e cestino. */}
+                <Box sx={{ width: 16, flex: 'none', display: 'flex', justifyContent: 'center' }}>
+                  {d.origine === 'ai' && (
+                    <Tooltip title={d.motivazione || 'Riconosciuto automaticamente'}>
+                      <AutoIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
+                    </Tooltip>
+                  )}
+                </Box>
 
                 <IconButton size="small" onClick={() => rimuovi(d.id)} disabled={lavorando} aria-label={`Togli ${d.file.name}`}>
                   <DeleteIcon sx={{ fontSize: 16 }} />
