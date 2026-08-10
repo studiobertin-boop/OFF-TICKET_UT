@@ -1,12 +1,8 @@
 import { useForm, FormProvider } from 'react-hook-form'
 import { useEffect, useMemo, useRef, useState, useImperativeHandle, forwardRef, type ReactNode } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import {
   Box,
-  Card,
   Divider,
-  Tab,
-  Tabs,
   Button,
 } from '@mui/material'
 import {
@@ -14,6 +10,7 @@ import {
 } from '@mui/icons-material'
 import { DatiGeneraliSection } from './DatiGeneraliSection'
 import { DatiImpiantoSection } from './DatiImpiantoSection'
+import { SchedaSection } from './SchedaSection'
 import { UnifiedEquipmentTable } from './table/UnifiedEquipmentTable'
 import { AltriApparecchiSection } from './AllEquipmentSections'
 import { BatchOCRDialog } from './BatchOCRDialog'
@@ -21,7 +18,7 @@ import { CompletenessBar, SectionLabel } from '@/components/common'
 import { radii } from '@/theme/tokens'
 import {
   completezzaApparecchiature, completezzaDatiGenerali, completezzaDatiImpianto,
-  righeComplete, somma, type Completezza,
+  eCompleta, righeComplete, somma, type Completezza,
 } from '@/utils/schedaCompleteness'
 import { useHydrateCatalogOrigini } from '@/hooks/useHydrateCatalogOrigini'
 import type { SchedaDatiCompleta } from '@/types'
@@ -45,8 +42,15 @@ interface TechnicalSheetFormProps {
   header?: (completezza: Completezza) => ReactNode
 }
 
-/** Linguette della scheda; la prima è quella predefinita. */
-const TAB_SCHEDA = ['apparecchiature', 'contesto', 'altri'] as const
+/**
+ * Bande che identificano le due sezioni della scheda.
+ *
+ * Prese dalla palette del tema (`primary` e `secondary`) e scelte fra i colori che nella
+ * pagina non significano già qualcos'altro: il verde dice «completo», l'ambra «incompleto»,
+ * il rosso «errore», e i colori dei tipi di apparecchiatura sono impegnati nella tabella.
+ */
+const BANDA_CONTESTO = '#6fb0ef'
+const BANDA_APPARECCHIATURE = '#ce93d8'
 
 /**
  * La data di sopralluogo è memorizzata come la scrive un `input[type=date]`
@@ -179,18 +183,6 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const watchedData = watch()
 
-  // Il tab attivo vive nella querystring: un refresh o un link condiviso tornano
-  // dove si stava compilando.
-  const [searchParams, setSearchParams] = useSearchParams()
-  const tabRichiesto = searchParams.get('scheda') || ''
-  const tab = (TAB_SCHEDA as readonly string[]).includes(tabRichiesto) ? tabRichiesto : TAB_SCHEDA[0]
-  const cambiaTab = (nuovo: string) => {
-    const params = new URLSearchParams(searchParams)
-    if (nuovo === TAB_SCHEDA[0]) params.delete('scheda')
-    else params.set('scheda', nuovo)
-    setSearchParams(params, { replace: true })
-  }
-
   /**
    * Completezza, ricalcolata a ogni modifica osservata. È un conteggio su oggetti già
    * in memoria: non tocca il form né la rete, e non entra in quello che si salva.
@@ -215,7 +207,7 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
     watchedData?.filtri, watchedData?.separatori,
   ].reduce((n, a) => n + (a?.length ?? 0), 0)
 
-  /** Riepilogo del contesto in coda alle linguette: non sparisce cambiando tab. */
+  /** Riepilogo del contesto nella testata della sua sezione: la dice anche da chiusa. */
   const riepilogoContesto = [
     dataItaliana(watchedData?.dati_generali?.data_sopralluogo),
     watchedData?.dati_generali?.nome_tecnico,
@@ -223,6 +215,32 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
     watchedData?.dati_impianto?.raccolta_condense,
     watchedData?.dati_impianto?.locale_dedicato ? 'locale dedicato' : '',
   ].filter(Boolean).join(' · ')
+
+  /**
+   * Apertura delle due sezioni.
+   *
+   * Il contesto si compila una volta sola, all'inizio del sopralluogo, mentre la tabella si
+   * compila per tutto il resto: quando il contesto è pieno si ripiega da sé sulla propria
+   * riga di riepilogo e lascia la pagina alle apparecchiature. Una scheda riaperta a
+   * contesto già completo parte quindi con quella sezione chiusa.
+   *
+   * Resta una proposta, non una regola: riaperto a mano, il contesto non si richiude più da
+   * solo finché la sezione non torna incompleta e viene completata di nuovo.
+   */
+  const [contestoAperto, setContestoAperto] = useState(
+    () => !eCompleta(somma([
+      completezzaDatiGenerali(defaultValues?.dati_generali),
+      completezzaDatiImpianto(defaultValues?.dati_impianto),
+    ]))
+  )
+  const [apparecchiatureAperte, setApparecchiatureAperte] = useState(true)
+
+  const contestoPieno = eCompleta(compContesto)
+  const contestoEraPieno = useRef(contestoPieno)
+  useEffect(() => {
+    if (contestoPieno && !contestoEraPieno.current) setContestoAperto(false)
+    contestoEraPieno.current = contestoPieno
+  }, [contestoPieno])
 
   /**
    * Il gate su `isDirty` non è un'ottimizzazione: la scheda resta modificabile anche dopo il
@@ -456,94 +474,21 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
       <Box component="form" onSubmit={handleSubmit(onSubmit)}>
         {header?.(compTotale)}
 
-        {/* Le linguette portano la propria barra di avanzamento: si vede da qui dove
-            manca qualcosa, senza dover entrare in ogni sezione. */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-        {/* Le linguette portavano una barra di avanzamento accanto al nome e si
-            leggevano come titoli di sezione invece che come comandi. Qui prendono un
-            fondo al passaggio del mouse, il nome attivo in chiaro e gli altri spenti,
-            e un indicatore più marcato: la differenza fra «dove sono» e «dove posso
-            andare» si vede prima di provare a cliccare. */}
-        <Tabs
-          value={tab}
-          onChange={(_, valore) => cambiaTab(valore)}
-          TabIndicatorProps={{ sx: { height: 3, borderRadius: '3px 3px 0 0' } }}
-          sx={{
-            minHeight: 44,
-            '& .MuiTab-root': {
-              minHeight: 44,
-              color: 'text.secondary',
-              fontWeight: 400,
-              borderRadius: `${radii.control}px ${radii.control}px 0 0`,
-              transition: 'background-color .15s, color .15s',
-              '&:hover': { bgcolor: 'action.hover', color: 'text.primary' },
-              '&.Mui-selected': { color: 'text.primary', fontWeight: 600 },
-            },
-          }}
-        >
-          <Tab
-            value="apparecchiature"
-
-            label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                Apparecchiature
-                <Box component="span" sx={{ color: 'text.disabled' }}>{principali}</Box>
-                <CompletenessBar completezza={compApparecchi} larghezza={46} />
-              </Box>
-            }
-          />
-          <Tab
-            value="contesto"
-
-            label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                Contesto
-                <CompletenessBar completezza={compContesto} larghezza={46} />
-              </Box>
-            }
-          />
-          <Tab value="altri" label="Altri apparecchi" />
-        </Tabs>
-
-        {/* Riepilogo del contesto: resta leggibile anche dal tab apparecchiature,
-            così spostarlo in una linguetta non lo fa sparire dalla vista. */}
-        <Box
-          sx={{
-            ml: 'auto', minWidth: 0, pr: 0.5,
-            fontSize: '0.72rem', color: 'text.disabled',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            display: { xs: 'none', lg: 'block' },
-          }}
-        >
-          {riepilogoContesto}
-        </Box>
-        </Box>
-
-        {tab === 'apparecchiature' && (
-          <UnifiedEquipmentTable
-            control={control}
-            errors={errors}
-            completezza={compApparecchi}
-            righeComplete={righe}
-            azioni={
-              <Button
-                size="small"
-                variant="outlined"
-                color="primary"
-                startIcon={<AutoFixHighIcon />}
-                onClick={() => setBatchOCRDialogOpen(true)}
-                sx={{ borderColor: 'primary.main' }}
-              >
-                Riconosci automaticamente
-              </Button>
-            }
-          />
-        )}
-
-        {tab === 'contesto' && (
-          <Card sx={{ p: 2 }}>
-            {/* Una card sola con due bande separate da un filetto: cinque campi non
-                meritano una card propria, e due card affiancate non si allineavano. */}
+        {/* Le due sezioni stanno una sotto l'altra e restano staccate: prima erano
+            linguette, e passare dal contesto alle apparecchiature costava un cambio di
+            pagina proprio mentre si compilava. Il contesto viene per primo perché è il
+            primo passo del sopralluogo. */}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
+          <SchedaSection
+            titolo="Contesto"
+            colore={BANDA_CONTESTO}
+            aperta={contestoAperto}
+            onToggle={() => setContestoAperto((v) => !v)}
+            completezza={compContesto}
+            riepilogo={riepilogoContesto}
+          >
+            {/* Due bande separate da un filetto: cinque campi non meritano una card
+                propria, e due card affiancate non si allineavano. */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mb: 1.5 }}>
               <SectionLabel>Sopralluogo</SectionLabel>
               <CompletenessBar completezza={compGenerali} mostraMancanti />
@@ -561,17 +506,47 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
               <CompletenessBar completezza={compImpianto} mostraMancanti />
             </Box>
             <DatiImpiantoSection control={control} errors={errors} sedeLegale={sedeLegale} />
-          </Card>
-        )}
+          </SchedaSection>
 
-        {tab === 'altri' && (
-          <Card sx={{ p: 2 }}>
-            <Box sx={{ mb: 1.5 }}>
-              <SectionLabel>Altri apparecchi</SectionLabel>
+          <SchedaSection
+            titolo="Apparecchiature"
+            colore={BANDA_APPARECCHIATURE}
+            aperta={apparecchiatureAperte}
+            onToggle={() => setApparecchiatureAperte((v) => !v)}
+            completezza={compApparecchi}
+            contatore={`${principali} principali`}
+            riepilogo={`${righe.complete} di ${righe.totali} righe complete`}
+          >
+            <UnifiedEquipmentTable
+              control={control}
+              errors={errors}
+              completezza={compApparecchi}
+              righeComplete={righe}
+              azioni={
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="primary"
+                  startIcon={<AutoFixHighIcon />}
+                  onClick={() => setBatchOCRDialogOpen(true)}
+                  sx={{ borderColor: 'primary.main' }}
+                >
+                  Riconosci automaticamente
+                </Button>
+              }
+            />
+
+            {/* Gli altri apparecchi non hanno una riga di tabella propria — sono un campo
+                libero — ma sono apparecchiature: stanno in coda alla loro sezione invece
+                che in una terza banda tutta per un campo di testo. */}
+            <Box sx={{ mt: 2, p: 2, border: '1px dashed', borderColor: 'divider', borderRadius: `${radii.card}px` }}>
+              <Box sx={{ mb: 1 }}>
+                <SectionLabel>Altri apparecchi</SectionLabel>
+              </Box>
+              <AltriApparecchiSection control={control} errors={errors} />
             </Box>
-            <AltriApparecchiSection control={control} errors={errors} />
-          </Card>
-        )}
+          </SchedaSection>
+        </Box>
 
         {/* Batch OCR Dialog */}
         <BatchOCRDialog

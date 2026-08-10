@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Controller, useWatch, type Control } from 'react-hook-form'
 import { Box, IconButton, MenuItem, Select, Tooltip } from '@mui/material'
 import { Edit as EditIcon, ListAlt as ListAltIcon } from '@mui/icons-material'
-import { NumberCell, TextCell } from './EquipmentCells'
+import { LARGHEZZA_AZIONE, NumberCell, PAD_CELLA, TextCell, type AllineamentoCella } from './EquipmentCells'
 import { useVariantiModello, valoriACatalogo } from '@/hooks/useVariantiModello'
 import type { EquipmentCatalogType } from '@/types'
 
@@ -20,18 +20,39 @@ interface CatalogValueCellProps {
   /** Motivo del blocco, mostrato al passaggio del mouse. */
   motivoBlocco?: string
   placeholder?: string
+  /**
+   * Allineamento del valore. Vale sia per l'elenco a catalogo sia per il campo libero:
+   * le due rese si alternano nella stessa colonna e devono cadere sullo stesso asse.
+   */
+  align?: AllineamentoCella
   min?: number
   max?: number
   step?: number
 }
 
-const selectSx = {
+/**
+ * Il valore tiene il rientro delle altre celle su entrambi i lati, e il pulsante gli sta
+ * accanto a larghezza dichiarata: è quello che permette all'intestazione di arretrare di
+ * una misura nota (`PAD_TITOLO_AZIONE`) e cadere sull'asse del valore invece che su
+ * quello della colonna.
+ */
+const selectSx = (align: AllineamentoCella) => ({
   flex: 1, minWidth: 0, fontSize: '0.82rem',
-  '& .MuiSelect-select': { py: 0.4, pl: 1, pr: '18px !important' },
+  '& .MuiSelect-select': {
+    py: 0.4,
+    pl: `${PAD_CELLA}px`,
+    pr: `${PAD_CELLA}px !important`,
+    textAlign: align,
+    fontVariantNumeric: 'tabular-nums',
+  },
   '& .MuiSelect-icon': { display: 'none' },
-} as const
+})
 
-const bottoneSx = { p: 0.15, flex: 'none', '& svg': { fontSize: '0.95rem' } } as const
+const bottoneSx = {
+  p: 0, flex: 'none',
+  width: LARGHEZZA_AZIONE, height: LARGHEZZA_AZIONE,
+  '& svg': { fontSize: '0.95rem' },
+} as const
 
 /**
  * Cella di un dato che il catalogo già conosce: si sceglie fra i valori censiti per quel
@@ -48,7 +69,7 @@ const bottoneSx = { p: 0.15, flex: 'none', '& svg': { fontSize: '0.95rem' } } as
  */
 export const CatalogValueCell = ({
   control, base, catalogType, campo, specKey, kind,
-  disabled, motivoBlocco, placeholder, min, max, step,
+  disabled, motivoBlocco, placeholder, align = 'left', min, max, step,
 }: CatalogValueCellProps) => {
   const marca = useWatch({ control, name: `${base}.marca` }) as string | undefined
   const modello = useWatch({ control, name: `${base}.modello` }) as string | undefined
@@ -61,21 +82,31 @@ export const CatalogValueCell = ({
   const campoLibero = (
     kind === 'number'
       ? <NumberCell control={control} name={name} min={min} max={max} step={step} placeholder={placeholder} disabled={disabled} />
-      : <TextCell control={control} name={name} placeholder={placeholder} disabled={disabled} />
+      : <TextCell control={control} name={name} placeholder={placeholder} disabled={disabled} align={align} />
   )
 
-  if (valori.length === 0) return campoLibero
+  /**
+   * Il posto del pulsante resta occupato anche dove il pulsante non c'è — modello senza
+   * voci a catalogo, o nessun modello ancora scelto. Senza, quelle righe spingerebbero il
+   * valore fin sul bordo della cella e la colonna perderebbe l'asse proprio dove è più
+   * facile accorgersene: una riga vuota accanto a una compilata.
+   */
+  const conAzione = (azione: ReactNode) => (
+    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+      <Box sx={{ flex: 1, minWidth: 0 }}>{campoLibero}</Box>
+      {azione ?? <Box sx={{ width: LARGHEZZA_AZIONE, flex: 'none' }} />}
+    </Box>
+  )
+
+  if (valori.length === 0) return conAzione(null)
 
   if (libero) {
-    return (
-      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-        <Box sx={{ flex: 1, minWidth: 0 }}>{campoLibero}</Box>
-        <Tooltip title="Torna ai valori a catalogo">
-          <IconButton size="small" sx={bottoneSx} onClick={() => setLibero(false)} aria-label="Valori a catalogo">
-            <ListAltIcon />
-          </IconButton>
-        </Tooltip>
-      </Box>
+    return conAzione(
+      <Tooltip title="Torna ai valori a catalogo">
+        <IconButton size="small" sx={bottoneSx} onClick={() => setLibero(false)} aria-label="Valori a catalogo">
+          <ListAltIcon />
+        </IconButton>
+      </Tooltip>
     )
   }
 
@@ -107,7 +138,7 @@ export const CatalogValueCell = ({
                 renderValue={(v) =>
                   v ? String(v) : <Box component="span" sx={{ color: 'text.disabled' }}>—</Box>
                 }
-                sx={selectSx}
+                sx={selectSx(align)}
               >
                 <MenuItem value=""><em>—</em></MenuItem>
                 {voci.map((v) => <MenuItem key={String(v)} value={String(v)}>{String(v)}</MenuItem>)}

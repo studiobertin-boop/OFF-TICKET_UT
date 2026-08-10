@@ -1,0 +1,868 @@
+<title>Scheda dati DM329 — mockup revisione</title>
+
+<style>
+/* ─────────────────────────────────────────────────────────────
+   Mockup ad alta fedeltà della SCHEDA DATI DM329.
+   Palette e raggi presi da src/theme/palette.ts e src/theme/tokens.ts:
+   l'app è dark-only, quindi il mockup lo è per scelta, non per omissione.
+   ───────────────────────────────────────────────────────────── */
+:root {
+  --bg:        #0f141b;   /* background.default */
+  --paper:     #171d26;   /* background.paper   */
+  --divider:   #2a333f;
+  --txt:       #e6edf5;   /* text.primary   */
+  --txt2:      #b3bfce;   /* text.secondary */
+  --txt3:      #78859a;   /* text.disabled  */
+  --primary:   #6fb0ef;
+  --success:   #4fc07e;
+  --warning:   #eaa73c;
+  --error:     #ef6b6b;
+  --secondary: #ce93d8;
+
+  /* colori per tipo di apparecchiatura (KIND_COLOR) */
+  --k-serbatoio:  #5aa6d6;
+  --k-compressore:#d8a900;
+  --k-disoleatore:#c99a00;
+  --k-essiccatore:#4fa564;
+  --k-filtro:     #e07a4a;
+  --k-separatore: #b061c4;
+  --k-valvola:    #8892a0;
+
+  /* bande delle due sezioni */
+  --band-contesto:      #6fb0ef;
+  --band-apparecchiature:#ce93d8;
+
+  --r-card: 12px;
+  --r-ctrl: 8px;
+
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--txt);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── intestazione del documento ────────────────────────────── */
+.doc {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.doc-head { display: flex; flex-direction: column; gap: 10px; max-width: 68ch; }
+.eyebrow {
+  font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--txt3); font-weight: 700;
+}
+h1 { font-size: 1.85rem; line-height: 1.2; margin: 0; text-wrap: balance; font-weight: 650; }
+.lede { color: var(--txt2); margin: 0; }
+
+/* ── barra dei comandi del mockup ──────────────────────────── */
+.controls {
+  position: sticky; top: 0; z-index: 40;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--divider);
+  border-radius: var(--r-ctrl);
+}
+.controls .lbl { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--txt3); font-weight: 700; }
+.seg { display: inline-flex; border: 1px solid var(--divider); border-radius: var(--r-ctrl); overflow: hidden; }
+.seg button {
+  font: inherit; font-size: 0.8rem; padding: 5px 12px;
+  background: none; border: 0; color: var(--txt2); cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.seg button:hover { background: rgba(230,237,245,.06); color: var(--txt); }
+.seg button[aria-pressed="true"] { background: var(--primary); color: #0f141b; font-weight: 650; }
+.seg button + button { border-left: 1px solid var(--divider); }
+.controls .spacer { margin-left: auto; }
+.ghost-btn {
+  font: inherit; font-size: 0.8rem; padding: 5px 12px; cursor: pointer;
+  background: none; color: var(--primary);
+  border: 1px solid var(--primary); border-radius: var(--r-ctrl);
+}
+.ghost-btn:hover { background: rgba(111,176,239,.1); }
+:where(button, [tabindex]):focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* ═══════════════════════════════════════════════════════════
+   IL MOCKUP DELL'APP
+   ═══════════════════════════════════════════════════════════ */
+.stage {
+  border: 1px solid var(--divider);
+  border-radius: var(--r-card);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+/* barra agganciata della pagina (invariata rispetto a oggi) */
+.topbar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 8px 14px; border-bottom: 1px solid var(--divider);
+  background: var(--bg);
+}
+.topbar .back { color: var(--txt2); font-size: 0.82rem; }
+.topbar h2 { font-size: 1.05rem; margin: 0; font-weight: 600; }
+.topbar .code { font-family: var(--mono); font-weight: 700; font-size: 0.92rem; }
+.topbar .meta { color: var(--txt2); font-size: 0.82rem; }
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 0.74rem; font-weight: 600; padding: 2px 9px; border-radius: 6px;
+  background: var(--success); color: #0f141b;
+}
+.topbar .actions { margin-left: auto; display: flex; gap: 6px; }
+.icon-btn {
+  width: 30px; height: 30px; display: grid; place-items: center;
+  border: 1px solid var(--divider); border-radius: var(--r-ctrl);
+  color: var(--txt2); background: none; cursor: pointer; font-size: 0.9rem;
+}
+
+/* ── SEZIONI: due card staccate, ciascuna con la propria banda ── */
+.sections { display: flex; flex-direction: column; gap: 14px; padding: 14px; }
+
+.section {
+  border: 1px solid var(--divider);
+  border-left: 4px solid var(--band);
+  border-radius: var(--r-card);
+  background: var(--paper);
+  overflow: hidden;
+}
+
+.section-head {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 11px 16px 11px 14px;
+  background: linear-gradient(to right, color-mix(in srgb, var(--band) 14%, transparent), transparent 340px);
+  border: 0; cursor: pointer;
+  font: inherit; color: var(--txt); text-align: left;
+  transition: background .15s;
+}
+.section-head:hover { background: linear-gradient(to right, color-mix(in srgb, var(--band) 24%, transparent), transparent 380px); }
+.section[data-open="true"] .section-head { border-bottom: 1px solid var(--divider); }
+.section-head .caret { color: var(--band); font-size: 0.75rem; transition: transform .18s ease; }
+.section[data-open="false"] .caret { transform: rotate(-90deg); }
+.section-title { font-size: 0.95rem; font-weight: 700; letter-spacing: 0.01em; }
+.section-count { color: var(--txt3); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+.section-head .summary {
+  margin-left: auto; font-size: 0.74rem; color: var(--txt3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46ch;
+}
+.section-body { padding: 16px; }
+.section[data-open="false"] .section-body { display: none; }
+
+/* barra di completezza */
+.bar { display: inline-flex; align-items: center; gap: 7px; }
+.bar .track { width: 92px; height: 5px; border-radius: 3px; background: rgba(230,237,245,.12); overflow: hidden; }
+.bar .fill { height: 100%; border-radius: 3px; background: var(--success); }
+.bar .fill.part { background: var(--warning); }
+.bar .num { font-size: 0.72rem; color: var(--txt2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bar .num.ok { color: var(--success); }
+
+/* ── contesto: i due sottoblocchi ──────────────────────────── */
+.sub-label {
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--txt2); font-weight: 700;
+}
+.sub-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.grid-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field label { font-size: 0.7rem; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.06em; }
+.field .val {
+  border: 1px solid var(--divider); border-radius: var(--r-ctrl);
+  padding: 7px 10px; font-size: 0.85rem; background: rgba(230,237,245,.02);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.field .val.empty { color: var(--txt3); }
+hr.rule { border: 0; border-top: 1px solid var(--divider); margin: 20px 0; }
+
+/* ── toolbar della tabella ─────────────────────────────────── */
+.tbl-wrap { border: 1px solid var(--divider); border-radius: var(--r-card); overflow: hidden; }
+.tbl-toolbar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 7px 12px; border-bottom: 1px solid var(--divider);
+  background: rgba(230,237,245,.04);
+}
+.tbl-toolbar .t-count { font-size: 0.72rem; color: var(--txt2); }
+.tbl-toolbar .t-actions { margin-left: auto; display: flex; gap: 8px; }
+.btn-out {
+  font: inherit; font-size: 0.78rem; padding: 4px 11px; cursor: pointer;
+  background: none; color: var(--primary);
+  border: 1px solid var(--primary); border-radius: var(--r-ctrl);
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.btn-out:hover { background: rgba(111,176,239,.1); }
+
+/* ── LA TABELLA ────────────────────────────────────────────── */
+.tbl-scroll { overflow-x: auto; }
+table.eq {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  min-width: 1180px;
+  font-size: 0.82rem;
+}
+table.eq th {
+  position: sticky; top: 0; z-index: 2;
+  background: var(--paper);
+  font-size: 0.66rem; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase;
+  color: var(--txt); line-height: 1.2; white-space: nowrap;
+  padding: 6px 8px; vertical-align: bottom; text-align: left;
+  border-bottom: 2px solid var(--divider);
+}
+table.eq th u {
+  display: block; text-decoration: none; font-weight: 400;
+  letter-spacing: 0; text-transform: none; color: var(--txt3);
+}
+table.eq td {
+  padding: 0 8px;
+  border-bottom: 1px solid var(--divider);
+  vertical-align: middle;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Allineamenti — il cuore del punto 3.
+   I selettori portano `table.eq` davanti: senza, `table.eq th` (specificità 0-1-2)
+   batte `th.n` (0-1-1) e i titoli restano a sinistra mentre le cifre vanno a destra. */
+table.eq th.n, table.eq td.n { text-align: right; }
+table.eq th.c, table.eq td.c { text-align: center; }
+/* CAPACITÀ e TS portano un pulsante a destra del valore (18px + 6px di gap):
+   il titolo arretra esattamente di quella misura, così cade sull'asse delle cifre
+   e non su quello della cella. Su TS, centrata, l'arretramento vale metà. */
+table.eq th.gutter { padding-right: 32px; }
+table.eq th.ts     { padding-right: 32px; }
+
+.cellv { display: flex; align-items: center; gap: 6px; height: 100%; }
+.cellv.right { justify-content: flex-end; }
+.cellv.center { justify-content: center; }
+.num { font-variant-numeric: tabular-nums; }
+.pencil {
+  border: 0; background: none; color: var(--txt3); cursor: pointer;
+  width: 18px; height: 18px; display: grid; place-items: center; flex: none;
+  border-radius: 4px; font-size: 0.7rem;
+}
+.pencil:hover { background: rgba(230,237,245,.08); color: var(--txt); }
+
+/* ── righe ─────────────────────────────────────────────────── */
+tr.eq-row { height: 34px; }
+tr.eq-row:hover > td { background: color-mix(in srgb, var(--kc) 7%, transparent); }
+
+/* righe collegate: più basse, più vicine, agganciate alla principale */
+tr.eq-row.child { height: 27px; font-size: 0.78rem; }
+tr.eq-row.child > td { border-bottom-color: color-mix(in srgb, var(--divider) 45%, transparent); }
+/* l'ultima discendente chiude il gruppo con il filetto pieno */
+tr.eq-row.child.closes > td { border-bottom-color: var(--divider); }
+
+.dot { width: 16px; height: 16px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 0.6rem; }
+.dot.ok { background: rgba(79,192,126,.16); color: var(--success); border: 1px solid var(--success); }
+.dot.part { background: rgba(234,167,60,.14); color: var(--warning); border: 1px solid var(--warning); }
+
+.btn-det {
+  font: inherit; font-size: 0.66rem; line-height: 1.7; padding: 0 6px; cursor: pointer;
+  background: none; color: var(--primary);
+  border: 1px solid color-mix(in srgb, var(--primary) 55%, transparent);
+  border-radius: 6px; display: inline-flex; align-items: center; gap: 3px;
+}
+.btn-det:hover { background: rgba(111,176,239,.12); border-color: var(--primary); }
+.btn-cam {
+  border: 0; background: none; color: var(--txt3); cursor: pointer;
+  width: 20px; height: 20px; border-radius: 4px; font-size: 0.78rem;
+}
+.btn-cam:hover { background: rgba(230,237,245,.08); color: var(--txt); }
+.act-cell { display: flex; align-items: center; gap: 4px; }
+
+/* codice: pulsante che apre i dettagli */
+.code-btn {
+  font: inherit; padding: 0; border: 0; background: none; cursor: pointer;
+  color: var(--kc); font-weight: 700; font-size: 0.82rem;
+  text-decoration: underline; text-decoration-style: dotted;
+  text-decoration-color: color-mix(in srgb, var(--kc) 50%, transparent);
+  text-underline-offset: 3px;
+}
+.code-btn:hover { text-decoration-style: solid; text-decoration-color: currentColor; }
+tr.child .code-btn { font-weight: 600; font-size: 0.76rem; }
+
+/* il legame padre → figlia: un binario per ogni livello di annidamento,
+   del colore dell'antenato a cui appartiene */
+.code-cell { position: relative; }
+.rail { position: absolute; top: 0; bottom: 0; width: 1.5px; background: var(--rc); }
+.rail.stop { bottom: 50%; }
+.tick { position: absolute; top: 50%; width: 9px; height: 1.5px; background: var(--rc); }
+
+/* marca e modello */
+.mm { color: var(--txt); overflow: hidden; text-overflow: ellipsis; }
+.mm.empty { color: var(--txt3); }
+
+/* VARIANTE: bordi verticali fra le colonne */
+.stage[data-borders="v"] table.eq td { border-right: 1px solid color-mix(in srgb, var(--divider) 70%, transparent); }
+.stage[data-borders="v"] table.eq th { border-right: 1px solid var(--divider); }
+.stage[data-borders="v"] table.eq td:last-child,
+.stage[data-borders="v"] table.eq th:last-child { border-right: 0; }
+/* senza verticali, un filetto solo stacca la capacità dalla TS */
+.stage[data-borders="h"] td.ts, .stage[data-borders="h"] th.ts {
+  border-left: 1px solid color-mix(in srgb, var(--divider) 60%, transparent);
+}
+
+/* blocco "Altri apparecchi" in coda alla sezione apparecchiature */
+.altri {
+  margin-top: 14px; padding: 14px 16px;
+  border: 1px dashed var(--divider); border-radius: var(--r-card);
+  background: rgba(230,237,245,.015);
+}
+.altri textarea {
+  width: 100%; margin-top: 8px; min-height: 60px; resize: vertical;
+  background: rgba(230,237,245,.02); color: var(--txt);
+  border: 1px solid var(--divider); border-radius: var(--r-ctrl);
+  padding: 8px 10px; font: inherit; font-size: 0.85rem;
+}
+
+/* ── POPUP DETTAGLI ────────────────────────────────────────── */
+.overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(6,9,13,.72);
+  display: grid; place-items: center; padding: 24px;
+}
+.overlay[hidden] { display: none; }
+.modal {
+  width: min(940px, 100%); max-height: min(88vh, 720px);
+  display: flex; flex-direction: column;
+  background: var(--paper); border: 1px solid var(--divider);
+  border-top: 3px solid var(--kc);
+  border-radius: var(--r-card); overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0,0,0,.5);
+}
+.modal-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-bottom: 1px solid var(--divider);
+}
+.modal-head .sq { width: 11px; height: 11px; border-radius: 3px; background: var(--kc); flex: none; }
+.modal-head .mc { font-weight: 700; font-size: 1rem; }
+.modal-head .mt { color: var(--txt2); font-size: 0.85rem; }
+.modal-head .bar { margin-left: 14px; }
+.modal-nav { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.modal-nav .navbtn {
+  width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--divider);
+  background: none; color: var(--txt2); cursor: pointer; font-size: 0.8rem;
+}
+.modal-nav .navbtn:hover { background: rgba(230,237,245,.07); color: var(--txt); }
+.modal-nav .pos { font-size: 0.72rem; color: var(--txt3); padding: 0 4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* griglia densa: nessun titolo di gruppo, tutti i campi in vista */
+.modal-body { padding: 14px; overflow-y: auto; }
+.modal-body .grid-fields { grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: 9px 10px; }
+.modal-body .field label { font-size: 0.62rem; letter-spacing: 0.07em; }
+.modal-body .field .val { padding: 5px 8px; font-size: 0.8rem; }
+.modal-body .field.wide { grid-column: 1 / -1; }
+.modal-body .field.wide .val { white-space: normal; }
+/* un filetto verticale segna dove finisce un gruppo di campi e ne comincia
+   un altro: il raggruppamento resta leggibile senza spendere una riga di titolo */
+.modal-body .field.sep { border-left: 1px solid var(--divider); padding-left: 12px; margin-left: 2px; }
+
+.modal-foot {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; border-top: 1px solid var(--divider);
+}
+.modal-foot .spacer { margin-left: auto; }
+.modal-foot .hint { font-size: 0.7rem; color: var(--txt3); }
+.btn-danger {
+  font: inherit; font-size: 0.78rem; padding: 4px 11px; cursor: pointer;
+  background: none; color: var(--error); border: 1px solid color-mix(in srgb, var(--error) 55%, transparent);
+  border-radius: var(--r-ctrl);
+}
+.btn-danger:hover { background: rgba(239,107,107,.12); }
+.btn-solid {
+  font: inherit; font-size: 0.78rem; padding: 5px 14px; cursor: pointer; font-weight: 600;
+  background: var(--primary); color: #0f141b; border: 0; border-radius: var(--r-ctrl);
+}
+
+/* ── note di lettura ───────────────────────────────────────── */
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.note {
+  border: 1px solid var(--divider); border-radius: var(--r-card);
+  padding: 14px 16px; background: var(--paper);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.note h3 { margin: 0; font-size: 0.9rem; font-weight: 650; }
+.note p { margin: 0; font-size: 0.85rem; color: var(--txt2); }
+.note .tag {
+  font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.1em;
+  font-weight: 700; color: var(--band-apparecchiature);
+}
+.note.open .tag { color: var(--warning); }
+.k { font-family: var(--mono); font-size: 0.8em; color: var(--txt); background: rgba(230,237,245,.06); padding: 1px 5px; border-radius: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+
+<div class="doc">
+
+  <header class="doc-head">
+    <div class="eyebrow">Mockup · scheda dati DM329 · revisione 2</div>
+    <h1>Contesto sopra, apparecchiature sotto, dettagli in primo piano</h1>
+    <p class="lede">
+      Le linguette diventano due sezioni staccate e collassabili sulla stessa pagina. Il pannello
+      laterale dei dettagli lascia il posto a una finestra che tiene l'apparecchiatura intera in una
+      schermata sola. La tabella segue l'ordine dell'impianto — compressori, serbatoi, essiccatori,
+      filtri, altre — e i codici annidati si agganciano al proprio genitore diretto.
+    </p>
+  </header>
+
+  <div class="controls">
+    <span class="lbl">Bordi tabella</span>
+    <div class="seg" id="seg-borders">
+      <button data-v="v" aria-pressed="true">Anche verticali</button>
+      <button data-v="h" aria-pressed="false">Solo orizzontali</button>
+    </div>
+    <span class="lbl" style="margin-left:8px">Righe collegate</span>
+    <div class="seg" id="seg-child">
+      <button data-v="tight" aria-pressed="true">Strette e agganciate</button>
+      <button data-v="flat" aria-pressed="false">Come oggi</button>
+    </div>
+    <div class="spacer"></div>
+    <button class="ghost-btn" id="open-demo">Apri i dettagli di S1</button>
+  </div>
+
+  <!-- ═══════════════ IL MOCKUP ═══════════════ -->
+  <div class="stage" id="stage" data-borders="v" data-child="tight">
+
+    <div class="topbar">
+      <span class="back">← Richiesta</span>
+      <h2>Scheda dati</h2>
+      <span class="code">602A_00-2026</span>
+      <span class="meta">CO.RI.SAC. SRL · Sala compressori</span>
+      <span class="chip">✓ Compilata</span>
+      <div class="actions">
+        <button class="icon-btn" title="Salva bozza">⌷</button>
+        <button class="icon-btn" title="Assegna scheda">⇱</button>
+        <button class="icon-btn" title="Dati CIVA">▤</button>
+        <button class="icon-btn" title="Genera relazione">▦</button>
+      </div>
+    </div>
+
+    <div class="sections">
+
+      <!-- ─────────── SEZIONE 1: CONTESTO ─────────── -->
+      <section class="section" id="sec-contesto" data-open="true" style="--band: var(--band-contesto)">
+        <button class="section-head" data-toggle="sec-contesto" aria-expanded="true">
+          <span class="caret">▼</span>
+          <span class="section-title">Contesto</span>
+          <span class="bar">
+            <span class="track"><span class="fill" style="width:100%"></span></span>
+            <span class="num ok">✓ 14 di 14</span>
+          </span>
+          <span class="summary">21/07/2026 · Luca Tirelli · Pulita · tanica · locale dedicato</span>
+        </button>
+
+        <div class="section-body">
+          <div class="sub-head">
+            <span class="sub-label">Sopralluogo</span>
+            <span class="bar">
+              <span class="track"><span class="fill" style="width:100%"></span></span>
+              <span class="num ok">✓ 4 di 4</span>
+            </span>
+          </div>
+          <div class="grid-fields">
+            <div class="field"><label>Data sopralluogo</label><div class="val">21/07/2026</div></div>
+            <div class="field"><label>Tecnico</label><div class="val">Luca Tirelli</div></div>
+            <div class="field"><label>Cliente</label><div class="val">CO.RI.SAC. SRL</div></div>
+            <div class="field"><label>Note generali</label><div class="val empty">—</div></div>
+          </div>
+
+          <hr class="rule">
+
+          <div class="sub-head">
+            <span class="sub-label">Sala compressori</span>
+            <span class="bar">
+              <span class="track"><span class="fill" style="width:100%"></span></span>
+              <span class="num ok">✓ 10 di 10</span>
+            </span>
+          </div>
+          <div class="grid-fields">
+            <div class="field"><label>Indirizzo impianto</label><div class="val">Via dell'Artigianato 12, Cornedo</div></div>
+            <div class="field"><label>Denominazione sala</label><div class="val">Sala compressori</div></div>
+            <div class="field"><label>Aria aspirata</label><div class="val">Pulita</div></div>
+            <div class="field"><label>Raccolta condense</label><div class="val">Tanica</div></div>
+            <div class="field"><label>Locale dedicato</label><div class="val">Sì</div></div>
+            <div class="field"><label>Ventilazione</label><div class="val">Naturale</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─────────── SEZIONE 2: APPARECCHIATURE ─────────── -->
+      <section class="section" id="sec-app" data-open="true" style="--band: var(--band-apparecchiature)">
+        <button class="section-head" data-toggle="sec-app" aria-expanded="true">
+          <span class="caret">▼</span>
+          <span class="section-title">Apparecchiature</span>
+          <span class="section-count">4 principali</span>
+          <span class="bar">
+            <span class="track"><span class="fill" style="width:100%"></span></span>
+            <span class="num ok">✓ 79 di 79</span>
+          </span>
+          <span class="summary">8 di 8 righe complete</span>
+        </button>
+
+        <div class="section-body">
+          <div class="tbl-wrap">
+            <div class="tbl-toolbar">
+              <span class="t-count">8 di 8 complete</span>
+              <span class="bar">
+                <span class="track" style="width:150px"><span class="fill" style="width:100%"></span></span>
+                <span class="num ok">✓ 79 di 79</span>
+              </span>
+              <div class="t-actions">
+                <button class="btn-out">✦ Riconosci automaticamente</button>
+                <button class="btn-out">+ Nuova apparecchiatura</button>
+              </div>
+            </div>
+
+            <div class="tbl-scroll">
+              <table class="eq">
+                <colgroup>
+                  <col style="width:34px">   <!-- stato -->
+                  <col style="width:96px">   <!-- azioni -->
+                  <col style="width:92px">   <!-- codice -->
+                  <col style="width:168px">  <!-- marca -->
+                  <col style="width:194px">  <!-- modello -->
+                  <col style="width:74px">   <!-- PS -->
+                  <col style="width:116px">  <!-- capacità -->
+                  <col style="width:130px">  <!-- TS -->
+                  <col style="width:56px">   <!-- cat -->
+                  <col style="width:62px">   <!-- anno -->
+                  <col style="width:150px">  <!-- n° fabbrica -->
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th aria-label="stato"></th>
+                    <th aria-label="azioni"></th>
+                    <th>Cod.</th>
+                    <th>Marca</th>
+                    <th>Modello</th>
+                    <th class="n">PS<u>bar</u></th>
+                    <th class="n gutter">Capacità<u>l · l/min</u></th>
+                    <th class="c ts">TS<u>°C</u></th>
+                    <th class="c">Cat.</th>
+                    <th class="n">Anno</th>
+                    <th>N° fabbrica</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="altri">
+            <span class="sub-label">Altri apparecchi</span>
+            <textarea placeholder="Descrizione di eventuali altre apparecchiature presenti…"></textarea>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════ NOTE DI LETTURA ═══════════════ -->
+  <div class="notes">
+    <div class="note">
+      <span class="tag">1 · ordine</span>
+      <h3>Compressori, serbatoi, essiccatori, filtri, altre</h3>
+      <p>L'ordine non dipende più dal tipo che compare per primo: è quello del flusso dell'aria. Nel
+      codice è solo l'ordine dei cinque blocchi <span class="k">sortedEntries</span> in
+      <span class="k">UnifiedEquipmentTable</span>.</p>
+    </div>
+    <div class="note">
+      <span class="tag">2 · gerarchia</span>
+      <h3>Ogni collegata si aggancia al proprio genitore</h3>
+      <p>C1.1 è il disoleatore di C1; C1.2 è la valvola <em>del disoleatore</em>, non del compressore
+      — è la convenzione di <span class="k">codiciValvoleDisoleatore</span>. Il binario ha quindi un
+      montante per livello, del colore dell'antenato cui appartiene, e si ferma dove il ramo finisce.</p>
+    </div>
+    <div class="note">
+      <span class="tag">3 · dettagli</span>
+      <h3>Tutto in una schermata, senza scorrere</h3>
+      <p>Niente titoli di gruppo: i campi stanno in una griglia densa a cinque colonne e i
+      raggruppamenti si leggono dai filetti verticali. Le frecce ‹ › — o quelle della tastiera —
+      passano all'apparecchiatura successiva senza chiudere.</p>
+    </div>
+    <div class="note">
+      <span class="tag">4 · allineamenti</span>
+      <h3>I titoli cadono sull'asse delle cifre</h3>
+      <p>Capacità e TS portano un pulsante a destra del valore: il titolo arretra della stessa misura
+      invece di appoggiarsi al bordo della colonna. Marca e modello si stringono, PS si avvicina, TS
+      è centrata sui propri valori.</p>
+    </div>
+    <div class="note">
+      <span class="tag">5 · sezioni</span>
+      <h3>Due card staccate, non due bande in fila</h3>
+      <p>Ogni sezione è una card con la propria banda sul fianco sinistro, e resta staccata dall'altra
+      anche da chiusa: due testate a contatto si leggevano come un unico blocco a righe.</p>
+    </div>
+    <div class="note open">
+      <span class="tag">6 · da decidere</span>
+      <h3>Il colore delle due bande</h3>
+      <p>Blu per il contesto, viola per le apparecchiature: entrambi già nel tema
+      (<span class="k">primary</span> e <span class="k">secondary</span>) e nessuno dei due
+      confondibile con verde-completo, ambra-incompleto o rosso-errore. Il viola però è anche il
+      colore dei separatori nel menu «Nuova apparecchiatura».</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════ POPUP DETTAGLI ═══════════════ -->
+<div class="overlay" id="overlay" hidden>
+  <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="m-code">
+    <div class="modal-head">
+      <span class="sq"></span>
+      <span class="mc" id="m-code">S1</span>
+      <span class="mt" id="m-type">serbatoio</span>
+      <span class="bar">
+        <span class="track" style="width:110px"><span class="fill" id="m-fill" style="width:100%"></span></span>
+        <span class="num ok" id="m-count">✓ 21 di 21</span>
+      </span>
+      <div class="modal-nav">
+        <button class="navbtn" id="m-prev" title="Apparecchiatura precedente">‹</button>
+        <span class="pos" id="m-pos">1 di 8</span>
+        <button class="navbtn" id="m-next" title="Apparecchiatura successiva">›</button>
+        <button class="navbtn" id="m-close" title="Chiudi" style="margin-left:6px">✕</button>
+      </div>
+    </div>
+
+    <div class="modal-body" id="m-body"></div>
+
+    <div class="modal-foot">
+      <button class="btn-out" id="m-append">⊕ Appendi valvola di sicurezza</button>
+      <button class="btn-danger">Elimina</button>
+      <span class="hint" id="m-note"></span>
+      <div class="spacer"></div>
+      <button class="btn-solid" id="m-done">Chiudi</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ─────────────────────────────────────────────────────────────
+   Dati del mockup: la scheda dello screenshot, riordinata secondo
+   compressori → serbatoi → essiccatori → filtri → altre, e con la
+   gerarchia reale dei codici (C1 › C1.1 disoleatore › C1.2 valvola).
+   ───────────────────────────────────────────────────────────── */
+const EQ = [
+  { code:'C1',   kind:'compressore', tipo:'Compressore',         depth:0, marca:'KAESER KOMPRESSOREN',   modello:'BSD 62',       ps:'8',    cap:'5650',  ts:'',           cat:'',    anno:'2005', nf:'100250.1 / 1064' },
+  { code:'C1.1', kind:'disoleatore', tipo:'Disoleatore',         depth:1, marca:'AIR COM S.r.l.',        modello:'25IK2',        ps:'16',   cap:'55',    ts:'-10 ÷ +110', cat:'II',  anno:'2005', nf:'01693' },
+  { code:'C1.2', kind:'valvola',     tipo:'Valvola di sicurezza',depth:2, marca:'PADOVAN VALERIO s.r.l.',modello:'TA15',         ps:'10',   cap:'16982', ts:'-10 ÷ +200', cat:'IV',  anno:'2025', nf:'484625/4' },
+
+  { code:'S1',   kind:'serbatoio',   tipo:'Serbatoio',           depth:0, marca:'SICC TECH s.r.l.',      modello:'1500 - 20011', ps:'11,5', cap:'1500',  ts:'-10 ÷ +110', cat:'IV',  anno:'2026', nf:'26.00556.019' },
+  { code:'S1.1', kind:'valvola',     tipo:'Valvola di sicurezza',depth:1, marca:'PADOVAN VALERIO s.r.l.',modello:'TA21',         ps:'11,5', cap:'39810', ts:'-10 ÷ +200', cat:'IV',  anno:'2025', nf:'593125/226' },
+
+  { code:'S2',   kind:'serbatoio',   tipo:'Serbatoio',           depth:0, marca:'SICC TECH s.r.l.',      modello:'270 - 12783',  ps:'11',   cap:'270',   ts:'-10 ÷ +110', cat:'III', anno:'2023', nf:'23.01893.183' },
+  { code:'S2.1', kind:'valvola',     tipo:'Valvola di sicurezza',depth:1, marca:'PADOVAN VALERIO s.r.l.',modello:'TA15',         ps:'10,8', cap:'17483', ts:'120',        cat:'IV',  anno:'2026', nf:'305826/1' },
+
+  { code:'E1',   kind:'essiccatore', tipo:'Essiccatore',         depth:0, marca:'FRIULAIR S.r.l.',       modello:'PLS 80/AC',    ps:'15',   cap:'8000',  ts:'',           cat:'',    anno:'2002', nf:'002/02' },
+];
+
+const KC = {
+  serbatoio:'var(--k-serbatoio)', compressore:'var(--k-compressore)', disoleatore:'var(--k-disoleatore)',
+  essiccatore:'var(--k-essiccatore)', filtro:'var(--k-filtro)', separatore:'var(--k-separatore)',
+  valvola:'var(--k-valvola)',
+};
+
+/* Antenati di ogni riga e fine del ramo, ricavati dalla sola profondità:
+   l'antenato di livello L è l'ultima riga precedente con depth === L. */
+function buildTree(rows) {
+  return rows.map((e, i) => {
+    const anc = [];
+    for (let l = 0; l < e.depth; l++) {
+      for (let j = i - 1; j >= 0; j--) if (rows[j].depth === l) { anc.push(rows[j]); break; }
+    }
+    /* il montante del livello L continua se, più sotto, esiste ancora una riga
+       più profonda di L prima che si torni a L o meno */
+    const cont = [];
+    for (let l = 0; l < e.depth; l++) {
+      let c = false;
+      for (let j = i + 1; j < rows.length; j++) {
+        if (rows[j].depth <= l) break;
+        c = true; break;
+      }
+      cont.push(c);
+    }
+    const closes = e.depth > 0 && (i === rows.length - 1 || rows[i + 1].depth === 0);
+    return { ...e, anc, cont, closes };
+  });
+}
+const TREE = buildTree(EQ);
+
+/* ── resa della tabella ─────────────────────────────────────── */
+const stage = document.getElementById('stage');
+const tbody = document.getElementById('tbody');
+const INDENT = 13;               // passo del rientro per livello, px
+const RAIL0  = 11;               // ascissa del primo montante, px
+
+const orDash = (v) => v ? v : '<span class="mm empty">—</span>';
+
+function renderRows() {
+  const tight = stage.dataset.child === 'tight';
+  tbody.innerHTML = TREE.map((e, i) => {
+    const child = e.depth > 0;
+    const kc = KC[e.kind];
+    const pad = 8 + e.depth * (tight ? INDENT : 12);
+
+    let rails = '';
+    if (tight && child) {
+      e.anc.forEach((a, l) => {
+        const x = RAIL0 + l * INDENT;
+        const ultimo = l === e.depth - 1;
+        const rc = `color-mix(in srgb, ${KC[a.kind]} 55%, transparent)`;
+        // il montante si ferma a metà riga dove il ramo di quel livello finisce
+        rails += `<span class="rail${e.cont[l] ? '' : ' stop'}" style="--rc:${rc};left:${x}px"></span>`;
+        if (ultimo) rails += `<span class="tick" style="--rc:${rc};left:${x}px"></span>`;
+      });
+    }
+
+    return `
+    <tr class="eq-row${child ? ' child' : ''}${e.closes ? ' closes' : ''}" style="--kc:${kc}">
+      <td class="c"><span class="dot ok" title="riga completa">✓</span></td>
+      <td>
+        <span class="act-cell">
+          <button class="btn-det" data-open="${i}">Dettagli ›</button>
+          <button class="btn-cam" title="Leggi targhetta">▣</button>
+        </span>
+      </td>
+      <td class="code-cell" style="padding-left:${pad}px">
+        ${rails}
+        <button class="code-btn" data-open="${i}" style="--kc:${child ? 'var(--txt2)' : kc}">${e.code}</button>
+      </td>
+      <td><span class="mm">${orDash(e.marca)}</span></td>
+      <td><span class="mm">${orDash(e.modello)}</span></td>
+      <td class="n num">${orDash(e.ps)}</td>
+      <td>
+        <span class="cellv right"><span class="num">${e.cap || '—'}</span><button class="pencil" title="Valore libero">✎</button></span>
+      </td>
+      <td class="ts">
+        <span class="cellv center"><span>${e.ts || '<span class="mm empty">—</span>'}</span><button class="pencil" title="Valore libero">✎</button></span>
+      </td>
+      <td class="c">${e.cat ? `<strong style="color:${kc}">${e.cat}</strong>` : '<span class="mm empty">—</span>'}</td>
+      <td class="n num">${orDash(e.anno)}</td>
+      <td>${orDash(e.nf)}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── comandi del mockup ─────────────────────────────────────── */
+function wireSeg(id, attr, after) {
+  const seg = document.getElementById(id);
+  seg.addEventListener('click', (ev) => {
+    const b = ev.target.closest('button'); if (!b) return;
+    seg.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    stage.dataset[attr] = b.dataset.v;
+    if (after) after();
+  });
+}
+wireSeg('seg-borders', 'borders');
+wireSeg('seg-child', 'child', renderRows);
+
+document.querySelectorAll('.section-head').forEach(h => {
+  h.addEventListener('click', () => {
+    const sec = document.getElementById(h.dataset.toggle);
+    const open = sec.dataset.open === 'true';
+    sec.dataset.open = String(!open);
+    h.setAttribute('aria-expanded', String(!open));
+  });
+});
+
+/* ── popup dettagli ─────────────────────────────────────────── */
+const overlay = document.getElementById('overlay');
+const modal   = document.getElementById('modal');
+let current = 0;
+
+/* I campi rispecchiano equipmentConfig.ts: le colonne della tabella più gli
+   `extra` del tipo. `sep` apre un nuovo raggruppamento con un filetto, al
+   posto del titolo che prima costava una riga intera. */
+function fieldsFor(e) {
+  const F = (label, val, opt) =>
+    `<div class="field${opt && opt.sep ? ' sep' : ''}${opt && opt.wide ? ' wide' : ''}">
+       <label>${label}</label>
+       <div class="val${val ? '' : ' empty'}">${val || '—'}</div>
+     </div>`;
+
+  const f = [
+    F('Marca', e.marca), F('Modello', e.modello), F('Anno', e.anno), F('N° fabbrica', e.nf),
+    F(e.kind === 'valvola' ? 'Ptar (bar)' : 'PS (bar)', e.ps, { sep: true }),
+    F(e.kind === 'compressore' ? 'FAD (l/min)' : e.kind === 'valvola' ? 'Qmax (l/min)' : 'Volume (l)', e.cap),
+    F('TS (°C)', e.ts),
+    F('Categoria PED', e.cat),
+  ];
+
+  if (e.kind === 'serbatoio') {
+    f.push(
+      F('Orientamento', 'Verticale', { sep: true }), F('Ubicazione', 'Sala compressori'),
+      F('Fluido', 'Aria'), F('Finitura interna', 'Verniciato'),
+      F('Scarico condensa', 'Automatico'), F('Ancorato a terra', 'Sì'),
+      F('Man. fondo scala', '16'), F('Man. segno rosso', '11,5'),
+      F('Già denunciato', 'No', { sep: true }), F('Matricola INAIL', ''),
+    );
+  }
+  if (e.kind === 'disoleatore') {
+    f.push(F('Già denunciato', 'No', { sep: true }), F('Matricola INAIL', ''));
+  }
+  if (e.kind === 'compressore') {
+    f.push(F('Tipo', 'Rotativo a vite', { sep: true }), F('Giri', 'Fissi'), F('Silenziato', 'Sì'));
+  }
+  if (e.kind === 'valvola') {
+    f.push(F('Diametro', '1/2"', { sep: true }));
+  }
+  if (e.kind === 'essiccatore') {
+    f.push(F('Scambiatore collegato', '', { sep: true }));
+  }
+
+  f.push(F('Note', '', { wide: true }));
+  return `<div class="grid-fields">${f.join('')}</div>`;
+}
+
+function openModal(i) {
+  current = ((i % TREE.length) + TREE.length) % TREE.length;
+  const e = TREE[current];
+  modal.style.setProperty('--kc', KC[e.kind]);
+  document.getElementById('m-code').textContent = e.code;
+  document.getElementById('m-type').textContent = e.tipo.toLowerCase();
+  document.getElementById('m-pos').textContent  = `${current + 1} di ${TREE.length}`;
+  document.getElementById('m-body').innerHTML   = fieldsFor(e);
+  document.getElementById('m-append').hidden    = e.kind !== 'serbatoio' && e.kind !== 'disoleatore';
+  document.getElementById('m-note').textContent =
+    `campi previsti per ${e.tipo.toLowerCase()}: gli altri non si applicano a questo tipo`;
+  overlay.hidden = false;
+  document.getElementById('m-close').focus();
+}
+
+const closeModal = () => { overlay.hidden = true; };
+
+document.addEventListener('click', (ev) => {
+  const o = ev.target.closest('[data-open]');
+  if (o) { openModal(Number(o.dataset.open)); return; }
+  if (ev.target === overlay) closeModal();
+});
+document.getElementById('m-close').addEventListener('click', closeModal);
+document.getElementById('m-done').addEventListener('click', closeModal);
+document.getElementById('m-prev').addEventListener('click', () => openModal(current - 1));
+document.getElementById('m-next').addEventListener('click', () => openModal(current + 1));
+document.getElementById('open-demo').addEventListener('click', () => openModal(3));
+document.addEventListener('keydown', (ev) => {
+  if (overlay.hidden) return;
+  if (ev.key === 'Escape')     closeModal();
+  if (ev.key === 'ArrowLeft')  openModal(current - 1);
+  if (ev.key === 'ArrowRight') openModal(current + 1);
+});
+
+renderRows();
+</script>

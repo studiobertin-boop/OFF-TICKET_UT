@@ -18,10 +18,35 @@ export const cellTdSx = {
   verticalAlign: 'middle',
 } as const
 
+/**
+ * Rientro orizzontale del contenuto delle celle, in px.
+ *
+ * Vive qui e non nella tabella perché è il numero che deve valere insieme per l'input,
+ * che lo applica su di sé, e per l'intestazione che gli sta sopra: due valori diversi
+ * bastano a far sembrare una colonna numerica fuori asse rispetto al proprio titolo.
+ */
+export const PAD_CELLA = 8
+
+/**
+ * Larghezza del pulsante che alcune celle mettono a destra del valore (la matita che
+ * sblocca l'inserimento libero). Dichiarata, non ereditata dalla densità di MUI: è la
+ * misura di cui l'intestazione deve arretrare per cadere sull'asse delle cifre.
+ */
+export const LARGHEZZA_AZIONE = 20
+
+/**
+ * Arretramento dell'intestazione di una colonna che porta un pulsante di riga.
+ *
+ * Su una colonna allineata a destra sposta il titolo sopra l'ultima cifra; su una
+ * colonna centrata sposta il centro del titolo sopra il centro del valore, perché il
+ * pulsante occupa spazio solo da un lato.
+ */
+export const PAD_TITOLO_AZIONE = LARGHEZZA_AZIONE + PAD_CELLA
+
 const baseInputSx = {
   width: '100%',
   fontSize: '0.82rem',
-  px: 1,
+  px: `${PAD_CELLA}px`,
   py: 0.4,
   color: 'text.primary',
   '& input': { p: 0 },
@@ -60,7 +85,10 @@ interface CellBase {
   disabled?: boolean
 }
 
-export const TextCell = ({ control, name, placeholder, disabled, w }: CellBase & { placeholder?: string; w?: number }) => {
+/** Allineamento del valore dentro la cella; l'intestazione della colonna segue lo stesso. */
+export type AllineamentoCella = 'left' | 'center' | 'right'
+
+export const TextCell = ({ control, name, placeholder, disabled, w, align }: CellBase & { placeholder?: string; w?: number; align?: AllineamentoCella }) => {
   const ac = useNoAutofillToken()
   return (
     <Controller
@@ -73,7 +101,7 @@ export const TextCell = ({ control, name, placeholder, disabled, w }: CellBase &
             value={field.value ?? ''}
             placeholder={placeholder ?? '—'}
             disabled={disabled}
-            inputProps={{ autoComplete: ac }}
+            inputProps={{ autoComplete: ac, ...(align ? { style: { textAlign: align } } : {}) }}
             sx={{ ...baseInputSx, ...(w ? { width: w } : {}), ...(fieldState.error ? errorSx : {}) }}
           />
         </Tooltip>
