@@ -4,7 +4,7 @@
  *
  * ⚠️ Da verificare nell'app in esecuzione (UI non coperta dai test unitari).
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type DragEvent } from 'react'
 import {
   Dialog,
   DialogTitle,
@@ -109,6 +109,8 @@ export default function RelazioneDataDialog({
   const [schema, setSchema] = useState<SchemaImpianto | null>(null)
   const [saving, setSaving] = useState(false)
   const [droppedRefs, setDroppedRefs] = useState<string[]>([])
+  /** Un'immagine è sospesa sopra l'area: l'area lo dice, altrimenti non si sa se accetta. */
+  const [schemaSopra, setSchemaSopra] = useState(false)
 
   // Sincronizza lo stato all'apertura del dialog
   useEffect(() => {
@@ -127,6 +129,7 @@ export default function RelazioneDataDialog({
     setDroppedRefs(dropped)
     // Lo schema non è persistito: a ogni apertura si riparte da vuoto.
     setSchema(null)
+    setSchemaSopra(false)
   }, [open, initialAdditionalInfo, customer, schedaCodes])
 
   const handleSchemaFile = async (file: File | undefined) => {
@@ -137,6 +140,35 @@ export default function RelazioneDataDialog({
       setSchema(null)
       toast.error(err instanceof Error ? err.message : 'Immagine non leggibile.')
     }
+  }
+
+  /**
+   * Trascinamento dello schema sull'area.
+   *
+   * `preventDefault` sul dragover non è un dettaglio: senza, il browser considera l'area non
+   * ricevente e al rilascio apre l'immagine al posto della pagina, buttando via il lavoro
+   * fatto nel dialog. Il file passa poi dalla stessa lettura del pulsante, così formato e
+   * dimensione restano controllati in un punto solo.
+   */
+  const schemaSospeso = (e: DragEvent<HTMLElement>) => {
+    e.preventDefault()
+    if (saving) return
+    e.dataTransfer.dropEffect = 'copy'
+    setSchemaSopra(true)
+  }
+
+  const schemaUscito = (e: DragEvent<HTMLElement>) => {
+    // Il passaggio su un figlio dell'area emette un `dragleave` che non è un'uscita.
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+    setSchemaSopra(false)
+  }
+
+  const schemaRilasciato = (e: DragEvent<HTMLElement>) => {
+    e.preventDefault()
+    setSchemaSopra(false)
+    if (saving) return
+    // Il paragrafo ospita un solo schema: di un rilascio multiplo si prende il primo.
+    void handleSchemaFile(e.dataTransfer.files?.[0])
   }
 
   const setGiroFor = (code: string, value: TipoGiri) =>
@@ -472,7 +504,24 @@ export default function RelazioneDataDialog({
             L’immagine viene incorporata nel documento a larghezza fissa e non viene
             salvata: va riselezionata a ogni generazione. Formati PNG o JPEG, max 10 MB.
           </Typography>
-          <Stack direction="row" spacing={2} alignItems="center">
+          <Box
+            onDragEnter={schemaSospeso}
+            onDragOver={schemaSospeso}
+            onDragLeave={schemaUscito}
+            onDrop={schemaRilasciato}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 2,
+              p: 2,
+              borderRadius: 1,
+              border: '1px dashed',
+              borderColor: schemaSopra ? 'primary.main' : 'divider',
+              bgcolor: schemaSopra ? 'action.hover' : 'transparent',
+              transition: 'border-color 120ms, background-color 120ms',
+            }}
+          >
             <Button component="label" variant="outlined" size="small" disabled={saving}>
               {schema ? 'Sostituisci immagine' : 'Scegli immagine'}
               <input
@@ -497,10 +546,10 @@ export default function RelazioneDataDialog({
               </>
             ) : (
               <Typography variant="body2" color="text.secondary">
-                Nessuno schema: il paragrafo resterà vuoto.
+                …oppure trascina qui l’immagine. Senza schema il paragrafo resterà vuoto.
               </Typography>
             )}
-          </Stack>
+          </Box>
 
           <Divider />
           <Typography variant="subtitle2">Controllo di completezza</Typography>
