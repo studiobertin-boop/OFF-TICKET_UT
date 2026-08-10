@@ -53,6 +53,7 @@
     "file-saver": "^2.0.5",
     "jspdf": "^3.0.3",
     "jspdf-autotable": "^5.0.2",
+    "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.4.449",
     "pizzip": "^3.2.0",
     "react": "^18.3.1",
