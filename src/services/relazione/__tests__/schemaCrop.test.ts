@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { riquadroContenuto, riquadroConMargine } from '../schemaCrop'
+import { riquadroContenuto, riquadroConMargine, riquadroDiRitaglio, mmAPx } from '../schemaCrop'
 
 type RGBA = [number, number, number, number]
 
@@ -43,7 +43,7 @@ describe('riquadroContenuto', () => {
     expect(riquadroContenuto(pixels, larghezza, altezza)).toEqual({ minX: 4, minY: 4, maxX: 6, maxY: 6 })
   })
 
-  test('rileva il contenuto su sfondo trasparente (caso PDF)', () => {
+  test('rileva il contenuto su sfondo trasparente (PNG con alpha)', () => {
     const larghezza = 8
     const altezza = 8
     const pixels = immaginePiena(larghezza, altezza, [0, 0, 0, 0])
@@ -80,5 +80,42 @@ describe('riquadroConMargine', () => {
   test('non sconfina quando il contenuto tocca già un bordo', () => {
     const r = { minX: 0, minY: 0, maxX: 3, maxY: 3 }
     expect(riquadroConMargine(r, 5, 10, 10)).toEqual({ minX: 0, minY: 0, maxX: 8, maxY: 8 })
+  })
+})
+
+describe('riquadroDiRitaglio', () => {
+  test('contenuto rilevato: applica il margine attorno al contenuto', () => {
+    const larghezza = 10
+    const altezza = 10
+    const pixels = immaginePiena(larghezza, altezza)
+    disegnaRettangolo(pixels, larghezza, 4, 4, 6, 6, [0, 0, 0, 255])
+    expect(riquadroDiRitaglio(pixels, larghezza, altezza, 1)).toEqual({
+      minX: 3,
+      minY: 3,
+      maxX: 7,
+      maxY: 7,
+    })
+  })
+
+  test('nessun contenuto rilevato: ripiega sull\'immagine intera', () => {
+    const larghezza = 5
+    const altezza = 5
+    const pixels = immaginePiena(larghezza, altezza)
+    expect(riquadroDiRitaglio(pixels, larghezza, altezza, 3)).toEqual({
+      minX: 0,
+      minY: 0,
+      maxX: 5,
+      maxY: 5,
+    })
+  })
+})
+
+describe('mmAPx', () => {
+  test('converte millimetri in pixel al dpi raster assunto (96)', () => {
+    expect(mmAPx(1, 96)).toBe(4) // 1mm * 96 / 25.4 = 3.78 -> 4
+  })
+
+  test('converte millimetri in pixel al dpi di un PDF renderizzato a scala 2 (144)', () => {
+    expect(mmAPx(1, 144)).toBe(6) // 1mm * 144 / 25.4 = 5.67 -> 6
   })
 })

@@ -49,9 +49,10 @@ function campionaSfondo(pixels: Uint8ClampedArray, larghezza: number, altezza: n
 
 /**
  * Un pixel è "contenuto" se il suo alpha si scosta significativamente dallo sfondo
- * (copre gli sfondi trasparenti, tipici di un PDF vettoriale senza riempimento di
- * pagina) oppure, a parità di alpha, se un canale RGB si scosta oltre soglia (copre gli
- * sfondi bianchi/chiari delle immagini raster, tollerando l'antialiasing).
+ * (copre gli sfondi trasparenti di un PNG con alpha reale: un PDF renderizzato è invece
+ * sempre opaco, pdf.js riempie la pagina di bianco) oppure, a parità di alpha, se un
+ * canale RGB si scosta oltre soglia (copre gli sfondi bianchi/chiari delle immagini
+ * raster, tollerando l'antialiasing).
  */
 function eContenuto(pixels: Uint8ClampedArray, i: number, rif: ColoreRif, soglia: number): boolean {
   const a = pixels[i + 3]
@@ -111,4 +112,26 @@ export function riquadroConMargine(
     maxX: Math.min(larghezza, r.maxX + marginePx),
     maxY: Math.min(altezza, r.maxY + marginePx),
   }
+}
+
+/**
+ * Riquadro di ritaglio finale: il contenuto rilevato espanso del margine, o l'intera
+ * immagine se non è stato rilevato alcun contenuto (fallback non bloccante — il chiamante
+ * preferisce mostrare l'immagine intera piuttosto che fallire).
+ */
+export function riquadroDiRitaglio(
+  pixels: Uint8ClampedArray,
+  larghezza: number,
+  altezza: number,
+  marginePx: number
+): Riquadro {
+  const contenuto = riquadroContenuto(pixels, larghezza, altezza)
+  return contenuto
+    ? riquadroConMargine(contenuto, marginePx, larghezza, altezza)
+    : { minX: 0, minY: 0, maxX: larghezza, maxY: altezza }
+}
+
+/** Converte un margine da millimetri a pixel, dato il dpi del canvas su cui si applica. */
+export function mmAPx(mm: number, dpi: number): number {
+  return Math.round((mm * dpi) / 25.4)
 }
