@@ -82,8 +82,11 @@ class Conteggio {
   }
 }
 
-/** `note` è un commento, non un dato: non entra nel conteggio della completezza. */
-const extraDaIgnorare = (f: ExtraFieldDef) => f.name === 'note'
+/**
+ * Fuori dal conteggio: `note`, che è un commento e non un dato, e i campi dichiarati
+ * opzionali — chiederli terrebbe a metà una riga che è compilata per quel che c'è da sapere.
+ */
+const extraDaIgnorare = (f: ExtraFieldDef) => f.name === 'note' || f.opzionale === true
 
 /**
  * Un campo extra risulta compilato anche da vuoto quando:

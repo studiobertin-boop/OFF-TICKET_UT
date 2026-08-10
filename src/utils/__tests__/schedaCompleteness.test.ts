@@ -49,6 +49,17 @@ describe('completezzaRiga — il denominatore lo detta il tipo', () => {
     const c = completezzaRiga(EQUIPMENT_DEFS.valvola, { ...targhetta })
     expect(c.mancanti).not.toContain('Cat. PED')
   })
+
+  it('non conta il diametro delle valvole, che è opzionale', () => {
+    const c = completezzaRiga(EQUIPMENT_DEFS.valvola, {
+      ...targhetta,
+      pressione_taratura: 11,
+      volume_aria_scaricato: 2350,
+      ts: 100,
+    })
+    expect(c.mancanti).not.toContain('Diametro')
+    expect(eCompleta(c)).toBe(true)
+  })
 })
 
 describe('completezzaRiga — campi del pannello dettagli', () => {

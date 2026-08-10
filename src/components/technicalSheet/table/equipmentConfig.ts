@@ -35,6 +35,11 @@ export interface ExtraFieldDef {
   emptyLabel?: string
   /** Il campo compare solo quando un altro campo della stessa riga vale `equals`. */
   showIf?: { field: string; equals: string }
+  /**
+   * Campo che si compila se lo si sa: resta editabile, ma non entra nel conteggio di
+   * completezza. Diverso da `showIf`, che lo toglie proprio di mezzo quando non ha senso.
+   */
+  opzionale?: boolean
   /** Sorgente delle opzioni dinamiche per `kind: 'multi'`. */
   optionsFrom?: 'valvole'
   min?: number
@@ -172,7 +177,10 @@ export const EQUIPMENT_DEFS: Record<EquipmentKind, EquipmentTypeDef> = {
   valvola: {
     kind: 'valvola', label: 'Valvola di sicurezza', prefix: '', catalogType: 'Valvole di sicurezza',
     capacitaField: 'volume_aria_scaricato', pressioneField: 'pressione_taratura', ts: true, cat: 'IV', autoPed: false,
-    extra: [{ name: 'diametro', label: 'Diametro', kind: 'text' }],
+    // Il diametro è opzionale: sulle targhette spesso non c'è, e pretenderlo terrebbe ogni
+    // valvola sotto il 100%. Resta però un dato pieno a catalogo, dove distingue fra loro le
+    // varianti della stessa valvola.
+    extra: [{ name: 'diametro', label: 'Diametro', kind: 'text', opzionale: true }],
     specsMap: { ptar: 'pressione_taratura', ts: 'ts', qmax: 'volume_aria_scaricato', diametro: 'diametro' },
     adv: ['capacita', 'ts', 'cat'],
   },
