@@ -379,6 +379,7 @@ export const TechnicalDetails = () => {
             onAutoSave={handleAutoSave}
             customerName={customerName}
             sedeLegale={sedeLegale}
+            codicePratica={codicePratica}
             header={(completezza) => (
               <TechnicalSheetHeader
                 customerName={customerName}

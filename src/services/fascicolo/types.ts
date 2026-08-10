@@ -42,19 +42,19 @@ export const RUOLI_PRINCIPALE = ['CERT_PRINCIPALE', 'FOTO_TARGHETTA_PRINCIPALE']
 export const indiceRuolo = (ruolo: RuoloDocumento): number => ORDINE_RUOLI.indexOf(ruolo)
 
 /**
- * Etichette dei ruoli. `{app}` e `{princ}` si sostituiscono col nome del tipo di
- * apparecchiatura, così l'elenco dice «Certificato CE del disoleatore» e non «Certificato CE
- * dell'apparecchiatura»: chi rivede la classificazione deve riconoscere il documento a colpo
- * d'occhio.
+ * Etichette dei ruoli. `{app}` e `{princ}` si sostituiscono con tipo e codice
+ * dell'apparecchiatura, così l'elenco dice «Certificato CE — disoleatore C1.1» e non
+ * «Certificato CE dell'apparecchiatura»: chi rivede la classificazione deve riconoscere il
+ * documento a colpo d'occhio.
  */
 export const RUOLO_LABELS: Record<RuoloDocumento, string> = {
-  CERT_APPARECCHIATURA: 'Certificato CE {app}',
-  ISTR_APPARECCHIATURA: 'Istruzioni uso e manutenzione {app}',
-  CERT_VALVOLA: 'Certificato CE valvola di sicurezza',
-  ISTR_VALVOLA: 'Istruzioni uso e manutenzione valvola',
-  FOTO_TARGHETTA: 'Foto targhetta {app}',
-  CERT_PRINCIPALE: 'Certificato CE {princ}',
-  FOTO_TARGHETTA_PRINCIPALE: 'Foto targhetta {princ}',
+  CERT_APPARECCHIATURA: 'Certificato CE — {app}',
+  ISTR_APPARECCHIATURA: 'Istruzioni uso e manutenzione — {app}',
+  CERT_VALVOLA: 'Certificato CE — valvola di sicurezza',
+  ISTR_VALVOLA: 'Istruzioni uso e manutenzione — valvola di sicurezza',
+  FOTO_TARGHETTA: 'Foto targhetta — {app}',
+  CERT_PRINCIPALE: 'Certificato CE — {princ}',
+  FOTO_TARGHETTA_PRINCIPALE: 'Foto targhetta — {princ}',
 }
 
 /** Dati di targa di un'apparecchiatura: sono le prove con cui si attribuisce un documento. */
@@ -70,8 +70,16 @@ export interface DatiIdentificativi {
 /** Apparecchiatura nominata nel fascicolo, con il suo codice di scheda. */
 export interface Apparecchiatura extends DatiIdentificativi {
   codice: string
-  /** Etichetta del tipo, minuscola e articolata: «del disoleatore», «della valvola». */
+  /** Nome del tipo, minuscolo e senza articolo: «disoleatore», «valvola di sicurezza». */
   tipo: string
+}
+
+/** Etichetta di un ruolo per questo fascicolo: «Certificato CE — disoleatore C1.1». */
+export const etichettaRuolo = (ruolo: RuoloDocumento, contesto: ContestoFascicolo): string => {
+  const nome = (a: Apparecchiatura | null) => (a ? `${a.tipo} ${a.codice}` : 'apparecchiatura principale')
+  return RUOLO_LABELS[ruolo]
+    .replace('{app}', nome(contesto.apparecchiatura))
+    .replace('{princ}', nome(contesto.principale))
 }
 
 /**

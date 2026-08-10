@@ -117,8 +117,9 @@ export const rasterizzaPdf = async (
   file: File | Blob,
   riduzione: Riduzione
 ): Promise<ImmagineRidotta[]> => {
-  // pdfjs si carica solo qui: la stragrande maggioranza dei fascicoli rientra nel limite di peso
-  // senza rasterizzare nulla, e chi non ci passa non deve scaricarsi il motore di rendering.
+  // pdfjs si carica al momento dell'uso: all'import chiede `DOMMatrix`, che esiste in un browser
+  // ma non nell'ambiente dei test. Importandolo qui, la composizione del fascicolo resta
+  // verificabile senza un browser — e questa è l'unica funzione che pdfjs le serve davvero.
   const { pdfjsLib } = await import('@/utils/pdfjs')
   const documento = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise
   const pagine: ImmagineRidotta[] = []

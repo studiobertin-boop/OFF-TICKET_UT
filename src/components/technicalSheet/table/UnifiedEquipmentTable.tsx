@@ -12,7 +12,9 @@ import { completezzaRiga, type Completezza } from '@/utils/schedaCompleteness'
 import { ALTEZZA_BARRA } from '../TechnicalSheetHeader'
 import { cellTdSx, PAD_CELLA, PAD_TITOLO_AZIONE } from './EquipmentCells'
 import { useCellePrincipali } from './useCellePrincipali'
-import { EquipmentDetailDialog, type DettaglioRiga } from './EquipmentDetailDialog'
+import { EquipmentDetailDialog, type DettaglioRiga, type RigaFascicolo } from './EquipmentDetailDialog'
+import { nomeFileFascicolo } from '@/utils/practiceCode'
+import type { DocumentoFascicolo } from '@/services/fascicolo/types'
 import { codiciValvoleDisoleatore, codiciValvoleSerbatoio } from '@/utils/valvoleImpianto'
 import { SingleOCRButton } from '../SingleOCRButton'
 import { useTecnicoDM329Visibility } from '@/hooks/useTecnicoDM329Visibility'
@@ -391,9 +393,14 @@ interface UnifiedEquipmentTableProps {
   righeComplete: { complete: number; totali: number }
   /** Azioni della barra strumenti che non appartengono alla tabella (batch OCR). */
   azioni?: ReactNode
+  /** Codice pratica e cliente: servono a nominare il fascicolo di ogni apparecchiatura. */
+  codicePratica?: string
+  ragioneSociale?: string
 }
 
-export const UnifiedEquipmentTable = ({ control, completezza, righeComplete, azioni }: UnifiedEquipmentTableProps) => {
+export const UnifiedEquipmentTable = ({
+  control, completezza, righeComplete, azioni, codicePratica = '', ragioneSociale = '',
+}: UnifiedEquipmentTableProps) => {
   const { showAdvancedFields: adv, showRecipienteFiltro, isTecnicoDM329 } = useTecnicoDM329Visibility()
   const { setValue, getValues } = useFormContext()
   const { setOrigine } = useEquipmentCatalogContext()
@@ -410,6 +417,19 @@ export const UnifiedEquipmentTable = ({ control, completezza, righeComplete, azi
    */
   const [aperta, setAperta] = useState<number | null>(null)
   const chiudiDettaglio = () => setAperta(null)
+
+  /**
+   * Documenti caricati per il fascicolo, per codice di apparecchiatura.
+   *
+   * Vivono qui e non nella finestra perché la finestra si chiude e si riapre di continuo — si
+   * scorre da un'apparecchiatura all'altra — e ricaricare i file a ogni ritorno non avrebbe
+   * senso. Vivono in memoria e non a database perché il fascicolo è un prodotto da consegnare,
+   * non un archivio: ricaricando la pagina si ricomincia.
+   */
+  const [fascicoli, setFascicoli] = useState<Record<string, DocumentoFascicolo[]>>({})
+  const documentiDi = (codice: string) => fascicoli[codice] ?? []
+  const cambiaDocumenti = (codice: string) => (documenti: DocumentoFascicolo[]) =>
+    setFascicoli((f) => ({ ...f, [codice]: documenti }))
 
   const ask: AskDelete = (label, code, conferma) =>
     setPending({ testo: `Confermi di voler eliminare ${label} ${code}?`, conferma })
@@ -560,6 +580,25 @@ export const UnifiedEquipmentTable = ({ control, completezza, righeComplete, azi
   const rows: ReactNode[] = []
   const voci: DettaglioRiga[] = []
 
+  /**
+   * Fascicolo di un'apparecchiatura: nome del file e apparecchiature che entrano nel contesto.
+   *
+   * Le valvole e l'apparecchiatura principale si passano come percorsi del form, non come
+   * valori: è la finestra a osservarli, così i dati di targa con cui si riconoscono i documenti
+   * restano quelli correnti anche mentre li si corregge.
+   */
+  const fascicoloDi = (args: {
+    code: string
+    valvole?: { codice: string; base: string }[]
+    principale?: { codice: string; base: string; def: EquipmentTypeDef } | null
+  }): RigaFascicolo => ({
+    nomeFile: nomeFileFascicolo(codicePratica, args.code, ragioneSociale),
+    valvole: args.valvole ?? [],
+    principale: args.principale ?? null,
+    documenti: documentiDi(args.code),
+    onCambia: cambiaDocumenti(args.code),
+  })
+
   /** Aggiunge una riga alla tabella e la relativa voce all'elenco navigabile. */
   const aggiungiRiga = (args: {
     key: string
@@ -573,11 +612,16 @@ export const UnifiedEquipmentTable = ({ control, completezza, righeComplete, azi
     append: { label: string; onClick: () => void } | null
     /** Identità per le scritture asincrone; per le valvole è quella del recipiente. */
     identita: { path: string; value: string }
+    /** Assente per le valvole: il loro certificato entra nel fascicolo del recipiente. */
+    fascicolo?: RigaFascicolo | null
   }) => {
     const { key, def, base, code, rowKey, guide, ocr, onDelete, append, identita } = args
     const onSelected = selettoreCatalogo(def, base, rowKey, identita)
     const indice = voci.length
-    voci.push({ def, base, code, color: KIND_COLOR[def.kind], onSelected, onDelete, append })
+    voci.push({
+      def, base, code, color: KIND_COLOR[def.kind], onSelected, onDelete, append,
+      fascicolo: args.fascicolo ?? null,
+    })
     rows.push(
       <EqRow
         key={key}
@@ -616,11 +660,16 @@ export const UnifiedEquipmentTable = ({ control, completezza, righeComplete, azi
     ocrValvola: OcrRef
     onDelete: () => void
     posizioni: (count: number) => string[]
+    /** Apparecchiatura che lo contiene: il compressore del disoleatore. */
+    principale?: { codice: string; base: string; def: EquipmentTypeDef } | null
   }) => {
     const { key, def, arrayName, base, code, valori, guide, ocr, ocrValvola, onDelete, posizioni } = args
     const aggiuntive = aggiuntiveDi(valori)
     const pos = posizioni(aggiuntive.length + 1)
     const identita = { path: `${base}.codice`, value: code }
+
+    /** Percorso della j-esima valvola: la prima è quella obbligatoria, le altre sono appese. */
+    const baseValvola = (j: number) => (j === 0 ? `${base}.valvola_sicurezza` : `${base}.valvole_aggiuntive.${j - 1}`)
 
     // Il recipiente porta sempre almeno la valvola principale: sotto di lui il ramo di
     // ogni antenato continua per forza.
@@ -628,6 +677,11 @@ export const UnifiedEquipmentTable = ({ control, completezza, righeComplete, azi
       key, def, base, code, rowKey: rowKeyOf(arrayName, code),
       guide: guide.map((g) => ({ ...g, continua: true })), ocr, onDelete, identita,
       append: { label: 'Valvola di sicurezza', onClick: () => appendiValvola(base, aggiuntive) },
+      fascicolo: fascicoloDi({
+        code,
+        valvole: pos.map((codice, j) => ({ codice, base: baseValvola(j) })),
+        principale: args.principale,
+      }),
     })
 
     /**
@@ -641,7 +695,7 @@ export const UnifiedEquipmentTable = ({ control, completezza, righeComplete, azi
       aggiungiRiga({
         key: `${key}-v${j}`,
         def: EQUIPMENT_DEFS.valvola,
-        base: j === 0 ? `${base}.valvola_sicurezza` : `${base}.valvole_aggiuntive.${j - 1}`,
+        base: baseValvola(j),
         code: codiceValvola,
         rowKey: rowKeyOf(VALVOLE_ROW_PREFIX, codiceValvola),
         guide: [
@@ -672,6 +726,7 @@ export const UnifiedEquipmentTable = ({ control, completezza, righeComplete, azi
       append: dIdx === -1
         ? { label: 'Disoleatore', onClick: () => { disoleatori.append(nuovaRiga(EQUIPMENT_DEFS.disoleatore, `${code}.1`, { compressore_associato: code })); setValue(`compressori.${i}.ha_disoleatore`, true) } }
         : null,
+      fascicolo: fascicoloDi({ code }),
     })
     if (dIdx >= 0) {
       aggiungiRecipienteConValvole({
@@ -683,6 +738,7 @@ export const UnifiedEquipmentTable = ({ control, completezza, righeComplete, azi
         ocrValvola: { equipmentType: 'Disoleatori', equipmentIndex: dIdx, componentType: 'valvola_sicurezza' },
         onDelete: () => ask('il disoleatore', `${code}.1`, () => { disoleatori.remove(dIdx); setValue(`compressori.${i}.ha_disoleatore`, false); dopoEliminazione() }),
         posizioni: (n) => codiciValvoleDisoleatore(`${code}.1`, n),
+        principale: { codice: code, base: `compressori.${i}`, def: EQUIPMENT_DEFS.compressore },
       })
     }
   })
@@ -711,6 +767,7 @@ export const UnifiedEquipmentTable = ({ control, completezza, righeComplete, azi
       append: sIdx === -1
         ? { label: 'Scambiatore', onClick: () => { scambiatori.append(nuovaRiga(EQUIPMENT_DEFS.scambiatore, `${code}.1`, { essiccatore_associato: code })); setValue(`essiccatori.${i}.ha_scambiatore`, true) } }
         : null,
+      fascicolo: fascicoloDi({ code }),
     })
     if (sIdx >= 0) {
       aggiungiRiga({
@@ -721,6 +778,10 @@ export const UnifiedEquipmentTable = ({ control, completezza, righeComplete, azi
         identita: { path: `scambiatori.${sIdx}.codice`, value: `${code}.1` },
         onDelete: () => ask('lo scambiatore', `${code}.1`, () => { scambiatori.remove(sIdx); setValue(`essiccatori.${i}.ha_scambiatore`, false); dopoEliminazione() }),
         append: null,
+        fascicolo: fascicoloDi({
+          code: `${code}.1`,
+          principale: { codice: code, base: `essiccatori.${i}`, def: EQUIPMENT_DEFS.essiccatore },
+        }),
       })
     }
   })
@@ -736,6 +797,7 @@ export const UnifiedEquipmentTable = ({ control, completezza, righeComplete, azi
       append: (showRecipienteFiltro && rIdx === -1)
         ? { label: 'Recipiente', onClick: () => { recipienti.append(nuovaRiga(EQUIPMENT_DEFS.recipiente, `${code}.1`, { filtro_associato: code })); setValue(`filtri.${i}.ha_recipiente`, true) } }
         : null,
+      fascicolo: fascicoloDi({ code }),
     })
     if (rIdx >= 0 && showRecipienteFiltro) {
       aggiungiRiga({
@@ -746,6 +808,10 @@ export const UnifiedEquipmentTable = ({ control, completezza, righeComplete, azi
         identita: { path: `recipienti_filtro.${rIdx}.codice`, value: `${code}.1` },
         onDelete: () => ask('il recipiente', `${code}.1`, () => { recipienti.remove(rIdx); setValue(`filtri.${i}.ha_recipiente`, false); dopoEliminazione() }),
         append: null,
+        fascicolo: fascicoloDi({
+          code: `${code}.1`,
+          principale: { codice: code, base: `filtri.${i}`, def: EQUIPMENT_DEFS.filtro },
+        }),
       })
     }
   })
@@ -758,6 +824,7 @@ export const UnifiedEquipmentTable = ({ control, completezza, righeComplete, azi
       identita: { path: `separatori.${i}.codice`, value: code },
       onDelete: () => ask('il separatore', code, () => { separatori.remove(i); dopoEliminazione() }),
       append: null,
+      fascicolo: fascicoloDi({ code }),
     })
   })
 
