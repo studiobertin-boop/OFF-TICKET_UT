@@ -41,7 +41,7 @@ import { generateAndDownloadRelazione } from '@/services/relazione/generateRelaz
 import { buildRelazioneModel } from '@/services/relazione/buildRelazioneModel'
 import { validateRelazione, haErrori } from '@/services/relazione/preflight'
 import type { AdditionalInfo, PraticaInfo, SchemaImpianto, TipoGiri } from '@/services/relazione/types'
-import { leggiSchemaImpianto } from './schemaImpiantoFile'
+import { leggiSchemaImpianto, FORMATI_SCHEMA } from './schemaImpiantoFile'
 import { collectCodes, pruneAdditionalInfo } from '@/utils/equipmentCodes'
 
 /**
@@ -128,6 +128,9 @@ export default function RelazioneDataDialog({
   const [collegamenti, setCollegamenti] = useState<Record<string, string[]>>({})
   const [schema, setSchema] = useState<SchemaImpianto | null>(null)
   const [saving, setSaving] = useState(false)
+  /** Lettura dello schema in corso (parsing PDF, rendering, scansione pixel, encoding PNG):
+   *  può richiedere secondi su un file grande, quindi guida anche i controlli sotto. */
+  const [schemaInCaricamento, setSchemaInCaricamento] = useState(false)
   const [droppedRefs, setDroppedRefs] = useState<string[]>([])
   /** Un'immagine è sospesa sopra l'area: l'area lo dice, altrimenti non si sa se accetta. */
   const [schemaSopra, setSchemaSopra] = useState(false)
@@ -165,10 +168,12 @@ export default function RelazioneDataDialog({
     setSchema(null)
     setSchemaPreviewUrl(null)
     setSchemaSopra(false)
+    setSchemaInCaricamento(false)
   }, [open, initialAdditionalInfo, customer, schedaCodes])
 
   const handleSchemaFile = async (file: File | undefined) => {
     if (!file) return
+    setSchemaInCaricamento(true)
     try {
       const letto = await leggiSchemaImpianto(file)
       setSchema(letto)
@@ -177,6 +182,8 @@ export default function RelazioneDataDialog({
       setSchema(null)
       setSchemaPreviewUrl(null)
       toast.error(err instanceof Error ? err.message : 'Immagine non leggibile.')
+    } finally {
+      setSchemaInCaricamento(false)
     }
   }
 
@@ -190,7 +197,7 @@ export default function RelazioneDataDialog({
    */
   const schemaSospeso = (e: DragEvent<HTMLElement>) => {
     e.preventDefault()
-    if (saving) return
+    if (saving || schemaInCaricamento) return
     e.dataTransfer.dropEffect = 'copy'
     setSchemaSopra(true)
   }
@@ -204,7 +211,7 @@ export default function RelazioneDataDialog({
   const schemaRilasciato = (e: DragEvent<HTMLElement>) => {
     e.preventDefault()
     setSchemaSopra(false)
-    if (saving) return
+    if (saving || schemaInCaricamento) return
     // Il paragrafo ospita un solo schema: di un rilascio multiplo si prende il primo.
     void handleSchemaFile(e.dataTransfer.files?.[0])
   }
@@ -591,12 +598,12 @@ export default function RelazioneDataDialog({
               transition: 'border-color 120ms, background-color 120ms',
             }}
           >
-            <Button component="label" variant="outlined" size="small" disabled={saving}>
+            <Button component="label" variant="outlined" size="small" disabled={saving || schemaInCaricamento}>
               {schema ? 'Sostituisci schema' : 'Scegli schema'}
               <input
                 type="file"
                 hidden
-                accept="image/png,image/jpeg,application/pdf"
+                accept={FORMATI_SCHEMA.join(',')}
                 onChange={(e) => {
                   void handleSchemaFile(e.target.files?.[0])
                   // Consente di riselezionare lo stesso file dopo una rimozione.
@@ -604,6 +611,14 @@ export default function RelazioneDataDialog({
                 }}
               />
             </Button>
+            {schemaInCaricamento && (
+              <Stack direction="row" spacing={1} alignItems="center">
+                <CircularProgress size={16} />
+                <Typography variant="body2" color="text.secondary">
+                  Lettura dello schema in corso…
+                </Typography>
+              </Stack>
+            )}
             {schema ? (
               <>
                 {schemaPreviewUrl && (
@@ -617,6 +632,7 @@ export default function RelazioneDataDialog({
                       borderRadius: 1,
                       border: '1px solid',
                       borderColor: 'divider',
+                      bgcolor: 'common.white',
                     }}
                   />
                 )}
@@ -630,15 +646,17 @@ export default function RelazioneDataDialog({
                     setSchema(null)
                     setSchemaPreviewUrl(null)
                   }}
-                  disabled={saving}
+                  disabled={saving || schemaInCaricamento}
                 >
                   Rimuovi
                 </Button>
               </>
             ) : (
-              <Typography variant="body2" color="text.secondary">
-                …oppure trascina qui il file. Senza schema il paragrafo resterà vuoto.
-              </Typography>
+              !schemaInCaricamento && (
+                <Typography variant="body2" color="text.secondary">
+                  …oppure trascina qui il file. Senza schema il paragrafo resterà vuoto.
+                </Typography>
+              )
             )}
           </Box>
 
