@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { useFormContext, useFormState } from 'react-hook-form'
 import { useEquipmentCatalogContext } from '@/components/technicalSheet/EquipmentCatalogContext'
 import { equipmentCatalogApi, type EsitoAggiornamentoSpecs } from '@/services/api/equipmentCatalog'
-import { compareSpecs, formFieldsFor } from '@/utils/equipmentSpecsComparison'
+import { areValuesEqual, compareSpecs, formFieldsFor } from '@/utils/equipmentSpecsComparison'
 import { stessaVoceCatalogo } from '@/utils/equipmentVarianti'
 import { readSheetPressure } from '@/services/equipmentAudit'
 import type { EquipmentCatalogType } from '@/types'
@@ -52,10 +52,15 @@ interface VerificaRiga {
  * 2. **Il campo è stato toccato in questa sessione** (`dirtyFields`). Senza, riaprire una scheda
  *    in cui uno scostamento era stato deciso tempo fa farebbe ricomparire la domanda a ogni
  *    passaggio sulla riga.
+ * 3. **Su quel valore non si è già deciso** (`risolti`). Confermare il dialog non toglie lo
+ *    scostamento — «solo per questa volta» lo lascia lì apposta, e anche «aggiorna il catalogo»
+ *    lascia intatta la fotografia da cui la riga era partita — quindi senza memoria della scelta
+ *    la stessa domanda tornerebbe alla prima uscita utile dalla riga, tipicamente appena si passa
+ *    all'apparecchiatura successiva.
  */
 export function useRowCatalogDivergence() {
   const { control, getValues, setValue } = useFormContext()
-  const { getOrigine } = useEquipmentCatalogContext()
+  const { getOrigine, segnaRisolti } = useEquipmentCatalogContext()
 
   /**
    * `useFormState` e non `formState` di `useFormContext`: quest'ultimo è un Proxy che si
@@ -94,11 +99,20 @@ export function useRowCatalogDivergence() {
     const sporco = (canonicalKey: string) =>
       formFieldsFor(tipo, canonicalKey).some((f) => Boolean(atPath(dirtyFields, `${base}.${f}`)))
 
+    // La decisione vale per il valore su cui è stata presa: se il tecnico ci ripensa e digita
+    // un terzo valore, quello è uno scostamento nuovo e la domanda torna a essere legittima.
+    const giaDeciso = (canonicalKey: string, valore: unknown) =>
+      origine.risolti !== undefined &&
+      canonicalKey in origine.risolti &&
+      areValuesEqual(origine.risolti[canonicalKey], valore)
+
+    const daChiedere = (k: string, valore: unknown) => sporco(k) && !giaDeciso(k, valore)
+
     const modifiedFields = Object.fromEntries(
-      Object.entries(comparison.modifiedFields).filter(([k]) => sporco(k))
+      Object.entries(comparison.modifiedFields).filter(([k, { newValue }]) => daChiedere(k, newValue))
     )
     const newFields = Object.fromEntries(
-      Object.entries(comparison.newFields).filter(([k]) => sporco(k))
+      Object.entries(comparison.newFields).filter(([k, v]) => daChiedere(k, v))
     )
     if (Object.keys(modifiedFields).length === 0 && Object.keys(newFields).length === 0) return
 
@@ -112,6 +126,7 @@ export function useRowCatalogDivergence() {
       catalogData: origine.catalogItem,
       variante: readSheetPressure(tipo, origine.appliedSpecs) ?? undefined,
       basePath: base,
+      rowKey,
     })
   }, [pending, getOrigine, getValues, dirtyFields])
 
@@ -130,9 +145,13 @@ export function useRowCatalogDivergence() {
     setError(null)
 
     const daScrivere: Record<string, any> = {}
+    // Valore su cui la domanda si chiude, campo per campo: è quello che resta in scheda.
+    // Con «valore di default» torna quello di catalogo e lo scostamento sparisce da sé, quindi
+    // non c'è niente da annotare.
+    const decisi: Record<string, unknown> = {}
 
     try {
-      for (const [campo, { oldValue }] of Object.entries(pending.comparison.modifiedFields)) {
+      for (const [campo, { oldValue, newValue }] of Object.entries(pending.comparison.modifiedFields)) {
         const scelta = scelte[campo] ?? 'solo_qui'
         if (scelta === 'default' && pending.basePath) {
           for (const f of formFieldsFor(pending.equipmentType, campo)) {
@@ -140,11 +159,14 @@ export function useRowCatalogDivergence() {
               setValue(`${pending.basePath}.${f}`, oldValue, { shouldDirty: true })
             }
           }
+        } else {
+          decisi[campo] = newValue
         }
-        if (scelta === 'catalogo') daScrivere[campo] = pending.comparison.modifiedFields[campo].newValue
+        if (scelta === 'catalogo') daScrivere[campo] = newValue
       }
 
       for (const [campo, valore] of Object.entries(pending.comparison.newFields)) {
+        decisi[campo] = valore
         if ((scelte[campo] ?? 'solo_qui') === 'catalogo') daScrivere[campo] = valore
       }
 
@@ -165,6 +187,8 @@ export function useRowCatalogDivergence() {
         }
       }
 
+      // Solo a scritture riuscite: se il catalogo non ha accettato, la scelta non è chiusa.
+      segnaRisolti(pending.rowKey, decisi)
       setPending(null)
     } catch (err: any) {
       console.error('Errore aggiornamento catalogo:', err)
@@ -176,7 +200,7 @@ export function useRowCatalogDivergence() {
     } finally {
       setLoading(false)
     }
-  }, [pending, getValues, setValue])
+  }, [pending, getValues, setValue, segnaRisolti])
 
   return { pending, verificaRiga, conferma, annulla, loading, error }
 }

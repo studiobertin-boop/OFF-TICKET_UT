@@ -27,6 +27,9 @@ export interface UpdateData {
 
   /** Percorso della riga nel form, per riportare indietro un valore rifiutato. */
   basePath?: string
+
+  /** Chiave della riga nella mappa delle provenienze, per annotarci le scelte fatte. */
+  rowKey: string
 }
 
 /**

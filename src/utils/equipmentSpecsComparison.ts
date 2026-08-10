@@ -70,7 +70,7 @@ function isEmpty(value: any): boolean {
 /**
  * Helper per verificare se due valori sono equivalenti
  */
-function areValuesEqual(a: any, b: any): boolean {
+export function areValuesEqual(a: any, b: any): boolean {
   // Entrambi vuoti → uguali
   if (isEmpty(a) && isEmpty(b)) return true
 

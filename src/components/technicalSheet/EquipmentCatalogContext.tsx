@@ -18,6 +18,16 @@ import type { EquipmentCatalogItem } from '@/types'
 export interface RigaOrigine {
   catalogItem: EquipmentCatalogItem
   appliedSpecs: Record<string, unknown>
+  /**
+   * Scostamenti su cui l'utente ha già deciso, per chiave canonica → valore con cui la domanda
+   * è stata chiusa.
+   *
+   * Sta a parte e non dentro `appliedSpecs` perché quella è la fotografia del catalogo, il
+   * termine di paragone: falsarla vorrebbe dire perdere la nozione stessa di scostamento.
+   * Senza questa annotazione, però, una modifica decisa resta uno scostamento per sempre, e la
+   * domanda ricompare a ogni uscita dalla riga — la stessa scelta chiesta due volte.
+   */
+  risolti?: Record<string, unknown>
 }
 
 /**
@@ -30,6 +40,11 @@ interface EquipmentCatalogContextValue {
   /** Registra da quale voce di catalogo è stata precompilata una riga della scheda. */
   setOrigine: (rowKey: string, origine: RigaOrigine) => void
   getOrigine: (rowKey: string) => RigaOrigine | null
+  /**
+   * Annota che su questi campi (chiave canonica → valore deciso) la domanda è già stata posta
+   * e chiusa. Su una riga senza provenienza non c'è nulla da annotare e la chiamata è inerte.
+   */
+  segnaRisolti: (rowKey: string, valori: Record<string, unknown>) => void
   /** Dimentica tutte le provenienze, es. dopo un `reset` del form. */
   clearOrigini: () => void
 }
@@ -64,13 +79,19 @@ export function EquipmentCatalogProvider({ children }: { children: ReactNode }) 
 
   const getOrigine = useCallback((rowKey: string): RigaOrigine | null => origini.current[rowKey] ?? null, [])
 
+  const segnaRisolti = useCallback((rowKey: string, valori: Record<string, unknown>) => {
+    const origine = origini.current[rowKey]
+    if (!origine) return
+    origini.current[rowKey] = { ...origine, risolti: { ...origine.risolti, ...valori } }
+  }, [])
+
   const clearOrigini = useCallback(() => {
     origini.current = {}
   }, [])
 
   const value = useMemo(
-    () => ({ setOrigine, getOrigine, clearOrigini }),
-    [setOrigine, getOrigine, clearOrigini]
+    () => ({ setOrigine, getOrigine, segnaRisolti, clearOrigini }),
+    [setOrigine, getOrigine, segnaRisolti, clearOrigini]
   )
 
   return (
