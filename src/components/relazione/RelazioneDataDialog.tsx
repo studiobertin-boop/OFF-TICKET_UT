@@ -132,6 +132,16 @@ export default function RelazioneDataDialog({
   /** Un'immagine è sospesa sopra l'area: l'area lo dice, altrimenti non si sa se accetta. */
   const [schemaSopra, setSchemaSopra] = useState(false)
 
+  /** Object URL dell'anteprima dello schema già ritagliato: revocato dall'effect sotto
+   *  ogni volta che cambia, così non si accumulano URL non più referenziati. */
+  const [schemaPreviewUrl, setSchemaPreviewUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (schemaPreviewUrl) URL.revokeObjectURL(schemaPreviewUrl)
+    }
+  }, [schemaPreviewUrl])
+
   // Sincronizza lo stato all'apertura del dialog
   useEffect(() => {
     if (!open) return
@@ -153,15 +163,19 @@ export default function RelazioneDataDialog({
     setDroppedRefs(dropped)
     // Lo schema non è persistito: a ogni apertura si riparte da vuoto.
     setSchema(null)
+    setSchemaPreviewUrl(null)
     setSchemaSopra(false)
   }, [open, initialAdditionalInfo, customer, schedaCodes])
 
   const handleSchemaFile = async (file: File | undefined) => {
     if (!file) return
     try {
-      setSchema(await leggiSchemaImpianto(file))
+      const letto = await leggiSchemaImpianto(file)
+      setSchema(letto)
+      setSchemaPreviewUrl(URL.createObjectURL(new Blob([letto.dati as BlobPart], { type: 'image/png' })))
     } catch (err) {
       setSchema(null)
+      setSchemaPreviewUrl(null)
       toast.error(err instanceof Error ? err.message : 'Immagine non leggibile.')
     }
   }
@@ -554,8 +568,10 @@ export default function RelazioneDataDialog({
           <Divider />
           <Typography variant="subtitle2">Schema d’impianto (§2.3)</Typography>
           <Typography variant="body2" color="text.secondary">
-            L’immagine viene incorporata nel documento a larghezza fissa e non viene
-            salvata: va riselezionata a ogni generazione. Formati PNG o JPEG, max 10 MB.
+            L’immagine (o la prima pagina, se scegli un PDF) viene ritagliata
+            automaticamente al contenuto dello schema e incorporata nel documento alla
+            dimensione massima possibile senza uscire dalla pagina. Non viene salvata: va
+            riselezionata a ogni generazione. Formati PNG, JPEG o PDF, max 10 MB.
           </Typography>
           <Box
             onDragEnter={schemaSospeso}
@@ -576,11 +592,11 @@ export default function RelazioneDataDialog({
             }}
           >
             <Button component="label" variant="outlined" size="small" disabled={saving}>
-              {schema ? 'Sostituisci immagine' : 'Scegli immagine'}
+              {schema ? 'Sostituisci schema' : 'Scegli schema'}
               <input
                 type="file"
                 hidden
-                accept="image/png,image/jpeg"
+                accept="image/png,image/jpeg,application/pdf"
                 onChange={(e) => {
                   void handleSchemaFile(e.target.files?.[0])
                   // Consente di riselezionare lo stesso file dopo una rimozione.
@@ -590,16 +606,38 @@ export default function RelazioneDataDialog({
             </Button>
             {schema ? (
               <>
+                {schemaPreviewUrl && (
+                  <Box
+                    component="img"
+                    src={schemaPreviewUrl}
+                    alt="Anteprima schema d’impianto ritagliato"
+                    sx={{
+                      maxWidth: 160,
+                      maxHeight: 120,
+                      borderRadius: 1,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                    }}
+                  />
+                )}
                 <Typography variant="body2">
                   {schema.nomeFile} — {schema.larghezzaPx}×{schema.altezzaPx} px
                 </Typography>
-                <Button size="small" color="inherit" onClick={() => setSchema(null)} disabled={saving}>
+                <Button
+                  size="small"
+                  color="inherit"
+                  onClick={() => {
+                    setSchema(null)
+                    setSchemaPreviewUrl(null)
+                  }}
+                  disabled={saving}
+                >
                   Rimuovi
                 </Button>
               </>
             ) : (
               <Typography variant="body2" color="text.secondary">
-                …oppure trascina qui l’immagine. Senza schema il paragrafo resterà vuoto.
+                …oppure trascina qui il file. Senza schema il paragrafo resterà vuoto.
               </Typography>
             )}
           </Box>
