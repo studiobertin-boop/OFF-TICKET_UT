@@ -147,7 +147,6 @@ export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, o
   const valid =
     !!salaScelta &&
     (flagUgualeSede ? !!sedeLegale : indirizzoEffettivo.trim().length > 0) &&
-    (isNewSala ? denominazione.trim().length > 0 : true) &&
     progressivo >= 0 &&
     progressivo <= 99 &&
     anno >= 2000
@@ -261,7 +260,6 @@ export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, o
             value={denominazione}
             onChange={e => { userEditedDenominazione.current = true; setDenominazione(e.target.value) }}
             fullWidth
-            required={isNewSala}
             InputProps={{ readOnly: !denominazioneModificabile }}
             helperText={
               isNewSala

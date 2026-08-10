@@ -106,7 +106,7 @@ export const NewRequest = () => {
 
     // Validazione delle sezioni DM329 dedicate (fuori dal resolver)
     if (selectedType.name === 'DM329' && !praticaValue.valid) {
-      setSectionError('Completa i dati impianto e sala: indirizzo impianto, sala e denominazione (per una nuova sala).')
+      setSectionError('Completa i dati impianto e sala: indirizzo impianto e sala.')
       return
     }
     if (selectedType.name === 'DM329-Integrazioni' && !integrazioneValue.valid) {
