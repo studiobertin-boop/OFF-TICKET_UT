@@ -42,7 +42,11 @@
       "PowerShell(npx vitest run src/utils/__tests__/equipmentCatalogValidation.test.ts 2>&1)",
       "PowerShell(npx tsc --noEmit 2>&1)",
       "PowerShell(npx vitest run 2>&1)",
-      "PowerShell(npx tsc --noEmit)"
+      "PowerShell(npx tsc --noEmit)",
+      "Bash(timeout 3 bash:*)",
+      "Bash(supabase functions:*)",
+      "Bash(timeout 60 bash:*)",
+      "Bash(git merge:*)"
     ],
     "deny": [],
     "ask": []

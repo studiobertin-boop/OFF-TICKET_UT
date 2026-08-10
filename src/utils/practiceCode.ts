@@ -43,6 +43,26 @@ export function nomeFileRelazione(codicePratica: string, ragioneSociale: string)
 }
 
 /**
+ * Nome del file del fascicolo di un'apparecchiatura: il codice pratica spezzato nelle sue
+ * due parti, col codice dell'apparecchiatura attaccato alla prima e il contenuto dichiarato
+ * in mezzo — `602A_01-2026` + `E1` → `602A-E1_CERTIFICATI_MANUALI_FOTO_01-2026.pdf`.
+ *
+ * Stesso ripiego di `nomeFileRelazione`: le pratiche senza codice — dati vecchi — userebbero
+ * un nome fatto di soli separatori.
+ */
+export function nomeFileFascicolo(
+  codicePratica: string,
+  codiceApparecchiatura: string,
+  ragioneSociale: string
+): string {
+  const [cliente, pratica] = codicePratica.split('_')
+  if (!cliente || !pratica) {
+    return `Fascicolo_${codiceApparecchiatura}_${ragioneSociale || 'senza_cliente'}.pdf`
+  }
+  return `${cliente}-${codiceApparecchiatura}_CERTIFICATI_MANUALI_FOTO_${pratica}.pdf`
+}
+
+/**
  * Numero di sale distinte di un cliente, calcolato dalle pratiche già caricate
  * (pratiche primarie: pratica_padre_id assente). Usato per decidere se mostrare la lettera.
  */
