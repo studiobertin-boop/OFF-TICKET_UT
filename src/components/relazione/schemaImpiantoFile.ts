@@ -8,8 +8,9 @@
  * Il file non viene caricato da nessuna parte: si legge in memoria, entra nel .docx e
  * finisce lì. È la ragione per cui lo schema non occupa spazio su Supabase.
  */
+import * as pdfjsLib from 'pdfjs-dist'
 import type { SchemaImpianto } from '@/services/relazione/types'
-import { riquadroContenuto, riquadroConMargine } from '@/services/relazione/schemaCrop'
+import { riquadroDiRitaglio, mmAPx } from '@/services/relazione/schemaCrop'
 import { isPDFFile, convertPDFPageToImage } from '@/utils/pdfToImage'
 
 /** Formati che il dialog accetta in scelta o trascinamento. */
@@ -22,11 +23,26 @@ export const FORMATI_SCHEMA = ['image/png', 'image/jpeg', 'application/pdf'] as 
 export const SCHEMA_MAX_BYTE = 10 * 1024 * 1024
 
 /**
- * Scala di rendering della prima pagina del PDF: 2.0 = 144 dpi (l'unità nativa PDF è 72
- * dpi). Serve a convertire il margine di ritaglio da mm a pixel con un dpi noto.
+ * Budget di pixel dell'immagine finale (dopo ritaglio): ~2 megapixel, ben oltre i 640px
+ * di larghezza a cui lo schema finisce stampato (`dimensioniSchema()` in
+ * `renderRelazione.ts`), ma abbastanza contenuto da limitare sia la dimensione del PNG
+ * risultante — che altrimenti può superare abbondantemente `SCHEMA_MAX_BYTE` su una foto
+ * ad alta risoluzione, dato che quel limite si applica solo al file originale caricato —
+ * sia l'area del canvas sul lato PDF (Safari rifiuta silenziosamente canvas oltre ~16.7M
+ * px, restituendo un'immagine bianca).
  */
-const PDF_RENDER_SCALE = 2.0
-const PDF_DPI = PDF_RENDER_SCALE * 72
+const BUDGET_PX = 2_000_000
+
+/**
+ * Scala massima di rendering PDF: adatta ai formati comuni (A4/A3). Sui grandi formati
+ * CAD (A1/A0), tipici di questa funzionalità, la scala effettiva scende sotto questo
+ * tetto per restare entro `BUDGET_PX` — vedi `scalaRenderPdf`.
+ */
+const PDF_SCALA_MAX = 2.0
+
+/** Scala minima di rendering PDF: sotto, una pagina degenere renderizzerebbe a una
+ *  risoluzione inutilizzabile. */
+const PDF_SCALA_MIN = 0.5
 
 /**
  * Dpi assunti per un'immagine raster: nessun formato bitmap qui accettato porta la
@@ -38,8 +54,24 @@ const RASTER_DPI_ASSUNTO = 96
 /** Margine di ritaglio oltre il contenuto rilevato. */
 const MARGINE_MM = 1
 
-function mmAPx(mm: number, dpi: number): number {
-  return Math.round((mm * dpi) / 25.4)
+/**
+ * Scala di rendering della pagina PDF, calcolata sulla dimensione nativa della pagina
+ * (a 72dpi, l'unità nativa PDF) così da restare entro `BUDGET_PX` anche sui grandi
+ * formati CAD (A1/A0), clampata fra `PDF_SCALA_MIN` e `PDF_SCALA_MAX`. Sui formati
+ * comuni (A4/A3) la scala resta al tetto di 2.0, invariata rispetto a prima.
+ *
+ * Interroga il PDF direttamente con `pdfjs-dist` (lo stesso import usato da
+ * `pdfToImage.ts`, che configura il worker come side-effect al proprio import: qui non
+ * va riconfigurato) perché `convertPDFPageToImage` non espone le dimensioni native prima
+ * di renderizzare.
+ */
+async function scalaRenderPdf(file: File): Promise<number> {
+  const arrayBuffer = await file.arrayBuffer()
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+  const pagina = await pdf.getPage(1)
+  const nativa = pagina.getViewport({ scale: 1 })
+  const scala = Math.sqrt(BUDGET_PX / (nativa.width * nativa.height))
+  return Math.min(PDF_SCALA_MAX, Math.max(PDF_SCALA_MIN, scala))
 }
 
 /**
@@ -94,9 +126,17 @@ export async function leggiSchemaImpianto(file: File): Promise<SchemaImpianto> {
   let immagine: Blob = file
   let dpi = RASTER_DPI_ASSUNTO
   if (ePdf) {
-    const pagina = await convertPDFPageToImage(file, 1, PDF_RENDER_SCALE)
-    immagine = pagina.blob
-    dpi = PDF_DPI
+    try {
+      const scala = await scalaRenderPdf(file)
+      const pagina = await convertPDFPageToImage(file, 1, scala)
+      immagine = pagina.blob
+      dpi = scala * 72
+    } catch {
+      // Un pdf.js grezzo (PDF protetto, corrotto, o un file con estensione .pdf che non
+      // lo è) non deve arrivare in un toast: qui, come nel resto della funzione, l'utente
+      // vede solo frasi italiane complete.
+      throw new Error('PDF non leggibile: potrebbe essere protetto o danneggiato.')
+    }
   }
 
   const ctx = await disegnaSuCanvas(immagine)
@@ -104,17 +144,24 @@ export async function leggiSchemaImpianto(file: File): Promise<SchemaImpianto> {
   const altezza = ctx.canvas.height
   const pixel = ctx.getImageData(0, 0, larghezza, altezza).data
 
-  const contenuto = riquadroContenuto(pixel, larghezza, altezza)
-  const riquadro = contenuto
-    ? riquadroConMargine(contenuto, mmAPx(MARGINE_MM, dpi), larghezza, altezza)
-    : { minX: 0, minY: 0, maxX: larghezza, maxY: altezza }
+  const riquadro = riquadroDiRitaglio(pixel, larghezza, altezza, mmAPx(MARGINE_MM, dpi))
 
   const larghezzaRitaglio = riquadro.maxX - riquadro.minX
   const altezzaRitaglio = riquadro.maxY - riquadro.minY
 
+  // Il canvas finale può essere più piccolo del ritaglio: se l'area ritagliata supera il
+  // budget di pixel (tipico di una foto ad alta risoluzione — il lato PDF arriva già
+  // vicino al budget da `scalaRenderPdf`), si sotto-campiona nello stesso `drawImage` che
+  // esegue il ritaglio, invece di ritagliare a piena risoluzione e ridimensionare dopo.
+  // Non si ingrandisce mai: un ritaglio già sotto budget resta 1:1.
+  const areaRitaglio = larghezzaRitaglio * altezzaRitaglio
+  const scalaFinale = areaRitaglio > BUDGET_PX ? Math.sqrt(BUDGET_PX / areaRitaglio) : 1
+  const larghezzaFinale = Math.max(1, Math.round(larghezzaRitaglio * scalaFinale))
+  const altezzaFinale = Math.max(1, Math.round(altezzaRitaglio * scalaFinale))
+
   const ritaglio = document.createElement('canvas')
-  ritaglio.width = larghezzaRitaglio
-  ritaglio.height = altezzaRitaglio
+  ritaglio.width = larghezzaFinale
+  ritaglio.height = altezzaFinale
   const ctxRitaglio = ritaglio.getContext('2d')
   if (!ctxRitaglio) {
     throw new Error('Impossibile ottenere il contesto canvas.')
@@ -127,8 +174,8 @@ export async function leggiSchemaImpianto(file: File): Promise<SchemaImpianto> {
     altezzaRitaglio,
     0,
     0,
-    larghezzaRitaglio,
-    altezzaRitaglio
+    larghezzaFinale,
+    altezzaFinale
   )
 
   const blob = await canvasABlobPng(ritaglio)
@@ -136,8 +183,8 @@ export async function leggiSchemaImpianto(file: File): Promise<SchemaImpianto> {
 
   return {
     dati: new Uint8Array(buffer),
-    larghezzaPx: larghezzaRitaglio,
-    altezzaPx: altezzaRitaglio,
+    larghezzaPx: larghezzaFinale,
+    altezzaPx: altezzaFinale,
     nomeFile: file.name,
   }
 }
