@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { formatNumberIT, plurale } from '../helpers'
+import { etichettaModello, formatNumberIT, plurale } from '../helpers'
 
 describe('formatNumberIT', () => {
   test('usa la virgola come separatore decimale, senza separatore delle migliaia', () => {
@@ -23,5 +23,18 @@ describe('plurale', () => {
 
   test('usa il plurale anche per zero elementi', () => {
     expect(plurale(0, 'essiccatore', 'essiccatori')).toBe('essiccatori')
+  })
+})
+
+describe('etichettaModello', () => {
+  test('antepone l’etichetta al modello', () => {
+    expect(etichettaModello('CSD 90 SFC')).toBe('Modello: CSD 90 SFC')
+  })
+
+  test('tace quando il modello non è censito, invece di lasciare l’etichetta orfana', () => {
+    expect(etichettaModello('')).toBe('')
+    expect(etichettaModello('   ')).toBe('')
+    expect(etichettaModello(undefined)).toBe('')
+    expect(etichettaModello(null)).toBe('')
   })
 })

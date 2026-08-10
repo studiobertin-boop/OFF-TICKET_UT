@@ -57,12 +57,15 @@ dichiarato rende il file illeggibile a Word) e che le fusioni di §5.2 siano pre
 
 ## §2 Descrizione dell'impianto
 - 2.1 elenco sezioni: `{#descrizioneGenerale.sezioni}` / `–\t{voce}` / `{/…}`
-- 2.2 condizioni: `{#condizioniInstallazione}{requisito}` `{esito}` `{note}{/…}`
+- 2.2 condizioni: `{#condizioniInstallazione}{requisito}` `{esito}{/…}` — due colonne.
+  L'eventuale precisazione (le fonti di calore vicine) si accoda all'esito col trattino.
 - 2.3 schema: `{%schemaImpianto}` — immagine scelta al momento della generazione, non
   persistita. Larghezza fissa e altezza proporzionale (`dimensioniSchema`).
 
 ## §3 Fluidi di processo
-- `{#fluidi.righe}{circuito}` `{fluido}` `{gruppo}` `{provenienza}` `{qualita}{/fluidi.righe}`
+- `{#fluidi.righe}{circuito}` `{fluido}` `{gruppo}` `{provenienza}{/fluidi.righe}`
+- La qualità dell'aria aspirata **non ha più una colonna**: resta dichiarata in scheda e la
+  segnala l'evidenziazione qui sotto.
 - La frase «priva di sostanze nocive» esiste in **due varianti**:
   `{#fluidi.evidenziaNocive}` con evidenziatore giallo e `{^fluidi.evidenziaNocive}` piana.
   Ne compare una sola. L'automatismo segnala, non riscrive: la valutazione resta al redattore.
@@ -71,6 +74,12 @@ dichiarato rende il file illeggibile a Word) e che le fusioni di §5.2 siano pre
 `{#caratteristiche}` … `{/caratteristiche}` con
 `{pos}` `{descrizione}` `{costruttore}` `{modello}` `{capacita}` `{pressione}`
 `{temperatura}` `{categoria}` `{anno}` `{nFabbrica}`
+
+`{modello}` arriva già etichettato («Modello: CSD 90 SFC»): nella cella il costruttore sta
+sulla prima riga e il modello sulla seconda, e senza etichetta le due si leggerebbero come
+un'unica denominazione. L'etichetta la mette il motore e non il template perché di
+un'attrezzatura senza modello a catalogo la riga sparisce del tutto. Vale anche per §5.2,
+non per le apparecchiature connesse di §6.
 
 ## §5 Classificazione e adempimenti
 - 5.1 criteri: tabella **statica** (soglie V, PS, PS×V e relativi riferimenti normativi).

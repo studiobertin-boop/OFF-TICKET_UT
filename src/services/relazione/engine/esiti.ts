@@ -23,6 +23,7 @@ import {
   codiciValvoleDisoleatore,
   codiciValvoleSerbatoio,
   descrizioneSerbatoio,
+  etichettaModello,
   formatNumberIT,
 } from '../helpers'
 
@@ -156,7 +157,7 @@ export function buildEsiti(
         gruppo: '',
         apparecchiatura: args.apparecchiatura,
         costruttore: resolve(args.marca),
-        modello: args.modello ?? '',
+        modello: etichettaModello(args.modello),
         esito,
         recipiente: true,
         volume: mostraNumeri ? formatNumberIT(args.volume) : '',
@@ -182,7 +183,7 @@ export function buildEsiti(
       gruppo: '',
       apparecchiatura: 'Valvola di sicurezza',
       costruttore: resolve(v.marca),
-      modello: v.modello ?? '',
+      modello: etichettaModello(v.modello),
       // La valvola è un accessorio di sicurezza, non un recipiente: non concorre
       // alla riqualificazione periodica, quindi nessun esito proprio.
       esito: null,
@@ -212,7 +213,7 @@ export function buildEsiti(
       gruppo: '',
       apparecchiatura: args.apparecchiatura,
       costruttore: resolve(args.marca),
-      modello: args.modello ?? '',
+      modello: etichettaModello(args.modello),
       // Non è un recipiente: l'eventuale adempimento è quello del recipiente che
       // contiene, e va imputato a quello ai fini della riqualificazione periodica.
       esito: null,
@@ -394,7 +395,7 @@ export function buildEsiti(
           gruppo: '',
           apparecchiatura: 'Separatore acqua-olio',
           costruttore: resolve(sep.marca),
-          modello: sep.modello ?? '',
+          modello: etichettaModello(sep.modello),
           esito: null,
           recipiente: false,
           volume: '',

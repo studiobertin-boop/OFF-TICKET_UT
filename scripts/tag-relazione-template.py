@@ -324,18 +324,44 @@ def indirizzo_copertina(P, dopo, tag, cosa):
     quando il motore le unisce in `sedeLegaleCopertina`, un documento reso ne ha uno solo
     con l'a capo dentro (docxtemplater, con `linebreaks: true`, lo rende come <w:br/>).
     Il template vuole in ogni caso un paragrafo solo: se ne trova due, il secondo si toglie.
+
+    Il confronto ignora le maiuscole: il motore rende gli indirizzi tutti maiuscoli, ma il
+    documento formattato a mano li porta ancora com'erano stati digitati, e l'una e l'altra
+    forma devono restare leggibili.
     """
     i = P.index(dopo)
     atteso(i + 1 < len(P), "%s: manca il paragrafo dell'indirizzo" % cosa)
     riga = P[i + 1]
     atteso(
-        testo(riga).startswith("Via Esempio"),
+        testo(riga).upper().startswith("VIA ESEMPIO"),
         "%s: atteso l'indirizzo di esempio, trovato %r" % (cosa, testo(riga)[:40]),
     )
     scrivi(riga, tag)
     # Forma a due paragrafi: la località segue e va assorbita nel tag.
     if i + 2 < len(P) and testo(P[i + 2]).startswith("31013"):
         elimina(P[i + 2])
+
+
+def paragrafo_immagine(P, dopo):
+    """
+    Il primo paragrafo con un'immagine dopo `dopo`, scavalcando i paragrafi vuoti.
+
+    Le righe vuote fra il capoverso e lo schema sono spaziatura del redattore e restano
+    dove sono: qui servono solo ad attraversarle.
+    """
+    for q in P[P.index(dopo) + 1:]:
+        if "<w:drawing" in q._p.xml:
+            return q
+        atteso(
+            not testo(q),
+            "§2.3: fra l'introduzione e il testo %r non c'è l'immagine dello schema. "
+            "Genera l'esempio passando un file immagine come secondo argomento: senza "
+            "schema quel paragrafo non compare affatto nel documento reso" % testo(q)[:40],
+        )
+    raise SystemExit(
+        "Il documento sorgente non ha la forma attesa: §2.3: nessuna immagine dopo "
+        "l'introduzione allo schema d'impianto"
+    )
 
 
 def converti(sorgente, destinazione):
@@ -402,30 +428,25 @@ def converti(sorgente, destinazione):
 
     # --- §2.2 Condizioni di installazione ----------------------------------
     riga_loop(
-        tabella(T, ["Requisito", "Esito", "Note"], "§2.2 condizioni di installazione"),
+        tabella(T, ["Requisito", "Esito"], "§2.2 condizioni di installazione"),
         "condizioniInstallazione",
-        ["{requisito}", "{esito}", "{note}"],
-        ["Ubicazione impianto", None, None],
+        ["{requisito}", "{esito}"],
+        ["Ubicazione impianto", None],
     )
 
     # --- §2.3 Schema d'impianto -------------------------------------------
-    i_schema = P.index(intro_schema)
-    atteso(
-        i_schema + 1 < len(P) and "<w:drawing" in P[i_schema + 1]._p.xml,
-        "§2.3: il paragrafo dopo l'introduzione non contiene l'immagine dello schema. "
-        "Genera l'esempio passando un file immagine come secondo argomento: senza schema "
-        "quel paragrafo non compare affatto nel documento reso",
-    )
-    scrivi(P[i_schema + 1], "{%schemaImpianto}")
+    # L'immagine si cerca scavalcando i paragrafi vuoti: spaziare l'introduzione dallo
+    # schema è formattazione, e pretenderla nel paragrafo immediatamente successivo
+    # rimetterebbe un aggancio posizionale in mezzo a quelli per testo. Un paragrafo con
+    # del testo, invece, chiude la ricerca: oltre comincia un'altra sezione.
+    scrivi(paragrafo_immagine(P, intro_schema), "{%schemaImpianto}")
 
     # --- §3 Fluidi ---------------------------------------------------------
     riga_loop(
-        tabella(
-            T, ["Circuito", "Fluido", "Gruppo", "Provenienza", "Qualit"], "§3 fluidi di processo"
-        ),
+        tabella(T, ["Circuito", "Fluido", "Gruppo", "Provenienza"], "§3 fluidi di processo"),
         "fluidi.righe",
-        ["{circuito}", "{fluido}", "{gruppo}", "{provenienza}", "{qualita}"],
-        ["Aria compressa", "Aria ambiente", None, None, None],
+        ["{circuito}", "{fluido}", "{gruppo}", "{provenienza}"],
+        ["Aria compressa", "Aria ambiente", None, None],
     )
 
     # La frase esiste in due varianti: evidenziata quando l'aria aspirata è dichiarata non

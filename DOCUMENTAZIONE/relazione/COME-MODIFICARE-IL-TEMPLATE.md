@@ -76,6 +76,13 @@ L'evidenziazione gialla della frase «priva di sostanze nocive» in §3 la mette
 non il documento: è la marcatura con cui il sistema segnala al lettore che lì c'è una
 valutazione da fare. Toglierla in Word non ha effetto.
 
+Nemmeno l'a capo dell'indirizzo di copertina è una scelta tipografica: la località va a
+capo perché il motore la manda a capo. Unire le due righe in Word non ha effetto, e la
+copertina generata tornerà su due righe.
+
+Fra il capoverso di §2.3 e lo schema si possono lasciare righe vuote: lo script cerca
+l'immagine scavalcandole.
+
 Il testo di questi punti viene **riscritto** dallo script, quindi modificarlo in Word non
 serve — sta nello script o nel motore:
 

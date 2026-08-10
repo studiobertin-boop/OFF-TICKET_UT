@@ -11,6 +11,15 @@
 import type { DatiImpianto } from '@/types/technicalSheet'
 import type { CondizioneRow } from '../types'
 
+/**
+ * La tabella ha due sole colonne: quel che una volta stava in «Note» si accoda all'esito
+ * col separatore delle altre tabelle. Senza precisazione la cella resta il solo esito.
+ */
+function conPrecisazione(esito: string, precisazione: string | undefined): string {
+  const testo = precisazione?.trim()
+  return testo ? `${esito} – ${testo}` : esito
+}
+
 export function buildCondizioniInstallazione(dati: DatiImpianto | undefined): CondizioneRow[] {
   const d = dati ?? ({} as DatiImpianto)
   const righe: CondizioneRow[] = []
@@ -25,7 +34,6 @@ export function buildCondizioniInstallazione(dati: DatiImpianto | undefined): Co
       : condivisoCon
         ? `Area condivisa con ${condivisoCon}`
         : 'Area condivisa',
-    note: '',
     evidenzia: false,
   })
 
@@ -35,7 +43,6 @@ export function buildCondizioniInstallazione(dati: DatiImpianto | undefined): Co
     righe.push({
       requisito: 'Accesso riservato al personale autorizzato',
       esito: 'Sì',
-      note: '',
       evidenzia: false,
     })
   }
@@ -43,21 +50,21 @@ export function buildCondizioniInstallazione(dati: DatiImpianto | undefined): Co
   righe.push({
     requisito: 'Areazione adeguata',
     esito: 'Sì',
-    note: '',
     evidenzia: false,
   })
 
   righe.push({
     requisito: 'Lontananza da sorgenti di calore',
-    esito: d.lontano_fonti_calore === true ? 'Sì' : 'No',
-    note: d.fonti_calore_materiali_infiammabili?.trim() ?? '',
+    esito: conPrecisazione(
+      d.lontano_fonti_calore === true ? 'Sì' : 'No',
+      d.fonti_calore_materiali_infiammabili
+    ),
     evidenzia: d.lontano_fonti_calore !== true,
   })
 
   righe.push({
     requisito: 'Assenza di materiale infiammabile nelle vicinanze',
     esito: d.lontano_materiale_infiammabile === true ? 'Sì' : 'No',
-    note: '',
     evidenzia: d.lontano_materiale_infiammabile !== true,
   })
 

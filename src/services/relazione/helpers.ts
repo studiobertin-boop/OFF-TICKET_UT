@@ -17,6 +17,20 @@ export function formatNumberIT(value: number | null | undefined): string {
 }
 
 /**
+ * Modello etichettato per le colonne «Costruttore e modello» di §4 e §5.2, dove il nome
+ * del costruttore sta sulla prima riga della cella e il modello sulla seconda: senza
+ * etichetta le due righe si leggono come un'unica denominazione.
+ *
+ * L'etichetta la mette il motore e non il template, perché è condizionata: di
+ * un'attrezzatura senza modello a catalogo la cella riporta il solo costruttore, e un
+ * «Modello:» orfano sarebbe peggio della riga mancante.
+ */
+export function etichettaModello(modello: string | null | undefined): string {
+  const testo = (modello ?? '').trim()
+  return testo ? `Modello: ${testo}` : ''
+}
+
+/**
  * Restituisce la forma singolare quando count === 1, altrimenti la forma plurale
  * (lo zero usa il plurale, come nell'uso comune italiano).
  */

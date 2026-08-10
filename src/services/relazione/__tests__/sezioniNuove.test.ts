@@ -40,9 +40,7 @@ describe('buildFluidi', () => {
     const scheda = makeScheda({
       dati_impianto: makeDatiImpianto({ aria_aspirata: ['Pulita'] }),
     })
-    const { evidenziaNocive, righe } = buildFluidi(scheda)
-    expect(evidenziaNocive).toBe(false)
-    expect(righe[0].qualita).toBe('')
+    expect(buildFluidi(scheda).evidenziaNocive).toBe(false)
   })
 
   it('evidenzia la dichiarazione di assenza di sostanze nocive con acidi o vapori', () => {
@@ -58,10 +56,7 @@ describe('buildFluidi', () => {
     const scheda = makeScheda({
       dati_impianto: makeDatiImpianto({ aria_aspirata: ['Umidità', 'Polveri'] }),
     })
-    const { evidenziaNocive, righe } = buildFluidi(scheda)
-    expect(evidenziaNocive).toBe(false)
-    // La qualità resta comunque riportata in tabella
-    expect(righe[0].qualita).toBe('Umidità, Polveri')
+    expect(buildFluidi(scheda).evidenziaNocive).toBe(false)
   })
 
   it('aggiunge il circuito azoto quando un serbatoio lo dichiara', () => {
@@ -141,14 +136,19 @@ describe('buildCondizioniInstallazione', () => {
     expect(areazione).toMatchObject({ esito: 'Sì', evidenzia: false })
   })
 
-  it('riporta le note su fonti di calore', () => {
+  it('accoda all’esito le fonti di calore vicine, che non hanno più una colonna propria', () => {
     const rows = buildCondizioniInstallazione(
       makeDatiImpianto({
         lontano_fonti_calore: true,
         fonti_calore_materiali_infiammabili: 'caldaia a 12 m',
       })
     )
-    expect(trova(rows, 'sorgenti di calore')?.note).toBe('caldaia a 12 m')
+    expect(trova(rows, 'sorgenti di calore')?.esito).toBe('Sì – caldaia a 12 m')
+  })
+
+  it('lascia il solo esito quando le fonti di calore non sono dichiarate', () => {
+    const rows = buildCondizioniInstallazione(makeDatiImpianto({ lontano_fonti_calore: true }))
+    expect(trova(rows, 'sorgenti di calore')?.esito).toBe('Sì')
   })
 
   it('non esplode con dati impianto assenti', () => {

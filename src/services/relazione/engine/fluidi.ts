@@ -28,9 +28,6 @@ export function buildFluidi(scheda: SchedaDatiCompleta): FluidiModel {
   const ariaAspirata = scheda.dati_impianto?.aria_aspirata ?? []
   const evidenziaNocive = ariaAspirata.some((q) => QUALITA_NOCIVE.includes(q))
 
-  // Qualità dichiarate, esclusa "Pulita" che è l'assenza di annotazioni.
-  const qualitaAria = ariaAspirata.filter((q) => q !== 'Pulita').join(', ')
-
   const righe: FluidoRow[] = []
 
   // Il circuito aria compressa esiste sempre che ci siano compressori.
@@ -40,7 +37,6 @@ export function buildFluidi(scheda: SchedaDatiCompleta): FluidiModel {
       fluido: 'Aria ambiente',
       gruppo: '2',
       provenienza: PROVENIENZA.ARIA,
-      qualita: qualitaAria,
     })
   }
 
@@ -63,7 +59,6 @@ export function buildFluidi(scheda: SchedaDatiCompleta): FluidiModel {
       // cella vuota che un'affermazione normativa non verificata.
       gruppo: chiave === 'AZOTO' ? '2' : '',
       provenienza: PROVENIENZA[chiave] ?? '',
-      qualita: '',
     })
   }
 

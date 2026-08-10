@@ -14,6 +14,7 @@ import {
   codiciValvoleDisoleatore,
   codiciValvoleSerbatoio,
   descrizioneSerbatoio,
+  etichettaModello,
   formatNumberIT,
   formatTemperatura,
 } from '../helpers'
@@ -41,7 +42,7 @@ export function buildCaratteristiche(
     pos,
     descrizione,
     costruttore: resolve(marca),
-    modello: modello ?? '',
+    modello: etichettaModello(modello),
     anno: anno !== undefined ? String(anno) : '',
     nFabbrica: nFabbrica ?? '',
   })

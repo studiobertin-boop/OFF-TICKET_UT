@@ -228,8 +228,8 @@ export interface EsitoRow {
 
 export interface CondizioneRow {
   requisito: string
+  /** Esito e, accodata col trattino, l'eventuale precisazione: la tabella ha due colonne */
   esito: string
-  note: string
   /** Se vero il template evidenzia la riga: richiede una valutazione del redattore */
   evidenzia: boolean
 }
@@ -244,7 +244,6 @@ export interface FluidoRow {
   /** Gruppo ai sensi dell'art. 3 D.lgs. 93/2000 ('' se non asseribile) */
   gruppo: string
   provenienza: string
-  qualita: string
 }
 
 export interface FluidiModel {
