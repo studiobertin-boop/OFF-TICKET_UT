@@ -103,3 +103,6 @@ DOCUMENTAZIONE/**/*.pdf
 
 # Problematic temporary files
 nul
+
+# Worktree isolati per lo sviluppo a task (superpowers:using-git-worktrees)
+.worktrees/
