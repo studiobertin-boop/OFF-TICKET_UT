@@ -29,7 +29,11 @@ describe('integrazione template ↔ engine', () => {
         compressori: [makeCompressore({ codice: 'C1', ha_disoleatore: false })],
         disoleatori: [],
       }),
-      additionalInfo: makeAdditionalInfo({ spessimetrica: ['S1'] }),
+      additionalInfo: makeAdditionalInfo({
+        spessimetrica: ['S1'],
+        dataEmissione: '2026-08-10',
+        motivoRevisione: 'sostituzione della valvola S1.1',
+      }),
       customer: makeCustomer({ ragione_sociale: 'ACME S.r.l.' }),
       pratica: makePratica({ progressivo: 1 }),
     })
@@ -44,8 +48,10 @@ describe('integrazione template ↔ engine', () => {
     // Sostituzioni avvenute
     expect(xml).toContain('ACME S.r.l.')
     expect(xml).toContain('C1')
-    // Blocco revisione attivo (progressivo 1) con segnaposto da compilare in Word
-    expect(xml).toContain('descrivere le motivazioni della revisione')
+    // Blocco revisione attivo (progressivo 1) col motivo scritto nel form. Il segnaposto
+    // non deve sopravvivere: era il richiamo a compilare a mano, e ora il motivo è un dato.
+    expect(xml).toContain('sostituzione della valvola S1.1')
+    expect(xml).not.toContain('descrivere le motivazioni della revisione')
 
     // Contenuto delle sezioni nuove
     expect(xml).toContain('Sezione di pompaggio') // §2.1 elenco sezioni
@@ -70,6 +76,27 @@ describe('integrazione template ↔ engine', () => {
     // dove il generatore del template si aspetta testo semplice, e nel documento si
     // vede il tag anziché il contenuto.
     expect(xml).not.toContain('&lt;w:')
+  })
+
+  test('la tabella delle revisioni riporta data e numero nel piè di pagina', () => {
+    const template = readFileSync(TEMPLATE_PATH)
+    const model = buildRelazioneModel({
+      scheda: makeScheda(),
+      additionalInfo: makeAdditionalInfo({ dataEmissione: '2026-08-10' }),
+      customer: makeCustomer(),
+      pratica: makePratica({ progressivo: 3 }),
+    })
+
+    // La tabella sta nel piè di pagina della copertina, non nel corpo: cercarla in
+    // document.xml darebbe un falso negativo qualunque cosa faccia il template.
+    const zip = new PizZip(renderRelazioneDocx(template, model))
+    const footers = Object.keys(zip.files).filter((n) => /^word\/footer\d*\.xml$/.test(n))
+    expect(footers.length).toBeGreaterThan(0)
+    const testo = footers.map((n) => zip.file(n)!.asText()).join('')
+
+    expect(testo).toContain('10/08/2026')
+    expect(testo).toContain('>3<')
+    expect(testo).not.toContain('{premessa')
   })
 
   test('le colonne di gruppo risultano fuse nella tabella degli esiti', () => {

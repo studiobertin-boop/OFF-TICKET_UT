@@ -342,6 +342,45 @@ def indirizzo_copertina(P, dopo, tag, cosa):
         elimina(P[i + 2])
 
 
+APERTURA_MOTIVO = "conseguente a:"
+CHIUSURA_MOTIVO = ". Vengono verificati"
+
+
+def segnaposto_motivo(p, tag):
+    """
+    Sostituisce col tag il motivo della revisione, riconoscendolo da ciò che lo circonda.
+
+    Non si cerca il segnaposto «[descrivere le motivazioni…]»: quello compare solo nel
+    documento formattato a mano. In un documento reso, al suo posto c'è il motivo vero,
+    che è testo qualunque — agganciarsi al segnaposto avrebbe richiuso il giro, impedendo
+    di ricavare il template da un documento uscito dal template.
+
+    Il capoverso si ricompone in tre run — prefisso, tag, suffisso — prendendo la
+    formattazione dai run esistenti. L'evidenziazione non si riporta: segnalava «qui manca
+    qualcosa da scrivere a mano», e il motivo ora arriva dal form come ogni altro dato.
+    """
+    intero = p.text
+    i = intero.find(APERTURA_MOTIVO)
+    atteso(i >= 0, "§1 revisione: il capoverso non contiene %r" % APERTURA_MOTIVO)
+    j = intero.find(CHIUSURA_MOTIVO, i)
+    atteso(j >= 0, "§1 revisione: il capoverso non contiene %r dopo il motivo" % CHIUSURA_MOTIVO)
+
+    prefisso = intero[: i + len(APERTURA_MOTIVO)] + " "
+    suffisso = intero[j:]
+
+    rPr_iniziale = p.runs[0]._r.rPr if p.runs else None
+    rPr_finale = p.runs[-1]._r.rPr if p.runs else None
+    for r in list(p.runs):
+        r._r.getparent().remove(r._r)
+
+    for testo_run, rPr in ((prefisso, rPr_iniziale), (tag, rPr_iniziale), (suffisso, rPr_finale)):
+        r = p.add_run()
+        if rPr is not None:
+            r._r.insert(0, copy.deepcopy(rPr))
+        r.text = testo_run
+        r.font.highlight_color = None
+
+
 def paragrafo_immagine(P, dopo):
     """
     Il primo paragrafo con un'immagine dopo `dopo`, scavalcando i paragrafi vuoti.
@@ -409,8 +448,12 @@ def converti(sorgente, destinazione):
     aggiungi_run(premessa, "{premessa.denominazioneSala}", corsivo=True)
     aggiungi_run(premessa, "{/premessa.haDenominazioneSala}.")
 
-    # I due capoversi condizionali restano intatti: quello sulla revisione contiene il
-    # segnaposto giallo che il redattore compila in Word, e riscriverlo lo perderebbe.
+    # Dei due capoversi condizionali si tocca un run solo: quello del motivo della
+    # revisione, che il redattore scrive ora nel form invece che a mano in Word. Il resto
+    # della frase resta com'è, perché riscriverla perderebbe la formattazione del
+    # capoverso. Via anche il giallo: segnalava «qui manca qualcosa da scrivere», e ora
+    # quel qualcosa arriva dal form come tutti gli altri dati.
+    segnaposto_motivo(revisione, "{premessa.motivoRevisione}")
     modello_premessa = precedente(P, revisione, "§1 capoverso di revisione")
     avvolgi(revisione, "premessa.haRevisione", modello=modello_premessa)
     avvolgi(spessimetriche, "premessa.haSpessimetrica", modello=modello_premessa)
@@ -598,9 +641,10 @@ def converti(sorgente, destinazione):
 
 def tabella_revisioni(d):
     """
-    Tabella delle revisioni, nel piè di pagina della copertina: l'ultima riga riporta il
-    numero di revisione desunto dal codice pratica e, alla prima emissione, la nota
-    corrispondente. Le righe superiori restano vuote: le compila il tecnico a ogni revisione.
+    Tabella delle revisioni, nel piè di pagina della copertina: l'ultima riga riporta la
+    data di emissione scelta nel form, il numero di revisione desunto dal codice pratica e,
+    alla prima emissione, la nota corrispondente. Le righe superiori restano vuote: le
+    compila il tecnico a ogni revisione.
     """
     trovate = [
         t
@@ -618,6 +662,7 @@ def tabella_revisioni(d):
     ultima = trovate[0].rows[-1]
     atteso(len(ultima.cells) >= 3, "tabella delle revisioni: attese almeno 3 colonne")
     modello = next((p.runs[0] for c in ultima.cells for p in c.paragraphs if p.runs), None)
+    scrivi(ultima.cells[0].paragraphs[0], "{premessa.dataEmissione}", modello)
     scrivi(ultima.cells[1].paragraphs[0], "{premessa.numeroRevisione}", modello)
     scrivi(ultima.cells[2].paragraphs[0], "{premessa.notaRevisione}", modello)
 

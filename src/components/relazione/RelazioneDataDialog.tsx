@@ -44,6 +44,18 @@ import type { AdditionalInfo, PraticaInfo, SchemaImpianto, TipoGiri } from '@/se
 import { leggiSchemaImpianto } from './schemaImpiantoFile'
 import { collectCodes, pruneAdditionalInfo } from '@/utils/equipmentCodes'
 
+/**
+ * Data odierna in forma ISO, come la vuole il campo data.
+ *
+ * Composta dai componenti locali e non da `toISOString`, che riporta l'istante in UTC: a
+ * fuso avanti, generare una relazione dopo cena la daterebbe al giorno prima.
+ */
+function oggiISO(): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
 interface RelazioneDataDialogProps {
   open: boolean
   onClose: () => void
@@ -102,7 +114,15 @@ export default function RelazioneDataDialog({
 
   const queryClient = useQueryClient()
 
+  /**
+   * Il documento è una revisione quando il progressivo del codice pratica è oltre lo zero.
+   * Alla prima emissione il motivo non si chiede: il capoverso di §1 non esiste.
+   */
+  const eRevisione = (pratica.progressivo ?? 0) > 0
+
   const [descrizioneAttivita, setDescrizioneAttivita] = useState('')
+  const [dataEmissione, setDataEmissione] = useState('')
+  const [motivoRevisione, setMotivoRevisione] = useState('')
   const [giri, setGiri] = useState<Record<string, TipoGiri>>({})
   const [spessimetrica, setSpessimetrica] = useState<string[]>([])
   const [collegamenti, setCollegamenti] = useState<Record<string, string[]>>({})
@@ -123,6 +143,10 @@ export default function RelazioneDataDialog({
     setDescrizioneAttivita(
       customer?.descrizione_attivita?.trim() || info.descrizioneAttivita || ''
     )
+    // La relazione si emette il giorno in cui la si genera: la data si propone già fatta.
+    // Quella salvata vince, perché rigenerando una relazione vecchia si vuole la sua data.
+    setDataEmissione(info.dataEmissione || oggiISO())
+    setMotivoRevisione(info.motivoRevisione ?? '')
     setGiri(info.compressoriGiri ?? {})
     setSpessimetrica(info.spessimetrica ?? [])
     setCollegamenti(info.collegamentiCompressoriSerbatoi ?? {})
@@ -180,11 +204,15 @@ export default function RelazioneDataDialog({
   const additionalInfo: AdditionalInfo = useMemo(
     () => ({
       descrizioneAttivita: descrizioneAttivita.trim(),
+      dataEmissione,
+      // Alla prima emissione il motivo non viene chiesto: quel che fosse rimasto in un
+      // salvataggio precedente non deve rientrare dalla finestra.
+      motivoRevisione: eRevisione ? motivoRevisione.trim() : '',
       compressoriGiri: giri,
       spessimetrica,
       collegamentiCompressoriSerbatoi: collegamenti,
     }),
-    [descrizioneAttivita, giri, spessimetrica, collegamenti]
+    [descrizioneAttivita, dataEmissione, motivoRevisione, eRevisione, giri, spessimetrica, collegamenti]
   )
 
   /**
@@ -395,6 +423,31 @@ export default function RelazioneDataDialog({
               prima di generare la relazione.
             </Alert>
           )}
+          <TextField
+            label="Data di emissione"
+            type="date"
+            value={dataEmissione}
+            onChange={(e) => setDataEmissione(e.target.value)}
+            slotProps={{ inputLabel: { shrink: true } }}
+            sx={{ maxWidth: 240 }}
+            helperText="Finisce nella colonna DATA della tabella delle revisioni, in copertina."
+          />
+
+          {eRevisione && (
+            <TextField
+              label="Motivo della revisione"
+              value={motivoRevisione}
+              onChange={(e) => setMotivoRevisione(e.target.value)}
+              fullWidth
+              multiline
+              minRows={2}
+              helperText={
+                'Compare in §1: «L’attuale revisione del documento è conseguente a: …». ' +
+                'Lasciandolo vuoto, il capoverso non viene stampato.'
+              }
+            />
+          )}
+
           <TextField
             label="Descrizione attività (ATECO)"
             value={descrizioneAttivita}

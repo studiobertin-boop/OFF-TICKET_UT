@@ -21,6 +21,7 @@ import {
   codiceValvolaDisoleatore,
   codiceValvolaSerbatoio,
   descrizioneSerbatoio,
+  etichettaModello,
   formatNumberIT,
 } from '../helpers'
 
@@ -38,7 +39,12 @@ export function buildValvole(
     descrizione: string,
     marca: string | undefined,
     modello: string | undefined
-  ): ValvolaConnessa => ({ pos, descrizione, costruttore: resolve(marca), modello: modello ?? '' })
+  ): ValvolaConnessa => ({
+    pos,
+    descrizione,
+    costruttore: resolve(marca),
+    modello: etichettaModello(modello),
+  })
 
   const compressori = scheda.compressori ?? []
 

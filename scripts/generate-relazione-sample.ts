@@ -316,6 +316,13 @@ const scheda: SchedaDatiCompleta = {
 
 const additionalInfo: AdditionalInfo = {
   descrizioneAttivita: customer.descrizione_attivita ?? '',
+  // Data fissa e non «oggi»: un campione che cambia a ogni esecuzione non si può
+  // confrontare col documento formattato, ed è quel confronto a chiudere il giro.
+  dataEmissione: '2026-01-13',
+  // Il motivo dev'esserci: senza, il capoverso di revisione non viene stampato e lo
+  // script di tagging non troverebbe più il punto d'aggancio da cui ricavare il template.
+  motivoRevisione:
+    'sostituzione della valvola di sicurezza S1.1 e revisione della portata di scarico',
   compressoriGiri: { C1: 'variabili', C2: 'variabili', C3: 'fissi' },
   spessimetrica: ['C2.1', 'S1'],
   collegamentiCompressoriSerbatoi: {
@@ -325,8 +332,8 @@ const additionalInfo: AdditionalInfo = {
   },
 }
 
-// Codice pratica: progressivo 1 → il documento è una revisione, e il motivo resta
-// uno spazio evidenziato che il redattore compila in Word.
+// Codice pratica: progressivo 1 → il documento è una revisione, e il capoverso del motivo
+// viene stampato.
 const pratica: PraticaInfo = {
   progressivo: 1,
   denominazioneSala: 'Sala Compressori Nord',

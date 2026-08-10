@@ -88,20 +88,51 @@ describe('buildPremessa — ubicazione impianto', () => {
 })
 
 describe('buildPremessa — revisione e spessimetriche', () => {
-  test('è una revisione quando il progressivo del codice pratica supera lo zero', () => {
+  const conMotivo = makeAdditionalInfo({ motivoRevisione: 'sostituzione della valvola S1.1' })
+
+  test('è una revisione quando il progressivo supera lo zero e il motivo è scritto', () => {
     const prima = buildPremessa({
       customer: makeCustomer(),
       pratica: makePratica({ progressivo: 0 }),
-      additionalInfo,
+      additionalInfo: conMotivo,
     })
     expect(prima.haRevisione).toBe(false)
 
     const revisione = buildPremessa({
       customer: makeCustomer(),
       pratica: makePratica({ progressivo: 2 }),
-      additionalInfo,
+      additionalInfo: conMotivo,
     })
     expect(revisione.haRevisione).toBe(true)
+    expect(revisione.motivoRevisione).toBe('sostituzione della valvola S1.1')
+  })
+
+  test('senza motivo il capoverso di revisione non viene stampato', () => {
+    for (const motivoRevisione of ['', '   ', undefined]) {
+      const premessa = buildPremessa({
+        customer: makeCustomer(),
+        pratica: makePratica({ progressivo: 2 }),
+        additionalInfo: makeAdditionalInfo({ motivoRevisione }),
+      })
+      expect(premessa.haRevisione).toBe(false)
+      expect(premessa.motivoRevisione).toBe('')
+    }
+  })
+
+  test('la data di emissione va in forma italiana, e vuota resta vuota', () => {
+    const conData = buildPremessa({
+      customer: makeCustomer(),
+      pratica: makePratica(),
+      additionalInfo: makeAdditionalInfo({ dataEmissione: '2026-08-10' }),
+    })
+    expect(conData.dataEmissione).toBe('10/08/2026')
+
+    const senzaData = buildPremessa({
+      customer: makeCustomer(),
+      pratica: makePratica(),
+      additionalInfo: makeAdditionalInfo({ dataEmissione: '' }),
+    })
+    expect(senzaData.dataEmissione).toBe('')
   })
 
   test('numero e nota di revisione per la tabella di copertina', () => {

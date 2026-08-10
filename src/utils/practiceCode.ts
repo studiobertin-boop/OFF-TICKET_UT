@@ -30,6 +30,19 @@ export function composeCodicePratica({
 }
 
 /**
+ * Nome del file della relazione tecnica: il codice pratica con «RELAZIONE» in mezzo alle
+ * sue due parti — `602A_00-2026` → `602A_RELAZIONE_00-2026.docx`.
+ *
+ * Le pratiche senza codice — dati vecchi — ripiegano sulla ragione sociale: comporre il
+ * nome dalle parti mancanti darebbe file chiamati tutti `_RELAZIONE_.docx`.
+ */
+export function nomeFileRelazione(codicePratica: string, ragioneSociale: string): string {
+  const [cliente, pratica] = codicePratica.split('_')
+  if (!cliente || !pratica) return `Relazione_${ragioneSociale || 'senza_cliente'}.docx`
+  return `${cliente}_RELAZIONE_${pratica}.docx`
+}
+
+/**
  * Numero di sale distinte di un cliente, calcolato dalle pratiche già caricate
  * (pratiche primarie: pratica_padre_id assente). Usato per decidere se mostrare la lettera.
  */

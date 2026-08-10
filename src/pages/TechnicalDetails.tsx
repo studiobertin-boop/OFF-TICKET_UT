@@ -8,7 +8,7 @@ import {
 } from '@mui/material'
 import { Layout } from '@/components/common/Layout'
 import { TechnicalSheetHeader } from '@/components/technicalSheet/TechnicalSheetHeader'
-import { codiceForRequest } from '@/utils/practiceCode'
+import { codiceForRequest, nomeFileRelazione } from '@/utils/practiceCode'
 import { useRequest, useClientDm329Overview } from '@/hooks/useRequests'
 import { useAuth } from '@/hooks/useAuth'
 import { useCustomers } from '@/hooks/useCustomers'
@@ -433,7 +433,7 @@ export const TechnicalDetails = () => {
               indirizzoImpianto: request?.indirizzo_impianto,
             }}
             initialAdditionalInfo={technicalData.additional_info as AdditionalInfo | undefined}
-            fileName={`Relazione_${customerName}.docx`}
+            fileName={nomeFileRelazione(codicePratica, customerName)}
           />
         )}
 

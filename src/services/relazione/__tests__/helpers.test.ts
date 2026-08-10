@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { etichettaModello, formatNumberIT, plurale } from '../helpers'
+import { etichettaModello, formatDataIT, formatNumberIT, plurale } from '../helpers'
 
 describe('formatNumberIT', () => {
   test('usa la virgola come separatore decimale, senza separatore delle migliaia', () => {
@@ -23,6 +23,26 @@ describe('plurale', () => {
 
   test('usa il plurale anche per zero elementi', () => {
     expect(plurale(0, 'essiccatore', 'essiccatori')).toBe('essiccatori')
+  })
+})
+
+describe('formatDataIT', () => {
+  test('porta la data ISO in forma italiana', () => {
+    expect(formatDataIT('2026-08-10')).toBe('10/08/2026')
+    expect(formatDataIT('2026-01-01')).toBe('01/01/2026')
+  })
+
+  test('non sposta il giorno per effetto del fuso orario', () => {
+    // Passando da `new Date`, una data ISO è mezzanotte UTC: a fuso avanti il 1° gennaio
+    // diventerebbe il 31 dicembre. La conversione lavora sulle cifre, non sugli istanti.
+    expect(formatDataIT('2026-01-01')).toBe('01/01/2026')
+    expect(formatDataIT('2026-12-31')).toBe('31/12/2026')
+  })
+
+  test('restituisce vuoto per ciò che non è una data', () => {
+    for (const v of ['', '10/08/2026', 'oggi', undefined, null]) {
+      expect(formatDataIT(v)).toBe('')
+    }
   })
 })
 

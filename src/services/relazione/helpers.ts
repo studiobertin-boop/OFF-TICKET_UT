@@ -31,6 +31,20 @@ export function etichettaModello(modello: string | null | undefined): string {
 }
 
 /**
+ * `2026-08-10` → `10/08/2026`. La data arriva in ISO dal campo data del browser e nel
+ * documento va in forma italiana.
+ *
+ * La conversione è sulle cifre e non passa da `Date`: interpretare una data ISO come
+ * istante la sposta di fuso, e una data di emissione non ha un'ora. Una stringa che non
+ * abbia la forma attesa non si indovina — si restituisce vuota, e la cella resta da
+ * compilare a mano.
+ */
+export function formatDataIT(iso: string | null | undefined): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((iso ?? '').trim())
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : ''
+}
+
+/**
  * Restituisce la forma singolare quando count === 1, altrimenti la forma plurale
  * (lo zero usa il plurale, come nell'uso comune italiano).
  */

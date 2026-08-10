@@ -4,6 +4,7 @@
  */
 import type { Customer } from '@/types'
 import type { AdditionalInfo, PraticaInfo, PremessaModel } from '../types'
+import { formatDataIT } from '../helpers'
 
 export interface PremessaInput {
   customer: Customer
@@ -68,6 +69,8 @@ export function buildPremessa(input: PremessaInput): PremessaModel {
   const descrizioneAttivita =
     additionalInfo.descrizioneAttivita?.trim() || customer.descrizione_attivita || ''
 
+  const motivoRevisione = additionalInfo.motivoRevisione?.trim() ?? ''
+
   // In copertina l'indirizzo va su due righe; nella prosa di §1 su una sola. Il sito
   // produttivo dichiarato a mano è testo libero e non si può spezzare in modo affidabile:
   // resta su una riga.
@@ -89,14 +92,17 @@ export function buildPremessa(input: PremessaInput): PremessaModel {
     // dalla prima revisione in poi la scrive il tecnico, perché è una valutazione sua.
     numeroRevisione: String(pratica.progressivo ?? 0),
     notaRevisione: (pratica.progressivo ?? 0) === 0 ? 'prima emissione' : '',
+    dataEmissione: formatDataIT(additionalInfo.dataEmissione),
+    motivoRevisione,
     // «Uguale» per dichiarazione esplicita è un dato; «uguale» per indirizzo assente è
     // un ripiego, e il preflight deve poterli distinguere.
     ubicazioneDichiarata:
       pratica.impiantoUgualeSedeLegale === true || indirizzoImpianto !== '',
-    // Il documento è una revisione quando il progressivo del codice pratica è oltre lo
-    // zero. Il motivo non viene generato: resta uno spazio evidenziato che il redattore
-    // compila in Word, perché è una valutazione tecnica, non un dato della scheda.
-    haRevisione: (pratica.progressivo ?? 0) > 0,
+    // Il capoverso di revisione vuole due cose insieme: che il progressivo del codice
+    // pratica sia oltre lo zero e che il tecnico abbia scritto perché. Il motivo resta una
+    // valutazione sua — il motore non lo genera — ma senza il capoverso non compare, così
+    // il documento non annuncia una revisione di cui non sa dire la ragione.
+    haRevisione: (pratica.progressivo ?? 0) > 0 && motivoRevisione !== '',
     haSpessimetrica: (additionalInfo.spessimetrica ?? []).length > 0,
   }
 }

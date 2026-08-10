@@ -72,6 +72,12 @@ L'elenco di §2.1 e quello degli allegati in §8 possono essere paragrafi con un
 scritto a mano oppure un elenco puntato di Word: lo script li riconosce da ciò che li
 racchiude, non dalla forma delle voci.
 
+Il segnaposto giallo `[descrivere le motivazioni della revisione]` in §1 non è più da
+compilare in Word: il motivo si scrive nel form «Dati per la relazione tecnica» e lo script
+lo sostituisce con un tag. Nel documento di esempio resta lì perché serve da aggancio, ma
+nelle relazioni generate non compare mai — e senza motivo scritto sparisce l'intero
+capoverso.
+
 L'evidenziazione gialla della frase «priva di sostanze nocive» in §3 la mette lo script,
 non il documento: è la marcatura con cui il sistema segnala al lettore che lì c'è una
 valutazione da fare. Toglierla in Word non ha effetto.
@@ -106,6 +112,11 @@ L’attuale revisione…                 Le attrezzature rientranti nel campo…
 Ove previsto…                        Attestazioni…
 L’impianto in oggetto è finalizzato… L’impianto è protetto contro i rischi…
 ```
+
+Dentro il capoverso della revisione ce ne sono altri due: il motivo si riconosce da
+«conseguente a:» che lo apre e da «. Vengono verificati» che lo chiude. Non lo si cerca
+per la forma — nel documento formattato a mano lì c'è un segnaposto, in uno reso c'è il
+motivo vero, e sono testi diversi.
 
 Gli ultimi due delimitano l'elenco delle sezioni di §2.1: quell'elenco si riconosce da ciò
 che lo racchiude, non dalla forma delle sue voci.

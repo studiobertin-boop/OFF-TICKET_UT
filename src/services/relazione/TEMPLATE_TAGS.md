@@ -43,7 +43,10 @@ dichiarato rende il file illeggibile a Word) e che le fusioni di §5.2 siano pre
 - `{premessa.ragioneSociale}`
 - `{premessa.sedeLegaleCopertina}`, `{premessa.sitoProduttivoCopertina}` — indirizzo con la
   località a capo; il sito produttivo dichiarato a mano è testo libero e resta su una riga.
-- Tabella revisioni (DATA / REV / OGGETTO): **statica e vuota**, la compila il redattore.
+- Tabella revisioni (DATA / REV / OGGETTO), nel piè di pagina: l'ultima riga è generata —
+  `{premessa.dataEmissione}` (scelta nel form, resa in gg/mm/aaaa), `{premessa.numeroRevisione}`
+  dal codice pratica e `{premessa.notaRevisione}`. Le righe superiori restano vuote: le
+  compila il redattore a ogni revisione.
 - Blocco firme: statico.
 - Data del sopralluogo e nome del tecnico **non compaiono più**: rimossi dal documento e
   dal modello.
@@ -51,8 +54,11 @@ dichiarato rende il file illeggibile a Word) e che le fusioni di §5.2 siano pre
 ## §1 Premessa
 - `{premessa.ragioneSociale}`, `{premessa.sedeLegale}` (una riga),
   `{premessa.descrizioneAttivita}`, `{premessa.ubicazione}`
-- Revisione: `{#premessa.haRevisione}…{/premessa.haRevisione}`. Il motivo **non** è
-  generato: resta un segnaposto giallo che il redattore compila in Word.
+- Revisione: `{#premessa.haRevisione}…{/premessa.haRevisione}`, col motivo in
+  `{premessa.motivoRevisione}`. Il motivo lo scrive il tecnico nel form «Dati per la
+  relazione tecnica»: resta una valutazione sua, ma non è più un segnaposto da compilare in
+  Word. La sezione è vera solo se il progressivo supera lo zero **e** il motivo è scritto:
+  senza, il capoverso non compare.
 - Spessimetriche: `{#premessa.haSpessimetrica}…{/premessa.haSpessimetrica}`
 
 ## §2 Descrizione dell'impianto

@@ -22,6 +22,16 @@ export interface AdditionalInfo {
   /** Descrizione attività ATECO (testo libero) */
   descrizioneAttivita?: string
   /**
+   * Data di emissione in forma ISO (`2026-08-10`), che è quella prodotta dal campo data
+   * del browser. In gg/mm/aaaa la converte il motore: il formato è resa, non dato.
+   */
+  dataEmissione?: string
+  /**
+   * Motivo della revisione, testo libero. Vale solo dalla prima revisione in poi: senza,
+   * il capoverso di §1 non viene stampato affatto.
+   */
+  motivoRevisione?: string
+  /**
    * Giri per compressore: { C1: 'fissi' | 'variabili' }.
    *
    * Ripiego: il dato autorevole è `specs.giri` della voce di catalogo, riportato nella scheda.
@@ -73,13 +83,21 @@ export interface PremessaModel {
   numeroRevisione: string
   /** «prima emissione» alla revisione 0, altrimenti vuota: la compila il tecnico. */
   notaRevisione: string
+  /** Data di emissione in gg/mm/aaaa per la tabella delle revisioni; vuota se non scelta. */
+  dataEmissione: string
+  /** Motivo della revisione scritto dal tecnico, per il capoverso di §1. */
+  motivoRevisione: string
   /**
    * Falso quando l'ubicazione non è stata dichiarata da nessuna parte e la clausola
    * ripiega sulla sede legale. Il documento resta leggibile, ma l'affermazione non
    * poggia su un dato: lo segnala il preflight.
    */
   ubicazioneDichiarata: boolean
-  /** Vero se il progressivo del codice pratica è oltre lo zero */
+  /**
+   * Vero quando il documento è una revisione *e* il tecnico ne ha scritto il motivo.
+   * Senza motivo il capoverso non viene stampato: il documento non annuncia una revisione
+   * di cui non sa dire la ragione.
+   */
   haRevisione: boolean
   haSpessimetrica: boolean
 }
