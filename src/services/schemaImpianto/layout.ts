@@ -7,6 +7,7 @@
  * destra. Funzione pura: nessun DOM, testabile in Node.
  */
 import { ordinaCatenaTrattamento } from './buildSchemaModel'
+import { DIMENSIONI_NODO } from './symbols'
 import type { SchemaLayout, SchemaModel, SchemaNodo, SchemaNodoPosizionato } from './types'
 
 /**
@@ -34,16 +35,13 @@ export function pozzoCondense<T extends SchemaNodo>(
   )
 }
 
-/** Ingombri nominali per tipo, in unità SVG. Il render disegna dentro questi riquadri. */
-export const DIMENSIONI_NODO: Record<SchemaNodo['tipo'], { larghezza: number; altezza: number }> = {
-  compressore: { larghezza: 160, altezza: 150 },
-  serbatoio: { larghezza: 150, altezza: 260 },
-  essiccatore: { larghezza: 110, altezza: 110 },
-  filtro: { larghezza: 110, altezza: 110 },
-  separatore: { larghezza: 110, altezza: 110 },
-  tanica: { larghezza: 80, altezza: 70 },
-  pacco_bombole: { larghezza: 120, altezza: 100 },
-}
+/**
+ * Ingombri nominali per tipo, in unità SVG. Il render disegna dentro questi riquadri.
+ * Ora nascono nel registro dei simboli (stessa geometria che disegna): riesportati qui
+ * perché `renderSvg`, `SchemaNodeSymbol` e l'editor già importano `DIMENSIONI_NODO` da
+ * `layout.ts` e non serve toccarli.
+ */
+export { DIMENSIONI_NODO }
 
 const MARGINE = 40
 /** Spazio sopra le apparecchiature: ci passano il collettore di mandata e la freccia verso le utenze. */

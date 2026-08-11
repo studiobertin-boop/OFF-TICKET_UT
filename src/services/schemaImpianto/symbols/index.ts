@@ -2,18 +2,33 @@
  * Libreria dei simboli, ricalcata sui blocchi AutoCAD in `DOCUMENTAZIONE/relazione/Blocchi.pdf`.
  *
  * Ogni simbolo è una funzione pura che produce un frammento SVG in coordinate locali
- * (origine in alto a sinistra del riquadro dichiarato in `DIMENSIONI_NODO`): il render
+ * (origine in alto a sinistra del riquadro dichiarato in `REGISTRO_SIMBOLI`): il render
  * statico li concatena, l'editor li riusa dentro i custom node di react-flow, così il
  * disegno è lo stesso nelle due modalità.
  *
  * Convenzioni grafiche del CAD di riferimento: solo tratto nero su fondo bianco, nessun
  * riempimento colorato, spessore uniforme.
+ *
+ * Ingombri e ancore vivono qui, non in `layout.ts`: nascono dalla stessa geometria che
+ * disegna i simboli, quindi il registro (`REGISTRO_SIMBOLI`) è la fonte unica e `layout.ts`
+ * si limita a riesportare `DIMENSIONI_NODO` per i consumatori esistenti.
  */
-import type { SchemaNodoPosizionato } from '../types'
-import { DIMENSIONI_NODO } from '../layout'
+import type { SchemaNodoTipo, SchemaNodoPosizionato, SchemaAncora, ChiaveSimbolo } from '../types'
+import { chiaveSimbolo } from '../types'
 
 export const TRATTO = 2
 const FONT = 'Arial, Helvetica, sans-serif'
+
+/** Ingombri per tipo, in unità SVG: le funzioni di disegno vi leggono `larghezza`/`altezza`. */
+const DIMENSIONI: Record<SchemaNodoTipo, { larghezza: number; altezza: number }> = {
+  compressore: { larghezza: 160, altezza: 150 },
+  serbatoio: { larghezza: 150, altezza: 260 },
+  essiccatore: { larghezza: 110, altezza: 110 },
+  filtro: { larghezza: 110, altezza: 110 },
+  separatore: { larghezza: 110, altezza: 110 },
+  tanica: { larghezza: 80, altezza: 70 },
+  pacco_bombole: { larghezza: 120, altezza: 100 },
+}
 
 /** Testo: `x`/`y` sono il centro, o il capo iniziale/finale se `ancora` lo dice. */
 function testo(
@@ -92,7 +107,7 @@ export function valvolaScarico(x: number, y: number): string {
  * passa a destra e a sinistra compaiono la valvola di sicurezza e il riquadro del disoleatore.
  */
 export function simboloCompressore(nodo: SchemaNodoPosizionato): string {
-  const { larghezza, altezza } = DIMENSIONI_NODO.compressore
+  const { larghezza, altezza } = DIMENSIONI.compressore
   const corpo = `<rect x="0" y="0" width="${larghezza}" height="${altezza}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
   const raggio = 36
 
@@ -133,7 +148,7 @@ export function simboloCompressore(nodo: SchemaNodoPosizionato): string {
 
 /** Serbatoio: capsula verticale od orizzontale, con valvole di sicurezza sopra e scarico sotto. */
 export function simboloSerbatoio(nodo: SchemaNodoPosizionato): string {
-  const { larghezza, altezza } = DIMENSIONI_NODO.serbatoio
+  const { larghezza, altezza } = DIMENSIONI.serbatoio
   const orizzontale = nodo.orientamento === 'ORIZZONTALE'
 
   const w = orizzontale ? larghezza : 84
@@ -181,7 +196,7 @@ function simboloRombo(
   segno: 'verticale' | 'orizzontale',
   conScarico: boolean
 ): string {
-  const { larghezza, altezza } = DIMENSIONI_NODO[nodo.tipo]
+  const { larghezza, altezza } = DIMENSIONI[nodo.tipo]
   const cx = larghezza / 2
   const cy = altezza / 2 - 6
   const semiL = larghezza / 2 - 6
@@ -236,7 +251,7 @@ export function simboloFiltro(nodo: SchemaNodoPosizionato): string {
 
 /** Il separatore scarica da un codolo nudo, senza valvola: così nel blocco di riferimento. */
 export function simboloSeparatore(nodo: SchemaNodoPosizionato): string {
-  const { larghezza, altezza } = DIMENSIONI_NODO.separatore
+  const { larghezza, altezza } = DIMENSIONI.separatore
   const cx = larghezza / 2
   const cy = altezza / 2 - 6
   const semiH = altezza / 2 - 16
@@ -245,7 +260,7 @@ export function simboloSeparatore(nodo: SchemaNodoPosizionato): string {
 
 /** Tanica raccolta condense: riquadro chiuso col solo codice dentro. */
 export function simboloTanica(nodo: SchemaNodoPosizionato): string {
-  const { larghezza, altezza } = DIMENSIONI_NODO.tanica
+  const { larghezza, altezza } = DIMENSIONI.tanica
   const x = 6
   const y = 6
   const w = larghezza - 12
@@ -258,7 +273,7 @@ export function simboloTanica(nodo: SchemaNodoPosizionato): string {
 
 /** Pacco bombole: quattro bombole a fondo piatto e cielo arrotondato, col codice sopra il telaio. */
 export function simboloPaccoBombole(nodo: SchemaNodoPosizionato): string {
-  const { larghezza, altezza } = DIMENSIONI_NODO.pacco_bombole
+  const { larghezza, altezza } = DIMENSIONI.pacco_bombole
   const bombole = 4
   const yTelaio = 22
   const hTelaio = altezza - yTelaio - 4
@@ -286,19 +301,96 @@ export function simboloPaccoBombole(nodo: SchemaNodoPosizionato): string {
   ].join('')
 }
 
-const SIMBOLI: Record<SchemaNodoPosizionato['tipo'], (nodo: SchemaNodoPosizionato) => string> = {
-  compressore: simboloCompressore,
-  serbatoio: simboloSerbatoio,
-  essiccatore: simboloEssiccatore,
-  filtro: simboloFiltro,
-  separatore: simboloSeparatore,
-  tanica: simboloTanica,
-  pacco_bombole: simboloPaccoBombole,
+export interface DefinizioneSimbolo {
+  dimensioni: { larghezza: number; altezza: number }
+  ancore: SchemaAncora[]
+  disegna: (nodo: SchemaNodoPosizionato) => string
+}
+
+/** Ancore condivise dai tre simboli a rombo, che hanno la stessa geometria. */
+const ANCORE_ROMBO: SchemaAncora[] = [
+  { id: 'sx', x: 6, y: 49, accetta: ['aria'] },
+  { id: 'dx', x: 104, y: 49, accetta: ['aria'] },
+  { id: 'alto-in', x: 55, y: 10, accetta: ['aria'] },
+  { id: 'basso-out', x: 55, y: 88, accetta: ['condensa'] },
+]
+
+/**
+ * Registro dei simboli: unisce per ogni variante grafica l'ingombro, i punti di aggancio
+ * delle tubazioni e la funzione di disegno, così i tre non possono più andare fuori sincrono
+ * come accadeva quando vivevano in file separati (`DIMENSIONI_NODO` in `layout.ts`, disegno
+ * qui). Le coordinate delle ancore sono ricavate a mano dalla geometria di ogni funzione
+ * `simbolo*` (vedi `corpoNodo` in `layout.ts` per i riquadri del corpo disegnato).
+ */
+export const REGISTRO_SIMBOLI: Record<ChiaveSimbolo, DefinizioneSimbolo> = {
+  compressore: {
+    dimensioni: DIMENSIONI.compressore,
+    ancore: [
+      { id: 'alto-out', x: 80, y: 0, accetta: ['aria'] },
+      { id: 'basso-out', x: 80, y: 150, accetta: ['condensa'] },
+    ],
+    disegna: simboloCompressore,
+  },
+  'serbatoio:VERTICALE': {
+    dimensioni: DIMENSIONI.serbatoio,
+    ancore: [
+      { id: 'sx', x: 33, y: 150, accetta: ['aria'] },
+      { id: 'dx', x: 117, y: 150, accetta: ['aria'] },
+      { id: 'alto-in', x: 75, y: 40, accetta: ['aria', 'valvola_sicurezza'] },
+      { id: 'basso-out', x: 75, y: 260, accetta: ['condensa'] },
+    ],
+    disegna: simboloSerbatoio,
+  },
+  'serbatoio:ORIZZONTALE': {
+    dimensioni: DIMENSIONI.serbatoio,
+    ancore: [
+      { id: 'sx', x: 0, y: 130, accetta: ['aria'] },
+      { id: 'dx', x: 150, y: 130, accetta: ['aria'] },
+      { id: 'alto-in', x: 33, y: 88, accetta: ['aria', 'valvola_sicurezza'] },
+      { id: 'basso-out', x: 117, y: 172, accetta: ['condensa'] },
+    ],
+    disegna: simboloSerbatoio,
+  },
+  essiccatore: { dimensioni: DIMENSIONI.essiccatore, ancore: ANCORE_ROMBO, disegna: simboloEssiccatore },
+  filtro: { dimensioni: DIMENSIONI.filtro, ancore: ANCORE_ROMBO, disegna: simboloFiltro },
+  separatore: { dimensioni: DIMENSIONI.separatore, ancore: ANCORE_ROMBO, disegna: simboloSeparatore },
+  tanica: {
+    dimensioni: DIMENSIONI.tanica,
+    ancore: [{ id: 'alto-in', x: 40, y: 6, accetta: ['condensa'] }],
+    disegna: simboloTanica,
+  },
+  pacco_bombole: {
+    dimensioni: DIMENSIONI.pacco_bombole,
+    ancore: [{ id: 'dx', x: 114, y: 60, accetta: ['aria'] }],
+    disegna: simboloPaccoBombole,
+  },
+}
+
+export function definizioneDi(nodo: { tipo: SchemaNodoTipo; orientamento?: 'VERTICALE' | 'ORIZZONTALE' }): DefinizioneSimbolo {
+  return REGISTRO_SIMBOLI[chiaveSimbolo(nodo)]
+}
+
+export function ancoraDi(
+  nodo: { tipo: SchemaNodoTipo; orientamento?: 'VERTICALE' | 'ORIZZONTALE' },
+  id: string
+): SchemaAncora | undefined {
+  return definizioneDi(nodo).ancore.find((a) => a.id === id)
+}
+
+/** Ingombri per tipo, ricavati dal registro. Conserva la forma che `layout.ts` già usa. */
+export const DIMENSIONI_NODO: Record<SchemaNodoTipo, { larghezza: number; altezza: number }> = {
+  compressore: REGISTRO_SIMBOLI.compressore.dimensioni,
+  serbatoio: REGISTRO_SIMBOLI['serbatoio:VERTICALE'].dimensioni,
+  essiccatore: REGISTRO_SIMBOLI.essiccatore.dimensioni,
+  filtro: REGISTRO_SIMBOLI.filtro.dimensioni,
+  separatore: REGISTRO_SIMBOLI.separatore.dimensioni,
+  tanica: REGISTRO_SIMBOLI.tanica.dimensioni,
+  pacco_bombole: REGISTRO_SIMBOLI.pacco_bombole.dimensioni,
 }
 
 /** Frammento SVG del nodo in coordinate locali (senza traslazione). */
 export function simboloDi(nodo: SchemaNodoPosizionato): string {
-  return SIMBOLI[nodo.tipo](nodo)
+  return definizioneDi(nodo).disegna(nodo)
 }
 
 /**
