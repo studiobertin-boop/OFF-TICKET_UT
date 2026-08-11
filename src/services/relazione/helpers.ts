@@ -45,6 +45,18 @@ export function formatDataIT(iso: string | null | undefined): string {
 }
 
 /**
+ * Data odierna in forma ISO, come la vogliono i campi data dei form (relazione, dichiarazioni).
+ *
+ * Composta dai componenti locali e non da `toISOString`, che riporta l'istante in UTC: a
+ * fuso avanti, generare un documento dopo cena lo daterebbe al giorno prima.
+ */
+export function oggiISO(): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+/**
  * Restituisce la forma singolare quando count === 1, altrimenti la forma plurale
  * (lo zero usa il plurale, come nell'uso comune italiano).
  */

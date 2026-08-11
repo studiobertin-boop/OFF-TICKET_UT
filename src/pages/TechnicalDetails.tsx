@@ -152,6 +152,24 @@ export const TechnicalDetails = () => {
     queryClient.invalidateQueries({ queryKey: ['requests'] })
   }, [queryClient])
 
+  /**
+   * Il dialog "Genera relazione" e il dialog "Dichiarazioni" leggono e scrivono lo stesso
+   * campo (`additional_info.dataEmissione`): senza rileggerlo alla chiusura di uno dei due,
+   * l'altro — che smonta e riparte da questo stato ogni volta che si apre — continuerebbe a
+   * proporre la data con cui la pagina si era caricata, non quella appena salvata dall'altro
+   * form. Solo `additional_info`: `equipment_data` e il resto dello stato del form non
+   * c'entrano, e un ricaricamento completo rischierebbe di scavalcare modifiche in corso.
+   */
+  const riaggiornaAdditionalInfo = useCallback(async () => {
+    if (!id) return
+    try {
+      const data = await technicalDataApi.getByRequestId(id)
+      if (data) setTechnicalData((prev) => (prev ? { ...prev, additional_info: data.additional_info } : prev))
+    } catch (err) {
+      console.warn('[additional_info] rilettura non riuscita', err)
+    }
+  }, [id])
+
   // Autosave function (senza alert/snackbar)
   const handleAutoSave = useCallback(async (data: SchedaDatiCompleta) => {
     if (!id) return
@@ -498,7 +516,7 @@ export const TechnicalDetails = () => {
         {technicalData && id && (
           <RelazioneDataDialog
             open={relazioneDialogOpen}
-            onClose={() => setRelazioneDialogOpen(false)}
+            onClose={() => { setRelazioneDialogOpen(false); riaggiornaAdditionalInfo() }}
             requestId={id}
             scheda={technicalData.equipment_data as SchedaDatiCompleta}
             customer={request?.customer ?? customerByName ?? null}
@@ -517,7 +535,7 @@ export const TechnicalDetails = () => {
         {technicalData && (
           <DichiarazioniDialog
             open={dichiarazioniDialogOpen}
-            onClose={() => setDichiarazioniDialogOpen(false)}
+            onClose={() => { setDichiarazioniDialogOpen(false); riaggiornaAdditionalInfo() }}
             requestId={request.id}
             scheda={technicalData.equipment_data as SchedaDatiCompleta}
             customerName={customerName}
@@ -526,6 +544,7 @@ export const TechnicalDetails = () => {
               indirizzoImpianto: request?.indirizzo_impianto,
               customer: request?.customer ?? customerByName ?? null,
             })}
+            initialAdditionalInfo={technicalData.additional_info as AdditionalInfo | undefined}
             movimenti={
               storiaLetta
                 ? {

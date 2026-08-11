@@ -13,7 +13,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { saveAs } from 'file-saver'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, Box, Button, CircularProgress, IconButton, Typography } from '@mui/material'
+import { Alert, Box, Button, CircularProgress, IconButton, TextField, Typography } from '@mui/material'
 import { CloudUpload as UploadIcon, Delete as DeleteIcon, PictureAsPdf as PdfIcon, Download as DownloadIcon } from '@mui/icons-material'
 import { radii } from '@/theme/tokens'
 import type { SchedaDatiCompleta } from '@/types/technicalSheet'
@@ -26,6 +26,9 @@ import { estraiPagina } from '@/services/dichiarazioni/estraiPagine'
 import { assemblaDichiarazioni, type FontePagina } from '@/services/dichiarazioni/assembla'
 import { generaDichiarazioneInstallatore } from '@/services/dichiarazioni/installatore'
 import { installersApi } from '@/services/api/installers'
+import { technicalDataApi } from '@/services/api/technicalData'
+import { formatDataIT, oggiISO } from '@/services/relazione/helpers'
+import type { AdditionalInfo } from '@/services/relazione/types'
 import { PaginaMiniatura } from './PaginaMiniatura'
 
 export interface DichiarazioniSectionProps {
@@ -37,13 +40,19 @@ export interface DichiarazioniSectionProps {
   /** Nome del file da scaricare, già composto dal codice pratica. */
   nomeFile: string
   movimenti?: MovimentoPratica
+  /**
+   * Stessa fonte del form "Genera relazione" (`additional_info`): la data di emissione è un
+   * unico campo condiviso fra i due documenti, non due copie da tenere sincronizzate a mano —
+   * la relazione, l'attestazione e la dichiarazione installatore devono riportare la stessa
+   * data.
+   */
+  initialAdditionalInfo?: AdditionalInfo
 }
 
 const ACCETTATI = 'image/*,.pdf,application/pdf'
 
 const peso = (byte: number) => `${(byte / 1024 / 1024).toFixed(1)} MB`
 const dataItaliana = (iso: string) => new Date(iso).toLocaleDateString('it-IT')
-const oggiItaliano = () => new Date().toLocaleDateString('it-IT')
 
 interface PaginaVista {
   sorgenteId: string
@@ -54,7 +63,20 @@ interface PaginaVista {
   anteprimaUrl: string | null
 }
 
-export const DichiarazioniSection = ({ requestId, scheda, customerName, sitoProduttivo, nomeFile, movimenti }: DichiarazioniSectionProps) => {
+export const DichiarazioniSection = ({
+  requestId,
+  scheda,
+  customerName,
+  sitoProduttivo,
+  nomeFile,
+  movimenti,
+  initialAdditionalInfo,
+}: DichiarazioniSectionProps) => {
+  // Stesso campo del form "Genera relazione": se lì è già stata scelta una data, si propone
+  // quella; altrimenti oggi, come propone anche la relazione. `useState` lazy basta — il
+  // dialog smonta e rimonta la sezione a ogni apertura (MUI Dialog senza `keepMounted`), quindi
+  // non serve un effect per risincronizzare quando `initialAdditionalInfo` cambia da chiuso.
+  const [dataEmissione, setDataEmissione] = useState(() => initialAdditionalInfo?.dataEmissione || oggiISO())
   const queryClient = useQueryClient()
   const chiaveSorgenti = ['dichiarazioni-sorgenti', requestId]
   const chiaveOverride = ['dichiarazioni-override-id', requestId]
@@ -259,6 +281,12 @@ export const DichiarazioniSection = ({ requestId, scheda, customerName, sitoProd
         throw new Error('Assegna almeno una pagina a un ruolo prima di generare.')
       }
 
+      // Si salva subito, prima di generare: se la data è stata cambiata qui, la relazione
+      // (che legge lo stesso campo) deve vederla alla prossima apertura. Si passano avanti gli
+      // altri campi di additional_info così come sono: questo form non li conosce e non deve
+      // svuotarli — `updateAdditionalInfo` sovrascrive l'intera colonna, non fa merge lui.
+      await technicalDataApi.updateAdditionalInfo(requestId, { ...initialAdditionalInfo, dataEmissione })
+
       setAvanzamento('Lettura dei dati installatore…')
       const installer = await installersApi.getPredefinito()
       if (!installer) throw new Error('Nessun installatore predefinito configurato.')
@@ -308,7 +336,7 @@ export const DichiarazioniSection = ({ requestId, scheda, customerName, sitoProd
         },
         customer: { nome: customerName },
         sitoProduttivo,
-        data: oggiItaliano(),
+        data: formatDataIT(dataEmissione),
         templateBytes,
         firma,
       })
@@ -383,6 +411,17 @@ export const DichiarazioniSection = ({ requestId, scheda, customerName, sitoProd
           assegna manualmente ogni pagina caricata al suo ruolo
         </Typography>
       </Box>
+
+      <TextField
+        label="Data"
+        type="date"
+        value={dataEmissione}
+        onChange={(e) => setDataEmissione(e.target.value)}
+        slotProps={{ inputLabel: { shrink: true } }}
+        sx={{ maxWidth: 240 }}
+        disabled={stato !== 'pronto'}
+        helperText="Va sulla dichiarazione installatore: deve coincidere con quella scritta a mano su bollo e attestazione. Condivisa con la data di emissione del form Genera relazione."
+      />
 
       {sorgenti.length === 0 && scadenza && (
         <Alert severity="info" sx={{ py: 0.25 }}>
