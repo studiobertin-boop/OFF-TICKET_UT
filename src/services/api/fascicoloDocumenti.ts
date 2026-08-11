@@ -86,7 +86,11 @@ export const fascicoloDocumentiApi = {
     if (!sessione.session) throw new Error('Non autenticato')
 
     // Il tetto è per apparecchiatura: il limite scatta dove il tecnico sta lavorando.
-    const gia = await fascicoloDocumentiApi.pesoDi(requestId, codice)
+    // Quando si sta caricando un nuovo fascicolo generato, quello vecchio (se c'è) è già
+    // condannato — `genera()` lo elimina subito dopo — e non va contato: altrimenti con
+    // sorgenti pesanti la rigenerazione rifiuterebbe citando un tetto che non verrebbe
+    // davvero superato una volta tolto il fascicolo precedente.
+    const gia = await fascicoloDocumentiApi.pesoDi(requestId, codice, { escludiFascicoloEsistente: tipo === 'fascicolo' })
     if (gia + file.size > TETTO_BYTE_APPARECCHIATURA) {
       const mb = (b: number) => `${(b / 1024 / 1024).toFixed(1)} MB`
       throw new Error(
@@ -118,8 +122,14 @@ export const fascicoloDocumentiApi = {
       .single()
 
     if (error) {
-      // Senza la riga il file sarebbe un peso invisibile: si toglie subito.
-      await supabase.storage.from(BUCKET_FASCICOLI).remove([filePath])
+      // Senza la riga il file sarebbe un peso invisibile: si toglie subito. Se anche questa
+      // rimozione fallisce non c'è un secondo tentativo — l'utente vede comunque l'errore di
+      // salvataggio — ma l'esito va almeno in console, come fa `elimina`: altrimenti il file
+      // orfano resta lì senza che nulla lo segnali.
+      const { error: erroreRollback } = await supabase.storage.from(BUCKET_FASCICOLI).remove([filePath])
+      if (erroreRollback) {
+        console.error('Rimozione di rollback non riuscita, file orfano nello storage:', filePath, erroreRollback)
+      }
       throw new Error(`Errore nel salvataggio del documento: ${error.message}`)
     }
 
@@ -129,13 +139,25 @@ export const fascicoloDocumentiApi = {
     return daRiga(data as RigaDocumento)
   },
 
-  /** Byte già occupati da un'apparecchiatura, fascicolo generato compreso. */
-  pesoDi: async (requestId: string, codice: string): Promise<number> => {
-    const { data, error } = await supabase
+  /**
+   * Byte già occupati da un'apparecchiatura, fascicolo generato compreso — a meno di
+   * `escludiFascicoloEsistente`, che serve solo a `carica` quando sta salendo un fascicolo che
+   * sta per sostituire quello attuale.
+   */
+  pesoDi: async (
+    requestId: string,
+    codice: string,
+    opzioni?: { escludiFascicoloEsistente?: boolean }
+  ): Promise<number> => {
+    let query = supabase
       .from('fascicolo_documenti')
       .select('file_size')
       .eq('request_id', requestId)
       .eq('codice', codice)
+    if (opzioni?.escludiFascicoloEsistente) {
+      query = query.neq('tipo', 'fascicolo')
+    }
+    const { data, error } = await query
 
     if (error) throw error
     return (data ?? []).reduce((somma, r: { file_size: number }) => somma + r.file_size, 0)

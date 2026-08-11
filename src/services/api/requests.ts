@@ -242,6 +242,27 @@ export const requestsApi = {
       throw new Error('Sessione non valida. Per favore, effettua nuovamente il login.')
     }
 
+    // Stesso motivo di `bulkDelete`: il cascade su `fascicolo_documenti` porta via solo le
+    // righe, non i byte nel bucket `fascicoli`, che altrimenti restano orfani per sempre.
+    const { data: fascicoli, error: fetchFascicoliError } = await supabase
+      .from('fascicolo_documenti')
+      .select('file_path')
+      .eq('request_id', id)
+
+    if (fetchFascicoliError) throw fetchFascicoliError
+
+    if (fascicoli && fascicoli.length > 0) {
+      const filePaths = fascicoli.map(f => f.file_path)
+      const { error: storageError } = await supabase.storage
+        .from('fascicoli')
+        .remove(filePaths)
+
+      if (storageError) {
+        console.error('Error deleting fascicolo files from storage:', storageError)
+        // Continue with request deletion even if storage deletion fails
+      }
+    }
+
     const { error } = await supabase.from('requests').delete().eq('id', id)
 
     if (error) {
@@ -379,7 +400,30 @@ export const requestsApi = {
       }
     }
 
-    // Delete requests (cascade will delete attachments records, history, etc.)
+    // Stesso motivo degli allegati: il cascade su `fascicolo_documenti` porta via solo le righe,
+    // non i byte nel bucket `fascicoli`, che altrimenti restano orfani — invisibili, fuori dal
+    // tetto dei 50 MB e irraggiungibili da `rimuoviOrfani`, che lavora dalle righe verso lo
+    // storage e mai al contrario.
+    const { data: fascicoli, error: fetchFascicoliError } = await supabase
+      .from('fascicolo_documenti')
+      .select('file_path')
+      .in('request_id', ids)
+
+    if (fetchFascicoliError) throw fetchFascicoliError
+
+    if (fascicoli && fascicoli.length > 0) {
+      const filePaths = fascicoli.map(f => f.file_path)
+      const { error: storageError } = await supabase.storage
+        .from('fascicoli')
+        .remove(filePaths)
+
+      if (storageError) {
+        console.error('Error deleting fascicolo files from storage:', storageError)
+        // Continue with request deletion even if storage deletion fails
+      }
+    }
+
+    // Delete requests (cascade will delete attachments records, fascicolo_documenti, history, etc.)
     const { error } = await supabase
       .from('requests')
       .delete()
