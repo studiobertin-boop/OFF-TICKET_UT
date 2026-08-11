@@ -77,7 +77,9 @@ serve(async (req) => {
           if (erroreLettura) throw erroreLettura
           if (!documenti?.length) continue
 
-          await rimuoviByte(supabase, documenti.map((d) => d.file_path), 'Rimozione dei file scaduti')
+          const confermati = await rimuoviByte(
+            supabase, documenti.map((d) => d.file_path), 'Rimozione dei file scaduti'
+          )
 
           // L'upsert su fascicolo_scadenze viene PRIMA della delete delle righe, non dopo: è
           // idempotente, quindi anticiparlo non ha controindicazioni. Se invece la delete
@@ -102,7 +104,10 @@ serve(async (req) => {
           if (erroreDelete) throw erroreDelete
 
           esito.purgate++
-          esito.fileCancellati += documenti.length
+          // Conta le conferme dello Storage, non i percorsi richiesti: sono la stessa cosa nel
+          // caso normale, ma divergono nel caso «già fatto» (confermati 0, ritentato dopo un
+          // fallimento a valle) — ed è proprio lì che contare i percorsi mentirebbe.
+          esito.fileCancellati += confermati
           continue
         }
 
@@ -186,16 +191,23 @@ async function rimuoviByte(
   supabase: ReturnType<typeof createClient>,
   percorsi: string[],
   descrizione: string
-): Promise<void> {
+): Promise<number> {
   const { data: rimossi, error } = await supabase.storage.from(BUCKET).remove(percorsi)
   if (error) throw new Error(`${descrizione} non riuscita: ${error.message}`)
   const confermati = rimossi?.length ?? 0
   if (confermati > 0 && confermati !== percorsi.length) {
     throw new Error(`${descrizione}: richiesti ${percorsi.length}, confermati ${confermati}`)
   }
+  return confermati
 }
 
-/** Avvisa tecnico assegnato e admin, una volta sola per finestra di preavviso. */
+/**
+ * Avvisa gli `userdm329` e gli admin, una volta sola per finestra di preavviso.
+ *
+ * Non il tecnico assegnato: `tecnicoDM329` raccoglie i dati sul campo e può compilare la scheda
+ * al posto di altri, ma non segue la pratica nel tempo — sono gli `userdm329` a lavorarla, e sono
+ * loro a dover sapere che un fascicolo sta per scadere.
+ */
 async function preavvisaSeServe(
   supabase: ReturnType<typeof createClient>,
   requestId: string,
@@ -221,16 +233,18 @@ async function preavvisaSeServe(
 
   const { data: pratica, error: erroreRichiesta } = await supabase
     .from('requests')
-    .select('assigned_to, title')
+    .select('title')
     .eq('id', requestId)
     .single()
   if (erroreRichiesta) throw erroreRichiesta
 
-  const { data: admin, error: erroreAdmin } = await supabase.from('users').select('id').eq('role', 'admin')
-  if (erroreAdmin) throw erroreAdmin
+  const { data: destinatariRuoli, error: erroreUtenti } = await supabase
+    .from('users')
+    .select('id')
+    .in('role', ['admin', 'userdm329'])
+  if (erroreUtenti) throw erroreUtenti
 
-  const destinatari = new Set<string>((admin ?? []).map((u) => u.id))
-  if (pratica?.assigned_to) destinatari.add(pratica.assigned_to)
+  const destinatari = new Set<string>((destinatariRuoli ?? []).map((u) => u.id))
   if (destinatari.size === 0) return false
 
   const giorno = quando.toLocaleDateString('it-IT')
@@ -279,11 +293,19 @@ async function rimuoviOrfani(supabase: ReturnType<typeof createClient>): Promise
   for (const s of schede) codiciDi.set(s.request_id, collectCodes(s.equipment_data))
 
   // Una pratica di cui non è tornata la scheda si salta: è un'assenza di informazione, non la
-  // prova che i codici non esistano più. 333 schede su 359 hanno equipment_data vuoto — sono
-  // pratiche vecchie senza apparecchiature, e infatti non hanno documenti da rimuovere.
+  // prova che i codici non esistano più. Lo stesso vale per una scheda tornata ma con l'insieme
+  // dei codici vuoto: un `Set` vuoto è comunque un oggetto, quindi truthy, e va controllato per
+  // dimensione — non solo per presenza — altrimenti una scheda che esiste ma non ha ancora fatto
+  // in tempo a salvare l'ultima apparecchiatura (l'autosave è un debounce di 120s che il
+  // caricamento di un documento non riazzera) farebbe risultare orfano ogni documento della
+  // pratica, byte compresi, senza nota di scadenza e senza recupero. Con questa guardia la sola
+  // modalità di fallimento residua è «i documenti vivono più a lungo del dovuto» — accettabile, e
+  // comunque coperta dalla scadenza a 30/180 giorni. 333 schede su 359 hanno equipment_data vuoto
+  // — sono pratiche vecchie senza apparecchiature, e infatti non hanno documenti da rimuovere: la
+  // guardia sulla dimensione non le penalizza, perché per loro non c'è nulla da filtrare.
   const orfani = documenti.filter((d) => {
     const codici = codiciDi.get(d.request_id)
-    return codici ? !codici.has(d.codice) : false
+    return codici && codici.size > 0 ? !codici.has(d.codice) : false
   })
   if (orfani.length === 0) return 0
 

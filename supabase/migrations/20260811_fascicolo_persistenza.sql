@@ -64,6 +64,7 @@ alter table public.fascicolo_scadenze enable row level security;
 drop policy if exists "Accesso ai documenti del fascicolo" on public.fascicolo_documenti;
 create policy "Accesso ai documenti del fascicolo"
   on public.fascicolo_documenti for all
+  to authenticated
   using (public.can_access_fascicolo(request_id))
   with check (public.can_access_fascicolo(request_id));
 
@@ -75,6 +76,7 @@ drop policy if exists "Lettura delle scadenze del fascicolo" on public.fascicolo
 drop policy if exists "Accesso alle scadenze del fascicolo" on public.fascicolo_scadenze;
 create policy "Accesso alle scadenze del fascicolo"
   on public.fascicolo_scadenze for all
+  to authenticated
   using (public.can_access_fascicolo(request_id))
   with check (public.can_access_fascicolo(request_id));
 
@@ -92,6 +94,7 @@ on conflict (id) do nothing;
 drop policy if exists "Accesso agli oggetti del fascicolo" on storage.objects;
 create policy "Accesso agli oggetti del fascicolo"
   on storage.objects for all
+  to authenticated
   using (
     case when bucket_id = 'fascicoli'
          then public.can_access_fascicolo(((storage.foldername(name))[1])::uuid)
