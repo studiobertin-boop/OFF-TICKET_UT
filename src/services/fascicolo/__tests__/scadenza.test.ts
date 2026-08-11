@@ -87,4 +87,21 @@ describe('dataCancellazione', () => {
     const attesa = new Date(Date.parse(p.ultimoCambioStato!) + GIORNI_DOPO_CHIUSURA * 24 * 60 * 60 * 1000)
     expect(dataCancellazione(p).toISOString()).toBe(attesa.toISOString())
   })
+
+  test('giorniMancanti è 0, non -0, quando scaduta da pochi secondi', () => {
+    // Math.round produce -0 quando il valore è negativo ma < 0.5 in valore assoluto.
+    // Questo accade quando una pratica è scaduta da poche ore (< 12 ore).
+    const adesso = new Date('2026-08-11T12:00:01Z') // 1 secondo dopo i 30 giorni
+    const p: MovimentoPratica = {
+      stato: '7-CHIUSA',
+      ultimoCambioStato: '2026-07-12T12:00:00Z', // Esattamente 30 giorni prima di adesso
+      aggiornataIl: null,
+      creataIl: '2025-12-12T12:00:00Z',
+    }
+    const stato = statoScadenza(p, adesso)
+    // Object.is distingue 0 da -0
+    expect(Object.is(stato.giorniMancanti, 0)).toBe(true)
+    expect(stato.scaduta).toBe(true)
+    expect(stato.inPreavviso).toBe(true)
+  })
 })

@@ -67,13 +67,15 @@ export interface StatoScadenza {
   /** Negativi quando la data è passata. */
   giorniMancanti: number
   scaduta: boolean
-  /** Dentro la finestra di preavviso e non ancora scaduta. */
+  /** Dentro la finestra di preavviso o scaduta da meno di 24 ore: il preavviso resta acceso finché la passata notturna non cancella davvero i documenti. */
   inPreavviso: boolean
 }
 
 export const statoScadenza = (p: MovimentoPratica, adesso: Date): StatoScadenza => {
   const data = dataCancellazione(p)
-  const giorniMancanti = Math.round((data.getTime() - adesso.getTime()) / GIORNO)
+  let giorniMancanti = Math.round((data.getTime() - adesso.getTime()) / GIORNO)
+  // Normalizza -0 a 0, altrimenti finisce in interfaccia come "-0 giorni"
+  if (Object.is(giorniMancanti, -0)) giorniMancanti = 0
   const scaduta = data.getTime() <= adesso.getTime()
   return { data, giorniMancanti, scaduta, inPreavviso: giorniMancanti >= 0 && giorniMancanti <= GIORNI_PREAVVISO }
 }
