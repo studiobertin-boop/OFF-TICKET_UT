@@ -97,10 +97,19 @@ export interface ContestoFascicolo {
   principale: Apparecchiatura | null
 }
 
-/** Un file caricato, con l'esito della classificazione. */
+/** Un documento del fascicolo: caricato ora, o già salvato e riletto dal database. */
 export interface DocumentoFascicolo {
   id: string
-  file: File
+  nome: string
+  /** Byte. Si tiene a parte perché per i documenti salvati il file non è in memoria. */
+  peso: number
+  mime?: string | null
+  /** Presente per ciò che si è appena trascinato, prima che il caricamento finisca. */
+  file?: File
+  /** Presente per ciò che sta nel bucket `fascicoli`. Almeno uno dei due c'è sempre. */
+  filePath?: string
+  /** `fascicolo` è il PDF composto, che convive con i suoi sorgenti. */
+  tipo?: 'sorgente' | 'fascicolo'
   /**
    * Ruoli che il documento ricopre. Sono più d'uno quando un file contiene sia il certificato
    * sia le istruzioni: in quel caso entra nel fascicolo una volta sola, al primo dei suoi posti.
