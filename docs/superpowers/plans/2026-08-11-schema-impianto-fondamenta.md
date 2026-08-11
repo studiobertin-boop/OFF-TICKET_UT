@@ -1486,23 +1486,24 @@ git commit -m "feat(schema-impianto): allineamento, distribuzione, frecce e guid
 ### Task 14: Foglio di confronto con i blocchi CAD
 
 **Files:**
-- Create: `src/services/schemaImpianto/__tests__/tavolaSimboli.test.ts` (strumento, non regressione)
+- Create: `scripts/tavola-simboli.ts`
 
 **Interfaces:**
 - Consumes: `REGISTRO_SIMBOLI` (Task 2)
 
 Le differenze residue fra i simboli generati e `Blocchi.pdf` vanno viste, non descritte. Questo task produce l'artefatto su cui il committente annota.
 
+È uno **strumento, non un test**: sta in `scripts/` insieme agli altri script del progetto e si esegue con `tsx`. Fuori da `__tests__` non entra nella suite, e nessuno lo scambia per un test che ha dimenticato le asserzioni.
+
 - [ ] **Step 1: Emettere la tavola**
 
-Un test che scrive un SVG con tutti i simboli del registro affiancati, ciascuno col proprio nome, e **con le ancore evidenziate** — un pallino per ancora, colorato per tipo accettato — così si controlla in un colpo solo la resa e la posizione degli attacchi.
+Uno script che scrive un SVG con tutti i simboli del registro affiancati, ciascuno col proprio nome, e **con le ancore evidenziate** — un pallino per ancora, colorato per tipo accettato — così si controlla in un colpo solo la resa e la posizione degli attacchi.
 
 ```ts
-// src/services/schemaImpianto/__tests__/tavolaSimboli.test.ts
+// scripts/tavola-simboli.ts
 import { writeFileSync } from 'node:fs'
-import { describe, it } from 'vitest'
-import { REGISTRO_SIMBOLI } from '../symbols'
-import type { SchemaNodoPosizionato } from '../types'
+import { REGISTRO_SIMBOLI } from '../src/services/schemaImpianto/symbols'
+import type { SchemaNodoPosizionato } from '../src/services/schemaImpianto/types'
 
 const OUT = process.env.SCHEMA_OUT ?? '.'
 const COLORE: Record<string, string> = {
@@ -1511,10 +1512,9 @@ const COLORE: Record<string, string> = {
   valvola_sicurezza: '#2e7d32',
 }
 
-describe('tavola dei simboli', () => {
-  it('emette il foglio di confronto', () => {
-    let x = 40
-    const parti: string[] = []
+function emettiTavola(): void {
+  let x = 40
+  const parti: string[] = []
 
     for (const [chiave, def] of Object.entries(REGISTRO_SIMBOLI)) {
       const nodo = {
@@ -1544,19 +1544,23 @@ describe('tavola dei simboli', () => {
       x += def.dimensioni.larghezza + 90
     }
 
-    writeFileSync(
-      `${OUT}/tavola.svg`,
-      `<svg xmlns="http://www.w3.org/2000/svg" width="${x}" height="420" viewBox="0 0 ${x} 420">` +
-        `<rect width="${x}" height="420" fill="#fff" />${parti.join('')}</svg>`
-    )
-  })
-})
+  writeFileSync(
+    `${OUT}/tavola.svg`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${x}" height="420" viewBox="0 0 ${x} 420">` +
+      `<rect width="${x}" height="420" fill="#fff" />${parti.join('')}</svg>`
+  )
+  console.log(`Tavola scritta in ${OUT}/tavola.svg`)
+}
+
+emettiTavola()
 ```
+
+L'indentazione del corpo del ciclo va normalizzata a due spazi dentro `emettiTavola`.
 
 - [ ] **Step 2: Produrre l'immagine**
 
 ```bash
-SCHEMA_OUT=<cartella> npx vitest run src/services/schemaImpianto/__tests__/tavolaSimboli.test.ts
+SCHEMA_OUT=<cartella> npx tsx scripts/tavola-simboli.ts
 node -e "const s=require('sharp');s('<cartella>/tavola.svg',{density:160}).png().toFile('<cartella>/tavola.png')"
 ```
 
@@ -1567,7 +1571,7 @@ Affiancare `tavola.png` alla pagina di `Blocchi.pdf` (rasterizzabile con `pdfjs-
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/services/schemaImpianto/__tests__/tavolaSimboli.test.ts
+git add scripts/tavola-simboli.ts
 git commit -m "chore(schema-impianto): tavola di confronto dei simboli con le ancore"
 ```
 
