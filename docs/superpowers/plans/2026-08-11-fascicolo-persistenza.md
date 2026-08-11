@@ -1632,3 +1632,30 @@ Prima di considerare chiuso il branch:
 - [ ] `select jobname, active from cron.job where jobname = 'pulisci-fascicoli-scaduti'` — attivo
 - [ ] Chiamata manuale alla funzione di pulizia su database vero — risponde `success: true`
 - [ ] Nessuna chiave stampata nei log né committata: `git log -p | grep -i "eyJ\|sbp_"` non trova nulla
+
+## Esito e code aperte (11-08-2026)
+
+Branch fuso in `main`. Verifica finale: 607 test verdi sul risultato della fusione, `tsc --noEmit`
+pulito, build riuscita, prova nel browser eseguita dal committente. Il job notturno è attivo
+(`0 3 * * *`) e la catena `pg_cron → pg_net → Edge Function` è stata percorsa davvero una volta,
+HTTP 200 con `success: true`.
+
+Il difetto più grave l'ha trovato solo la revisione d'insieme, e nessun test lo avrebbe preso: la
+passata notturna considerava autorevole una scheda con `equipment_data` vuoto e cancellava i
+documenti delle apparecchiature non ancora salvate. Il salvataggio è un debounce di 120 secondi che
+si riazzera a ogni modifica, e caricare documenti non tocca il form: aprire una scheda nuova,
+aggiungere un'apparecchiatura, trascinare i file e chiudere entro due minuti bastava. Il client
+l'insidia la conosceva già; la funzione notturna no.
+
+Restano aperte due cose, entrambe fuori dal perimetro di questo lavoro:
+
+- **Debito tecnico.** In `TechnicalDetails.tsx` l'esclusione di `tecnicoDM329` dalla lettura di
+  `request_history` è scritta a mano in TypeScript e duplica una nozione che vive nella RLS. Non è
+  un baco oggi — i ruoli ammessi a quella pagina sono tre e statici — ma un quarto ruolo senza
+  policy farebbe tornare il difetto in silenzio.
+- **Scrittura sulle DM329-Integrazioni.** La lettura è stata sistemata (migrazione
+  `20260811140000_userdm329_legge_integrazioni.sql`), ma i permessi di scrittura di `userdm329`
+  restano ristretti a `DM329` esatto: UPDATE e DELETE su `requests`, INSERT su `request_history`,
+  INSERT/UPDATE su `request_blocks`. Il codice però li dà per concessi — `canBlock` in
+  `RequestDetail.tsx` include la famiglia intera, quindi il pulsante «blocca» compare su
+  un'Integrazione e restituisce un errore di permessi.
