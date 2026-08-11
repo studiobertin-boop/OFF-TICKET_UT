@@ -111,6 +111,13 @@ non per le apparecchiature connesse di §6.
   `{pos}` `{scaricoCondensa}` `{finituraInterna}` `{ancoraggio}` `{manometro}`
   e valvole annidate su paragrafi propri: `{#valvole}` / `{pos} · n.f. {nFabbrica}` / `{/valvole}`
 
+  L'intestazione «Altre apparecchiature soggette al D.M. 329/2004:» e la sua tabella
+  stanno dentro `{#protezioni.haAltre}` … `{/protezioni.haAltre}`, che apre prima del
+  capoverso e chiude dopo la tabella: senza disoleatori, scambiatori né recipienti filtro
+  spariscono insieme, perché un titolo con sotto una tabella vuota è peggio dell'assenza
+  di entrambi. Serve un booleano — `{#protezioni.altre}` ripeterebbe l'intestazione una
+  volta per riga.
+
   Niente colonna «Apparecchiatura» (la posizione basta) e niente pressione di taratura:
   la riporta §6.2, dove è confrontata con la PS del recipiente.
 - 5.4 note: prosa invariante + tubazioni condizionali
@@ -133,6 +140,14 @@ non per le apparecchiature connesse di §6.
 - 7.1 estratto Allegato B (solo recipienti a pressione): tabella **statica**.
 - 7.2 scadenze: `{#riqualificazione}{pos}` `{apparecchiatura}` `{categoria}`
   `{verificaFunzionamento}` `{verificaIntegrita}{/riqualificazione}`
+- 7.2 verifiche già effettuate: il capoverso di chiusura sta dentro
+  `{#spessimetriche.presenti}` … `{/spessimetriche.presenti}` e nomina le apparecchiature
+  con `{spessimetriche.clausola}`. La clausola arriva già accordata al numero —
+  «l'apparecchiatura S1 è stata sottoposta», «le apparecchiature C2.1 e S1 sono state
+  sottoposte» — così il template non deve scegliere fra singolare e plurale. Le posizioni
+  sono quelle marcate in §5.2, nell'ordine di quella tabella; senza nessuna il capoverso
+  non compare. Da non confondere con `{#premessa.haSpessimetrica}` di §1, che annuncia il
+  fatto senza nominare nessuno.
 
 ## §8 Allegati
 `{#allegati}` / `{voce}` / `{/allegati}`

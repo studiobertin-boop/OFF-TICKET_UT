@@ -78,6 +78,64 @@ describe('integrazione template ↔ engine', () => {
     expect(xml).not.toContain('&lt;w:')
   })
 
+  test('i blocchi condizionali di §5.3 e §7.2 compaiono quando hanno contenuto', () => {
+    const template = readFileSync(TEMPLATE_PATH)
+    const model = buildRelazioneModel({
+      scheda: makeScheda(),
+      additionalInfo: makeAdditionalInfo({ spessimetrica: ['S1'] }),
+      customer: makeCustomer(),
+      pratica: makePratica(),
+    })
+
+    const xml = new PizZip(renderRelazioneDocx(template, model))
+      .file('word/document.xml')!
+      .asText()
+
+    attendiXmlValido(xml)
+    expect(model.protezioni.altre.length).toBeGreaterThan(0)
+    expect(xml).toContain('Altre apparecchiature soggette')
+    expect(xml).toContain('Come già evidenziato nella tabella al paragrafo 5.2')
+    expect(xml).toContain('l’apparecchiatura S1 è stata sottoposta')
+  })
+
+  test('senza contenuto i blocchi di §5.3 e §7.2 spariscono con la loro intestazione', () => {
+    const template = readFileSync(TEMPLATE_PATH)
+    const model = buildRelazioneModel({
+      // Nessun disoleatore, scambiatore o recipiente filtro: la seconda tabella di §5.3
+      // resta vuota, e un'intestazione con sotto una tabella vuota è peggio dell'assenza
+      // di entrambe.
+      scheda: makeScheda({
+        compressori: [makeCompressore({ ha_disoleatore: false })],
+        disoleatori: [],
+        essiccatori: [],
+        scambiatori: [],
+        recipienti_filtro: [],
+      }),
+      additionalInfo: makeAdditionalInfo({ spessimetrica: [] }),
+      customer: makeCustomer(),
+      pratica: makePratica(),
+    })
+
+    const xml = new PizZip(renderRelazioneDocx(template, model))
+      .file('word/document.xml')!
+      .asText()
+
+    // Un blocco che sparisce lascia dietro di sé un XML rotto con la stessa facilità con
+    // cui uno che resta lascia un tag: va verificato, non solo cercato.
+    attendiXmlValido(xml)
+
+    expect(model.protezioni.altre).toHaveLength(0)
+    expect(xml).not.toContain('Altre apparecchiature soggette')
+    expect(model.spessimetriche.presenti).toBe(false)
+    expect(xml).not.toContain('Come già evidenziato nella tabella al paragrafo 5.2')
+
+    // Il resto di §5.3 e §7.2 resta al suo posto: è sparito il blocco, non la sezione.
+    expect(xml).toContain('Serbatoi di accumulo')
+    expect(xml).toContain('Scadenze per apparecchiatura')
+    expect(xml).not.toContain('{#')
+    expect(xml).not.toContain('{/')
+  })
+
   test('la tabella delle revisioni riporta data e numero nel piè di pagina', () => {
     const template = readFileSync(TEMPLATE_PATH)
     const model = buildRelazioneModel({

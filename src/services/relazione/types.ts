@@ -341,6 +341,25 @@ export interface RiqualificazioneRow {
   verificaIntegrita: string
 }
 
+/**
+ * Capoverso che chiude §7.2: quali apparecchiature hanno già superato il controllo
+ * ultrasonoro spessimetrico. Distinto da `premessa.haSpessimetrica`, che regola
+ * l'annuncio generico di §1: qui le apparecchiature si nominano una per una.
+ */
+export interface SpessimetricheModel {
+  /**
+   * Vero se almeno un'apparecchiatura risulta marcata nella tabella di §5.2. Senza,
+   * il capoverso non viene stampato: sarebbe una frase che non nomina nessuno.
+   */
+  presenti: boolean
+  /**
+   * Clausola già accordata al numero — «l'apparecchiatura S1 è stata sottoposta»,
+   * «le apparecchiature C2.1 e S1 sono state sottoposte». L'accordo lo risolve il
+   * motore: il template non deve scegliere fra singolare e plurale.
+   */
+  clausola: string
+}
+
 // ============================================================================
 // Modello completo passato al template Word
 // ============================================================================
@@ -393,6 +412,8 @@ export interface RelazioneModel {
   tubazioni: TubazioniModel
   /** §7.2 — scadenze di riqualificazione periodica */
   riqualificazione: RiqualificazioneRow[]
+  /** §7.2 — capoverso sulle verifiche di integrità già effettuate */
+  spessimetriche: SpessimetricheModel
   valvole: ValvoleModel
   allegati: string[]
   /** §2.3 — immagine dello schema, assente se il redattore non ne ha scelta una */

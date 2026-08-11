@@ -51,6 +51,11 @@ contiene, e toglie dal pacchetto l'immagine di esempio. Ogni sostituzione dichia
 aspetta di trovare e **si ferma** se non lo trova: meglio interrompersi che produrre in
 silenzio un template mutilo.
 
+I commenti di revisione restano fuori: sono appunti su questo documento — «questo
+paragrafo compare solo se…» — e lo script li toglie dal template insieme alle parti del
+pacchetto che li definiscono. Si possono quindi usare liberamente in Word per annotare
+cosa il template dovrà fare, senza che finiscano in ogni relazione generata.
+
 ### 4. Verifica e committa
 
 ```bash
@@ -77,6 +82,15 @@ compilare in Word: il motivo si scrive nel form «Dati per la relazione tecnica�
 lo sostituisce con un tag. Nel documento di esempio resta lì perché serve da aggancio, ma
 nelle relazioni generate non compare mai — e senza motivo scritto sparisce l'intero
 capoverso.
+
+Stesso meccanismo per `l'apparecchiatura XXX` nel capoverso che chiude §7.2: al posto di
+`XXX` lo script mette un tag, e nel documento generato compaiono le apparecchiature marcate
+in §5.2, con la frase già al singolare o al plurale secondo quante sono. Se non ce n'è
+nessuna il capoverso non viene stampato. Il resto della frase si può riscrivere in Word;
+`XXX` no, perché è ciò da cui lo script si orienta.
+
+Anche l'intestazione «Altre apparecchiature soggette al D.M. 329/2004:» di §5.3 e la
+tabella che la segue compaiono solo insieme, e solo se la tabella ha righe.
 
 L'evidenziazione gialla della frase «priva di sostanze nocive» in §3 la mette lo script,
 non il documento: è la marcatura con cui il sistema segnala al lettore che lì c'è una
@@ -105,18 +119,22 @@ l'**inizio**, non le trova più e si ferma: non è un danno, ma va aggiornato l'
 corrispondente nello script.
 
 ```
-ESEMPIO S.P.A.                       Lo schema seguente rappresenta…
-Sito produttivo in                   Quest’ultima risulta priva…
+ESEMPIO S.P.A.                       Quest’ultima risulta priva…
+Sito produttivo in                   Altre apparecchiature soggette…
 La presente relazione tecnica…       Tutte le tubazioni…
 L’attuale revisione…                 Le attrezzature rientranti nel campo…
-Ove previsto…                        Attestazioni…
-L’impianto in oggetto è finalizzato… L’impianto è protetto contro i rischi…
+Ove previsto…                        Come già evidenziato nella tabella…
+L’impianto in oggetto è finalizzato… Attestazioni…
+L’impianto è protetto contro i rischi…
+Lo schema seguente rappresenta…
 ```
 
-Dentro il capoverso della revisione ce ne sono altri due: il motivo si riconosce da
-«conseguente a:» che lo apre e da «. Vengono verificati» che lo chiude. Non lo si cerca
-per la forma — nel documento formattato a mano lì c'è un segnaposto, in uno reso c'è il
-motivo vero, e sono testi diversi.
+Due capoversi hanno un aggancio anche al proprio interno, perché contengono un pezzo di
+testo variabile. Il motivo della revisione si riconosce da «conseguente a:» che lo apre e
+da «. Vengono verificati» che lo chiude; le apparecchiature verificate di §7.2 da
+«verifiche di integrità,» e da « a verifica spessimetrica». Non li si cerca per la forma —
+nel documento formattato a mano lì c'è un segnaposto, in uno reso c'è il dato vero, e sono
+testi diversi.
 
 Gli ultimi due delimitano l'elenco delle sezioni di §2.1: quell'elenco si riconosce da ciò
 che lo racchiude, non dalla forma delle sue voci.

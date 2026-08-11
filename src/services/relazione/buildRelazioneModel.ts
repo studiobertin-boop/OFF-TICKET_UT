@@ -15,6 +15,7 @@ import { buildProtezioni } from './engine/protezioni'
 import { buildFluidi } from './engine/fluidi'
 import { buildCondizioniInstallazione } from './engine/condizioniInstallazione'
 import { buildRiqualificazione } from './engine/riqualificazione'
+import { buildSpessimetriche } from './engine/spessimetriche'
 import { buildTubazioni } from './engine/tubazioni'
 import { buildValvole } from './engine/valvole'
 import { buildAllegati } from './engine/allegati'
@@ -45,6 +46,7 @@ export function buildRelazioneModel(input: BuildRelazioneInput): RelazioneModel 
     protezioni: buildProtezioni(scheda, esiti),
     tubazioni: buildTubazioni(scheda),
     riqualificazione: buildRiqualificazione(esiti),
+    spessimetriche: buildSpessimetriche(esiti, additionalInfo),
     valvole: buildValvole(scheda, additionalInfo, options),
     allegati: buildAllegati(additionalInfo),
     schemaImpianto,

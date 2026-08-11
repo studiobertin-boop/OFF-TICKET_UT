@@ -27,6 +27,7 @@ export type {
   ValvolaProtezione,
   TubazioniModel,
   RiqualificazioneRow,
+  SpessimetricheModel,
   ValvoleModel,
   PortataValvolaRow,
   PressioneValvolaRow,

@@ -57,6 +57,18 @@ import docx
 # seguito nello stesso paragrafo ripeterebbero il testo senza mai andare a capo.
 VALVOLE_ANNIDATE = ["{#valvole}", "{pos} – n.f. {nFabbrica}", "{/valvole}"]
 
+W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+
+# Parti del pacchetto che esistono solo per i commenti di revisione: nel template non
+# hanno nulla da fare. `people.xml` è l'anagrafica di chi li ha scritti.
+PARTI_COMMENTI = (
+    "word/comments.xml",
+    "word/commentsExtended.xml",
+    "word/commentsIds.xml",
+    "word/commentsExtensible.xml",
+    "word/people.xml",
+)
+
 # La radice del progetto si ricava dalla posizione dello script, non dalla cartella da cui
 # lo si lancia: il template sta sempre lì, e chi segue la guida si trova spesso dentro
 # `DOCUMENTAZIONE/relazione/`. Il documento sorgente passato a riga di comando resta invece
@@ -249,6 +261,32 @@ def avvolgi(p, nome_sezione, modello=None):
     return ap, chiusura
 
 
+def avvolgi_blocco(p, t, nome_sezione, modello=None):
+    """
+    Come `avvolgi`, ma il blocco arriva fino a una tabella: apertura prima del paragrafo,
+    chiusura dopo la tabella.
+
+    Serve dove il condizionale non regge una frase ma un pezzo di documento — in §5.3
+    l'intestazione «Altre apparecchiature…» e la tabella che la segue stanno o cadono
+    insieme: un titolo con sotto una tabella vuota è peggio dell'assenza di entrambi.
+    """
+    base = modello or p
+
+    apertura = copy.deepcopy(base._p)
+    p._p.addprevious(apertura)
+    ap = docx.text.paragraph.Paragraph(apertura, p._parent)
+    scrivi(ap, "{#%s}" % nome_sezione)
+    ap.paragraph_format.space_after = 0
+
+    chiusura = copy.deepcopy(base._p)
+    t._tbl.addnext(chiusura)
+    ch = docx.text.paragraph.Paragraph(chiusura, p._parent)
+    scrivi(ch, "{/%s}" % nome_sezione)
+    ch.paragraph_format.space_after = 0
+
+    return ap, ch
+
+
 def riga_loop(tabella, lista, celle, attesi):
     """
     Riduce una tabella al solo modello di riga: intestazione + una riga di dati, con i tag
@@ -283,9 +321,7 @@ def riga_loop(tabella, lista, celle, attesi):
         tcPr = cella._tc.tcPr
         if tcPr is None:
             continue
-        for vmerge in tcPr.findall(
-            "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}vMerge"
-        ):
+        for vmerge in tcPr.findall(W + "vMerge"):
             tcPr.remove(vmerge)
 
     # Run di riferimento per le celle vuote: la formattazione del testo di tabella sta sui
@@ -345,27 +381,34 @@ def indirizzo_copertina(P, dopo, tag, cosa):
 APERTURA_MOTIVO = "conseguente a:"
 CHIUSURA_MOTIVO = ". Vengono verificati"
 
+APERTURA_SPESSIMETRICHE = "verifiche di integrità,"
+CHIUSURA_SPESSIMETRICHE = " a verifica spessimetrica"
 
-def segnaposto_motivo(p, tag):
+
+def segnaposto_fra(p, apertura, chiusura, tag, cosa):
     """
-    Sostituisce col tag il motivo della revisione, riconoscendolo da ciò che lo circonda.
+    Sostituisce col tag il testo compreso fra due frasi d'aggancio.
 
-    Non si cerca il segnaposto «[descrivere le motivazioni…]»: quello compare solo nel
-    documento formattato a mano. In un documento reso, al suo posto c'è il motivo vero,
-    che è testo qualunque — agganciarsi al segnaposto avrebbe richiuso il giro, impedendo
-    di ricavare il template da un documento uscito dal template.
+    Ci si aggancia a ciò che circonda il testo variabile, non alla sua forma: nel
+    documento formattato a mano lì c'è un segnaposto («[descrivere le motivazioni…]»,
+    «XXX»), in uno reso c'è il dato vero, e sono testi diversi. Cercare il segnaposto
+    avrebbe chiuso il giro, impedendo di ricavare il template da un documento uscito dal
+    template.
 
     Il capoverso si ricompone in tre run — prefisso, tag, suffisso — prendendo la
-    formattazione dai run esistenti. L'evidenziazione non si riporta: segnalava «qui manca
-    qualcosa da scrivere a mano», e il motivo ora arriva dal form come ogni altro dato.
+    formattazione dai run esistenti. L'evidenziazione non si riporta: dove c'era
+    segnalava «qui manca qualcosa da scrivere a mano», e quel qualcosa ora arriva dal
+    form come ogni altro dato.
     """
     intero = p.text
-    i = intero.find(APERTURA_MOTIVO)
-    atteso(i >= 0, "§1 revisione: il capoverso non contiene %r" % APERTURA_MOTIVO)
-    j = intero.find(CHIUSURA_MOTIVO, i)
-    atteso(j >= 0, "§1 revisione: il capoverso non contiene %r dopo il motivo" % CHIUSURA_MOTIVO)
+    i = intero.find(apertura)
+    atteso(i >= 0, "%s: il capoverso non contiene %r" % (cosa, apertura))
+    j = intero.find(chiusura, i + len(apertura))
+    atteso(j >= 0, "%s: il capoverso non contiene %r dopo il segnaposto" % (cosa, chiusura))
 
-    prefisso = intero[: i + len(APERTURA_MOTIVO)] + " "
+    # Lo spazio fra aggancio e tag si normalizza: il documento reso e quello formattato a
+    # mano non sono tenuti a spaziarlo allo stesso modo.
+    prefisso = intero[: i + len(apertura)].rstrip() + " "
     suffisso = intero[j:]
 
     rPr_iniziale = p.runs[0]._r.rPr if p.runs else None
@@ -403,8 +446,43 @@ def paragrafo_immagine(P, dopo):
     )
 
 
+def togli_commenti(d):
+    """
+    Toglie dal corpo i commenti di revisione.
+
+    Sono appunti sul documento di esempio — «questo paragrafo compare solo se…» — e
+    servono a decidere cosa deve fare il template, non a viaggiare dentro ogni relazione
+    generata. Restano dove sono utili, nel `.docx` di esempio in `DOCUMENTAZIONE/`.
+
+    Qui si tolgono gli ancoraggi nel testo; le parti del pacchetto che li definiscono le
+    lascia fuori `rifinisci_pacchetto`.
+    """
+    corpo = d.element.body
+    quanti = 0
+
+    for tag in ("commentRangeStart", "commentRangeEnd"):
+        for el in list(corpo.iter(W + tag)):
+            el.getparent().remove(el)
+
+    # Il richiamo numerato è un run a sé: si toglie il run, non il solo riferimento, o
+    # resterebbe un run vuoto con lo stile del rimando.
+    for rif in list(corpo.iter(W + "commentReference")):
+        run = rif.getparent()
+        run.getparent().remove(run)
+        quanti += 1
+
+    return quanti
+
+
 def converti(sorgente, destinazione):
     d = docx.Document(sorgente)
+
+    # I commenti si tolgono prima di ogni altra cosa. Il richiamo numerato è un run in
+    # coda al capoverso, e le sostituzioni che ricompongono un paragrafo prendono la
+    # formattazione dai run esistenti: lasciato lì, il testo del template erediterebbe
+    # lo stile «Rimando commento», corpo 10, da un appunto di revisione.
+    commenti = togli_commenti(d)
+
     P = d.paragraphs
     T = d.tables
 
@@ -419,9 +497,20 @@ def converti(sorgente, destinazione):
     chiusura_sezioni = paragrafo(P, "L’impianto è protetto contro i rischi", "§2.1 chiusura elenco")
     intro_schema = paragrafo(P, "Lo schema seguente rappresenta", "§2.3 schema d'impianto")
     nocive = paragrafo(P, "Quest’ultima risulta priva", "§3 frase sulle sostanze nocive")
+    altre_apparecchiature = paragrafo(
+        P, "Altre apparecchiature soggette", "§5.3 altre apparecchiature"
+    )
+    tabella_altre = tabella(
+        T,
+        ["Pos.", "Valvole di sicurezza", "Manometro"],
+        "§5.3 protezioni delle altre apparecchiature",
+    )
     tubazioni = paragrafo(P, "Tutte le tubazioni", "§5.4 nota sulle tubazioni")
     intro_riqualificazione = paragrafo(
         P, "Le attrezzature rientranti nel campo", "§7 introduzione"
+    )
+    spessimetriche_svolte = paragrafo(
+        P, "Come già evidenziato nella tabella", "§7.2 capoverso spessimetriche"
     )
     primo_allegato = paragrafo(P, "Attestazioni", "§8 elenco allegati")
 
@@ -453,7 +542,13 @@ def converti(sorgente, destinazione):
     # della frase resta com'è, perché riscriverla perderebbe la formattazione del
     # capoverso. Via anche il giallo: segnalava «qui manca qualcosa da scrivere», e ora
     # quel qualcosa arriva dal form come tutti gli altri dati.
-    segnaposto_motivo(revisione, "{premessa.motivoRevisione}")
+    segnaposto_fra(
+        revisione,
+        APERTURA_MOTIVO,
+        CHIUSURA_MOTIVO,
+        "{premessa.motivoRevisione}",
+        "§1 capoverso di revisione",
+    )
     modello_premessa = precedente(P, revisione, "§1 capoverso di revisione")
     avvolgi(revisione, "premessa.haRevisione", modello=modello_premessa)
     avvolgi(spessimetriche, "premessa.haSpessimetrica", modello=modello_premessa)
@@ -549,15 +644,15 @@ def converti(sorgente, destinazione):
         ["S1", None, "Automatico", "Zincato", "Sì", None],
     )
     riga_loop(
-        tabella(
-            T,
-            ["Pos.", "Valvole di sicurezza", "Manometro"],
-            "§5.3 protezioni delle altre apparecchiature",
-        ),
+        tabella_altre,
         "protezioni.altre",
         ["{pos}", VALVOLE_ANNIDATE, "{manometro}"],
         ["C1.1", None, "a bordo macchina"],
     )
+    # Impianti senza disoleatori, scambiatori né recipienti filtro esistono: lì
+    # l'intestazione e la tabella spariscono insieme. Un booleano e non `{#protezioni.altre}`,
+    # che ripeterebbe l'intestazione una volta per riga.
+    avvolgi_blocco(altre_apparecchiature, tabella_altre, "protezioni.haAltre")
 
     # --- §5.4 Tubazioni ----------------------------------------------------
     modello_tubazioni = precedente(P, tubazioni, "§5.4 nota sulle tubazioni")
@@ -623,6 +718,21 @@ def converti(sorgente, destinazione):
         ["C1.1", "Serbatoio disoleatore", "III", None, None],
     )
 
+    # Il capoverso che chiude §7.2 nomina le apparecchiature già verificate: senza
+    # nessuna da nominare non viene stampato affatto. La clausola arriva accordata al
+    # numero dal motore — «l'apparecchiatura S1 è stata sottoposta» oppure «le
+    # apparecchiature C2.1 e S1 sono state sottoposte» — così il template resta muto.
+    segnaposto_fra(
+        spessimetriche_svolte,
+        APERTURA_SPESSIMETRICHE,
+        CHIUSURA_SPESSIMETRICHE,
+        "{spessimetriche.clausola}",
+        "§7.2 capoverso spessimetriche",
+    )
+    avvolgi(
+        spessimetriche_svolte, "spessimetriche.presenti", modello=intro_riqualificazione
+    )
+
     # --- §8 Allegati -------------------------------------------------------
     # Le altre voci si cancellano una a una: sono capoversi di elenco, senza un prefisso
     # comune su cui agganciarsi, e stanno fra la prima voce e la fine del documento.
@@ -637,6 +747,7 @@ def converti(sorgente, destinazione):
     tabella_revisioni(d)
 
     d.save(destinazione)
+    return commenti
 
 
 def tabella_revisioni(d):
@@ -667,33 +778,57 @@ def tabella_revisioni(d):
     scrivi(ultima.cells[2].paragraphs[0], "{premessa.notaRevisione}", modello)
 
 
+def senza_relazioni(rels, target):
+    """Toglie dal file delle relazioni quelle che puntano a una parte rimossa."""
+    return re.sub(
+        r'<Relationship[^>]*Target="%s"[^>]*/>' % re.escape(target), "", rels
+    )
+
+
 def rifinisci_pacchetto(percorso):
     """
-    Due ritocchi che vivono solo nel pacchetto zip, non nel modello di python-docx:
+    Tre ritocchi che vivono solo nel pacchetto zip, non nel modello di python-docx:
 
     - «Pag. 2di 9»: nel piè di pagina manca lo spazio prima di «di». Refuso di battitura,
       si corregge qui perché il template è ormai la sorgente di verità.
     - L'immagine dello schema del documento reso resta orfana una volta sostituita dal tag:
       va tolta dal pacchetto insieme alla sua relazione, altrimenti verrebbe trascinata in
       ogni relazione generata.
+    - Le parti dei commenti di revisione: `togli_commenti` ne ha tolto gli ancoraggi dal
+      testo, qui se ne vanno anche le definizioni. Un Override che punta a una parte
+      assente rende il documento illeggibile, quindi vanno ripuliti anche i tipi di
+      contenuto e le relazioni.
     """
     temporaneo = percorso + ".tmp"
-    esiti = {"spazio": False, "immagine": False}
+    esiti = {"spazio": False, "immagine": False, "commenti": False}
 
     with zipfile.ZipFile(percorso) as src:
         nomi = set(src.namelist())
         media = sorted(n for n in nomi if n.startswith("word/media/"))
-        rels = src.read("word/_rels/document.xml.rels").decode("utf-8")
+        commenti = sorted(n for n in PARTI_COMMENTI if n in nomi)
         documento = src.read("word/document.xml").decode("utf-8")
         atteso(
             'r:embed="' not in documento,
             "il template contiene ancora un riferimento a un'immagine",
         )
 
+        rels = src.read("word/_rels/document.xml.rels").decode("utf-8")
+        for parte in media + commenti:
+            rels = senza_relazioni(rels, parte[len("word/"):])
+
+        tipi = src.read("[Content_Types].xml").decode("utf-8")
+        for parte in commenti:
+            tipi = re.sub(
+                r'<Override[^>]*PartName="/%s"[^>]*/>' % re.escape(parte), "", tipi
+            )
+
         with zipfile.ZipFile(temporaneo, "w", zipfile.ZIP_DEFLATED) as dst:
             for info in src.infolist():
                 if info.filename in media:
                     esiti["immagine"] = True
+                    continue
+                if info.filename in commenti:
+                    esiti["commenti"] = True
                     continue
 
                 dati = src.read(info.filename)
@@ -707,14 +842,9 @@ def rifinisci_pacchetto(percorso):
                         dati = xml.encode("utf-8")
                         esiti["spazio"] = True
                 elif info.filename == "word/_rels/document.xml.rels":
-                    for target in media:
-                        breve = target[len("word/"):]
-                        dati = re.sub(
-                            r'<Relationship[^>]*Target="%s"[^>]*/>' % re.escape(breve),
-                            "",
-                            rels,
-                        ).encode("utf-8")
-                        rels = dati.decode("utf-8")
+                    dati = rels.encode("utf-8")
+                elif info.filename == "[Content_Types].xml":
+                    dati = tipi.encode("utf-8")
 
                 dst.writestr(info, dati)
 
@@ -724,8 +854,12 @@ def rifinisci_pacchetto(percorso):
 
 if __name__ == "__main__":
     sorgente = sys.argv[1] if len(sys.argv) > 1 else SRC_DEFAULT
-    converti(sorgente, OUT)
+    commenti = converti(sorgente, OUT)
     esiti = rifinisci_pacchetto(OUT)
     print("Template scritto in %s (%d byte)" % (OUT, os.path.getsize(OUT)))
     print("  spazio nel pie di pagina: %s" % ("corretto" if esiti["spazio"] else "non trovato"))
     print("  immagine di esempio: %s" % ("rimossa" if esiti["immagine"] else "assente"))
+    print(
+        "  commenti di revisione: %s"
+        % ("%d rimossi" % commenti if esiti["commenti"] else "assenti")
+    )
