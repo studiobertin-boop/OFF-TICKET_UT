@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { saveAs } from 'file-saver'
 import {
   Box,
   CircularProgress,
@@ -16,6 +17,8 @@ import { useCustomers } from '@/hooks/useCustomers'
 import { technicalDataApi } from '@/services/api/technicalData'
 import { requestsApi } from '@/services/api/requests'
 import { customersApi } from '@/services/api/customers'
+import { relazioneDocumentiApi } from '@/services/api/relazioneDocumenti'
+import { dichiarazioniDocumentiApi } from '@/services/api/dichiarazioniDocumenti'
 import { supabase } from '@/services/supabase'
 import { TechnicalSheetForm, type TechnicalSheetFormRef } from '@/components/technicalSheet/TechnicalSheetForm'
 import { OCRReviewDialog } from '@/components/technicalSheet/OCRReviewDialog'
@@ -351,6 +354,46 @@ export const TechnicalDetails = () => {
     enabled: Boolean(id) && puoLeggereStoriaPratica(user?.role),
   })
 
+  /**
+   * Dati CIVA e relazione: questione di ruolo, non di stato della scheda.
+   *
+   * Erano legati a `is_completed`, che si accendeva solo dal pulsante «Completa scheda» in
+   * testata. Tolto quello, restare agganciati a quel flag li avrebbe resi irraggiungibili —
+   * la pagina CIVA non ha altri punti d'ingresso in tutta l'app. Del resto la relazione si
+   * genera anche su una scheda ancora in lavorazione: è il suo preflight a dire cosa manca,
+   * e lo dice meglio di un flag binario acceso a mano.
+   *
+   * Calcolato qui — prima dei return anticipati — perché serve alle due query sotto: dipende
+   * solo da `user`, già disponibile da `useAuth()`, quindi anticiparlo non introduce nessuna
+   * dipendenza sui dati della richiesta che gli early return sotto potrebbero non avere ancora.
+   */
+  const canGenerateDocs = user?.role === 'admin' || user?.role === 'userdm329'
+
+  // Relazione e dichiarazioni già salvate per questa pratica: se esistono, l'azione in testata
+  // diventa verde e scarica invece di riaprire il dialog di generazione. Anche queste prima dei
+  // return anticipati, per lo stesso motivo della query sopra.
+  const { data: relazioneSalvata } = useQuery({
+    queryKey: ['relazione-documento', id],
+    queryFn: () => relazioneDocumentiApi.ultimoFinale(id!),
+    enabled: !!id && canGenerateDocs,
+  })
+  const { data: dichiarazioniSalvate } = useQuery({
+    queryKey: ['dichiarazioni-documento', id],
+    queryFn: () => dichiarazioniDocumentiApi.ultimoFinale(id!),
+    enabled: !!id && canGenerateDocs,
+  })
+
+  const handleScaricaRelazione = async () => {
+    if (!relazioneSalvata) return
+    const blob = await relazioneDocumentiApi.scarica(relazioneSalvata.filePath)
+    saveAs(blob, relazioneSalvata.nome)
+  }
+  const handleScaricaDichiarazioni = async () => {
+    if (!dichiarazioniSalvate) return
+    const blob = await dichiarazioniDocumentiApi.scarica(dichiarazioniSalvate.filePath)
+    saveAs(blob, dichiarazioniSalvate.nome)
+  }
+
   // IMPORTANT: Calculate sedeLegale BEFORE early returns to avoid React Hook ordering issues
   // Get sede legale from customer data using formatFullAddress
   // Priority: request.customer > customerByName > custom_fields.sede_legale
@@ -418,17 +461,6 @@ export const TechnicalDetails = () => {
   // queryKey del dettaglio, quindi TanStack la serve dalla cache.
   const codicePratica = codiceForRequest(request, clientSalaCount)
 
-  /**
-   * Dati CIVA e relazione: questione di ruolo, non di stato della scheda.
-   *
-   * Erano legati a `is_completed`, che si accendeva solo dal pulsante «Completa scheda» in
-   * testata. Tolto quello, restare agganciati a quel flag li avrebbe resi irraggiungibili —
-   * la pagina CIVA non ha altri punti d'ingresso in tutta l'app. Del resto la relazione si
-   * genera anche su una scheda ancora in lavorazione: è il suo preflight a dire cosa manca,
-   * e lo dice meglio di un flag binario acceso a mano.
-   */
-  const canGenerateDocs = user?.role === 'admin' || user?.role === 'userdm329'
-
   // Determina se l'utente può gestire la condivisione
   const canManageSharing =
     user?.role === 'admin' ||
@@ -489,6 +521,10 @@ export const TechnicalDetails = () => {
                 onRelazione={() => setRelazioneDialogOpen(true)}
                 onDichiarazioni={() => setDichiarazioniDialogOpen(true)}
                 onSaveDraft={handleSaveDraft}
+                relazionePronta={!!relazioneSalvata}
+                dichiarazioniPronte={!!dichiarazioniSalvate}
+                onScaricaRelazione={handleScaricaRelazione}
+                onScaricaDichiarazioni={handleScaricaDichiarazioni}
               />
             )}
           />
@@ -516,7 +552,11 @@ export const TechnicalDetails = () => {
         {technicalData && id && (
           <RelazioneDataDialog
             open={relazioneDialogOpen}
-            onClose={() => { setRelazioneDialogOpen(false); riaggiornaAdditionalInfo() }}
+            onClose={() => {
+              setRelazioneDialogOpen(false)
+              riaggiornaAdditionalInfo()
+              queryClient.invalidateQueries({ queryKey: ['relazione-documento', id] })
+            }}
             requestId={id}
             scheda={technicalData.equipment_data as SchedaDatiCompleta}
             customer={request?.customer ?? customerByName ?? null}
@@ -535,7 +575,11 @@ export const TechnicalDetails = () => {
         {technicalData && (
           <DichiarazioniDialog
             open={dichiarazioniDialogOpen}
-            onClose={() => { setDichiarazioniDialogOpen(false); riaggiornaAdditionalInfo() }}
+            onClose={() => {
+              setDichiarazioniDialogOpen(false)
+              riaggiornaAdditionalInfo()
+              queryClient.invalidateQueries({ queryKey: ['dichiarazioni-documento', id] })
+            }}
             requestId={request.id}
             scheda={technicalData.equipment_data as SchedaDatiCompleta}
             customerName={customerName}

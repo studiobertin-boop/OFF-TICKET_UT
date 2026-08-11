@@ -5,7 +5,7 @@ export interface AzioneIconaProps {
   icona: ReactElement
   /** Nome dell'azione: è l'etichetta che si apre, il tooltip e il nome accessibile. */
   testo: string
-  onClick: () => void
+  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void
   disabled?: boolean
   /**
    * `error` per le azioni che non si tornano indietro: in una fila di icone tutte uguali
@@ -13,6 +13,8 @@ export interface AzioneIconaProps {
    * dirlo quando la parola è chiusa.
    */
   colore?: 'primary' | 'error' | 'warning' | 'success'
+  /** Sfondo pieno invece del solo contorno: segnala che l'azione ha già un risultato pronto. */
+  pieno?: boolean
 }
 
 /**
@@ -31,19 +33,22 @@ export interface AzioneIconaProps {
  * aperta: `@media (hover: none)`. E `aria-label` porta comunque il nome dell'azione a chi
  * naviga con la tastiera o con un lettore di schermo, che l'animazione non la vede.
  */
-export const AzioneIcona = ({ icona, testo, onClick, disabled, colore = 'primary' }: AzioneIconaProps) => (
+export const AzioneIcona = ({
+  icona, testo, onClick, disabled, colore = 'primary', pieno = false,
+}: AzioneIconaProps) => (
   <Tooltip title={testo} placement="bottom">
     <span>
       <Button
         size="small"
-        variant="outlined"
+        variant={pieno ? 'contained' : 'outlined'}
         color={colore}
         onClick={onClick}
         disabled={disabled}
         aria-label={testo}
         // Bordo a piena opacità: il 50% di default di MUI su fondo scuro sparisce.
         sx={{
-          minWidth: 0, px: 0.9, borderColor: `${colore}.main`, whiteSpace: 'nowrap',
+          minWidth: 0, px: 0.9, whiteSpace: 'nowrap',
+          ...(pieno ? {} : { borderColor: `${colore}.main` }),
           '& .etichetta': {
             display: 'grid', gridTemplateColumns: '0fr', ml: 0, opacity: 0,
             transition: 'grid-template-columns .18s ease, opacity .18s ease, margin-left .18s ease',

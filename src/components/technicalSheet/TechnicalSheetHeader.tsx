@@ -5,7 +5,10 @@ import {
   Assessment as AssessmentIcon,
   CheckCircle as CheckCircleIcon,
   Description as DescriptionIcon,
+  Download as DownloadIcon,
   Gavel as GavelIcon,
+  Inventory2 as Inventory2Icon,
+  Refresh as RefreshIcon,
   Save as SaveIcon,
   Share as ShareIcon,
 } from '@mui/icons-material'
@@ -40,6 +43,12 @@ export interface TechnicalSheetHeaderProps {
   onRelazione: () => void
   onDichiarazioni: () => void
   onSaveDraft: () => void
+  /** Presente quando la relazione è già stata generata e salvata. */
+  relazionePronta: boolean
+  /** Presente quando le dichiarazioni sono già state generate e salvate. */
+  dichiarazioniPronte: boolean
+  onScaricaRelazione: () => void
+  onScaricaDichiarazioni: () => void
 }
 
 /**
@@ -71,6 +80,10 @@ export const TechnicalSheetHeader = ({
   onRelazione,
   onDichiarazioni,
   onSaveDraft,
+  relazionePronta,
+  dichiarazioniPronte,
+  onScaricaRelazione,
+  onScaricaDichiarazioni,
 }: TechnicalSheetHeaderProps) => {
   const pieno = eCompleta(completezza)
 
@@ -180,11 +193,45 @@ export const TechnicalSheetHeader = ({
           )}
 
           {canGenerateDocs && (
-            <AzioneIcona icona={<DescriptionIcon fontSize="small" />} testo="Genera relazione" onClick={onRelazione} />
+            relazionePronta ? (
+              <>
+                <AzioneIcona
+                  icona={<DownloadIcon fontSize="small" />}
+                  testo="Relazione pronta — scarica"
+                  onClick={onScaricaRelazione}
+                  colore="success"
+                  pieno
+                />
+                <AzioneIcona
+                  icona={<RefreshIcon fontSize="small" />}
+                  testo="Rigenera relazione"
+                  onClick={onRelazione}
+                />
+              </>
+            ) : (
+              <AzioneIcona icona={<DescriptionIcon fontSize="small" />} testo="Genera relazione" onClick={onRelazione} />
+            )
           )}
 
           {canGenerateDocs && (
-            <AzioneIcona icona={<GavelIcon fontSize="small" />} testo="Genera dichiarazioni" onClick={onDichiarazioni} />
+            dichiarazioniPronte ? (
+              <>
+                <AzioneIcona
+                  icona={<DownloadIcon fontSize="small" />}
+                  testo="Dichiarazioni pronte — scarica"
+                  onClick={onScaricaDichiarazioni}
+                  colore="success"
+                  pieno
+                />
+                <AzioneIcona
+                  icona={<RefreshIcon fontSize="small" />}
+                  testo="Rigenera dichiarazioni"
+                  onClick={onDichiarazioni}
+                />
+              </>
+            ) : (
+              <AzioneIcona icona={<GavelIcon fontSize="small" />} testo="Genera dichiarazioni" onClick={onDichiarazioni} />
+            )
           )}
         </Box>
       </Box>
