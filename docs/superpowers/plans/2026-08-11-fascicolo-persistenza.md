@@ -1683,10 +1683,16 @@ per una, non a campione — per quelle di schema cercando l'oggetto che creano (
 indici, funzioni, valori d'enum, policy), per quelle di soli dati contando le righe che il loro
 UPDATE prenderebbe ancora: zero residui su tutte e quattro. Registrate con
 `INSERT ... ON CONFLICT DO NOTHING`, che annota senza rieseguire nulla. Registro a 104 righe,
-repo a 105 file: la differenza è la sola migrazione non ancora applicata, qui sotto.
+repo a 105 file: mancava solo la migrazione qui sotto, applicata poco dopo.
 
-**Rimasta fuori: `20260811150000_userdm329_scrive_integrazioni.sql`.** Il file è nel repo ma **non
-è stato applicato**: il classificatore di sicurezza dell'ambiente ha bloccato la chiamata che lo
-avrebbe eseguito in produzione, due volte. Finché non viene applicata, su una pratica
-DM329-Integrazioni il pulsante «blocca» compare a `userdm329` e restituisce un errore di permessi,
-e la conversione fra DM329 e Integrazioni resta possibile al solo admin.
+**`20260811150000_userdm329_scrive_integrazioni.sql`, applicata a mano dal committente.** Il
+classificatore di sicurezza dell'ambiente aveva bloccato due volte la chiamata che l'avrebbe
+eseguita: legge un `create policy` che concede UPDATE e DELETE come un allargamento di privilegi,
+e non ha modo di sapere che era lavoro richiesto. L'ha eseguita il committente dalla dashboard.
+
+Verificata due volte, perché una policy che esiste non è ancora una policy che funziona: le sei
+policy nuove risultano a posto (UPDATE e DELETE su `requests`, INSERT su `request_history`, INSERT
+e due UPDATE su `request_blocks`), e impersonando `userdm329` dentro una transazione poi annullata
+la modifica di una pratica Integrazioni e la scrittura della sua riga di storia passano entrambe —
+prima erano negate in silenzio, senza errore, con zero righe toccate. Registro a **105 righe**,
+pari ai file del repo.
