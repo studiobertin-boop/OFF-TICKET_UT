@@ -56,6 +56,13 @@ interface DocumentoDaClassificare {
   blocchi: BloccoProva[]
 }
 
+/** Documento già salvato e già classificato: dice al modello che quel posto è occupato. */
+interface RuoloGiaCoperto {
+  nome: string
+  ruoli: string[]
+  valvola: string | null
+}
+
 interface RichiestaClassificazione {
   contesto: {
     apparecchiatura: Apparecchiatura
@@ -63,6 +70,8 @@ interface RichiestaClassificazione {
     principale: Apparecchiatura | null
   }
   documenti: DocumentoDaClassificare[]
+  /** Assente o vuoto quando non ci sono ancora documenti salvati. */
+  giaCoperti?: RuoloGiaCoperto[]
 }
 
 /** Schema dell'esito. `additionalProperties: false` e `required` completi: li pretende l'API. */
@@ -108,7 +117,20 @@ const descriviApparecchiatura = (a: Apparecchiatura) =>
     a.pressione ? `pressione ${a.pressione} bar` : null,
   ].filter(Boolean).join(', ')
 
-const istruzioni = (contesto: RichiestaClassificazione['contesto']) => `
+/**
+ * Paragrafo che elenca i posti del fascicolo già occupati da documenti caricati in precedenza,
+ * da aggiungere al prompt quando si classificano solo i file appena arrivati: senza, il modello
+ * non saprebbe che certificato e istruzioni dell'apparecchiatura sono già stati riconosciuti, e
+ * potrebbe riattribuirli anche se non sono fra i documenti in esame.
+ */
+const giaCopertiTesto = (giaCoperti: RuoloGiaCoperto[]) =>
+  giaCoperti.length === 0
+    ? ''
+    : `\n\nQuesti posti del fascicolo sono già occupati da documenti caricati in precedenza, che NON devi riclassificare:\n` +
+      giaCoperti.map((d) => `- «${d.nome}» → ${d.ruoli.join(' + ')}${d.valvola ? ` (valvola ${d.valvola})` : ''}`).join('\n') +
+      `\nTienine conto: se un posto è già occupato, è meno probabile che un documento nuovo lo ricopra di nuovo — ma non è impossibile, perché un caricamento può correggere un errore precedente.`
+
+const istruzioni = (contesto: RichiestaClassificazione['contesto'], giaCoperti: RuoloGiaCoperto[]) => `
 Riconosci il ruolo di ciascun documento nel fascicolo tecnico di un'apparecchiatura in pressione.
 
 L'apparecchiatura del fascicolo è: ${descriviApparecchiatura(contesto.apparecchiatura)}.
@@ -142,7 +164,7 @@ Come decidere:
 - Se non riesci a stabilire il ruolo, restituisci un elenco di ruoli vuoto e confidenza 0. È
   preferibile a un'attribuzione sbagliata: l'utente rivede e corregge prima di generare.
 - "confidenza" va da 0 a 1. "motivazione" è una riga in italiano sul perché, citando il dato che
-  ha deciso l'attribuzione.
+  ha deciso l'attribuzione.${giaCopertiTesto(giaCoperti)}
 
 Restituisci un risultato per ogni documento, con l'id che ti è stato dato.
 `.trim()
@@ -159,7 +181,7 @@ serve(async (req) => {
     })
 
   try {
-    const { contesto, documenti }: RichiestaClassificazione = await req.json()
+    const { contesto, documenti, giaCoperti }: RichiestaClassificazione = await req.json()
 
     if (!contesto?.apparecchiatura || !Array.isArray(documenti)) {
       return rispondi({ success: false, error: 'Servono `contesto.apparecchiatura` e `documenti`' }, 400)
@@ -203,7 +225,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: MODELLO,
         max_tokens: 4000,
-        system: istruzioni(contesto),
+        system: istruzioni(contesto, giaCoperti ?? []),
         messages: [{ role: 'user', content: contenuto }],
         output_config: { format: { type: 'json_schema', schema: SCHEMA } },
       }),

@@ -126,13 +126,17 @@ export const FascicoloSection = ({ contesto, nomeFile, requestId, codice }: Fasc
 
       // Si classificano solo i file nuovi: rianalizzare l'insieme cancellerebbe le correzioni
       // fatte a mano sui documenti già salvati, oltre a riscaricarli e ripagare l'analisi.
-      //
-      // NOTA: qui manca il terzo argomento con i ruoli già coperti dai documenti esistenti
-      // (`documenti.filter(d => d.ruoli.length > 0).map(...)`) — la firma di `classificaDocumenti`
-      // non lo prevede ancora. Lo aggiunge il Task 5, che introduce anche il parametro.
+      // `documenti` è lo stato di prima di questo caricamento (la chiusura non vede il
+      // `ricarica()` di poco fa): i soli documenti già salvati e già classificati, esclusi il
+      // fascicolo composto e i file appena saliti che non hanno ancora un ruolo.
+      const giaCoperti = documenti
+        .filter((d) => d.tipo !== 'fascicolo' && d.ruoli.length > 0)
+        .map((d) => ({ nome: d.nome, ruoli: d.ruoli, valvola: d.valvola ?? null }))
+
       const { risultati, avviso: nota } = await classificaDocumenti(
         caricati.map((d, i) => ({ id: d.id, file: fileCaricati[i] })),
-        contesto
+        contesto,
+        giaCoperti
       )
 
       for (const r of risultati) {

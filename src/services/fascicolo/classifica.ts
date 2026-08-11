@@ -26,15 +26,25 @@ const ruoliValidi = (ruoli: unknown): RuoloDocumento[] =>
 const eUnImmagine = (file: File) =>
   file.type.startsWith('image/') || /\.(jpe?g|png|gif|webp|bmp|heic|tiff?)$/i.test(file.name)
 
+/** Documento già salvato e già classificato: al modello si dice che quel posto è occupato. */
+export interface RuoloGiaCoperto {
+  nome: string
+  ruoli: RuoloDocumento[]
+  valvola: string | null
+}
+
 /**
  * Classifica i documenti caricati per il fascicolo di un'apparecchiatura.
  *
  * @param documenti file caricati, nell'ordine di caricamento
  * @param contesto ciò che la scheda già sa dell'apparecchiatura, delle valvole e della principale
+ * @param giaCoperti ruoli già assegnati a documenti salvati in precedenza, per non farli
+ *   riclassificare: il riconoscimento riguarda solo i file appena caricati.
  */
 export const classificaDocumenti = async (
   documenti: { id: string; file: File }[],
-  contesto: ContestoFascicolo
+  contesto: ContestoFascicolo,
+  giaCoperti: RuoloGiaCoperto[] = []
 ): Promise<EsitoClassificazione> => {
   const perNome = () =>
     classificaDaiNomi(
@@ -55,7 +65,7 @@ export const classificaDocumenti = async (
           'Content-Type': 'application/json',
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
-        body: JSON.stringify({ contesto, documenti: documentiConProve }),
+        body: JSON.stringify({ contesto, documenti: documentiConProve, giaCoperti }),
       }
     )
 
