@@ -38,6 +38,7 @@ import { customersApi } from '@/services/api/customers'
 import { scegliVarianteSalvata } from '@/utils/equipmentVarianti'
 import { additionalInfoSchema } from '@/services/relazione/schema'
 import { generateAndDownloadRelazione } from '@/services/relazione/generateRelazione'
+import { relazioneDocumentiApi } from '@/services/api/relazioneDocumenti'
 import { buildRelazioneModel } from '@/services/relazione/buildRelazioneModel'
 import { validateRelazione, haErrori } from '@/services/relazione/preflight'
 import type { AdditionalInfo, PraticaInfo, SchemaImpianto, TipoGiri } from '@/services/relazione/types'
@@ -273,7 +274,7 @@ export default function RelazioneDataDialog({
       // Il documento è ciò che il tecnico sta aspettando: la scrittura a catalogo dei giri fa
       // una manciata di query per compressore e non deve tenere fermo lo scaricamento, che non ha
       // un timeout lato client. Va quindi dopo, non prima.
-      await generateAndDownloadRelazione({
+      const blob = await generateAndDownloadRelazione({
         scheda,
         additionalInfo: parsed.data,
         customer,
@@ -281,6 +282,17 @@ export default function RelazioneDataDialog({
         schemaImpianto: schema ?? undefined,
         fileName,
       })
+      // Non bloccante, come riportaDescrizioneInAnagrafica/riportaGiriACatalogo qui sotto: la
+      // relazione è già stata scaricata con successo, un errore di salvataggio non deve far
+      // sembrare fallita l'intera generazione.
+      try {
+        await relazioneDocumentiApi.salvaFinale(
+          requestId,
+          new File([blob], fileName ?? 'Relazione_DM329.docx', { type: blob.type })
+        )
+      } catch (err) {
+        console.warn('[relazione] non salvata nell\'app, resta solo scaricata', err)
+      }
       await riportaDescrizioneInAnagrafica(parsed.data.descrizioneAttivita)
       const { nonACatalogo, ambigui } = await riportaGiriACatalogo(parsed.data.compressoriGiri)
       mostraEsitoGenerazione(nonACatalogo, ambigui)
