@@ -13,6 +13,7 @@ import { completezzaRiga, eCompleta } from '@/utils/schedaCompleteness'
 import { CheckCell, NumberCell, SelectCell, TextCell } from './EquipmentCells'
 import { ValvoleProtezioneCell } from './ValvoleProtezioneCell'
 import { useCellePrincipali } from './useCellePrincipali'
+import { useCampoExit } from './useCampoExit'
 import type { EquipmentTypeDef, ExtraFieldDef } from './equipmentConfig'
 import type { EquipmentCatalogItem } from '@/types'
 
@@ -30,6 +31,12 @@ export interface DettaglioRiga {
   color: string
   /** Applica al form i dati tecnici della voce scelta a catalogo. */
   onSelected: (specs: Record<string, any>, item?: EquipmentCatalogItem) => void
+  /**
+   * Chiamata a compilazione di un campo finita: verifica lo scostamento dai dati di catalogo.
+   * È la stessa della riga di tabella — la domanda su un valore scostato non può dipendere da
+   * dove lo si è digitato.
+   */
+  onExit: () => void
   onDelete: (() => void) | null
   append: { label: string; onClick: () => void } | null
 }
@@ -45,9 +52,14 @@ interface EquipmentDetailDialogProps {
   onClose: () => void
 }
 
-/** Campo etichettato a piena larghezza della propria colonna di griglia. */
+/**
+ * Campo etichettato a piena larghezza della propria colonna di griglia.
+ *
+ * `data-campo` marca il confine su cui `useCampoExit` dichiara finita la compilazione: è
+ * l'equivalente della cella nella tabella.
+ */
 const Campo = ({ label, children, largo }: { label: ReactNode; children: ReactNode; largo?: boolean }) => (
-  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, minWidth: 0, ...(largo ? { gridColumn: '1 / -1' } : {}) }}>
+  <Box data-campo sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, minWidth: 0, ...(largo ? { gridColumn: '1 / -1' } : {}) }}>
     <Typography
       component="span"
       sx={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'text.disabled' }}
@@ -78,11 +90,17 @@ const Campo = ({ label, children, largo }: { label: ReactNode; children: ReactNo
 const Contenuto = ({
   control, dettaglio, adv, posizione, onNaviga, onClose,
 }: EquipmentDetailDialogProps & { dettaglio: DettaglioRiga }) => {
-  const { def, base, code, color, onSelected, onDelete, append } = dettaglio
+  const { def, base, code, color, onSelected, onExit, onDelete, append } = dettaglio
   const valori = useWatch({ control, name: base })
   const completezza = completezzaRiga(def, valori)
   const pieno = eCompleta(completezza)
   const celle = useCellePrincipali({ control, def, base, adv, onSelected })
+  /**
+   * Gli stessi confini della tabella: finito un campo si verifica lo scostamento dal catalogo.
+   * Sta sul corpo e non sull'intera finestra perché testata e piede non portano campi, e i
+   * loro pulsanti — «successiva», «chiudi» — devono contare come uscita, non come rientro.
+   */
+  const campoExit = useCampoExit(onExit, '[data-campo]')
 
   /**
    * I campi extra del tipo, filtrati dalla propria condizione di visibilità. Il filtro sta
@@ -132,7 +150,7 @@ const Contenuto = ({
       {/* Corpo: tutti i campi dell'apparecchiatura in una griglia densa. Niente titoli di
           gruppo — costavano una riga intera ciascuno e mandavano la finestra sotto la
           piega proprio sui tipi che hanno più campi. */}
-      <Box sx={{ px: 2, py: 1.75, overflowY: 'auto' }}>
+      <Box {...campoExit} sx={{ px: 2, py: 1.75, overflowY: 'auto' }}>
         {!pieno && (
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1.5 }}>
             {completezza.mancanti.map((m) => (
@@ -148,6 +166,7 @@ const Contenuto = ({
               del componente, con le etichette proprie: la resa compatta della tabella li
               stringeva a tre lettere. */}
           <Box
+            data-campo
             sx={{
               gridColumn: '1 / -1',
               '& > div': { display: 'flex', gap: 1.5 },
@@ -249,7 +268,14 @@ export const EquipmentDetailDialog = (props: EquipmentDetailDialogProps) => {
         },
       }}
     >
-      {dettaglio && <Contenuto {...props} dettaglio={dettaglio} />}
+      {/* `key` sul percorso della riga: passando all'apparecchiatura successiva il contenuto
+          si rimonta invece di riusare i controlli già in pagina.
+          I campi cambiano nome ma restano gli stessi componenti, e sia react-hook-form —
+          che serve il valore letto alla registrazione finché un evento non lo smuove — sia
+          MUI — che tiene un proprio `inputValue` — continuavano a mostrare l'apparecchiatura
+          lasciata. Non è solo un errore di lettura: alla prima modifica quei valori
+          finivano davvero nella riga di arrivo. */}
+      {dettaglio && <Contenuto key={dettaglio.base} {...props} dettaglio={dettaglio} />}
     </Dialog>
   )
 }
