@@ -43,6 +43,28 @@ function percorso(punti: Punto[]): string {
 }
 
 /**
+ * Raccorda due punti con due tratti ortogonali. Il verso lo decide la distanza maggiore:
+ * si esce nella direzione in cui c'è più strada, che è il modo in cui si instrada a mano.
+ */
+function raccordoOrtogonale(da: Punto, a: Punto): Punto[] {
+  if (da.x === a.x || da.y === a.y) return [a]
+  return Math.abs(a.x - da.x) >= Math.abs(a.y - da.y)
+    ? [{ x: a.x, y: da.y }, a]
+    : [{ x: da.x, y: a.y }, a]
+}
+
+/** Polilinea che parte dall'ancora, tocca i gomiti imposti e arriva all'altra ancora. */
+function polilineaConGomiti(inizio: Punto, gomiti: Punto[], fine: Punto): Punto[] {
+  const punti: Punto[] = [inizio]
+  let corrente = inizio
+  for (const g of [...gomiti, fine]) {
+    punti.push(...raccordoOrtogonale(corrente, g))
+    corrente = g
+  }
+  return punti
+}
+
+/**
  * Quote alle quali una polilinea attraversa la verticale `x`. Servono ad aprire i varchi del
  * muro: ricavarle dalla rotta effettiva, invece di fissarle nel layout, tiene muro e tubazioni
  * d'accordo anche dopo che l'utente ha spostato un nodo nell'editor.
@@ -87,7 +109,8 @@ function renderMandataCompressore(
   ancoraDa: string,
   a: SchemaNodoPosizionato,
   ancoraA: string,
-  yCollettore: number
+  yCollettore: number,
+  gomiti?: Punto[]
 ): { svg: string; punti: Punto[] } {
   const pDa = posizioneAncora(da, ancoraDa)
   const pA = posizioneAncora(a, ancoraA)
@@ -95,13 +118,16 @@ function renderMandataCompressore(
   // scendendo sul bordo, la linea si confonderebbe col contorno del simbolo.
   const xDiscesa = pA.x - AVVICINAMENTO
 
-  const punti: Punto[] = [
-    { x: pDa.x, y: pDa.y },
-    { x: pDa.x, y: yCollettore },
-    { x: xDiscesa, y: yCollettore },
-    { x: xDiscesa, y: pA.y },
-    { x: pA.x, y: pA.y },
-  ]
+  const punti: Punto[] =
+    gomiti && gomiti.length > 0
+      ? polilineaConGomiti(pDa, gomiti, pA)
+      : [
+          { x: pDa.x, y: pDa.y },
+          { x: pDa.x, y: yCollettore },
+          { x: xDiscesa, y: yCollettore },
+          { x: xDiscesa, y: pA.y },
+          { x: pA.x, y: pA.y },
+        ]
   const linea = `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" marker-end="url(#freccia)" />`
   // Flessibile e valvola di intercettazione stanno sul montante, appena sopra la macchina.
   // La valvola sta sul montante: farfalla verticale, in linea col tubo.
@@ -115,17 +141,21 @@ function renderMandataLinea(
   da: SchemaNodoPosizionato,
   ancoraDa: string,
   a: SchemaNodoPosizionato,
-  ancoraA: string
+  ancoraA: string,
+  gomiti?: Punto[]
 ): { svg: string; punti: Punto[] } {
   const pDa = posizioneAncora(da, ancoraDa)
   const pA = posizioneAncora(a, ancoraA)
   const xMedia = (pDa.x + pA.x) / 2
-  const punti: Punto[] = [
-    { x: pDa.x, y: pDa.y },
-    { x: xMedia, y: pDa.y },
-    { x: xMedia, y: pA.y },
-    { x: pA.x, y: pA.y },
-  ]
+  const punti: Punto[] =
+    gomiti && gomiti.length > 0
+      ? polilineaConGomiti(pDa, gomiti, pA)
+      : [
+          { x: pDa.x, y: pDa.y },
+          { x: xMedia, y: pDa.y },
+          { x: xMedia, y: pA.y },
+          { x: pA.x, y: pA.y },
+        ]
   const svg =
     `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" marker-end="url(#freccia)" />` +
     valvolaIntercettazione(pA.x - 22, pA.y)
@@ -141,16 +171,20 @@ function renderLineaCondense(
   ancoraDa: string,
   a: SchemaNodoPosizionato,
   ancoraA: string,
-  yCorsia: number
+  yCorsia: number,
+  gomiti?: Punto[]
 ): { svg: string; punti: Punto[] } {
   const pDa = posizioneAncora(da, ancoraDa)
   const pA = posizioneAncora(a, ancoraA)
-  const punti: Punto[] = [
-    { x: pDa.x, y: pDa.y },
-    { x: pDa.x, y: yCorsia },
-    { x: pA.x, y: yCorsia },
-    { x: pA.x, y: pA.y },
-  ]
+  const punti: Punto[] =
+    gomiti && gomiti.length > 0
+      ? polilineaConGomiti(pDa, gomiti, pA)
+      : [
+          { x: pDa.x, y: pDa.y },
+          { x: pDa.x, y: yCorsia },
+          { x: pA.x, y: yCorsia },
+          { x: pA.x, y: pA.y },
+        ]
   const svg = `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" stroke-dasharray="10 7" marker-end="url(#freccia)" />`
   return { svg, punti }
 }
@@ -172,10 +206,10 @@ function renderArchi(
 
     const reso =
       arco.stile === 'condensa'
-        ? renderLineaCondense(da, arco.da.ancora, a, arco.a.ancora, yCorsiaCondense)
+        ? renderLineaCondense(da, arco.da.ancora, a, arco.a.ancora, yCorsiaCondense, arco.punti)
         : arco.stile === 'flessibile'
-          ? renderMandataCompressore(da, arco.da.ancora, a, arco.a.ancora, yCollettore)
-          : renderMandataLinea(da, arco.da.ancora, a, arco.a.ancora)
+          ? renderMandataCompressore(da, arco.da.ancora, a, arco.a.ancora, yCollettore, arco.punti)
+          : renderMandataLinea(da, arco.da.ancora, a, arco.a.ancora, arco.punti)
 
     parti.push(reso.svg)
     if (layout.muro) varchi.push(...quoteAttraversamento(reso.punti, layout.muro.x))

@@ -207,6 +207,32 @@ describe('varchi nel muro', () => {
   })
 })
 
+describe('punti di passaggio', () => {
+  it('la polilinea attraversa i gomiti imposti, nell’ordine dato', () => {
+    const scheda = makeScheda({
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+      essiccatori: [], scambiatori: [], filtri: [],
+    })
+    const layout = layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } }))
+    layout.archi[0].punti = [{ x: 300, y: 500 }]
+
+    const svg = renderSvg(layout)
+    expect(svg).toContain('300 500')
+  })
+
+  it('senza punti il percorso resta quello automatico', () => {
+    const scheda = makeScheda({
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+      essiccatori: [], scambiatori: [], filtri: [],
+    })
+    const layout = layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } }))
+    const automatico = renderSvg(layout)
+
+    layout.archi[0].punti = []
+    expect(renderSvg(layout)).toBe(automatico)
+  })
+})
+
 describe('righeLista', () => {
   it('elenca apparecchiature, accessori e valvole ordinati per codice', () => {
     const scheda = makeScheda({
