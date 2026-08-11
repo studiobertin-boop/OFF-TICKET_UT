@@ -12,6 +12,7 @@
 // ============================================================================
 
 import type { EsitoDM329 } from '@/utils/dm329Classification'
+import type { LayoutSalvato } from '@/services/schemaImpianto/persistenza'
 
 // Il tipo vive col resto del modello della scheda: `giri` è una proprietà costruttiva del
 // compressore a catalogo, e il layer relazione non deve esserne la fonte.
@@ -43,6 +44,8 @@ export interface AdditionalInfo {
   spessimetrica?: string[]
   /** Collegamenti compressori→serbatoi: { C1: ['S1','S2'] } */
   collegamentiCompressoriSerbatoi?: Record<string, string[]>
+  /** §2.3 — disposizione dello schema salvata dall'editor. Vedi schemaImpianto/persistenza. */
+  schemaLayout?: LayoutSalvato
 }
 
 // ============================================================================

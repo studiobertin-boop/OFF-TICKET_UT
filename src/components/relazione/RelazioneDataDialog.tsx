@@ -41,6 +41,9 @@ import { generateAndDownloadRelazione } from '@/services/relazione/generateRelaz
 import { buildRelazioneModel } from '@/services/relazione/buildRelazioneModel'
 import { validateRelazione, haErrori } from '@/services/relazione/preflight'
 import type { AdditionalInfo, PraticaInfo, SchemaImpianto, TipoGiri } from '@/services/relazione/types'
+import type { LayoutSalvato } from '@/services/schemaImpianto/persistenza'
+import { serializzaLayout } from '@/services/schemaImpianto/persistenza'
+import type { SchemaLayout } from '@/services/schemaImpianto/types'
 import { SchemaImpiantoSection } from './SchemaImpiantoSection'
 import { collectCodes, pruneAdditionalInfo } from '@/utils/equipmentCodes'
 
@@ -127,6 +130,11 @@ export default function RelazioneDataDialog({
   const [spessimetrica, setSpessimetrica] = useState<string[]>([])
   const [collegamenti, setCollegamenti] = useState<Record<string, string[]>>({})
   const [schema, setSchema] = useState<SchemaImpianto | null>(null)
+  // Layout salvato letto all'apertura, passato a SchemaImpiantoSection perché lo riconcili con
+  // la scheda. Layout corrente aggiornato a ogni `disegna`: è quello che finisce in
+  // additional_info al salvataggio, non quello letto all'apertura.
+  const [layoutSalvato, setLayoutSalvato] = useState<LayoutSalvato | undefined>(undefined)
+  const [layout, setLayout] = useState<SchemaLayout | null>(null)
   const [saving, setSaving] = useState(false)
   const [droppedRefs, setDroppedRefs] = useState<string[]>([])
 
@@ -149,8 +157,11 @@ export default function RelazioneDataDialog({
     setSpessimetrica(info.spessimetrica ?? [])
     setCollegamenti(info.collegamentiCompressoriSerbatoi ?? {})
     setDroppedRefs(dropped)
-    // Lo schema non è persistito: a ogni apertura si riparte da vuoto.
+    // Il PNG non è persistito: si rigenera sempre da capo. Il layout invece sopravvive in
+    // additional_info; SchemaImpiantoSection lo riconcilia con la scheda appena rigenera.
     setSchema(null)
+    setLayout(null)
+    setLayoutSalvato(info.schemaLayout)
   }, [open, initialAdditionalInfo, customer, schedaCodes])
 
   const setGiroFor = (code: string, value: TipoGiri) =>
@@ -169,8 +180,9 @@ export default function RelazioneDataDialog({
       compressoriGiri: giri,
       spessimetrica,
       collegamentiCompressoriSerbatoi: collegamenti,
+      schemaLayout: layout ? serializzaLayout(layout) : undefined,
     }),
-    [descrizioneAttivita, dataEmissione, motivoRevisione, eRevisione, giri, spessimetrica, collegamenti]
+    [descrizioneAttivita, dataEmissione, motivoRevisione, eRevisione, giri, spessimetrica, collegamenti, layout]
   )
 
   /**
@@ -515,6 +527,8 @@ export default function RelazioneDataDialog({
             collegamentiCompressoriSerbatoi={collegamenti}
             schema={schema}
             onSchemaChange={setSchema}
+            layoutSalvato={layoutSalvato}
+            onLayoutChange={setLayout}
             disabled={saving}
           />
 

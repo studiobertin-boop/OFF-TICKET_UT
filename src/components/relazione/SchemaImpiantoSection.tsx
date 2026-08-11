@@ -31,6 +31,8 @@ import {
 import { layoutSchema } from '@/services/schemaImpianto/layout'
 import { renderSvg } from '@/services/schemaImpianto/renderSvg'
 import { rasterizzaSvg } from '@/services/schemaImpianto/rasterize'
+import type { LayoutSalvato } from '@/services/schemaImpianto/persistenza'
+import { riconcilia } from '@/services/schemaImpianto/persistenza'
 import type { SchemaLayout } from '@/services/schemaImpianto/types'
 import { SchemaEditor } from '@/components/schemaImpianto/SchemaEditor'
 import { FORMATI_SCHEMA, leggiSchemaImpianto } from './schemaImpiantoFile'
@@ -43,6 +45,10 @@ export interface SchemaImpiantoSectionProps {
   collegamentiCompressoriSerbatoi: Record<string, string[]>
   schema: SchemaImpianto | null
   onSchemaChange: (schema: SchemaImpianto | null) => void
+  /** Layout ritoccato salvato in una sessione precedente, da riconciliare alla prima generazione. */
+  layoutSalvato?: LayoutSalvato
+  /** Chiamata a ogni `disegna`, così il dialog ha sempre il layout corrente da persistere. */
+  onLayoutChange: (layout: SchemaLayout | null) => void
   disabled?: boolean
 }
 
@@ -51,6 +57,8 @@ export function SchemaImpiantoSection({
   collegamentiCompressoriSerbatoi,
   schema,
   onSchemaChange,
+  layoutSalvato,
+  onLayoutChange,
   disabled = false,
 }: SchemaImpiantoSectionProps) {
   const [layout, setLayout] = useState<SchemaLayout | null>(null)
@@ -60,6 +68,12 @@ export function SchemaImpiantoSection({
   const [anteprimaUrl, setAnteprimaUrl] = useState<string | null>(null)
   const [ingrandita, setIngrandita] = useState(false)
   const [sopra, setSopra] = useState(false)
+  // Esito della riconciliazione fra layout salvato e scheda, mostrato finché resta valido:
+  // sparisce solo quando l'utente rigenera o ricarica un disegno, non a ogni render.
+  const [esitoRiconciliazione, setEsitoRiconciliazione] = useState<{
+    aggiunti: string[]
+    rimossi: string[]
+  } | null>(null)
 
   const puoGenerare = puoGenerareSchema({ scheda, collegamentiCompressoriSerbatoi })
   const note = useMemo(() => notaTubazioni(scheda), [scheda])
@@ -88,6 +102,7 @@ export function SchemaImpiantoSection({
       try {
         const immagine = await rasterizzaSvg(renderSvg(daDisegnare, { noteTubazioni: note }))
         setLayout(daDisegnare)
+        onLayoutChange(daDisegnare)
         pubblica(immagine, 'generato')
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Generazione dello schema non riuscita.')
@@ -95,19 +110,35 @@ export function SchemaImpiantoSection({
         setInCorso(false)
       }
     },
-    [note, pubblica]
+    [note, onLayoutChange, pubblica]
   )
 
   // Prima generazione automatica: appena i dati bastano, l'utente trova la proposta già
   // pronta. Non si rigenera da sola dopo: sovrascriverebbe le correzioni fatte nell'editor.
+  // Con un layout salvato la proposta è la riconciliazione, non l'auto-layout da zero: le
+  // posizioni ritoccate a mano non vanno perse solo perché il dialog è stato riaperto.
   const generazioneTentata = useRef(false)
   useEffect(() => {
     if (generazioneTentata.current || !puoGenerare || schema) return
     generazioneTentata.current = true
-    void disegna(layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi })))
-  }, [collegamentiCompressoriSerbatoi, disegna, puoGenerare, scheda, schema])
+    const modello = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi })
+    if (layoutSalvato) {
+      const esito = riconcilia(layoutSalvato, modello)
+      setEsitoRiconciliazione(
+        esito.aggiunti.length > 0 || esito.rimossi.length > 0
+          ? { aggiunti: esito.aggiunti, rimossi: esito.rimossi }
+          : null
+      )
+      void disegna(esito.layout)
+    } else {
+      void disegna(layoutSchema(modello))
+    }
+  }, [collegamentiCompressoriSerbatoi, disegna, layoutSalvato, puoGenerare, scheda, schema])
 
   const rigenera = useCallback(() => {
+    // Via d'uscita quando il disegno salvato non va più bene: si riparte dalla scheda,
+    // scartando sia il layout ritoccato sia l'esito della riconciliazione che lo riguardava.
+    setEsitoRiconciliazione(null)
     void disegna(layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi })))
   }, [collegamentiCompressoriSerbatoi, disegna, scheda])
 
@@ -120,6 +151,8 @@ export function SchemaImpiantoSection({
         // Il disegno caricato sostituisce del tutto quello generato: l'editor non saprebbe
         // che farsene di un'immagine, e riaprirlo riporterebbe indietro il lavoro.
         setLayout(null)
+        onLayoutChange(null)
+        setEsitoRiconciliazione(null)
         pubblica(letto, 'caricato')
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Immagine non leggibile.')
@@ -127,7 +160,7 @@ export function SchemaImpiantoSection({
         setInCorso(false)
       }
     },
-    [pubblica]
+    [onLayoutChange, pubblica]
   )
 
   const sospeso = (e: DragEvent<HTMLElement>) => {
@@ -164,6 +197,21 @@ export function SchemaImpiantoSection({
         <Alert severity="info">
           Lo schema non può essere generato automaticamente: dichiara prima i collegamenti
           compressori → serbatoi qui sopra. Nel frattempo puoi caricare un disegno.
+        </Alert>
+      )}
+
+      {esitoRiconciliazione && (
+        <Alert severity="info">
+          {[
+            esitoRiconciliazione.aggiunti.length > 0
+              ? `Aggiunte dalla scheda: ${esitoRiconciliazione.aggiunti.join(', ')}.`
+              : null,
+            esitoRiconciliazione.rimossi.length > 0
+              ? `Rimosse perché non più in scheda: ${esitoRiconciliazione.rimossi.join(', ')}.`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(' ')}
         </Alert>
       )}
 
@@ -263,7 +311,9 @@ export function SchemaImpiantoSection({
                 color="inherit"
                 onClick={() => {
                   setLayout(null)
+                  onLayoutChange(null)
                   setOrigine(null)
+                  setEsitoRiconciliazione(null)
                   setAnteprimaUrl((precedente) => {
                     if (precedente) URL.revokeObjectURL(precedente)
                     return null
