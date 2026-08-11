@@ -154,8 +154,8 @@ function renderArchi(
   const varchi: number[] = []
 
   for (const arco of layout.archi) {
-    const da = indice.get(arco.da)
-    const a = indice.get(arco.a)
+    const da = indice.get(arco.da.nodo)
+    const a = indice.get(arco.a.nodo)
     if (!da || !a) continue
 
     const reso =

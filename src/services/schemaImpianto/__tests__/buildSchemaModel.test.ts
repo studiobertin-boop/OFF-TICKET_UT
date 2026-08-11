@@ -16,6 +16,7 @@ import {
   ordinaCatenaTrattamento,
   puoGenerareSchema,
 } from '../buildSchemaModel'
+import { capoValido } from '../agganci'
 
 describe('buildSchemaModel', () => {
   // Caso di riferimento: DOCUMENTAZIONE/relazione/schema.png — un compressore, un serbatoio
@@ -36,7 +37,11 @@ describe('buildSchemaModel', () => {
     expect(model.nodi.map((n) => n.id)).toEqual(['C1', 'S1'])
     expect(model.nodi.find((n) => n.id === 'S1')?.orientamento).toBe('ORIZZONTALE')
     expect(model.archi).toHaveLength(1)
-    expect(model.archi[0]).toMatchObject({ da: 'C1', a: 'S1', stile: 'flessibile' })
+    expect(model.archi[0]).toMatchObject({
+      da: { nodo: 'C1', ancora: 'alto-out' },
+      a: { nodo: 'S1', ancora: 'sx' },
+      stile: 'flessibile',
+    })
   })
 
   it('disegna il disoleatore come accessorio del compressore, non come nodo a sé', () => {
@@ -77,9 +82,9 @@ describe('buildSchemaModel', () => {
 
     expect(model.nodi.map((n) => n.id)).toContain('T')
     const condense = model.archi.filter((a) => a.stile === 'condensa')
-    expect(condense.every((a) => a.a === 'T')).toBe(true)
+    expect(condense.every((a) => a.a.nodo === 'T')).toBe(true)
     // Compressore (ha disoleatore), serbatoio, essiccatore e filtro scaricano condensa.
-    expect(condense.map((a) => a.da).sort()).toEqual(['C1', 'E1', 'F1', 'S1'])
+    expect(condense.map((a) => a.da.nodo).sort()).toEqual(['C1', 'E1', 'F1', 'S1'])
   })
 
   it('non collega al pozzo condense un compressore privo di disoleatore', () => {
@@ -95,7 +100,7 @@ describe('buildSchemaModel', () => {
     const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
 
     const condense = model.archi.filter((a) => a.stile === 'condensa')
-    expect(condense.map((a) => a.da)).toEqual(['S1'])
+    expect(condense.map((a) => a.da.nodo)).toEqual(['S1'])
   })
 
   it('non genera alcuna linea condense quando la raccolta è assente', () => {
@@ -117,14 +122,13 @@ describe('buildSchemaModel', () => {
 
     const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
 
-    const versoSeparatore = model.archi.filter((a) => a.a === 'SEP1')
+    const versoSeparatore = model.archi.filter((a) => a.a.nodo === 'SEP1')
     expect(versoSeparatore.every((a) => a.stile === 'condensa')).toBe(true)
     // La mandata dell'aria passa per essiccatore e filtro, mai per il separatore.
     // F1 non è dichiarato prefiltro, quindi è filtro di linea: sta a valle dell'essiccatore.
-    expect(model.archi.filter((a) => a.stile === 'standard').map((a) => `${a.da}->${a.a}`)).toEqual([
-      'S1->E1',
-      'E1->F1',
-    ])
+    expect(
+      model.archi.filter((a) => a.stile === 'standard').map((a) => `${a.da.nodo}->${a.a.nodo}`)
+    ).toEqual(['S1->E1', 'E1->F1'])
   })
 
   it('mette in serie la catena di trattamento a valle del serbatoio, prefiltri per primi', () => {
@@ -141,11 +145,9 @@ describe('buildSchemaModel', () => {
     const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
 
     // Ordine degli schemi reali (es. 541_RELAZIONE_TECNICA): prefiltro, essiccatore, filtro di linea.
-    expect(model.archi.filter((a) => a.stile === 'standard').map((a) => `${a.da}->${a.a}`)).toEqual([
-      'S1->F1',
-      'F1->E1',
-      'E1->F2',
-    ])
+    expect(
+      model.archi.filter((a) => a.stile === 'standard').map((a) => `${a.da.nodo}->${a.a.nodo}`)
+    ).toEqual(['S1->F1', 'F1->E1', 'E1->F2'])
   })
 
   it('genera un arco flessibile per ogni coppia dichiarata, anche in manifold N:1', () => {
@@ -172,7 +174,7 @@ describe('buildSchemaModel', () => {
     })
 
     const flessibili = model.archi.filter((a) => a.stile === 'flessibile')
-    expect(flessibili.map((a) => `${a.da}->${a.a}`)).toEqual(['C1->S1', 'C2->S1', 'C3->S1'])
+    expect(flessibili.map((a) => `${a.da.nodo}->${a.a.nodo}`)).toEqual(['C1->S1', 'C2->S1', 'C3->S1'])
   })
 
   it('assegna al gruppo LINEA_DISTRIBUZIONE i serbatoi ubicati fuori dalla sala', () => {
@@ -210,7 +212,7 @@ describe('buildSchemaModel', () => {
     const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
 
     expect(model.nodi.map((n) => n.id)).not.toContain('RC')
-    expect(model.archi.filter((a) => a.stile === 'condensa').every((a) => a.a === 'SEP1')).toBe(true)
+    expect(model.archi.filter((a) => a.stile === 'condensa').every((a) => a.a.nodo === 'SEP1')).toBe(true)
   })
 
   // Un serbatoio ubicato in linea restava anche nella catena di trattamento: veniva disegnato
@@ -227,6 +229,40 @@ describe('buildSchemaModel', () => {
     const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
 
     expect(ordinaCatenaTrattamento(model.nodi, null).map((n) => n.id)).toEqual(['E1'])
+  })
+})
+
+describe('ancoraggio degli archi automatici', () => {
+  it('la mandata del compressore parte dal cielo ed entra nel fianco del serbatoio', () => {
+    const scheda = makeScheda({
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+      essiccatori: [],
+      scambiatori: [],
+      filtri: [],
+    })
+    const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    const mandata = model.archi.find((a) => a.stile === 'flessibile')
+
+    expect(mandata?.da).toEqual({ nodo: 'C1', ancora: 'alto-out' })
+    expect(mandata?.a).toEqual({ nodo: 'S1', ancora: 'sx' })
+  })
+
+  it('ogni arco generato usa ancore che ne accettano lo stile', () => {
+    const scheda = makeScheda({ dati_impianto: makeDatiImpianto({ raccolta_condense: 'tanica' }) })
+    const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    const perId = new Map(model.nodi.map((n) => [n.id, n]))
+
+    expect(model.archi.length).toBeGreaterThan(0)
+    for (const arco of model.archi) {
+      expect(capoValido(perId.get(arco.da.nodo)!, arco.da.ancora, arco.stile), `${arco.id} da`).toBe(true)
+      expect(capoValido(perId.get(arco.a.nodo)!, arco.a.ancora, arco.stile), `${arco.id} a`).toBe(true)
+    }
+  })
+
+  it('i nodi dedotti dalla scheda si dichiarano tali', () => {
+    const scheda = makeScheda({ dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }) })
+    const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    expect(model.nodi.every((n) => n.origine === 'scheda')).toBe(true)
   })
 })
 

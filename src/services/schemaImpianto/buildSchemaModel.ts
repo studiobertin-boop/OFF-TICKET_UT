@@ -74,6 +74,7 @@ function buildCompressoreNodo(
     gruppo: 'SALA_COMPRESSORI',
     valvoleSicurezza: [],
     accessorio: buildAccessorioDisoleatore(scheda, c.codice, valvoleImpianto),
+    origine: 'scheda',
   }
 }
 
@@ -88,6 +89,7 @@ function buildSerbatoioNodi(
     orientamento: s.orientamento ?? 'VERTICALE',
     gruppo: (s.ubicazione ?? 'SALA_COMPRESSORI') as SchemaGruppo,
     valvoleSicurezza: valvoleDiRecipiente(valvoleImpianto, s.codice),
+    origine: 'scheda',
   }))
 }
 
@@ -109,6 +111,7 @@ function buildEssiccatoreNodo(e: Essiccatore, scheda: SchedaDatiCompleta): Schem
           valvoleSicurezza: [],
         }
       : undefined,
+    origine: 'scheda',
   }
 }
 
@@ -128,6 +131,7 @@ function buildFiltroNodo(f: Filtro, scheda: SchedaDatiCompleta): SchemaNodo {
           valvoleSicurezza: [],
         }
       : undefined,
+    origine: 'scheda',
   }
 }
 
@@ -138,6 +142,7 @@ function buildSeparatoreNodo(sep: Separatore): SchemaNodo {
     etichetta: etichetta('Separatore', sep.marca, sep.modello),
     gruppo: 'LINEA_DISTRIBUZIONE',
     valvoleSicurezza: [],
+    origine: 'scheda',
   }
 }
 
@@ -157,15 +162,36 @@ function buildNodoRaccoltaCondense(scheda: SchedaDatiCompleta): SchemaNodo | nul
     const primo = (scheda.separatori ?? [])[0]
     return primo
       ? buildSeparatoreNodo(primo)
-      : { id: 'SEP', tipo: 'separatore', etichetta: 'Separatore', gruppo: 'LINEA_DISTRIBUZIONE', valvoleSicurezza: [] }
+      : {
+          id: 'SEP',
+          tipo: 'separatore',
+          etichetta: 'Separatore',
+          gruppo: 'LINEA_DISTRIBUZIONE',
+          valvoleSicurezza: [],
+          origine: 'scheda',
+        }
   }
 
   if (modo === 'tanica') {
-    return { id: 'T', tipo: 'tanica', etichetta: 'Tanica raccolta condense', gruppo: 'LINEA_DISTRIBUZIONE', valvoleSicurezza: [] }
+    return {
+      id: 'T',
+      tipo: 'tanica',
+      etichetta: 'Tanica raccolta condense',
+      gruppo: 'LINEA_DISTRIBUZIONE',
+      valvoleSicurezza: [],
+      origine: 'scheda',
+    }
   }
 
   // 'altro': nessun simbolo dedicato nei blocchi di riferimento — riusa la tanica generica.
-  return { id: 'RC', tipo: 'tanica', etichetta: 'Raccolta condense', gruppo: 'LINEA_DISTRIBUZIONE', valvoleSicurezza: [] }
+  return {
+    id: 'RC',
+    tipo: 'tanica',
+    etichetta: 'Raccolta condense',
+    gruppo: 'LINEA_DISTRIBUZIONE',
+    valvoleSicurezza: [],
+    origine: 'scheda',
+  }
 }
 
 /**
@@ -212,16 +238,31 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
 
   for (const [compressoreId, serbatoiIds] of Object.entries(input.collegamentiCompressoriSerbatoi)) {
     for (const serbatoioId of serbatoiIds) {
-      archi.push({ id: prossimoId('flex'), da: compressoreId, a: serbatoioId, stile: 'flessibile' })
+      archi.push({
+        id: prossimoId('flex'),
+        da: { nodo: compressoreId, ancora: 'alto-out' },
+        a: { nodo: serbatoioId, ancora: 'sx' },
+        stile: 'flessibile',
+      })
     }
   }
 
   const catenaLinea = ordinaCatenaTrattamento(nodi, raccoltaCondense)
   const serbatoiChiave = nodi.filter((n) => n.tipo === 'serbatoio').map((n) => n.id)
   if (catenaLinea.length > 0 && serbatoiChiave.length > 0) {
-    archi.push({ id: prossimoId('std'), da: serbatoiChiave[0], a: catenaLinea[0].id, stile: 'standard' })
+    archi.push({
+      id: prossimoId('std'),
+      da: { nodo: serbatoiChiave[0], ancora: 'dx' },
+      a: { nodo: catenaLinea[0].id, ancora: 'sx' },
+      stile: 'standard',
+    })
     for (let i = 0; i < catenaLinea.length - 1; i++) {
-      archi.push({ id: prossimoId('std'), da: catenaLinea[i].id, a: catenaLinea[i + 1].id, stile: 'standard' })
+      archi.push({
+        id: prossimoId('std'),
+        da: { nodo: catenaLinea[i].id, ancora: 'dx' },
+        a: { nodo: catenaLinea[i + 1].id, ancora: 'sx' },
+        stile: 'standard',
+      })
     }
   }
 
@@ -229,7 +270,12 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
     for (const nodo of nodi) {
       if (nodo.id === raccoltaCondense.id) continue
       if (scaricaCondensa(nodo)) {
-        archi.push({ id: prossimoId('cond'), da: nodo.id, a: raccoltaCondense.id, stile: 'condensa' })
+        archi.push({
+          id: prossimoId('cond'),
+          da: { nodo: nodo.id, ancora: 'basso-out' },
+          a: { nodo: raccoltaCondense.id, ancora: 'alto-in' },
+          stile: 'condensa',
+        })
       }
     }
   }

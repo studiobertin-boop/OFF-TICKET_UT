@@ -16,7 +16,7 @@ import type { SchemaLayout, SchemaModel, SchemaNodo, SchemaNodoPosizionato } fro
  * ripetere qui la regola su `raccolta_condense`, che vive già in `buildSchemaModel`.
  */
 export function riceveSoloCondensa(id: string, model: Pick<SchemaModel, 'archi'>): boolean {
-  const entranti = model.archi.filter((a) => a.a === id)
+  const entranti = model.archi.filter((a) => a.a.nodo === id)
   return entranti.length > 0 && entranti.every((a) => a.stile === 'condensa')
 }
 

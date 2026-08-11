@@ -53,6 +53,11 @@ export interface SchemaNodo {
   gruppo: SchemaGruppo
   valvoleSicurezza: SchemaValvolaSicurezza[]
   accessorio?: SchemaAccessorioDipendente
+  /**
+   * Da dove viene il nodo. La riconciliazione col contenuto della scheda tocca solo quelli
+   * di origine 'scheda': un nodo aggiunto a mano dalla palette è una scelta deliberata.
+   */
+  origine: 'scheda' | 'manuale'
 }
 
 /** Cosa può agganciarsi a un punto di attacco di un simbolo. */
@@ -92,9 +97,11 @@ export type SchemaArcoStile = 'standard' | 'flessibile' | 'condensa'
 
 export interface SchemaArco {
   id: string
-  da: string
-  a: string
+  da: SchemaCapo
+  a: SchemaCapo
   stile: SchemaArcoStile
+  /** Gomiti imposti a mano, in coordinate assolute. Assente: percorso automatico. */
+  punti?: { x: number; y: number }[]
 }
 
 /** Output di `buildSchemaModel`: struttura logica, senza ancora una disposizione grafica. */

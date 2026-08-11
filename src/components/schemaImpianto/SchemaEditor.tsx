@@ -169,6 +169,9 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
           etichetta: voce.etichetta,
           gruppo: 'LINEA_DISTRIBUZIONE' as const,
           valvoleSicurezza: [],
+          // Un'apparecchiatura presa dalla palette è una scelta deliberata dell'utente, non
+          // qualcosa che la riconciliazione con la scheda deve poter cancellare.
+          origine: 'manuale' as const,
           ...posizione,
         }
         return {
