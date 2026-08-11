@@ -144,7 +144,7 @@ export const BatchOCRDialog = ({ open, onClose, onComplete }: BatchOCRDialogProp
           // Elabora immagine normale
           console.log(`🖼️ Rilevata immagine: ${file.name}, type: ${file.type}, size: ${file.size} bytes`)
 
-          // Converti SEMPRE in PNG per compatibilità OpenAI
+          // Converti SEMPRE in PNG per compatibilità Claude (Anthropic)
           const pngFile = await convertImageToPNG(file)
           console.log(`✅ Immagine convertita in PNG: ${pngFile.name}, type: ${pngFile.type}, size: ${pngFile.size} bytes`)
 

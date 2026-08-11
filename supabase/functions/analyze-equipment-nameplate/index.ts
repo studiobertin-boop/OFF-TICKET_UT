@@ -9,9 +9,12 @@ const corsHeaders = {
 /**
  * Edge Function: analyze-equipment-nameplate
  *
- * Analizza foto di targhette apparecchiature usando GPT-4o Vision
+ * Analizza foto di targhette apparecchiature usando Claude (Anthropic) Vision
  * Estrae dati strutturati e suggerisce match dal catalogo
  */
+
+/** Lettura di targhette fisiche: serve un modello preciso su testo minuto e foto imperfette. */
+const MODELLO = 'claude-sonnet-5'
 
 interface OCRRequest {
   image_base64: string
@@ -55,10 +58,10 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    // Get OpenAI API key from environment
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
-    if (!openaiApiKey) {
-      throw new Error('OPENAI_API_KEY not configured')
+    // Get Anthropic API key from environment
+    const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY')
+    if (!anthropicApiKey) {
+      throw new Error('ANTHROPIC_API_KEY not configured')
     }
 
     // Prepare prompt based on equipment type
@@ -79,53 +82,61 @@ serve(async (req) => {
 
     console.log(`Detected image format: ${imageFormat}`)
 
-    // Call GPT-4o Vision API
-    const gptResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Call Claude Vision API
+    const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${openaiApiKey}`
+        'x-api-key': anthropicApiKey,
+        'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: MODELLO,
+        max_tokens: 1500,
+        system: prompt,
         messages: [
           {
             role: 'user',
             content: [
               {
-                type: 'text',
-                text: prompt
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: `image/${imageFormat}`,
+                  data: image_base64
+                }
               },
               {
-                type: 'image_url',
-                image_url: {
-                  url: `data:image/${imageFormat};base64,${image_base64}`
-                }
+                type: 'text',
+                text: 'Analizza questa targhetta ed estrai i dati come richiesto.'
               }
             ]
           }
-        ],
-        max_tokens: 1000,
-        temperature: 0.1 // Low temperature for accurate extraction
+        ]
       })
     })
 
-    if (!gptResponse.ok) {
-      const error = await gptResponse.text()
-      throw new Error(`OpenAI API error: ${error}`)
+    if (!claudeResponse.ok) {
+      const error = await claudeResponse.text()
+      throw new Error(`Anthropic API error (${claudeResponse.status}): ${error}`)
     }
 
-    const gptData = await gptResponse.json()
-    const extractedText = gptData.choices[0]?.message?.content
+    const claudeData = await claudeResponse.json()
+
+    if (claudeData.stop_reason === 'refusal') {
+      throw new Error('La lettura della targhetta è stata rifiutata dal modello')
+    }
+
+    const extractedText = claudeData.content?.find((b: { type: string }) => b.type === 'text')?.text
 
     if (!extractedText) {
-      throw new Error('No response from GPT-4o Vision')
+      throw new Error('No response from Claude Vision')
     }
 
     // Parse JSON response
     let extractedData
     try {
-      // GPT-4o should return JSON, parse it
+      // Claude should return JSON, parse it
       extractedData = JSON.parse(extractedText)
     } catch (e) {
       // Fallback: try to extract JSON from markdown code block
@@ -133,7 +144,7 @@ serve(async (req) => {
       if (jsonMatch) {
         extractedData = JSON.parse(jsonMatch[1])
       } else {
-        throw new Error('Failed to parse GPT-4o response as JSON')
+        throw new Error('Failed to parse Claude response as JSON')
       }
     }
 

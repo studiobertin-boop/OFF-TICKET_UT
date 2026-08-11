@@ -1,6 +1,6 @@
 /**
  * Types per OCR e Photo Upload - PASSO 3
- * Integrazione GPT-4o Vision per riconoscimento targhette
+ * Integrazione Claude (Anthropic) Vision per riconoscimento targhette
  */
 
 // ============================================================================

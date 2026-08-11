@@ -196,7 +196,7 @@ export function isPDFFile(file: File): boolean {
 }
 
 /**
- * Converte qualsiasi immagine in PNG per garantire compatibilità con OpenAI
+ * Converte qualsiasi immagine in PNG per garantire compatibilità con Claude (Anthropic)
  * @param file - File immagine da convertire
  * @returns Promise con il File PNG convertito
  */

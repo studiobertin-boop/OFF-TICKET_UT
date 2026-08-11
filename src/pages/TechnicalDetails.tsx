@@ -36,7 +36,7 @@ import { normalizeSchedaCodes } from '@/utils/equipmentCodes'
  * - Salvataggio bozza e completamento scheda
  *
  * PASSI FUTURI:
- * - Passo 3: Integrazione OCR con GPT-4o Vision
+ * - Passo 3: Integrazione OCR con Claude (Anthropic) Vision
  * - Passo 4: Portale cliente
  */
 export const TechnicalDetails = () => {

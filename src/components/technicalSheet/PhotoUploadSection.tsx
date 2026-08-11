@@ -38,7 +38,7 @@ interface PhotoUploadSectionProps {
 
 /**
  * Componente per upload foto targhette e analisi OCR
- * PASSO 3: Integrazione GPT-4o Vision
+ * PASSO 3: Integrazione Claude (Anthropic) Vision
  */
 export const PhotoUploadSection = ({
   onPhotoAnalyzed,
@@ -155,7 +155,7 @@ export const PhotoUploadSection = ({
 
           console.log(`🖼️ Rilevata immagine: ${file.name}, type: ${file.type}, size: ${file.size} bytes`)
 
-          // Converti SEMPRE in PNG per compatibilità OpenAI
+          // Converti SEMPRE in PNG per compatibilità Claude (Anthropic)
           setUploadStatus(`Conversione ${file.name} in PNG...`)
           const pngFile = await convertImageToPNG(file)
 
