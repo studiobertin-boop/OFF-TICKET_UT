@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import {
   Box,
   CircularProgress,
@@ -15,6 +16,7 @@ import { useCustomers } from '@/hooks/useCustomers'
 import { technicalDataApi } from '@/services/api/technicalData'
 import { requestsApi } from '@/services/api/requests'
 import { customersApi } from '@/services/api/customers'
+import { supabase } from '@/services/supabase'
 import { TechnicalSheetForm, type TechnicalSheetFormRef } from '@/components/technicalSheet/TechnicalSheetForm'
 import { OCRReviewDialog } from '@/components/technicalSheet/OCRReviewDialog'
 import { ShareDialog } from '@/components/technicalSheet/ShareDialog'
@@ -273,6 +275,24 @@ export const TechnicalDetails = () => {
     [clientDm329Overview]
   )
 
+  // Ultimo cambio di stato della pratica: insieme a `request.status/updated_at/created_at`
+  // dice alla sezione fascicolo quando i documenti verranno cancellati. Anche questa prima
+  // delle uscite anticipate.
+  const { data: ultimoCambioStato } = useQuery({
+    queryKey: ['ultimo-cambio-stato', id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('request_history')
+        .select('created_at')
+        .eq('request_id', id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      return data?.created_at ?? null
+    },
+    enabled: Boolean(id),
+  })
+
   // IMPORTANT: Calculate sedeLegale BEFORE early returns to avoid React Hook ordering issues
   // Get sede legale from customer data using formatFullAddress
   // Priority: request.customer > customerByName > custom_fields.sede_legale
@@ -381,6 +401,12 @@ export const TechnicalDetails = () => {
             sedeLegale={sedeLegale}
             codicePratica={codicePratica}
             requestId={request.id}
+            movimenti={{
+              stato: request.status,
+              ultimoCambioStato: ultimoCambioStato ?? null,
+              aggiornataIl: request.updated_at,
+              creataIl: request.created_at,
+            }}
             header={(completezza) => (
               <TechnicalSheetHeader
                 customerName={customerName}

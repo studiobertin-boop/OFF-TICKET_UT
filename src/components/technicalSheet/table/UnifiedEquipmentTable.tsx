@@ -34,6 +34,7 @@ import {
 } from './equipmentConfig'
 import { useQueryClient } from '@tanstack/react-query'
 import { fascicoloDocumentiApi } from '@/services/api/fascicoloDocumenti'
+import { type MovimentoPratica } from '@/services/fascicolo/scadenza'
 
 /**
  * Colonne della tabella, con larghezza e allineamento dichiarati.
@@ -399,10 +400,12 @@ interface UnifiedEquipmentTableProps {
   ragioneSociale?: string
   /** Pratica a cui appartengono i fascicoli: serve a salvarne e a rileggerne i documenti. */
   requestId?: string
+  /** Stato e date della pratica: da qui si ricava quando i documenti dei fascicoli scadono. */
+  movimenti?: MovimentoPratica
 }
 
 export const UnifiedEquipmentTable = ({
-  control, completezza, righeComplete, azioni, codicePratica = '', ragioneSociale = '', requestId = '',
+  control, completezza, righeComplete, azioni, codicePratica = '', ragioneSociale = '', requestId = '', movimenti,
 }: UnifiedEquipmentTableProps) => {
   const queryClient = useQueryClient()
   const { showAdvancedFields: adv, showRecipienteFiltro, isTecnicoDM329 } = useTecnicoDM329Visibility()
@@ -599,6 +602,7 @@ export const UnifiedEquipmentTable = ({
     principale: args.principale ?? null,
     requestId,
     codice: args.code,
+    movimenti,
   })
 
   /** Aggiunge una riga alla tabella e la relativa voce all'elenco navigabile. */

@@ -12,6 +12,7 @@ import { radii } from '@/theme/tokens'
 import { classificaDocumenti } from '@/services/fascicolo/classifica'
 import { componiFascicolo, LIMITE_BYTE } from '@/services/fascicolo/componiPdf'
 import { ordinaFascicolo, ruoliPrevisti } from '@/services/fascicolo/ordina'
+import { statoScadenza, type MovimentoPratica } from '@/services/fascicolo/scadenza'
 import {
   ORDINE_RUOLI, etichettaRuolo,
   type ContestoFascicolo, type DocumentoFascicolo, type RuoloDocumento,
@@ -25,11 +26,15 @@ export interface FascicoloSectionProps {
   nomeFile: string
   requestId: string
   codice: string
+  /** Stato e date della pratica: da qui si ricava quando i documenti verranno cancellati. */
+  movimenti?: MovimentoPratica
 }
 
 const ACCETTATI = 'image/*,.pdf,application/pdf'
 
 const peso = (byte: number) => `${(byte / 1024 / 1024).toFixed(1)} MB`
+
+const dataItaliana = (iso: string) => new Date(iso).toLocaleDateString('it-IT')
 
 /** Esito della generazione, da mostrare finché non si tocca di nuovo l'elenco. */
 interface Esito {
@@ -42,6 +47,88 @@ interface Esito {
 }
 
 /**
+ * Riga di un documento sorgente nell'elenco: icona, nome, peso, ruolo assegnabile e cestino.
+ *
+ * Componente a sé perché la riga porta la parte più densa della sezione — il selettore multiplo
+ * dei ruoli, col suo `renderValue` — e isolarla tiene il corpo di `FascicoloSection` leggibile.
+ */
+const RigaDocumento = ({ doc, contesto, previsti, disabilitato, onAssegna, onRimuovi }: {
+  doc: DocumentoFascicolo
+  contesto: ContestoFascicolo
+  previsti: RuoloDocumento[]
+  disabilitato: boolean
+  onAssegna: (ruoli: RuoloDocumento[]) => void
+  onRimuovi: () => void
+}) => (
+  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+    {eUnImmagine(doc)
+      ? <ImageIcon fontSize="small" sx={{ color: 'text.disabled', flex: 'none' }} />
+      : <PdfIcon fontSize="small" sx={{ color: 'text.disabled', flex: 'none' }} />}
+
+    <Tooltip title={doc.motivazione || ''} placement="top-start">
+      <Typography
+        variant="body2"
+        noWrap
+        sx={{ flex: '1 1 30%', minWidth: 0, color: doc.ruoli.length ? 'text.primary' : 'warning.main' }}
+      >
+        {doc.nome}
+      </Typography>
+    </Tooltip>
+
+    <Typography variant="caption" color="text.disabled" sx={{ flex: 'none', fontVariantNumeric: 'tabular-nums' }}>
+      {peso(doc.peso)}
+    </Typography>
+
+    {/* Il ruolo assegnato resta modificabile: la classificazione è una proposta,
+        e un fascicolo sbagliato costa più di un menu in più. */}
+    <Select
+      size="small"
+      variant="standard"
+      disableUnderline
+      multiple
+      displayEmpty
+      value={doc.ruoli}
+      onChange={(e) => onAssegna(e.target.value as RuoloDocumento[])}
+      renderValue={(scelti) =>
+        scelti.length === 0
+          ? <Typography component="span" variant="caption" color="warning.main">da assegnare</Typography>
+          : <Typography component="span" variant="caption" color="text.secondary" noWrap>
+            {scelti.map((r) => etichettaRuolo(r, contesto)).join(' + ')}
+          </Typography>
+      }
+      // Il nome del file è ciò che il tecnico riconosce, il ruolo è ciò che il
+      // sistema propone: il primo pesa, il secondo si legge accanto.
+      sx={{ flex: '1 1 45%', minWidth: 0, fontWeight: 400, '& .MuiSelect-select': { py: 0.25 } }}
+    >
+      {ORDINE_RUOLI.map((r) => (
+        <MenuItem key={r} value={r} dense sx={{ fontSize: '0.8rem' }}>
+          {etichettaRuolo(r, contesto)}
+          {!previsti.includes(r) && (
+            <Typography component="span" variant="caption" color="text.disabled" sx={{ ml: 0.75 }}>
+              (non previsto)
+            </Typography>
+          )}
+        </MenuItem>
+      ))}
+    </Select>
+
+    {/* Lo spazio del segno resta occupato anche quando il segno non c'è: senza,
+        le righe riconosciute a mano disallineerebbero menu e cestino. */}
+    <Box sx={{ width: 16, flex: 'none', display: 'flex', justifyContent: 'center' }}>
+      {doc.origine === 'ai' && (
+        <Tooltip title={doc.motivazione || 'Riconosciuto automaticamente'}>
+          <AutoIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
+        </Tooltip>
+      )}
+    </Box>
+
+    <IconButton size="small" onClick={onRimuovi} disabled={disabilitato} aria-label={`Togli ${doc.nome}`}>
+      <DeleteIcon sx={{ fontSize: 16 }} />
+    </IconButton>
+  </Box>
+)
+
+/**
  * Caricamento dei documenti e generazione del fascicolo, nel piede della finestra
  * dell'apparecchiatura.
  *
@@ -52,9 +139,10 @@ interface Esito {
  *
  * I documenti si salvano non appena caricati (bucket `fascicoli` + tabella
  * `fascicolo_documenti`): ricaricando la pagina, o riaprendo la scheda un altro giorno, restano
- * al loro posto coi ruoli già assegnati.
+ * al loro posto coi ruoli già assegnati. Non per sempre, però: scadono da soli — l'avviso e la
+ * data qui sotto vengono dalla stessa regola che di notte li cancella davvero.
  */
-export const FascicoloSection = ({ contesto, nomeFile, requestId, codice }: FascicoloSectionProps) => {
+export const FascicoloSection = ({ contesto, nomeFile, requestId, codice, movimenti }: FascicoloSectionProps) => {
   const queryClient = useQueryClient()
   const chiave = ['fascicolo-documenti', requestId, codice]
 
@@ -246,6 +334,11 @@ export const FascicoloSection = ({ contesto, nomeFile, requestId, codice }: Fasc
   const occupati = documenti.reduce((somma, d) => somma + d.peso, 0)
   const sopraSoglia = occupati > TETTO_BYTE_APPARECCHIATURA * 0.8
 
+  // Quando i documenti vivono ancora, la scadenza si sa per certo solo conoscendo stato e date
+  // della pratica: senza `movimenti` (un istante, mentre la pagina li sta ancora caricando) non
+  // si mostra nulla piuttosto che una data calcolata su dati parziali.
+  const scadenzaCorrente = movimenti && documenti.length > 0 ? statoScadenza(movimenti, new Date()) : null
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, width: '100%' }}>
       <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
@@ -261,147 +354,105 @@ export const FascicoloSection = ({ contesto, nomeFile, requestId, codice }: Fasc
         </Typography>
       </Box>
 
-      {scadenza && (
+      {documenti.length === 0 && scadenza && (
         <Alert severity="info" sx={{ py: 0.25 }}>
-          I {scadenza.n_file} documenti precedenti sono stati rimossi il{' '}
-          {new Date(scadenza.purgato_il).toLocaleDateString('it-IT')}: vanno ricaricati.
+          Fascicolo scaduto il {dataItaliana(scadenza.purgato_il)}: {scadenza.n_file} file
+          cancellati. Ricaricali per ricomporlo.
         </Alert>
       )}
 
-      {/* Area di trascinamento. Fa anche da elenco quando i file ci sono: tenerli separati
-          costringerebbe a scorrere per tornare al punto in cui si aggiunge. */}
-      <Box
-        onDragOver={(e) => { e.preventDefault(); if (!bloccato) setSopra(true) }}
-        onDragLeave={() => setSopra(false)}
-        onDrop={(e) => { e.preventDefault(); setSopra(false); if (!bloccato) aggiungi(e.dataTransfer.files) }}
-        onClick={() => !bloccato && inputRef.current?.click()}
-        sx={{
-          border: '1px dashed', borderRadius: `${radii.control}px`,
-          borderColor: sopra ? 'primary.main' : 'divider',
-          bgcolor: sopra ? 'action.hover' : 'transparent',
-          px: 1.5, py: documenti.length ? 1 : 2,
-          cursor: bloccato ? 'default' : 'pointer',
-          transition: 'border-color .15s, background-color .15s',
-        }}
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          hidden
-          multiple
-          accept={ACCETTATI}
-          onChange={(e) => { if (e.target.files) aggiungi(e.target.files); e.target.value = '' }}
-        />
+      {/* Area di trascinamento e, sotto, quando la scadenza si sa, la data in cui i documenti
+          spariranno: le si tiene vicine perché raccontano la stessa cosa — quanto a lungo
+          resta ciò che si vede sopra. */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+        <Box
+          onDragOver={(e) => { e.preventDefault(); if (!bloccato) setSopra(true) }}
+          onDragLeave={() => setSopra(false)}
+          onDrop={(e) => { e.preventDefault(); setSopra(false); if (!bloccato) aggiungi(e.dataTransfer.files) }}
+          onClick={() => !bloccato && inputRef.current?.click()}
+          sx={{
+            border: '1px dashed', borderRadius: `${radii.control}px`,
+            borderColor: sopra ? 'primary.main' : 'divider',
+            bgcolor: sopra ? 'action.hover' : 'transparent',
+            px: 1.5, py: documenti.length ? 1 : 2,
+            cursor: bloccato ? 'default' : 'pointer',
+            transition: 'border-color .15s, background-color .15s',
+          }}
+        >
+          <input
+            ref={inputRef}
+            type="file"
+            hidden
+            multiple
+            accept={ACCETTATI}
+            onChange={(e) => { if (e.target.files) aggiungi(e.target.files); e.target.value = '' }}
+          />
 
-        {isLoading ? (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, color: 'text.secondary' }}>
-            <CircularProgress size={14} />
-            <Typography variant="body2">Lettura dei documenti salvati…</Typography>
-          </Box>
-        ) : documenti.length === 0 ? (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, color: 'text.secondary' }}>
-            <UploadIcon fontSize="small" />
-            <Typography variant="body2">Trascina qui i documenti, o fai clic per sceglierli</Typography>
-          </Box>
-        ) : (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }} onClick={(e) => e.stopPropagation()}>
-            {sorgentiElenco.map((d) => (
-              <Box key={d.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-                {eUnImmagine(d)
-                  ? <ImageIcon fontSize="small" sx={{ color: 'text.disabled', flex: 'none' }} />
-                  : <PdfIcon fontSize="small" sx={{ color: 'text.disabled', flex: 'none' }} />}
+          {isLoading ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, color: 'text.secondary' }}>
+              <CircularProgress size={14} />
+              <Typography variant="body2">Lettura dei documenti salvati…</Typography>
+            </Box>
+          ) : documenti.length === 0 ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, color: 'text.secondary' }}>
+              <UploadIcon fontSize="small" />
+              <Typography variant="body2">Trascina qui i documenti, o fai clic per sceglierli</Typography>
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }} onClick={(e) => e.stopPropagation()}>
+              {sorgentiElenco.map((d) => (
+                <RigaDocumento
+                  key={d.id}
+                  doc={d}
+                  contesto={contesto}
+                  previsti={previsti}
+                  disabilitato={lavorando}
+                  onAssegna={(ruoli) => assegna(d.id, ruoli)}
+                  onRimuovi={() => rimuovi(d.id)}
+                />
+              ))}
 
-                <Tooltip title={d.motivazione || ''} placement="top-start">
-                  <Typography
-                    variant="body2"
-                    noWrap
-                    sx={{ flex: '1 1 30%', minWidth: 0, color: d.ruoli.length ? 'text.primary' : 'warning.main' }}
-                  >
-                    {d.nome}
+              {fascicoloGenerato && (
+                <Box key={fascicoloGenerato.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, pt: 0.75, borderTop: '1px solid', borderColor: 'divider' }}>
+                  <PdfIcon fontSize="small" sx={{ color: 'primary.main', flex: 'none' }} />
+                  <Typography variant="body2" noWrap sx={{ flex: '1 1 auto', minWidth: 0 }}>
+                    {fascicoloGenerato.nome}
                   </Typography>
-                </Tooltip>
-
-                <Typography variant="caption" color="text.disabled" sx={{ flex: 'none', fontVariantNumeric: 'tabular-nums' }}>
-                  {peso(d.peso)}
-                </Typography>
-
-                {/* Il ruolo assegnato resta modificabile: la classificazione è una proposta,
-                    e un fascicolo sbagliato costa più di un menu in più. */}
-                <Select
-                  size="small"
-                  variant="standard"
-                  disableUnderline
-                  multiple
-                  displayEmpty
-                  value={d.ruoli}
-                  onChange={(e) => assegna(d.id, e.target.value as RuoloDocumento[])}
-                  renderValue={(scelti) =>
-                    scelti.length === 0
-                      ? <Typography component="span" variant="caption" color="warning.main">da assegnare</Typography>
-                      : <Typography component="span" variant="caption" color="text.secondary" noWrap>
-                        {scelti.map((r) => etichettaRuolo(r, contesto)).join(' + ')}
-                      </Typography>
-                  }
-                  // Il nome del file è ciò che il tecnico riconosce, il ruolo è ciò che il
-                  // sistema propone: il primo pesa, il secondo si legge accanto.
-                  sx={{ flex: '1 1 45%', minWidth: 0, fontWeight: 400, '& .MuiSelect-select': { py: 0.25 } }}
-                >
-                  {ORDINE_RUOLI.map((r) => (
-                    <MenuItem key={r} value={r} dense sx={{ fontSize: '0.8rem' }}>
-                      {etichettaRuolo(r, contesto)}
-                      {!previsti.includes(r) && (
-                        <Typography component="span" variant="caption" color="text.disabled" sx={{ ml: 0.75 }}>
-                          (non previsto)
-                        </Typography>
-                      )}
-                    </MenuItem>
-                  ))}
-                </Select>
-
-                {/* Lo spazio del segno resta occupato anche quando il segno non c'è: senza,
-                    le righe riconosciute a mano disallineerebbero menu e cestino. */}
-                <Box sx={{ width: 16, flex: 'none', display: 'flex', justifyContent: 'center' }}>
-                  {d.origine === 'ai' && (
-                    <Tooltip title={d.motivazione || 'Riconosciuto automaticamente'}>
-                      <AutoIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
-                    </Tooltip>
-                  )}
+                  <Typography variant="caption" color="text.disabled" sx={{ flex: 'none', fontVariantNumeric: 'tabular-nums' }}>
+                    {peso(fascicoloGenerato.peso)}
+                  </Typography>
+                  <IconButton size="small" onClick={() => scarica(fascicoloGenerato)} aria-label={`Scarica ${fascicoloGenerato.nome}`}>
+                    <DownloadIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                  <IconButton size="small" onClick={() => rimuovi(fascicoloGenerato.id)} disabled={lavorando} aria-label={`Togli ${fascicoloGenerato.nome}`}>
+                    <DeleteIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
                 </Box>
+              )}
 
-                <IconButton size="small" onClick={() => rimuovi(d.id)} disabled={lavorando} aria-label={`Togli ${d.nome}`}>
-                  <DeleteIcon sx={{ fontSize: 16 }} />
-                </IconButton>
-              </Box>
-            ))}
+              <Button
+                size="small"
+                startIcon={<UploadIcon sx={{ fontSize: 16 }} />}
+                onClick={() => inputRef.current?.click()}
+                disabled={bloccato}
+                sx={{ alignSelf: 'flex-start', mt: 0.25 }}
+              >
+                Aggiungi altri
+              </Button>
+            </Box>
+          )}
+        </Box>
 
-            {fascicoloGenerato && (
-              <Box key={fascicoloGenerato.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, pt: 0.5, borderTop: '1px solid', borderColor: 'divider' }}>
-                <PdfIcon fontSize="small" sx={{ color: 'primary.main', flex: 'none' }} />
-                <Typography variant="body2" noWrap sx={{ flex: '1 1 auto', minWidth: 0 }}>
-                  {fascicoloGenerato.nome}
-                </Typography>
-                <Typography variant="caption" color="text.disabled" sx={{ flex: 'none', fontVariantNumeric: 'tabular-nums' }}>
-                  {peso(fascicoloGenerato.peso)}
-                </Typography>
-                <IconButton size="small" onClick={() => scarica(fascicoloGenerato)} aria-label={`Scarica ${fascicoloGenerato.nome}`}>
-                  <DownloadIcon sx={{ fontSize: 16 }} />
-                </IconButton>
-                <IconButton size="small" onClick={() => rimuovi(fascicoloGenerato.id)} disabled={lavorando} aria-label={`Togli ${fascicoloGenerato.nome}`}>
-                  <DeleteIcon sx={{ fontSize: 16 }} />
-                </IconButton>
-              </Box>
-            )}
-
-            <Button
-              size="small"
-              startIcon={<UploadIcon sx={{ fontSize: 16 }} />}
-              onClick={() => inputRef.current?.click()}
-              disabled={bloccato}
-              sx={{ alignSelf: 'flex-start', mt: 0.25 }}
-            >
-              Aggiungi altri
-            </Button>
-          </Box>
+        {scadenzaCorrente && (
+          <Typography
+            variant="caption"
+            color={scadenzaCorrente.inPreavviso ? 'warning.main' : 'text.disabled'}
+            sx={{ fontWeight: scadenzaCorrente.inPreavviso ? 600 : 400, px: 0.25 }}
+          >
+            {scadenzaCorrente.inPreavviso
+              ? `Attenzione: questi documenti verranno cancellati fra ${scadenzaCorrente.giorniMancanti} giorni, il ${scadenzaCorrente.data.toLocaleDateString('it-IT')}.`
+              : `I documenti verranno cancellati il ${scadenzaCorrente.data.toLocaleDateString('it-IT')}.`}
+          </Typography>
         )}
       </Box>
 
@@ -448,7 +499,7 @@ export const FascicoloSection = ({ contesto, nomeFile, requestId, codice }: Fasc
           />
         )}
 
-        <Typography variant="caption" color={sopraSoglia ? 'warning.main' : 'text.disabled'} sx={{ minWidth: 0 }}>
+        <Typography variant="caption" color={sopraSoglia ? 'warning.main' : 'text.disabled'} sx={{ minWidth: 0, ml: 'auto' }}>
           {`${peso(occupati)} di ${peso(TETTO_BYTE_APPARECCHIATURA)}`}
         </Typography>
       </Box>

@@ -17,6 +17,7 @@ import { FascicoloSection } from '../fascicolo/FascicoloSection'
 import { EQUIPMENT_DEFS, type EquipmentTypeDef, type ExtraFieldDef } from './equipmentConfig'
 import type { EquipmentCatalogItem } from '@/types'
 import type { Apparecchiatura, ContestoFascicolo } from '@/services/fascicolo/types'
+import type { MovimentoPratica } from '@/services/fascicolo/scadenza'
 
 /**
  * Riga di cui sono aperti i dettagli.
@@ -56,6 +57,8 @@ export interface RigaFascicolo {
   /** Pratica e codice: insieme individuano i documenti salvati di questa apparecchiatura. */
   requestId: string
   codice: string
+  /** Stato e date della pratica: da qui si ricava quando i documenti verranno cancellati. */
+  movimenti?: MovimentoPratica
 }
 
 interface EquipmentDetailDialogProps {
@@ -275,6 +278,7 @@ const SezioneFascicolo = ({ control, def, base, code, fascicolo }: {
       nomeFile={fascicolo.nomeFile}
       requestId={fascicolo.requestId}
       codice={fascicolo.codice}
+      movimenti={fascicolo.movimenti}
     />
   )
 }
