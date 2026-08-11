@@ -37,7 +37,7 @@ create table if not exists public.fascicolo_scadenze (
 );
 
 -- Chi vede la scheda tecnica vede il fascicolo, condivisione compresa.
--- Sta in una funzione sola perché serve a cinque policy: due tabelle e tre operazioni di Storage.
+-- Sta in una funzione sola perché serve a tre policy: le due tabelle e la policy di Storage.
 create or replace function public.can_access_fascicolo(p_request_id uuid)
 returns boolean
 language sql
@@ -67,8 +67,13 @@ create policy "Accesso ai documenti del fascicolo"
   using (public.can_access_fascicolo(request_id))
   with check (public.can_access_fascicolo(request_id));
 
+-- 'for all' include la cancellazione: decisione del committente, non svista. Su
+-- dm329_technical_data la cancellazione è riservata agli admin, ma qui chi può modificare
+-- la scheda deve poter gestire anche i suoi documenti — rimuovere un file caricato per
+-- sbaglio è lavoro ordinario, e la nota di scadenza va ripulita al nuovo caricamento.
 drop policy if exists "Lettura delle scadenze del fascicolo" on public.fascicolo_scadenze;
-create policy "Lettura delle scadenze del fascicolo"
+drop policy if exists "Accesso alle scadenze del fascicolo" on public.fascicolo_scadenze;
+create policy "Accesso alle scadenze del fascicolo"
   on public.fascicolo_scadenze for all
   using (public.can_access_fascicolo(request_id))
   with check (public.can_access_fascicolo(request_id));
@@ -79,16 +84,23 @@ values ('fascicoli', 'fascicoli', false)
 on conflict (id) do nothing;
 
 -- Il request_id è il primo segmento del percorso: {request_id}/{codice}/{file}
+-- storage.objects è condivisa fra bucket: quelli di `attachments` cominciano con
+-- 'requests/', non un uuid. Postgres non garantisce l'ordine di valutazione degli
+-- operandi di un AND, quindi il cast a uuid va dentro un CASE — la sola forma la cui
+-- valutazione in ordine è garantita — per non rischiare di rompere gli allegati
+-- se il pianificatore valuta il cast prima del filtro su bucket_id.
 drop policy if exists "Accesso agli oggetti del fascicolo" on storage.objects;
 create policy "Accesso agli oggetti del fascicolo"
   on storage.objects for all
   using (
-    bucket_id = 'fascicoli'
-    and public.can_access_fascicolo(((storage.foldername(name))[1])::uuid)
+    case when bucket_id = 'fascicoli'
+         then public.can_access_fascicolo(((storage.foldername(name))[1])::uuid)
+         else false end
   )
   with check (
-    bucket_id = 'fascicoli'
-    and public.can_access_fascicolo(((storage.foldername(name))[1])::uuid)
+    case when bucket_id = 'fascicoli'
+         then public.can_access_fascicolo(((storage.foldername(name))[1])::uuid)
+         else false end
   );
 
 -- Ciò che serve a datare la scadenza, per le sole pratiche che hanno documenti.
