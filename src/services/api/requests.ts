@@ -54,6 +54,20 @@ export interface RequestFilters {
   is_hidden?: boolean
 }
 
+/**
+ * Scheda dati agganciata alla pratica: solo `equipment_data`, che è tutta la scheda.
+ *
+ * Serve all'icona di compilazione dell'elenco. Si legge insieme alle pratiche invece di
+ * tenerne una copia del grado di completamento sulla richiesta: così l'indicatore non può
+ * restare indietro rispetto alla scheda, e non c'è niente da ricalcolare al salvataggio.
+ * Costa poco — in produzione l'insieme di tutte le schede sta in poche decine di kB — e
+ * chi non può leggere una scheda semplicemente non la riceve, come già per il resto.
+ *
+ * `request_id` è unico: PostgREST restituisce un oggetto, non un elenco. Si accetta anche
+ * la forma a elenco perché è quella che darebbe se il vincolo cadesse.
+ */
+const SCHEDA_EMBED = 'technical_data:dm329_technical_data(equipment_data)'
+
 export const requestsApi = {
   // Get all requests (with filters and relations)
   getAll: async (filters?: RequestFilters): Promise<Request[]> => {
@@ -64,7 +78,8 @@ export const requestsApi = {
         request_type:request_types(*),
         assigned_user:users!requests_assigned_to_fkey(id, email, full_name, role),
         creator:users!requests_created_by_fkey(id, email, full_name, role),
-        customer:customers(*)
+        customer:customers(*),
+        ${SCHEDA_EMBED}
       `)
       .order('created_at', { ascending: false })
 
@@ -103,7 +118,8 @@ export const requestsApi = {
         assigned_user:users!requests_assigned_to_fkey(id, email, full_name, role),
         attributed_user:users!requests_attributed_to_fkey(id, email, full_name, role),
         creator:users!requests_created_by_fkey(id, email, full_name, role),
-        customer:customers(*)
+        customer:customers(*),
+        ${SCHEDA_EMBED}
       `)
       .eq('id', id)
       .single()
