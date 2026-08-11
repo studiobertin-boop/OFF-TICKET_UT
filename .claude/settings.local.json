@@ -46,7 +46,17 @@
       "Bash(timeout 3 bash:*)",
       "Bash(supabase functions:*)",
       "Bash(timeout 60 bash:*)",
-      "Bash(git merge:*)"
+      "Bash(git merge:*)",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/pdfjs-dist/package.json'\\).version\\)\")",
+      "Bash(where choco *)",
+      "Bash(where scoop *)",
+      "Bash(where pdftoppm *)",
+      "Bash(where winget *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(python -c \"import fitz; print\\('pymupdf', fitz.__doc__\\)\")",
+      "Bash(python -m pip install --quiet --disable-pip-version-check pymupdf)",
+      "Bash(python3 -)",
+      "Read(//c/Users/FRANCE~1/AppData/Local/Temp/claude/c--Users-FrancescoBertin-Desktop-CLAUDE-CODE-OFF-TICKET-UT/31875c9c-5999-432a-8e2c-26248645a25b/scratchpad/schemi_esempio/**)"
     ],
     "deny": [],
     "ask": []
