@@ -267,13 +267,17 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
   }
 
   if (raccoltaCondense) {
+    // La tanica riceve dall'alto; il separatore, quando fa da pozzo, riceve di fianco — la
+    // corsia condense negli schemi storici entra nel suo vertice sinistro, non dal cielo
+    // (555_RELAZIONE_TECNICA_00-2025.pdf pag. 3).
+    const ancoraArrivo = raccoltaCondense.tipo === 'separatore' ? 'sx' : 'alto-in'
     for (const nodo of nodi) {
       if (nodo.id === raccoltaCondense.id) continue
       if (scaricaCondensa(nodo)) {
         archi.push({
           id: prossimoId('cond'),
           da: { nodo: nodo.id, ancora: 'basso-out' },
-          a: { nodo: raccoltaCondense.id, ancora: 'alto-in' },
+          a: { nodo: raccoltaCondense.id, ancora: ancoraArrivo },
           stile: 'condensa',
         })
       }

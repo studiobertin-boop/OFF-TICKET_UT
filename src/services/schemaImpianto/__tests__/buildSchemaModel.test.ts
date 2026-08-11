@@ -259,6 +259,25 @@ describe('ancoraggio degli archi automatici', () => {
     }
   })
 
+  // Il pozzo di raccolta non è sempre una tanica: quando è un separatore la corsia condense
+  // entra di fianco (ancora 'sx'), non dall'alto — la sola tanica riceve dal cielo. Senza
+  // questo caso il test generico sopra passava anche con un'ancora d'arrivo sbagliata, perché
+  // usava solo 'tanica'.
+  it('ogni arco generato usa ancore che ne accettano lo stile anche quando il pozzo è un separatore', () => {
+    const scheda = makeScheda({
+      separatori: [makeSeparatore()],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'separatore' }),
+    })
+    const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    const perId = new Map(model.nodi.map((n) => [n.id, n]))
+
+    expect(model.archi.length).toBeGreaterThan(0)
+    for (const arco of model.archi) {
+      expect(capoValido(perId.get(arco.da.nodo)!, arco.da.ancora, arco.stile), `${arco.id} da`).toBe(true)
+      expect(capoValido(perId.get(arco.a.nodo)!, arco.a.ancora, arco.stile), `${arco.id} a`).toBe(true)
+    }
+  })
+
   it('i nodi dedotti dalla scheda si dichiarano tali', () => {
     const scheda = makeScheda({ dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }) })
     const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })

@@ -34,8 +34,8 @@ export function layoutAFlow(layout: SchemaLayout): { nodes: Node[]; edges: Edge[
     const attacchi = attacchiPerStile(arco.stile)
     return {
       id: arco.id,
-      source: arco.da,
-      target: arco.a,
+      source: arco.da.nodo,
+      target: arco.a.nodo,
       sourceHandle: attacchi.source,
       targetHandle: attacchi.target,
       type: TIPO_ARCO_FLOW,
@@ -59,8 +59,8 @@ export function flowALayout(nodes: Node[], edges: Edge[], muro: SchemaLayout['mu
     })),
     archi: edges.map((e) => ({
       id: e.id,
-      da: e.source,
-      a: e.target,
+      da: { nodo: e.source, ancora: e.sourceHandle ?? '' },
+      a: { nodo: e.target, ancora: e.targetHandle ?? '' },
       stile: ((e.data as SchemaEdgeData | undefined)?.stile ?? 'standard') as SchemaArcoStile,
     })),
     muro,

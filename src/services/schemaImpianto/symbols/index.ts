@@ -307,10 +307,24 @@ export interface DefinizioneSimbolo {
   disegna: (nodo: SchemaNodoPosizionato) => string
 }
 
-/** Ancore condivise dai tre simboli a rombo, che hanno la stessa geometria. */
+/** Ancore condivise da essiccatore e filtro, che hanno la stessa geometria e sono solo stadi della linea aria. */
 const ANCORE_ROMBO: SchemaAncora[] = [
   { id: 'sx', x: 6, y: 49, accetta: ['aria'] },
   { id: 'dx', x: 104, y: 49, accetta: ['aria'] },
+  { id: 'alto-in', x: 55, y: 10, accetta: ['aria'] },
+  { id: 'basso-out', x: 55, y: 88, accetta: ['condensa'] },
+]
+
+/**
+ * Ancore del separatore: stessa geometria del rombo, ma quando fa da pozzo di raccolta
+ * condense (`dati_impianto.raccolta_condense: 'separatore'`) la corsia condense entra di
+ * fianco, non dall'alto (schemi storici, `555_RELAZIONE_TECNICA_00-2025.pdf` pag. 3): `sx`/`dx`
+ * accettano anche condensa, oltre all'aria che già passa quando il separatore è uno stadio
+ * di linea.
+ */
+const ANCORE_SEPARATORE: SchemaAncora[] = [
+  { id: 'sx', x: 6, y: 49, accetta: ['aria', 'condensa'] },
+  { id: 'dx', x: 104, y: 49, accetta: ['aria', 'condensa'] },
   { id: 'alto-in', x: 55, y: 10, accetta: ['aria'] },
   { id: 'basso-out', x: 55, y: 88, accetta: ['condensa'] },
 ]
@@ -353,7 +367,7 @@ export const REGISTRO_SIMBOLI: Record<ChiaveSimbolo, DefinizioneSimbolo> = {
   },
   essiccatore: { dimensioni: DIMENSIONI.essiccatore, ancore: ANCORE_ROMBO, disegna: simboloEssiccatore },
   filtro: { dimensioni: DIMENSIONI.filtro, ancore: ANCORE_ROMBO, disegna: simboloFiltro },
-  separatore: { dimensioni: DIMENSIONI.separatore, ancore: ANCORE_ROMBO, disegna: simboloSeparatore },
+  separatore: { dimensioni: DIMENSIONI.separatore, ancore: ANCORE_SEPARATORE, disegna: simboloSeparatore },
   tanica: {
     dimensioni: DIMENSIONI.tanica,
     ancore: [{ id: 'alto-in', x: 40, y: 6, accetta: ['condensa'] }],
