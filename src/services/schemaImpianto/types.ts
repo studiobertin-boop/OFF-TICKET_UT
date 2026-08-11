@@ -55,6 +55,39 @@ export interface SchemaNodo {
   accessorio?: SchemaAccessorioDipendente
 }
 
+/** Cosa può agganciarsi a un punto di attacco di un simbolo. */
+export type SchemaTipoAggancio = 'aria' | 'condensa' | 'valvola_sicurezza'
+
+/**
+ * Punto di attacco dichiarato dal simbolo, in coordinate locali al riquadro d'ingombro.
+ * È dato puro — nessuna funzione — perché il Blocco 3 lo sposterà su tabella.
+ */
+export interface SchemaAncora {
+  /** Stabile e parlante: entra negli archi salvati, cambiarlo invalida i layout esistenti. */
+  id: string
+  x: number
+  y: number
+  /** Mai vuoto: un'ancora che non accetta nulla non serve. */
+  accetta: SchemaTipoAggancio[]
+}
+
+/** Capo di una tubazione: non più solo il nodo, ma il punto preciso su cui si innesta. */
+export interface SchemaCapo {
+  nodo: string
+  ancora: string
+}
+
+/**
+ * Chiave del registro simboli. Coincide col tipo, tranne dove la geometria cambia con una
+ * variante: il serbatoio orizzontale ha corpo e ancore diversi da quello verticale.
+ */
+export type ChiaveSimbolo = string
+
+export function chiaveSimbolo(nodo: { tipo: SchemaNodoTipo; orientamento?: 'VERTICALE' | 'ORIZZONTALE' }): ChiaveSimbolo {
+  if (nodo.tipo === 'serbatoio') return `serbatoio:${nodo.orientamento ?? 'VERTICALE'}`
+  return nodo.tipo
+}
+
 export type SchemaArcoStile = 'standard' | 'flessibile' | 'condensa'
 
 export interface SchemaArco {
