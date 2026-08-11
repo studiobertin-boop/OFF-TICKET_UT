@@ -6,6 +6,8 @@ import {
   comportaAdempimento,
   frequenzeRiqualificazione,
   esitoToTipoPratica,
+  calcolaEsitiPerCodice,
+  codiciConAdempimento,
 } from '../dm329Classification'
 import { determineTipoPratica } from '../civaFiltering'
 
@@ -138,5 +140,53 @@ describe('esitoToTipoPratica', () => {
     expect(esitoToTipoPratica('ESCLUSO_COMPRESSORE')).toBe('NESSUNA')
     expect(esitoToTipoPratica('ESCLUSO_TUBAZIONE')).toBe('NESSUNA')
     expect(esitoToTipoPratica(null)).toBe('NESSUNA')
+  })
+})
+
+describe('calcolaEsitiPerCodice', () => {
+  it('classifica un serbatoio, un disoleatore, uno scambiatore e un recipiente filtro', () => {
+    const righe = calcolaEsitiPerCodice({
+      serbatoi: [{ codice: 'S1', volume: 100, ps_pressione_max: 15 } as any],
+      disoleatori: [{ codice: 'C1.1', volume: 10, ps_pressione_max: 10 } as any],
+      scambiatori: [{ codice: 'E1.1', volume: 200, ps_pressione_max: 15 } as any],
+      recipienti_filtro: [{ codice: 'F1.1', volume: 5, ps_pressione_max: 5 } as any],
+    })
+
+    expect(righe).toEqual([
+      { codice: 'S1', esito: 'VERIFICA', giaDenunciato: false },
+      { codice: 'C1.1', esito: 'ESCLUSO_VOLUME', giaDenunciato: false },
+      { codice: 'E1.1', esito: 'VERIFICA', giaDenunciato: false },
+      { codice: 'F1.1', esito: 'ESCLUSO_VOLUME', giaDenunciato: false },
+    ])
+  })
+
+  it('riporta gia_denunciato quando marcato sulla riga', () => {
+    const righe = calcolaEsitiPerCodice({
+      serbatoi: [{ codice: 'S1', volume: 100, ps_pressione_max: 15, gia_denunciato: true } as any],
+    })
+    expect(righe).toEqual([{ codice: 'S1', esito: 'VERIFICA', giaDenunciato: true }])
+  })
+
+  it('array assenti o vuoti non producono righe', () => {
+    expect(calcolaEsitiPerCodice({})).toEqual([])
+  })
+})
+
+describe('codiciConAdempimento', () => {
+  it('esclude gli esiti che non comportano adempimento', () => {
+    const codici = codiciConAdempimento([
+      { codice: 'S1', esito: 'VERIFICA', giaDenunciato: false },
+      { codice: 'S2', esito: 'SOTTO_SOGLIA', giaDenunciato: false },
+      { codice: 'S3', esito: 'DICHIARAZIONE', giaDenunciato: false },
+    ])
+    expect(codici).toEqual(['S1', 'S3'])
+  })
+
+  it('esclude i codici già marcati come denunciati, anche se comportano adempimento', () => {
+    const codici = codiciConAdempimento([
+      { codice: 'S1', esito: 'VERIFICA', giaDenunciato: true },
+      { codice: 'S2', esito: 'VERIFICA', giaDenunciato: false },
+    ])
+    expect(codici).toEqual(['S2'])
   })
 })

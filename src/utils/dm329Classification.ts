@@ -9,7 +9,7 @@
  * `determineTipoPratica` (CIVA) è un adattatore su questa logica: il comportamento
  * osservabile per i chiamanti CIVA è invariato.
  */
-import type { CategoriaPED } from '@/types/technicalSheet'
+import type { CategoriaPED, Disoleatore, RecipienteFiltro, Scambiatore, Serbatoio } from '@/types/technicalSheet'
 import type { TipoPraticaCIVA } from '@/types/civa'
 
 export type EsitoDM329 =
@@ -113,4 +113,47 @@ export function esitoToTipoPratica(esito: EsitoDM329 | null): TipoPraticaCIVA {
   if (esito === 'DICHIARAZIONE') return 'DICHIARAZIONE'
   if (esito === 'VERIFICA') return 'VERIFICA'
   return 'NESSUNA'
+}
+
+export interface RigaConEsito {
+  codice: string
+  esito: EsitoDM329 | null
+  giaDenunciato: boolean
+}
+
+/**
+ * Esito DM329 per ogni codice apparecchiatura della scheda, senza passare per tutto
+ * l'apparato di formattazione della relazione (celle, gruppi, etichette italiane).
+ *
+ * Solo i quattro tipi che possono essere recipienti in pressione: compressori, essiccatori
+ * e filtri non hanno mai un esito che comporti adempimento in quanto tali (vedi
+ * `classificaCompressore`, sempre esclusa, e i tipi senza recipiente associato in
+ * `esiti.ts`), quindi non serve includerli qui.
+ */
+export function calcolaEsitiPerCodice(scheda: {
+  serbatoi?: Pick<Serbatoio, 'codice' | 'volume' | 'ps_pressione_max' | 'gia_denunciato'>[]
+  disoleatori?: Pick<Disoleatore, 'codice' | 'volume' | 'ps_pressione_max' | 'gia_denunciato'>[]
+  scambiatori?: Pick<Scambiatore, 'codice' | 'volume' | 'ps_pressione_max' | 'gia_denunciato'>[]
+  recipienti_filtro?: Pick<RecipienteFiltro, 'codice' | 'volume' | 'ps_pressione_max' | 'gia_denunciato'>[]
+}): RigaConEsito[] {
+  const righe: RigaConEsito[] = []
+  const aggiungi = (elementi: { codice: string; volume?: number; ps_pressione_max?: number; gia_denunciato?: boolean }[] | undefined) => {
+    for (const el of elementi ?? []) {
+      righe.push({
+        codice: el.codice,
+        esito: classificaRecipiente(el.volume, el.ps_pressione_max),
+        giaDenunciato: !!el.gia_denunciato,
+      })
+    }
+  }
+  aggiungi(scheda.serbatoi)
+  aggiungi(scheda.disoleatori)
+  aggiungi(scheda.scambiatori)
+  aggiungi(scheda.recipienti_filtro)
+  return righe
+}
+
+/** Codici che richiedono un fascicolo INAIL: comportano adempimento e non sono già denunciati. */
+export function codiciConAdempimento(righe: RigaConEsito[]): string[] {
+  return righe.filter((r) => comportaAdempimento(r.esito) && !r.giaDenunciato).map((r) => r.codice)
 }
