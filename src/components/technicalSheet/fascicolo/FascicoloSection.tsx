@@ -161,6 +161,10 @@ export const FascicoloSection = ({ contesto, nomeFile, requestId, codice, movime
   const ricarica = () => {
     queryClient.invalidateQueries({ queryKey: chiave })
     queryClient.invalidateQueries({ queryKey: ['fascicolo-scadenza', requestId, codice] })
+    // La pillola sopra la tabella (UnifiedEquipmentTable) legge questa stessa chiave: senza
+    // invalidarla qui, comporre o eliminare un fascicolo non la aggiornerebbe finché la query
+    // non si rieseguisse da sola (refocus, remount) — l'utente la vedrebbe restare blu.
+    queryClient.invalidateQueries({ queryKey: ['fascicolo-codici-pronti', requestId] })
   }
 
   const [stato, setStato] = useState<'pronto' | 'analisi' | 'generazione'>('pronto')
