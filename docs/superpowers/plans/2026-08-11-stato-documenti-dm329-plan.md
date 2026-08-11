@@ -1034,7 +1034,9 @@ Aggiungi a `src/utils/__tests__/dm329Classification.test.ts` (in coda al file, s
 describe('calcolaEsitiPerCodice', () => {
   it('classifica un serbatoio, un disoleatore, uno scambiatore e un recipiente filtro', () => {
     const righe = calcolaEsitiPerCodice({
-      serbatoi: [{ codice: 'S1', volume: 100, ps_pressione_max: 10 } as any],
+      // ps_pressione_max: 15, non 10 — a 10 bar (volume 100, ps<=12) l'esito sarebbe
+      // 'DICHIARAZIONE' (ps×vol=1000<=8000), non 'VERIFICA' come atteso sotto.
+      serbatoi: [{ codice: 'S1', volume: 100, ps_pressione_max: 15 } as any],
       disoleatori: [{ codice: 'C1.1', volume: 10, ps_pressione_max: 10 } as any],
       scambiatori: [{ codice: 'E1.1', volume: 200, ps_pressione_max: 15 } as any],
       recipienti_filtro: [{ codice: 'F1.1', volume: 5, ps_pressione_max: 5 } as any],
@@ -1050,7 +1052,7 @@ describe('calcolaEsitiPerCodice', () => {
 
   it('riporta gia_denunciato quando marcato sulla riga', () => {
     const righe = calcolaEsitiPerCodice({
-      serbatoi: [{ codice: 'S1', volume: 100, ps_pressione_max: 10, gia_denunciato: true } as any],
+      serbatoi: [{ codice: 'S1', volume: 100, ps_pressione_max: 15, gia_denunciato: true } as any],
     })
     expect(righe).toEqual([{ codice: 'S1', esito: 'VERIFICA', giaDenunciato: true }])
   })
