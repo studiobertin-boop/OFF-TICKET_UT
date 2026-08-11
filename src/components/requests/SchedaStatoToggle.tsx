@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  Button, Divider, ListItemIcon, ListItemText, Menu, MenuItem, Tooltip, Typography,
+  Box, Button, Divider, ListItemIcon, ListItemText, Menu, MenuItem, Tooltip, Typography,
 } from '@mui/material'
 import { ArrowDropDown as ArrowDropDownIcon, Check as CheckIcon } from '@mui/icons-material'
 import { STATO_SCHEDA_LABELS, type CompilazioneScheda, type StatoScheda } from '@/utils/schedaStato'
@@ -75,6 +75,15 @@ export const SchedaStatoToggle = ({ compilazione, onScegli, disabled }: SchedaSt
           return (
             <MenuItem key={stato} selected={scelto} onClick={() => scegli(stato)}>
               <ListItemIcon>{scelto && <CheckIcon fontSize="small" />}</ListItemIcon>
+              {/* Il segno di ciascuno stato accanto al proprio nome: si sceglie sapendo già
+                  che cosa comparirà nell'elenco pratiche. Si disegna sempre pieno, mai
+                  tratteggiato — qui è l'icona di una voce di menu, non lo stato in corso —
+                  e «parziale» porta la percentuale vera, che è quella che mostrerebbe. */}
+              <Box component="span" sx={{ display: 'inline-flex', mr: 1.25 }}>
+                <SchedaStatoMark
+                  compilazione={{ stato, percentuale: compilazione.percentuale, manuale: false }}
+                />
+              </Box>
               <ListItemText primary={STATO_SCHEDA_LABELS[stato]} />
             </MenuItem>
           )
