@@ -338,9 +338,10 @@ export const FascicoloSection = ({ contesto, nomeFile, requestId, codice, movime
   // della pratica: senza `movimenti` non si mostra nulla, piuttosto che una data calcolata su
   // dati parziali. `movimenti` manca in due casi, entrambi reali e non solo un istante di
   // caricamento: mentre la pagina lo sta ancora recuperando, oppure — durevolmente — quando
-  // `TechnicalDetails` non è riuscito a leggere `request_history` (RLS: `tecnicoDM329` non ha
-  // policy di SELECT su quella tabella) e per questo non passa affatto l'oggetto `movimenti`,
-  // invece di passarne uno con l'ultimo cambio di stato finto.
+  // `TechnicalDetails` non è riuscito a leggere `request_history` — perché il ruolo non ha una
+  // policy di SELECT su quella tabella (vedi `puoLeggereStoriaPratica`) o perché la lettura è
+  // fallita — e per questo non passa affatto l'oggetto `movimenti`, invece di passarne uno con
+  // l'ultimo cambio di stato finto.
   const scadenzaCorrente = movimenti && documenti.length > 0 ? statoScadenza(movimenti, new Date()) : null
 
   return (

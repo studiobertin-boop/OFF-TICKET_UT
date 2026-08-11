@@ -1659,3 +1659,34 @@ Restano aperte due cose, entrambe fuori dal perimetro di questo lavoro:
   INSERT/UPDATE su `request_blocks`. Il codice però li dà per concessi — `canBlock` in
   `RequestDetail.tsx` include la famiglia intera, quindi il pulsante «blocca» compare su
   un'Integrazione e restituisce un errore di permessi.
+
+## Code chiuse e registro riallineato (11-08-2026, dopo la pubblicazione)
+
+**Debito tecnico chiuso.** La guardia scritta a mano `user?.role !== 'tecnicoDM329'` è diventata
+`puoLeggereStoriaPratica(user?.role)` (`src/utils/storiaPratica.ts`): un elenco di **ammessi**, non
+di esclusi, accanto ai nomi delle policy che lo giustificano. Il difetto da evitare non era quello
+di oggi ma quello di domani — un ruolo nuovo senza policy passava inosservato in un elenco di
+esclusi e si prendeva una data di cancellazione calcolata su una storia mai letta. Ora cade fuori
+da solo e la data sparisce. Quattro test in `src/utils/__tests__/storiaPratica.test.ts`, uno dei
+quali è proprio il ruolo sconosciuto.
+
+**Nomi delle migrazioni normalizzati.** `20260811_fascicolo_persistenza.sql` e
+`20260811_fascicolo_cron.sql` avevano una versione a 8 cifre invece di 14 e sono stati rinominati
+in `20260811100000_` e `20260811110000_` (l'ordine conta: la persistenza prima del cron). I
+riferimenti ai nomi vecchi restano nel corpo di questo piano, che è il verbale di come si è
+lavorato e non va riscritto a posteriori.
+
+**Registro di Supabase riallineato.** `supabase_migrations.schema_migrations` si era fermato al
+`20260706000000`: 20 migrazioni erano applicate in produzione ma mai annotate, perché chi applica
+via Management API scrive la DDL e non la riga di registro. Prima di annotarle le ho verificate una
+per una, non a campione — per quelle di schema cercando l'oggetto che creano (colonne, tabelle,
+indici, funzioni, valori d'enum, policy), per quelle di soli dati contando le righe che il loro
+UPDATE prenderebbe ancora: zero residui su tutte e quattro. Registrate con
+`INSERT ... ON CONFLICT DO NOTHING`, che annota senza rieseguire nulla. Registro a 104 righe,
+repo a 105 file: la differenza è la sola migrazione non ancora applicata, qui sotto.
+
+**Rimasta fuori: `20260811150000_userdm329_scrive_integrazioni.sql`.** Il file è nel repo ma **non
+è stato applicato**: il classificatore di sicurezza dell'ambiente ha bloccato la chiamata che lo
+avrebbe eseguito in produzione, due volte. Finché non viene applicata, su una pratica
+DM329-Integrazioni il pulsante «blocca» compare a `userdm329` e restituisce un errore di permessi,
+e la conversione fra DM329 e Integrazioni resta possibile al solo admin.

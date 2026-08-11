@@ -26,6 +26,7 @@ import { EquipmentCatalogProvider } from '@/components/technicalSheet/EquipmentC
 import type { DM329TechnicalData, SchedaDatiCompleta, OCRExtractedData, FuzzyMatch, OCRReviewData } from '@/types'
 import { isDM329Family } from '@/utils/workflow'
 import { normalizeSchedaCodes } from '@/utils/equipmentCodes'
+import { puoLeggereStoriaPratica } from '@/utils/storiaPratica'
 
 /**
  * Pagina SCHEDA DATI - Gestione dati tecnici pratiche DM329
@@ -293,20 +294,23 @@ export const TechnicalDetails = () => {
   // dice alla sezione fascicolo quando i documenti verranno cancellati. Anche questa prima
   // delle uscite anticipate.
   //
-  // `tecnicoDM329` non ha alcuna policy di SELECT su `request_history` (verificato sul database
-  // di produzione: le uniche policy coprono admin, tecnico, utente, userdm329). Questo NON produce
-  // un errore: `authenticated` ha comunque il GRANT di tabella, quindi Postgres applica l'RLS
-  // filtrando le righe in silenzio — la query torna `data: null, error: null`, indistinguibile da
-  // «la pratica non ha righe di storia». Controllare solo `error` non basta: propagarlo protegge
-  // da guasti genuini (rete, permessi cambiati), ma per `tecnicoDM329` il risultato vuoto è sempre
-  // e comunque inaffidabile, non solo a volte. Per questo la query resta disabilitata per quel
-  // ruolo — a monte, prima ancora di interrogare — invece di fidarsi di un `null` che potrebbe
-  // nascondere una storia che esiste ma che quell'utente non può leggere: `dataCancellazione`
-  // scivolerebbe su `creataIl` e mostrerebbe una data falsa, su una pratica chiusa da tempo
-  // sparita mesi fa invece che fra 30 giorni dalla chiusura.
+  // Non tutti i ruoli hanno una policy di SELECT su `request_history`, e una lettura negata non
+  // produce un errore: `authenticated` ha comunque il GRANT di tabella, quindi Postgres applica
+  // l'RLS filtrando le righe in silenzio e la query torna `data: null, error: null`,
+  // indistinguibile da «la pratica non ha righe di storia». Controllare solo `error` non basta:
+  // propagarlo protegge da guasti genuini (rete, permessi cambiati), ma per un ruolo senza policy
+  // il risultato vuoto è sempre e comunque inaffidabile, non solo a volte. Per questo la query
+  // resta disabilitata a monte, prima ancora di interrogare, invece di fidarsi di un `null` che
+  // potrebbe nascondere una storia che esiste ma che quell'utente non può leggere:
+  // `dataCancellazione` scivolerebbe su `creataIl` e mostrerebbe una data falsa, su una pratica
+  // chiusa da tempo sparita mesi fa invece che fra 30 giorni dalla chiusura.
   //
-  // `isSuccess` distingue quindi tre casi, non due: query disabilitata (`tecnicoDM329`, sempre
-  // inaffidabile) e query fallita (rete, RLS futura su altri ruoli) restano entrambe `false` —
+  // Quali siano quei ruoli lo dice `puoLeggereStoriaPratica`, che tiene l'elenco degli ammessi
+  // accanto ai nomi delle policy che lo giustificano: un ruolo nuovo senza policy cade fuori da
+  // solo, e qui la data sparisce invece di essere sbagliata.
+  //
+  // `isSuccess` distingue quindi tre casi, non due: query disabilitata (ruolo senza policy,
+  // sempre inaffidabile) e query fallita (rete, RLS cambiata) restano entrambe `false` —
   // `movimenti` sotto resta `undefined` e la sezione fascicolo non mostra alcuna data; query
   // riuscita con nessuna riga (`maybeSingle` su una pratica senza storia) resta `true` con
   // `ultimoCambioStato: null`, e il ripiego su `creataIl` in `scadenza.ts` è quello giusto.
@@ -323,7 +327,7 @@ export const TechnicalDetails = () => {
       if (error) throw error
       return data?.created_at ?? null
     },
-    enabled: Boolean(id) && user?.role !== 'tecnicoDM329',
+    enabled: Boolean(id) && puoLeggereStoriaPratica(user?.role),
   })
 
   // IMPORTANT: Calculate sedeLegale BEFORE early returns to avoid React Hook ordering issues
