@@ -5,6 +5,7 @@ import {
   Assessment as AssessmentIcon,
   CheckCircle as CheckCircleIcon,
   Description as DescriptionIcon,
+  Gavel as GavelIcon,
   Save as SaveIcon,
   Share as ShareIcon,
 } from '@mui/icons-material'
@@ -37,6 +38,7 @@ export interface TechnicalSheetHeaderProps {
   onShare: () => void
   onCivaSummary: () => void
   onRelazione: () => void
+  onDichiarazioni: () => void
   onSaveDraft: () => void
 }
 
@@ -67,6 +69,7 @@ export const TechnicalSheetHeader = ({
   onShare,
   onCivaSummary,
   onRelazione,
+  onDichiarazioni,
   onSaveDraft,
 }: TechnicalSheetHeaderProps) => {
   const pieno = eCompleta(completezza)
@@ -178,6 +181,10 @@ export const TechnicalSheetHeader = ({
 
           {canGenerateDocs && (
             <AzioneIcona icona={<DescriptionIcon fontSize="small" />} testo="Genera relazione" onClick={onRelazione} />
+          )}
+
+          {canGenerateDocs && (
+            <AzioneIcona icona={<GavelIcon fontSize="small" />} testo="Genera dichiarazioni" onClick={onDichiarazioni} />
           )}
         </Box>
       </Box>

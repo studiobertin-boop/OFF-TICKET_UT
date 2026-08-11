@@ -9,7 +9,7 @@ import {
 } from '@mui/material'
 import { Layout } from '@/components/common/Layout'
 import { TechnicalSheetHeader } from '@/components/technicalSheet/TechnicalSheetHeader'
-import { codiceForRequest, nomeFileRelazione } from '@/utils/practiceCode'
+import { codiceForRequest, nomeFileDichiarazioni, nomeFileRelazione } from '@/utils/practiceCode'
 import { useRequest, useClientDm329Overview } from '@/hooks/useRequests'
 import { useAuth } from '@/hooks/useAuth'
 import { useCustomers } from '@/hooks/useCustomers'
@@ -21,6 +21,8 @@ import { TechnicalSheetForm, type TechnicalSheetFormRef } from '@/components/tec
 import { OCRReviewDialog } from '@/components/technicalSheet/OCRReviewDialog'
 import { ShareDialog } from '@/components/technicalSheet/ShareDialog'
 import RelazioneDataDialog from '@/components/relazione/RelazioneDataDialog'
+import DichiarazioniDialog from '@/components/dichiarazioni/DichiarazioniDialog'
+import { risolviSitoProduttivo } from '@/services/dichiarazioni/sitoProduttivo'
 import type { AdditionalInfo } from '@/services/relazione/types'
 import { EquipmentCatalogProvider } from '@/components/technicalSheet/EquipmentCatalogContext'
 import type { DM329TechnicalData, SchedaDatiCompleta, OCRExtractedData, FuzzyMatch, OCRReviewData } from '@/types'
@@ -58,6 +60,7 @@ export const TechnicalDetails = () => {
   const [ocrReviewData, setOcrReviewData] = useState<OCRReviewData | null>(null)
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const [relazioneDialogOpen, setRelazioneDialogOpen] = useState(false)
+  const [dichiarazioniDialogOpen, setDichiarazioniDialogOpen] = useState(false)
   const formRef = useRef<TechnicalSheetFormRef>(null)
 
   // Carica scheda dati tecnici
@@ -466,6 +469,7 @@ export const TechnicalDetails = () => {
                 onShare={() => setShareDialogOpen(true)}
                 onCivaSummary={() => navigate(`/requests/${id}/civa-summary`)}
                 onRelazione={() => setRelazioneDialogOpen(true)}
+                onDichiarazioni={() => setDichiarazioniDialogOpen(true)}
                 onSaveDraft={handleSaveDraft}
               />
             )}
@@ -506,6 +510,33 @@ export const TechnicalDetails = () => {
             }}
             initialAdditionalInfo={technicalData.additional_info as AdditionalInfo | undefined}
             fileName={nomeFileRelazione(codicePratica, customerName)}
+          />
+        )}
+
+        {/* Dialog "Dichiarazioni" + composizione del PDF a 5 parti */}
+        {technicalData && (
+          <DichiarazioniDialog
+            open={dichiarazioniDialogOpen}
+            onClose={() => setDichiarazioniDialogOpen(false)}
+            requestId={request.id}
+            scheda={technicalData.equipment_data as SchedaDatiCompleta}
+            customerName={customerName}
+            sitoProduttivo={risolviSitoProduttivo({
+              impiantoUgualeSedeLegale: request?.impianto_uguale_sede_legale,
+              indirizzoImpianto: request?.indirizzo_impianto,
+              customer: request?.customer ?? customerByName ?? null,
+            })}
+            movimenti={
+              storiaLetta
+                ? {
+                    stato: request.status,
+                    ultimoCambioStato: ultimoCambioStato ?? null,
+                    aggiornataIl: request.updated_at,
+                    creataIl: request.created_at,
+                  }
+                : undefined
+            }
+            nomeFile={nomeFileDichiarazioni(codicePratica, customerName)}
           />
         )}
 
