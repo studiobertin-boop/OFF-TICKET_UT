@@ -140,11 +140,17 @@ Coordinate delle ancore, ricavate dalla geometria già scritta in `symbols/index
 | | `dx` | 150, 130 | aria |
 | | `alto-in` | 33, 88 | aria, valvola_sicurezza |
 | | `basso-out` | 117, 172 | condensa |
-| `essiccatore`, `filtro`, `separatore` (110×110) | `sx` | 6, 49 | aria |
+| `essiccatore`, `filtro` (110×110) | `sx` | 6, 49 | aria |
 | | `dx` | 104, 49 | aria |
 | | `basso-out` | 55, 88 | condensa |
 | | `alto-in` | 55, 10 | aria |
+| `separatore` (110×110) | `sx` | 6, 49 | aria, condensa |
+| | `dx` | 104, 49 | aria, condensa |
+| | `basso-out` | 55, 88 | condensa |
+| | `alto-in` | 55, 10 | aria |
 | `tanica` (80×70) | `alto-in` | 40, 6 | condensa |
+
+Il separatore ha ancore proprie perché è l'unico rombo che fa da pozzo di raccolta, e la corsia delle condense **vi arriva di fianco**: in `555_RELAZIONE_TECNICA` la linea tratteggiata corre in orizzontale e entra nel vertice sinistro di SEP. Le apparecchiature scaricano invece **verso il basso** (`basso-out`), e solo la tanica riceve **dall'alto**.
 | `pacco_bombole` (120×100) | `dx` | 114, 60 | aria |
 
 - [ ] **Step 1: Scrivere il test che fallisce**
@@ -506,7 +512,9 @@ In `buildSchemaModel.ts`, tutte le funzioni `build*Nodo` aggiungono `origine: 's
   }
 ```
 
-La catena di trattamento usa `{ ancora: 'dx' }` in partenza e `{ ancora: 'sx' }` in arrivo; le condense `{ ancora: 'basso-out' }` in partenza e `{ ancora: 'alto-in' }` in arrivo.
+La catena di trattamento usa `{ ancora: 'dx' }` in partenza e `{ ancora: 'sx' }` in arrivo.
+
+Le condense partono sempre da `{ ancora: 'basso-out' }`, ma **l'arrivo dipende dal tipo di pozzo**: la tanica le riceve dall'alto (`alto-in`), il separatore di fianco (`sx`). È la convenzione degli schemi storici — in `555_RELAZIONE_TECNICA` la corsia entra nel vertice sinistro di SEP — e va rispettata, o `capoValido` rifiuta l'arco che il motore stesso ha generato.
 
 In `layout.ts`, `riceveSoloCondensa` filtra su `a.a.nodo === id`. In `renderSvg.ts`, `renderArchi` risolve con `indice.get(arco.da.nodo)` e `indice.get(arco.a.nodo)`.
 
