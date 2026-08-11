@@ -8,7 +8,13 @@
  */
 import { ordinaCatenaTrattamento } from './buildSchemaModel'
 import { DIMENSIONI_NODO } from './symbols'
-import type { SchemaLayout, SchemaModel, SchemaNodo, SchemaNodoPosizionato } from './types'
+import type {
+  SchemaLayout,
+  SchemaModel,
+  SchemaMuroSeparazione,
+  SchemaNodo,
+  SchemaNodoPosizionato,
+} from './types'
 
 /**
  * Vero se il nodo riceve esclusivamente linee condense: è il segno che fa da pozzo di
@@ -54,6 +60,36 @@ const CORSIA_CONDENSE = 120
 
 function posiziona(nodo: SchemaNodo, x: number, y: number): SchemaNodoPosizionato {
   return { ...nodo, x, y }
+}
+
+/**
+ * Muro di separazione fra sala compressori e linea distribuzione, ricavato dalle posizioni
+ * correnti dei nodi: si disegna solo se esistono davvero apparecchiature da entrambe le parti,
+ * e la sua x segue il bordo destro della sala compressori — così, spostando le apparecchiature
+ * (nell'editor o rigenerando il layout), il muro si ricalcola invece di restare dov'era.
+ *
+ * L'estensione verticale non può appoggiarsi alle quote interne del layout automatico
+ * (`yBase`, `yCondense` in `layoutSchema`: valide solo per la disposizione appena calcolata),
+ * perché questa funzione riceve anche nodi già spostati a mano nell'editor, di cui quelle quote
+ * non esistono più. Si usa quindi l'inviluppo verticale delle sole apparecchiature dei due
+ * gruppi separati dal muro (compressori/serbatoi da un lato, catena e pozzo condense
+ * dall'altro), allargato dello stesso margine (`MARGINE_SUPERIORE`) usato sopra le
+ * apparecchiature nel resto del disegno: il muro segue sempre ciò che deve dividere.
+ */
+export function calcolaMuro(nodi: SchemaNodoPosizionato[]): SchemaMuroSeparazione | null {
+  const inSala = nodi.filter((n) => n.gruppo === 'SALA_COMPRESSORI')
+  const inLinea = nodi.filter((n) => n.gruppo === 'LINEA_DISTRIBUZIONE')
+  if (inSala.length === 0 || inLinea.length === 0) return null
+
+  const rilevanti = [...inSala, ...inLinea]
+  const yTop = Math.min(...rilevanti.map((n) => n.y))
+  const yBottom = Math.max(...rilevanti.map((n) => n.y + DIMENSIONI_NODO[n.tipo].altezza))
+
+  return {
+    x: Math.max(...inSala.map((n) => n.x + DIMENSIONI_NODO[n.tipo].larghezza)) + PASSO_ORIZZONTALE / 2,
+    yMin: yTop - MARGINE_SUPERIORE / 2,
+    yMax: yBottom + MARGINE_SUPERIORE / 2,
+  }
 }
 
 /**
@@ -112,22 +148,7 @@ export function layoutSchema(model: SchemaModel): SchemaLayout {
     ...rigaRaccolta.posizionati,
   ]
 
-  // Il muro separa fisicamente la sala compressori dal resto dello stabilimento: si disegna
-  // solo se esistono davvero apparecchiature da entrambe le parti.
-  const inSala = nodi.filter((n) => n.gruppo === 'SALA_COMPRESSORI')
-  const inLinea = nodi.filter((n) => n.gruppo === 'LINEA_DISTRIBUZIONE')
-  const muro =
-    inSala.length > 0 && inLinea.length > 0
-      ? {
-          x:
-            Math.max(...inSala.map((n) => n.x + DIMENSIONI_NODO[n.tipo].larghezza)) +
-            PASSO_ORIZZONTALE / 2,
-          yMin: MARGINE_SUPERIORE / 2,
-          yMax: yCondense + DIMENSIONI_NODO.tanica.altezza,
-        }
-      : null
-
-  return { nodi, archi: model.archi, muro }
+  return { nodi, archi: model.archi, muro: calcolaMuro(nodi) }
 }
 
 /**

@@ -4,6 +4,7 @@
  * `SchemaLayout` che il render statico sa già disegnare.
  */
 import type { Edge, Node } from '@xyflow/react'
+import { calcolaMuro } from '@/services/schemaImpianto/layout'
 import type { SchemaArcoStile, SchemaLayout, SchemaNodoPosizionato } from '@/services/schemaImpianto/types'
 import type { SchemaEdgeData } from './SchemaEdgeTubazione'
 import { ATTACCO, type SchemaNodeData } from './SchemaNodeSymbol'
@@ -48,21 +49,23 @@ export function layoutAFlow(layout: SchemaLayout): { nodes: Node[]; edges: Edge[
 
 /**
  * Ricostruisce il modello dalle entità di react-flow. Il muro non è modificabile
- * nell'editor, quindi si riporta quello calcolato dall'auto-layout.
+ * nell'editor, ma la sua posizione sì: si ricalcola dalle posizioni correnti dei nodi,
+ * altrimenti resterebbe ancorato a dov'era prima che l'utente spostasse le apparecchiature.
  */
-export function flowALayout(nodes: Node[], edges: Edge[], muro: SchemaLayout['muro']): SchemaLayout {
+export function flowALayout(nodes: Node[], edges: Edge[]): SchemaLayout {
+  const nodi = nodes.map((n) => ({
+    ...((n.data as SchemaNodeData).nodo satisfies SchemaNodoPosizionato),
+    x: n.position.x,
+    y: n.position.y,
+  }))
   return {
-    nodi: nodes.map((n) => ({
-      ...((n.data as SchemaNodeData).nodo satisfies SchemaNodoPosizionato),
-      x: n.position.x,
-      y: n.position.y,
-    })),
+    nodi,
     archi: edges.map((e) => ({
       id: e.id,
       da: { nodo: e.source, ancora: e.sourceHandle ?? '' },
       a: { nodo: e.target, ancora: e.targetHandle ?? '' },
       stile: ((e.data as SchemaEdgeData | undefined)?.stile ?? 'standard') as SchemaArcoStile,
     })),
-    muro,
+    muro: calcolaMuro(nodi),
   }
 }

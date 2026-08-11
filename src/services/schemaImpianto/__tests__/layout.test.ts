@@ -7,7 +7,7 @@ import {
   makeSerbatoio,
 } from '@/services/relazione/__tests__/fixtures'
 import { buildSchemaModel } from '../buildSchemaModel'
-import { DIMENSIONI_NODO, dimensioniLayout, layoutSchema } from '../layout'
+import { calcolaMuro, DIMENSIONI_NODO, dimensioniLayout, layoutSchema } from '../layout'
 import type { SchemaLayout } from '../types'
 
 function nodo(layout: SchemaLayout, id: string) {
@@ -122,6 +122,28 @@ describe('layoutSchema', () => {
     for (const n of inSala) {
       expect(layout.muro!.x).toBeGreaterThan(n.x)
     }
+  })
+
+  describe('calcolaMuro', () => {
+    it('segue il bordo destro della sala compressori', () => {
+      const base = { tipo: 'compressore' as const, etichetta: '', valvoleSicurezza: [], origine: 'scheda' as const }
+      const primo = calcolaMuro([
+        { ...base, id: 'C1', gruppo: 'SALA_COMPRESSORI', x: 40, y: 200 },
+        { ...base, id: 'E1', tipo: 'essiccatore', gruppo: 'LINEA_DISTRIBUZIONE', x: 500, y: 200 },
+      ])
+      const spostato = calcolaMuro([
+        { ...base, id: 'C1', gruppo: 'SALA_COMPRESSORI', x: 240, y: 200 },
+        { ...base, id: 'E1', tipo: 'essiccatore', gruppo: 'LINEA_DISTRIBUZIONE', x: 700, y: 200 },
+      ])
+
+      expect(primo).not.toBeNull()
+      expect(spostato!.x).toBeGreaterThan(primo!.x)
+    })
+
+    it('non c’è muro se manca uno dei due lati', () => {
+      const base = { tipo: 'compressore' as const, etichetta: '', valvoleSicurezza: [], origine: 'scheda' as const }
+      expect(calcolaMuro([{ ...base, id: 'C1', gruppo: 'SALA_COMPRESSORI', x: 40, y: 200 }])).toBeNull()
+    })
   })
 
   it('scala in larghezza al crescere delle apparecchiature, senza sovrapporle', () => {

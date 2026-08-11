@@ -98,9 +98,9 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
   // che si vede mentre si ritocca è quello che verrà consegnato.
   const anteprima = useMemo(() => {
     if (!anteprimaAperta) return null
-    const svg = renderSvg(flowALayout(stato.nodes, stato.edges, layout.muro), { noteTubazioni })
+    const svg = renderSvg(flowALayout(stato.nodes, stato.edges), { noteTubazioni })
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
-  }, [anteprimaAperta, layout.muro, noteTubazioni, stato.edges, stato.nodes])
+  }, [anteprimaAperta, noteTubazioni, stato.edges, stato.nodes])
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -242,8 +242,8 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
       : null
 
   const conferma = useCallback(() => {
-    onConferma(flowALayout(stato.nodes, stato.edges, layout.muro))
-  }, [layout.muro, onConferma, stato.edges, stato.nodes])
+    onConferma(flowALayout(stato.nodes, stato.edges))
+  }, [onConferma, stato.edges, stato.nodes])
 
   return (
     <Stack sx={{ height: '100%' }}>
