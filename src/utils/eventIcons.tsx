@@ -7,11 +7,12 @@ import {
   TaskAlt as TaskAltIcon,
   HighlightOff as HighlightOffIcon,
   PriorityHigh as PriorityHighIcon,
+  Schedule as ScheduleIcon,
 } from '@mui/icons-material'
 import { ReactElement } from 'react'
 import type { NotificationEventType } from '@/types'
 
-export type EventType = 'status_change' | 'block' | 'unblock' | 'created' | 'completed' | 'aborted' | 'archived_unfinished' | 'urgent'
+export type EventType = 'status_change' | 'block' | 'unblock' | 'created' | 'completed' | 'aborted' | 'archived_unfinished' | 'urgent' | 'fascicolo_in_scadenza'
 export type EventColor = 'primary' | 'warning' | 'success' | 'info' | 'grey' | 'error'
 
 interface EventIconConfig {
@@ -68,6 +69,12 @@ export function getEventIconConfig(eventType: EventType): EventIconConfig {
         color: 'error',
         label: 'Segnata Urgente',
       }
+    case 'fascicolo_in_scadenza':
+      return {
+        icon: <ScheduleIcon fontSize="small" />,
+        color: 'warning',
+        label: 'Fascicolo in scadenza',
+      }
     case 'status_change':
     default:
       return {
@@ -96,6 +103,8 @@ export function mapNotificationEventType(
       return 'unblock'
     case 'request_urgent':
       return 'urgent'
+    case 'fascicolo_in_scadenza':
+      return 'fascicolo_in_scadenza'
     case 'status_change':
       // Per i cambi stato, controlla lo stato finale
       if (statusTo === 'COMPLETATA' || statusTo === '7-CHIUSA') {
