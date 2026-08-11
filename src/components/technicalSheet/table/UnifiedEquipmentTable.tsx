@@ -26,12 +26,14 @@ import { UpdateCatalogDialog } from '../UpdateCatalogDialog'
 import type { EquipmentCatalogItem } from '@/types'
 import { calculateCategoriaPED } from '@/utils/categoriaPedCalculator'
 import { EQUIPMENT_LIMITS, type EquipmentCatalogType } from '@/types'
-import { compareCodes, nextFreeCode, pruneSchedaRefs } from '@/utils/equipmentCodes'
+import { collectCodes, compareCodes, nextFreeCode, pruneSchedaRefs } from '@/utils/equipmentCodes'
 import type { OCRExtractedData } from '@/types/ocr'
 import {
   EQUIPMENT_DEFS, NEW_EQUIPMENT_KINDS, nuovaRiga,
   type EquipmentKind, type NewEquipmentKind, type EquipmentTypeDef,
 } from './equipmentConfig'
+import { useQueryClient } from '@tanstack/react-query'
+import { fascicoloDocumentiApi } from '@/services/api/fascicoloDocumenti'
 
 /**
  * Colonne della tabella, con larghezza e allineamento dichiarati.
@@ -402,6 +404,7 @@ interface UnifiedEquipmentTableProps {
 export const UnifiedEquipmentTable = ({
   control, completezza, righeComplete, azioni, codicePratica = '', ragioneSociale = '', requestId = '',
 }: UnifiedEquipmentTableProps) => {
+  const queryClient = useQueryClient()
   const { showAdvancedFields: adv, showRecipienteFiltro, isTecnicoDM329 } = useTecnicoDM329Visibility()
   const { setValue, getValues } = useFormContext()
   const { setOrigine } = useEquipmentCatalogContext()
@@ -463,9 +466,20 @@ export const UnifiedEquipmentTable = ({
 
     const attuale = getValues() as Record<string, any>
     const { scheda, changed } = pruneSchedaRefs(attuale)
-    if (!changed) return
-    for (const [nome, fa] of Object.entries(fieldArrays)) {
-      if (scheda[nome] !== attuale[nome]) fa.replace(scheda[nome] ?? [])
+    if (changed) {
+      for (const [nome, fa] of Object.entries(fieldArrays)) {
+        if (scheda[nome] !== attuale[nome]) fa.replace(scheda[nome] ?? [])
+      }
+    }
+
+    // I codici si riassegnano: senza questa potatura un'apparecchiatura nuova che eredita il
+    // numero di una eliminata si ritroverebbe in casa i documenti di quella vecchia.
+    if (requestId) {
+      const validi = [...collectCodes(scheda)]
+      fascicoloDocumentiApi
+        .eliminaOrfani(requestId, validi)
+        .then((n) => { if (n > 0) queryClient.invalidateQueries({ queryKey: ['fascicolo-documenti'] }) })
+        .catch((e) => console.error('Pulizia dei documenti orfani non riuscita:', e))
     }
   }
 
