@@ -75,13 +75,15 @@ export interface SchemaNodoPosizionato extends SchemaNodo {
   y: number
 }
 
-/** Muro di separazione sala compressori / linea distribuzione, disegnato solo se entrambi i gruppi sono popolati. */
+/**
+ * Muro di separazione sala compressori / linea distribuzione, disegnato solo se entrambi i
+ * gruppi sono popolati. I varchi non stanno qui: `renderSvg` li ricava dalle tubazioni che
+ * attraversano davvero il muro, così restano corretti anche dopo che l'utente sposta un nodo.
+ */
 export interface SchemaMuroSeparazione {
   x: number
   yMin: number
   yMax: number
-  /** Quota del varco da cui passa la tubazione di mandata: senza, il muro la taglierebbe. */
-  yVarco: number
 }
 
 /** Output di `layout`: stessa struttura logica, con posizioni assegnate. Consumato da `renderSvg` e dall'editor. */

@@ -6,7 +6,7 @@
  * generatore non copre. In entrambe le strade l'uscita è la stessa: un `SchemaImpianto`,
  * cioè i byte PNG che il motore della relazione incorpora nel .docx senza saperne l'origine.
  */
-import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import {
   Alert,
   Box,
@@ -16,13 +16,18 @@ import {
   DialogContent,
   DialogTitle,
   Stack,
+  Tooltip,
   Typography,
 } from '@mui/material'
 import { AutoFixHigh as GeneraIcon, Edit as EditIcon } from '@mui/icons-material'
 import toast from 'react-hot-toast'
 import type { SchedaDatiCompleta } from '@/types/technicalSheet'
 import type { SchemaImpianto } from '@/services/relazione/types'
-import { buildSchemaModel, puoGenerareSchema } from '@/services/schemaImpianto/buildSchemaModel'
+import {
+  buildSchemaModel,
+  notaTubazioni,
+  puoGenerareSchema,
+} from '@/services/schemaImpianto/buildSchemaModel'
 import { layoutSchema } from '@/services/schemaImpianto/layout'
 import { renderSvg } from '@/services/schemaImpianto/renderSvg'
 import { rasterizzaSvg } from '@/services/schemaImpianto/rasterize'
@@ -36,8 +41,6 @@ type Origine = 'generato' | 'caricato'
 export interface SchemaImpiantoSectionProps {
   scheda: SchedaDatiCompleta
   collegamentiCompressoriSerbatoi: Record<string, string[]>
-  /** Note sui diametri stampate sotto lo schema, come negli schemi storici. */
-  noteTubazioni?: string[]
   schema: SchemaImpianto | null
   onSchemaChange: (schema: SchemaImpianto | null) => void
   disabled?: boolean
@@ -46,7 +49,6 @@ export interface SchemaImpiantoSectionProps {
 export function SchemaImpiantoSection({
   scheda,
   collegamentiCompressoriSerbatoi,
-  noteTubazioni,
   schema,
   onSchemaChange,
   disabled = false,
@@ -56,9 +58,11 @@ export function SchemaImpiantoSection({
   const [inCorso, setInCorso] = useState(false)
   const [editorAperto, setEditorAperto] = useState(false)
   const [anteprimaUrl, setAnteprimaUrl] = useState<string | null>(null)
+  const [ingrandita, setIngrandita] = useState(false)
   const [sopra, setSopra] = useState(false)
 
   const puoGenerare = puoGenerareSchema({ scheda, collegamentiCompressoriSerbatoi })
+  const note = useMemo(() => notaTubazioni(scheda), [scheda])
 
   useEffect(() => {
     return () => {
@@ -82,7 +86,7 @@ export function SchemaImpiantoSection({
     async (daDisegnare: SchemaLayout) => {
       setInCorso(true)
       try {
-        const immagine = await rasterizzaSvg(renderSvg(daDisegnare, { noteTubazioni }))
+        const immagine = await rasterizzaSvg(renderSvg(daDisegnare, { noteTubazioni: note }))
         setLayout(daDisegnare)
         pubblica(immagine, 'generato')
       } catch (err) {
@@ -91,7 +95,7 @@ export function SchemaImpiantoSection({
         setInCorso(false)
       }
     },
-    [noteTubazioni, pubblica]
+    [note, pubblica]
   )
 
   // Prima generazione automatica: appena i dati bastano, l'utente trova la proposta già
@@ -191,19 +195,23 @@ export function SchemaImpiantoSection({
         )}
 
         {anteprimaUrl && (
-          <Box
-            component="img"
-            src={anteprimaUrl}
-            alt="Anteprima dello schema d’impianto"
-            sx={{
-              maxWidth: 240,
-              maxHeight: 180,
-              borderRadius: 1,
-              border: '1px solid',
-              borderColor: 'divider',
-              bgcolor: 'common.white',
-            }}
-          />
+          <Tooltip title="Ingrandisci per leggere codici ed etichette">
+            <Box
+              component="img"
+              src={anteprimaUrl}
+              alt="Anteprima dello schema d’impianto"
+              onClick={() => setIngrandita(true)}
+              sx={{
+                maxWidth: 240,
+                maxHeight: 180,
+                borderRadius: 1,
+                border: '1px solid',
+                borderColor: 'divider',
+                bgcolor: 'common.white',
+                cursor: 'zoom-in',
+              }}
+            />
+          </Tooltip>
         )}
 
         <Stack spacing={1}>
@@ -278,12 +286,28 @@ export function SchemaImpiantoSection({
         </Stack>
       </Box>
 
+      {/* A 240px l'anteprima non basta a giudicare il disegno: qui si legge a grandezza piena. */}
+      <Dialog open={ingrandita} onClose={() => setIngrandita(false)} fullWidth maxWidth="xl">
+        <DialogTitle>Schema d’impianto — anteprima</DialogTitle>
+        <DialogContent dividers sx={{ bgcolor: 'common.white', overflow: 'auto' }}>
+          {anteprimaUrl && (
+            <Box
+              component="img"
+              src={anteprimaUrl}
+              alt="Schema d’impianto a grandezza piena"
+              sx={{ width: '100%', display: 'block' }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={editorAperto} onClose={() => setEditorAperto(false)} fullWidth maxWidth="xl">
         <DialogTitle>Rifinisci lo schema d’impianto</DialogTitle>
         <DialogContent dividers sx={{ height: '75vh', p: 0 }}>
           {layout && (
             <SchemaEditor
               layout={layout}
+              noteTubazioni={note}
               onAnnulla={() => setEditorAperto(false)}
               onConferma={(modificato) => {
                 setEditorAperto(false)

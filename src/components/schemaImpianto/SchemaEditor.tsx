@@ -13,6 +13,7 @@ import {
   addEdge,
   applyEdgeChanges,
   applyNodeChanges,
+  reconnectEdge,
   type Connection,
   type Edge,
   type EdgeChange,
@@ -21,8 +22,14 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { Box, Button, Divider, Stack, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from '@mui/material'
-import { Undo as UndoIcon, Delete as DeleteIcon, Add as AddIcon } from '@mui/icons-material'
+import {
+  Undo as UndoIcon,
+  Delete as DeleteIcon,
+  Add as AddIcon,
+  Visibility as AnteprimaIcon,
+} from '@mui/icons-material'
 import { DIMENSIONI_NODO } from '@/services/schemaImpianto/layout'
+import { renderSvg } from '@/services/schemaImpianto/renderSvg'
 import type { SchemaArcoStile, SchemaLayout, SchemaNodoTipo } from '@/services/schemaImpianto/types'
 import { SchemaEdgeTubazione, type SchemaEdgeData } from './SchemaEdgeTubazione'
 import { SchemaNodeSymbol, type SchemaNodeData } from './SchemaNodeSymbol'
@@ -55,6 +62,8 @@ interface StatoEditor {
 
 export interface SchemaEditorProps {
   layout: SchemaLayout
+  /** Le stesse note che finiranno sotto il disegno: servono a rendere l'anteprima fedele. */
+  noteTubazioni?: string[]
   onConferma: (layout: SchemaLayout) => void
   onAnnulla: () => void
 }
@@ -76,11 +85,22 @@ function codiceLibero(prefisso: string, nodes: Node[]): string {
   }
 }
 
-function SchemaEditorInterno({ layout, onConferma, onAnnulla }: SchemaEditorProps) {
+function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: SchemaEditorProps) {
   const iniziale = useMemo(() => layoutAFlow(layout), [layout])
   const storia = useSchemaHistory<StatoEditor>(iniziale)
   const { stato, applica, aggiornaSenzaCronologia, annulla, puoAnnullare } = storia
   const [selezione, setSelezione] = useState<{ nodes: Node[]; edges: Edge[] }>({ nodes: [], edges: [] })
+  const [anteprimaAperta, setAnteprimaAperta] = useState(true)
+
+  // La tela di react-flow è un'approssimazione: mostra nodi e archi, non muro, uscita verso
+  // le utenze, nota e tabella, e instrada le linee a modo suo. L'anteprima qui accanto è
+  // invece il disegno vero — la stessa funzione che produce il PNG del .docx — così quello
+  // che si vede mentre si ritocca è quello che verrà consegnato.
+  const anteprima = useMemo(() => {
+    if (!anteprimaAperta) return null
+    const svg = renderSvg(flowALayout(stato.nodes, stato.edges, layout.muro), { noteTubazioni })
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+  }, [anteprimaAperta, layout.muro, noteTubazioni, stato.edges, stato.nodes])
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -117,6 +137,20 @@ function SchemaEditorInterno({ layout, onConferma, onAnnulla }: SchemaEditorProp
           },
           s.edges
         ),
+      }))
+    },
+    [applica]
+  )
+
+  // Riaggancio di una tubazione già disegnata a un altro attacco: senza, per spostare un
+  // capo bisognava cancellare la linea e ritracciarla.
+  const onReconnect = useCallback(
+    (vecchia: Edge, nuova: Connection) => {
+      // `shouldReplaceId: false`: la tubazione resta la stessa anche se cambia un capo, e
+      // conserva il suo identificativo parlante (cond-8) invece di prenderne uno generato.
+      applica((s) => ({
+        ...s,
+        edges: reconnectEdge(vecchia, nuova, s.edges, { shouldReplaceId: false }),
       }))
     },
     [applica]
@@ -257,9 +291,21 @@ function SchemaEditorInterno({ layout, onConferma, onAnnulla }: SchemaEditorProp
             {voce.etichetta}
           </Button>
         ))}
+
+        <Divider orientation="vertical" flexItem />
+
+        <Button
+          size="small"
+          startIcon={<AnteprimaIcon />}
+          onClick={() => setAnteprimaAperta((a) => !a)}
+          variant={anteprimaAperta ? 'contained' : 'text'}
+        >
+          Anteprima
+        </Button>
       </Stack>
 
-      <Box sx={{ flex: 1, minHeight: 360, border: 1, borderColor: 'divider' }}>
+      <Stack direction="row" sx={{ flex: 1, minHeight: 360 }}>
+      <Box sx={{ flex: 1, minWidth: 0, border: 1, borderColor: 'divider' }}>
         <ReactFlow
           nodes={stato.nodes}
           edges={stato.edges}
@@ -268,6 +314,7 @@ function SchemaEditorInterno({ layout, onConferma, onAnnulla }: SchemaEditorProp
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onReconnect={onReconnect}
           onSelectionChange={setSelezione}
           onlyRenderVisibleElements
           fitView
@@ -284,6 +331,29 @@ function SchemaEditorInterno({ layout, onConferma, onAnnulla }: SchemaEditorProp
           <Controls />
         </ReactFlow>
       </Box>
+
+      {anteprima && (
+        <Stack
+          sx={{
+            width: '38%',
+            minWidth: 280,
+            borderTop: 1,
+            borderRight: 1,
+            borderBottom: 1,
+            borderColor: 'divider',
+            bgcolor: 'common.white',
+            overflow: 'auto',
+          }}
+        >
+          <Box
+            component="img"
+            src={anteprima}
+            alt="Anteprima del disegno finale"
+            sx={{ width: '100%', display: 'block' }}
+          />
+        </Stack>
+      )}
+      </Stack>
 
       <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ p: 1 }}>
         <Button onClick={onAnnulla}>Annulla modifiche</Button>

@@ -10,7 +10,12 @@ import {
   makeSerbatoio,
   makeValvola,
 } from '@/services/relazione/__tests__/fixtures'
-import { buildSchemaModel, puoGenerareSchema } from '../buildSchemaModel'
+import {
+  buildSchemaModel,
+  notaTubazioni,
+  ordinaCatenaTrattamento,
+  puoGenerareSchema,
+} from '../buildSchemaModel'
 
 describe('buildSchemaModel', () => {
   // Caso di riferimento: DOCUMENTAZIONE/relazione/schema.png — un compressore, un serbatoio
@@ -192,6 +197,61 @@ describe('buildSchemaModel', () => {
     const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
 
     expect(model.nodi.find((n) => n.id === 'C1')?.etichetta).toBe('Compressore KAESER Mod. CSD 90 SFC')
+  })
+
+  // In produzione il campo arriva anche come array di una voce: confrontandolo com'era, per
+  // stringa, il separatore dichiarato veniva ignorato e nasceva un pozzo generico in più.
+  it('legge la raccolta condense anche quando è un array di una voce', () => {
+    const scheda = makeScheda({
+      separatori: [makeSeparatore({ codice: 'SEP1' })],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: ['separatore'] as never }),
+    })
+
+    const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+
+    expect(model.nodi.map((n) => n.id)).not.toContain('RC')
+    expect(model.archi.filter((a) => a.stile === 'condensa').every((a) => a.a === 'SEP1')).toBe(true)
+  })
+
+  // Un serbatoio ubicato in linea restava anche nella catena di trattamento: veniva disegnato
+  // due volte e compariva due volte nella lista apparecchiature.
+  it('tiene i serbatoi fuori dalla catena di trattamento anche se ubicati in linea', () => {
+    const scheda = makeScheda({
+      serbatoi: [makeSerbatoio({ codice: 'S1', ubicazione: 'LINEA_DISTRIBUZIONE' })],
+      essiccatori: [makeEssiccatore({ ha_scambiatore: false })],
+      scambiatori: [],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+
+    const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+
+    expect(ordinaCatenaTrattamento(model.nodi, null).map((n) => n.id)).toEqual(['E1'])
+  })
+})
+
+describe('notaTubazioni', () => {
+  it('non dice nulla quando la scheda non dichiara diametri', () => {
+    expect(notaTubazioni(makeScheda({ dati_impianto: makeDatiImpianto() }))).toEqual([])
+  })
+
+  // In scheda capita che min e max siano invertiti: gli estremi vanno ricavati da tutti i valori.
+  it('riporta gli estremi anche se min e max sono scambiati', () => {
+    const scheda = makeScheda({
+      dati_impianto: makeDatiImpianto({
+        dn_sala_min: 25,
+        dn_sala_max: 20,
+        dn_distribuzione_min: 25,
+        dn_distribuzione_max: 40,
+      }),
+    })
+
+    expect(notaTubazioni(scheda)).toEqual(['Collegamenti effettuati con tubazioni da Ø20 a Ø40mm'])
+  })
+
+  it('usa la forma singola quando c’è un solo diametro', () => {
+    const scheda = makeScheda({ dati_impianto: makeDatiImpianto({ dn_sala_min: 15 }) })
+    expect(notaTubazioni(scheda)).toEqual(['Collegamenti effettuati con tubazioni da Ø15mm'])
   })
 })
 

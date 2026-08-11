@@ -14,9 +14,24 @@ import type { SchemaLayout, SchemaModel, SchemaNodo, SchemaNodoPosizionato } fro
  * raccolta e non da stadio di trattamento dell'aria. Si legge dagli archi invece di
  * ripetere qui la regola su `raccolta_condense`, che vive già in `buildSchemaModel`.
  */
-function riceveSoloCondensa(id: string, model: SchemaModel): boolean {
+export function riceveSoloCondensa(id: string, model: Pick<SchemaModel, 'archi'>): boolean {
   const entranti = model.archi.filter((a) => a.a === id)
   return entranti.length > 0 && entranti.every((a) => a.stile === 'condensa')
+}
+
+/**
+ * Il nodo che fa da pozzo di raccolta condense. È una tanica, oppure il separatore quando è
+ * lui a raccogliere: in entrambi i casi non è uno stadio della linea aria, e chi disegna deve
+ * saperlo per non farne partire l'uscita verso le utenze.
+ */
+export function pozzoCondense<T extends SchemaNodo>(
+  nodi: T[],
+  archi: Pick<SchemaModel, 'archi'>
+): T | null {
+  return (
+    nodi.find((n) => n.tipo === 'tanica' || (n.tipo === 'separatore' && riceveSoloCondensa(n.id, archi))) ??
+    null
+  )
 }
 
 /** Ingombri nominali per tipo, in unità SVG. Il render disegna dentro questi riquadri. */
@@ -67,10 +82,8 @@ export function layoutSchema(model: SchemaModel): SchemaLayout {
   const serbatoi = model.nodi.filter((n) => n.tipo === 'serbatoio')
   // Il pozzo di raccolta condense sta nella corsia bassa: è la tanica, oppure il separatore
   // quando è lui a raccogliere (in quel caso resta fuori dalla catena di trattamento).
-  const raccolta = model.nodi.filter(
-    (n) => n.tipo === 'tanica' || (n.tipo === 'separatore' && riceveSoloCondensa(n.id, model))
-  )
-  const pozzo = raccolta[0] ?? null
+  const pozzo = pozzoCondense(model.nodi, model)
+  const raccolta = pozzo ? [pozzo] : []
   const catena = ordinaCatenaTrattamento(model.nodi, pozzo)
 
   const altezzaCompressore = DIMENSIONI_NODO.compressore.altezza
@@ -113,8 +126,6 @@ export function layoutSchema(model: SchemaModel): SchemaLayout {
             PASSO_ORIZZONTALE / 2,
           yMin: MARGINE_SUPERIORE / 2,
           yMax: yCondense + DIMENSIONI_NODO.tanica.altezza,
-          // La mandata esce dai serbatoi a mezza altezza: il varco va lì, o il muro la taglierebbe.
-          yVarco: yCentroSerbatoi,
         }
       : null
 

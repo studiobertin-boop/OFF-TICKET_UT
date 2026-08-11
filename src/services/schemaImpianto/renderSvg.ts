@@ -5,7 +5,7 @@
  * Il disegno riproduce l'impaginazione delle relazioni storiche: schema in alto, nota sui
  * diametri delle tubazioni, tabella "Lista Apparecchiature" in basso.
  */
-import { DIMENSIONI_NODO, corpoNodo, dimensioniLayout } from './layout'
+import { DIMENSIONI_NODO, corpoNodo, dimensioniLayout, pozzoCondense } from './layout'
 import { escapeXml, simboloDi, simboloMuro, valvolaIntercettazione, TRATTO } from './symbols'
 import type { SchemaLayout, SchemaNodoPosizionato } from './types'
 
@@ -14,6 +14,34 @@ const MARGINE = 40
 const RIGA_TABELLA = 34
 const COLONNA_CODICE = 130
 const ALTEZZA_NOTA = 90
+/** Sbraccio della freccia verso le utenze, più lo spazio per la scritta che la accompagna. */
+const SPAZIO_UTENZE = 190
+/** Rientro del montante rispetto al fianco del recipiente: evita che corra sul contorno. */
+const AVVICINAMENTO = 34
+
+interface Punto {
+  x: number
+  y: number
+}
+
+function percorso(punti: Punto[]): string {
+  return punti.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+}
+
+/**
+ * Quote alle quali una polilinea attraversa la verticale `x`. Servono ad aprire i varchi del
+ * muro: ricavarle dalla rotta effettiva, invece di fissarle nel layout, tiene muro e tubazioni
+ * d'accordo anche dopo che l'utente ha spostato un nodo nell'editor.
+ */
+function quoteAttraversamento(punti: Punto[], x: number): number[] {
+  const quote: number[] = []
+  for (let i = 1; i < punti.length; i++) {
+    const a = punti[i - 1]
+    const b = punti[i]
+    if (a.y === b.y && Math.min(a.x, b.x) <= x && x <= Math.max(a.x, b.x)) quote.push(a.y)
+  }
+  return quote
+}
 
 export interface RenderSvgOptions {
   /** Nota sui diametri, es. "Collegamenti effettuati con tubazioni da Ø40 a Ø63mm". */
@@ -44,31 +72,51 @@ function renderMandataCompressore(
   da: SchemaNodoPosizionato,
   a: SchemaNodoPosizionato,
   yCollettore: number
-): string {
+): { svg: string; punti: Punto[] } {
   const cDa = centro(da)
   const cA = centro(a)
   const corpoA = corpoNodo(a)
   const yTetto = corpoNodo(da).y
+  // La discesa si stacca dal fianco del recipiente e l'ultimo tratto entra in orizzontale:
+  // scendendo sul bordo, la linea si confonderebbe col contorno del simbolo.
+  const xDiscesa = corpoA.x - AVVICINAMENTO
 
-  const percorso = `M ${cDa.x} ${yTetto} L ${cDa.x} ${yCollettore} L ${corpoA.x} ${yCollettore} L ${corpoA.x} ${cA.y}`
-  const linea = `<path d="${percorso}" fill="none" stroke="#000" stroke-width="${TRATTO}" marker-end="url(#freccia)" />`
+  const punti: Punto[] = [
+    { x: cDa.x, y: yTetto },
+    { x: cDa.x, y: yCollettore },
+    { x: xDiscesa, y: yCollettore },
+    { x: xDiscesa, y: cA.y },
+    { x: corpoA.x, y: cA.y },
+  ]
+  const linea = `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" marker-end="url(#freccia)" />`
   // Flessibile e valvola di intercettazione stanno sul montante, appena sopra la macchina.
-  return linea + ondeVerticali(cDa.x, yTetto - 4) + valvolaIntercettazione(cDa.x, yTetto - 62)
+  // La valvola sta sul montante: farfalla verticale, in linea col tubo.
+  const svg =
+    linea + ondeVerticali(cDa.x, yTetto - 4) + valvolaIntercettazione(cDa.x, yTetto - 62, 'verticale')
+  return { svg, punti }
 }
 
 /** Mandata di linea fra due stadi di trattamento: tratto orizzontale con valvola in ingresso. */
-function renderMandataLinea(da: SchemaNodoPosizionato, a: SchemaNodoPosizionato): string {
+function renderMandataLinea(
+  da: SchemaNodoPosizionato,
+  a: SchemaNodoPosizionato
+): { svg: string; punti: Punto[] } {
   const cDa = centro(da)
   const cA = centro(a)
   const corpoDa = corpoNodo(da)
   const corpoA = corpoNodo(a)
   const xUscita = corpoDa.x + corpoDa.larghezza
   const xMedia = (xUscita + corpoA.x) / 2
-  const percorso = `M ${xUscita} ${cDa.y} L ${xMedia} ${cDa.y} L ${xMedia} ${cA.y} L ${corpoA.x} ${cA.y}`
-  return (
-    `<path d="${percorso}" fill="none" stroke="#000" stroke-width="${TRATTO}" marker-end="url(#freccia)" />` +
+  const punti: Punto[] = [
+    { x: xUscita, y: cDa.y },
+    { x: xMedia, y: cDa.y },
+    { x: xMedia, y: cA.y },
+    { x: corpoA.x, y: cA.y },
+  ]
+  const svg =
+    `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" marker-end="url(#freccia)" />` +
     valvolaIntercettazione(corpoA.x - 22, cA.y)
-  )
+  return { svg, punti }
 }
 
 /**
@@ -79,47 +127,78 @@ function renderLineaCondense(
   da: SchemaNodoPosizionato,
   a: SchemaNodoPosizionato,
   yCorsia: number
-): string {
+): { svg: string; punti: Punto[] } {
   const cDa = centro(da)
   const corpoDa = corpoNodo(da)
   const corpoA = corpoNodo(a)
   const xArrivo = corpoA.x + corpoA.larghezza / 2
   const yUscita = corpoDa.y + corpoDa.altezza + 24
-  const percorso = `M ${cDa.x} ${yUscita} L ${cDa.x} ${yCorsia} L ${xArrivo} ${yCorsia} L ${xArrivo} ${corpoA.y}`
-  return `<path d="${percorso}" fill="none" stroke="#000" stroke-width="${TRATTO}" stroke-dasharray="10 7" marker-end="url(#freccia)" />`
+  const punti: Punto[] = [
+    { x: cDa.x, y: yUscita },
+    { x: cDa.x, y: yCorsia },
+    { x: xArrivo, y: yCorsia },
+    { x: xArrivo, y: corpoA.y },
+  ]
+  const svg = `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" stroke-dasharray="10 7" marker-end="url(#freccia)" />`
+  return { svg, punti }
 }
 
-function renderArchi(layout: SchemaLayout, yCorsiaCondense: number, yCollettore: number): string {
+/** Disegno delle tubazioni, insieme alle quote a cui attraversano il muro (se c'è). */
+function renderArchi(
+  layout: SchemaLayout,
+  yCorsiaCondense: number,
+  yCollettore: number
+): { svg: string; varchi: number[] } {
   const indice = new Map(layout.nodi.map((n) => [n.id, n]))
-  return layout.archi
-    .map((arco) => {
-      const da = indice.get(arco.da)
-      const a = indice.get(arco.a)
-      if (!da || !a) return ''
+  const parti: string[] = []
+  const varchi: number[] = []
 
-      if (arco.stile === 'condensa') return renderLineaCondense(da, a, yCorsiaCondense)
-      if (arco.stile === 'flessibile') return renderMandataCompressore(da, a, yCollettore)
-      return renderMandataLinea(da, a)
-    })
-    .join('')
+  for (const arco of layout.archi) {
+    const da = indice.get(arco.da)
+    const a = indice.get(arco.a)
+    if (!da || !a) continue
+
+    const reso =
+      arco.stile === 'condensa'
+        ? renderLineaCondense(da, a, yCorsiaCondense)
+        : arco.stile === 'flessibile'
+          ? renderMandataCompressore(da, a, yCollettore)
+          : renderMandataLinea(da, a)
+
+    parti.push(reso.svg)
+    if (layout.muro) varchi.push(...quoteAttraversamento(reso.punti, layout.muro.x))
+  }
+
+  return { svg: parti.join(''), varchi }
 }
 
-/** Uscita verso lo stabilimento: freccia tratteggiata verso l'alto, come negli schemi reali. */
-function renderUscitaUtenze(layout: SchemaLayout): string {
-  const inLinea = layout.nodi.filter((n) => n.tipo !== 'tanica' && n.tipo !== 'compressore')
-  if (inLinea.length === 0) return ''
+/**
+ * Uscita verso lo stabilimento: freccia tratteggiata verso l'alto, come negli schemi reali.
+ * Parte dall'ultimo stadio della linea aria — mai dal pozzo di raccolta condense, che è un
+ * capolinea e non alimenta le utenze.
+ */
+function renderUscitaUtenze(layout: SchemaLayout): { svg: string; xFine: number } {
+  const pozzo = pozzoCondense(layout.nodi, layout)
+  const inLinea = layout.nodi.filter((n) => n.tipo !== 'compressore' && n.id !== pozzo?.id)
+  if (inLinea.length === 0) return { svg: '', xFine: 0 }
   const ultimo = inLinea.reduce((a, b) => (a.x > b.x ? a : b))
   const c = centro(ultimo)
   const x = ultimo.x + DIMENSIONI_NODO[ultimo.tipo].larghezza + 50
   const yAlto = 14
 
-  return [
+  const svg = [
     `<path d="M ${ultimo.x + DIMENSIONI_NODO[ultimo.tipo].larghezza} ${c.y} L ${x} ${c.y} L ${x} ${yAlto}" fill="none" stroke="#000" stroke-width="${TRATTO}" stroke-dasharray="10 7" marker-end="url(#freccia)" />`,
     `<text x="${x + 10}" y="${yAlto + 6}" font-family="${FONT}" font-size="18" dominant-baseline="central" fill="#000">Utenze aria</text>`,
   ].join('')
+  return { svg, xFine: x + SPAZIO_UTENZE - 50 }
 }
 
-/** Righe della tabella: apparecchiature e loro accessori/valvole, nell'ordine dei codici. */
+/**
+ * Righe della tabella: apparecchiature e loro accessori/valvole. L'ordine è quello del flusso
+ * dell'aria (compressori → serbatoi → trattamento → raccolta), lo stesso in cui il layout
+ * dispone i nodi e in cui le legge chi confronta il disegno con la lista. L'ordine alfabetico
+ * dei codici spezzerebbe quella corrispondenza (SEP prima di S, la raccolta in mezzo ai filtri).
+ */
 export function righeLista(layout: SchemaLayout): { codice: string; descrizione: string }[] {
   const righe: { codice: string; descrizione: string }[] = []
   for (const nodo of layout.nodi) {
@@ -134,7 +213,7 @@ export function righeLista(layout: SchemaLayout): { codice: string; descrizione:
       righe.push({ codice: v.codice, descrizione: v.etichetta })
     }
   }
-  return righe.sort((a, b) => a.codice.localeCompare(b.codice, 'it', { numeric: true }))
+  return righe
 }
 
 function renderTabella(righe: { codice: string; descrizione: string }[], larghezza: number, yTop: number): string {
@@ -184,7 +263,7 @@ function quotaCollettore(layout: SchemaLayout): number {
 
 /** Quota della corsia comune delle linee condense: appena sopra il pozzo di raccolta, così le linee vi scendono dentro dall'alto. */
 function quotaCorsiaCondense(layout: SchemaLayout, altezzaDisegno: number): number {
-  const pozzo = layout.nodi.find((n) => n.tipo === 'tanica')
+  const pozzo = pozzoCondense(layout.nodi, layout)
   return pozzo ? corpoNodo(pozzo).y - 40 : altezzaDisegno - MARGINE / 2
 }
 
@@ -200,14 +279,21 @@ export function renderSvg(layout: SchemaLayout, options: RenderSvgOptions = {}):
   const yTabella = yNota + altezzaNota
   const altezzaTotale = yTabella + RIGA_TABELLA * (righe.length + 1) + MARGINE
 
+  const archi = renderArchi(layout, yCorsiaCondense, yCollettore)
+  const uscita = renderUscitaUtenze(layout)
+
   const larghezzaTabella = COLONNA_CODICE + 620 + MARGINE * 2
-  const larghezzaTotale = Math.max(dimensioniDisegno.larghezza, larghezzaTabella)
+  const larghezzaTotale = Math.max(
+    dimensioniDisegno.larghezza,
+    uscita.xFine + MARGINE,
+    larghezzaTabella
+  )
 
   const nodi = layout.nodi
     .map((nodo) => `<g transform="translate(${nodo.x} ${nodo.y})">${simboloDi(nodo)}</g>`)
     .join('')
   const muro = layout.muro
-    ? simboloMuro(layout.muro.x, layout.muro.yMin, layout.muro.yMax, layout.muro.yVarco)
+    ? simboloMuro(layout.muro.x, layout.muro.yMin, layout.muro.yMax, archi.varchi)
     : ''
 
   return [
@@ -215,8 +301,8 @@ export function renderSvg(layout: SchemaLayout, options: RenderSvgOptions = {}):
     `<defs><marker id="freccia" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000" /></marker></defs>`,
     `<rect width="${larghezzaTotale}" height="${altezzaTotale}" fill="#fff" />`,
     muro,
-    renderArchi(layout, yCorsiaCondense, yCollettore),
-    renderUscitaUtenze(layout),
+    archi.svg,
+    uscita.svg,
     nodi,
     renderNota(note, larghezzaTotale, yNota),
     renderTabella(righe, larghezzaTotale, yTabella),

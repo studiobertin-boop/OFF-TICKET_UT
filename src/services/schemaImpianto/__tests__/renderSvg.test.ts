@@ -2,7 +2,10 @@ import { describe, it, expect } from 'vitest'
 import {
   makeCompressore,
   makeDatiImpianto,
+  makeEssiccatore,
+  makeFiltro,
   makeScheda,
+  makeSeparatore,
   makeSerbatoio,
   makeValvola,
 } from '@/services/relazione/__tests__/fixtures'
@@ -67,6 +70,16 @@ describe('renderSvg', () => {
     expect(svgMinimo()).toContain('Utenze aria')
   })
 
+  // La scritta sporgeva oltre il bordo destro: nel PNG finiva tagliata a metà.
+  it('allarga la viewBox fino a contenere la scritta delle utenze', () => {
+    const svg = svgMinimo()
+    const larghezza = Number(svg.match(/viewBox="0 0 (\d+(?:\.\d+)?)/)?.[1])
+    const xScritta = Number(svg.match(/<text x="(\d+(?:\.\d+)?)"[^>]*>Utenze aria/)?.[1])
+
+    expect(xScritta).toBeGreaterThan(0)
+    expect(larghezza).toBeGreaterThan(xScritta + 100)
+  })
+
   it('non lascia entità XML non valide nelle etichette con &', () => {
     const scheda = makeScheda({
       compressori: [makeCompressore({ marca: 'ROSSI & FIGLI', ha_disoleatore: false })],
@@ -83,6 +96,58 @@ describe('renderSvg', () => {
     const svg = renderSvg(layout)
     expect(svg).toContain('ROSSI &amp; FIGLI')
     expect(svg).not.toMatch(/&(?!amp;|lt;|gt;|quot;|apos;|#)/)
+  })
+})
+
+describe('varchi nel muro', () => {
+  /** Fasce verticali occupate dai tronconi pieni di muratura. */
+  function tronconi(svg: string, xMuro: number): [number, number][] {
+    return [...svg.matchAll(/<rect x="([\d.]+)" y="([\d.]+)" width="[\d.]+" height="([\d.]+)"/g)]
+      .filter((m) => Number(m[1]) === xMuro)
+      .map((m) => [Number(m[2]), Number(m[2]) + Number(m[3])] as [number, number])
+  }
+
+  // Con un serbatoio in linea, mandata e linee condense attraversano il muro a quote diverse:
+  // un varco solo (com'era) lasciava la muratura a tagliare le tubazioni.
+  /** Quote alle quali le tubazioni disegnate attraversano la verticale `x`. */
+  function attraversamenti(svg: string, x: number): number[] {
+    const quote: number[] = []
+    for (const path of svg.matchAll(/<path d="([^"]+)"/g)) {
+      const punti = [...path[1].matchAll(/[ML] ([\d.-]+) ([\d.-]+)/g)].map((p) => ({
+        x: Number(p[1]),
+        y: Number(p[2]),
+      }))
+      for (let i = 1; i < punti.length; i++) {
+        const a = punti[i - 1]
+        const b = punti[i]
+        if (a.y === b.y && Math.min(a.x, b.x) <= x && x <= Math.max(a.x, b.x)) quote.push(a.y)
+      }
+    }
+    return quote
+  }
+
+  it('apre un varco per ogni tubazione che attraversa il muro', () => {
+    const scheda = makeScheda({
+      serbatoi: [makeSerbatoio({ ubicazione: 'LINEA_DISTRIBUZIONE' })],
+      essiccatori: [],
+      scambiatori: [],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'tanica' }),
+    })
+    const layout = layoutSchema(
+      buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    )
+    expect(layout.muro).not.toBeNull()
+
+    const svg = renderSvg(layout)
+    const muratura = tronconi(svg, layout.muro!.x)
+    const quote = [...new Set(attraversamenti(svg, layout.muro!.x))]
+
+    // Mandata del compressore e linea condense del disoleatore passano a quote diverse.
+    expect(quote.length).toBeGreaterThan(1)
+    for (const y of quote) {
+      expect(muratura.some(([a, b]) => y > a && y < b)).toBe(false)
+    }
   })
 })
 
@@ -109,7 +174,7 @@ describe('righeLista', () => {
     ])
   })
 
-  it('ordina i codici in modo naturale, non lessicografico', () => {
+  it('numera i codici in modo naturale, non lessicografico', () => {
     const scheda = makeScheda({
       compressori: Array.from({ length: 3 }, (_, i) =>
         makeCompressore({ codice: `C${i + 1}`, ha_disoleatore: false })
@@ -133,6 +198,33 @@ describe('righeLista', () => {
       'S1.1',
       'S2',
       'S2.1',
+    ])
+  })
+
+  // L'ordine alfabetico metterebbe E1 prima di F1 e SEP1 in fondo, scollegando la lista dalla
+  // sequenza in cui il disegno attraversa le apparecchiature.
+  it('segue il flusso dell’aria e non l’alfabeto', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ ha_disoleatore: false })],
+      disoleatori: [],
+      serbatoi: [makeSerbatoio()],
+      essiccatori: [makeEssiccatore({ ha_scambiatore: false })],
+      scambiatori: [],
+      filtri: [makeFiltro({ codice: 'F1', tipo: 'PREFILTRO' })],
+      separatori: [makeSeparatore({ codice: 'SEP1' })],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'separatore' }),
+    })
+    const layout = layoutSchema(
+      buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    )
+
+    expect(righeLista(layout).map((r) => r.codice)).toEqual([
+      'C1',
+      'S1',
+      'S1.1',
+      'F1',
+      'E1',
+      'SEP1',
     ])
   })
 })

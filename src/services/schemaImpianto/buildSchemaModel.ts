@@ -146,8 +146,12 @@ function buildSeparatoreNodo(sep: Separatore): SchemaNodo {
  * non è per-serbatoio). `null` se non c'è raccolta (niente rete di linee condense da disegnare).
  */
 function buildNodoRaccoltaCondense(scheda: SchedaDatiCompleta): SchemaNodo | null {
-  const modo = scheda.dati_impianto?.raccolta_condense
-  if (!modo || modo === 'Nessuna') return null
+  // In produzione il campo arriva sia come stringa sia come array di una voce (il select è
+  // nato multiplo): senza normalizzare, l'array non matcha nessun caso e si finisce sul
+  // pozzo generico anche quando la scheda dichiara un separatore.
+  const grezzo = scheda.dati_impianto?.raccolta_condense
+  const modo = (Array.isArray(grezzo) ? grezzo[0] : grezzo)?.toLowerCase()
+  if (!modo || modo === 'nessuna') return null
 
   if (modo === 'separatore') {
     const primo = (scheda.separatori ?? [])[0]
@@ -191,11 +195,11 @@ export function ordinaCatenaTrattamento(
     if (nodo.tipo === 'essiccatore') return 100
     return 300
   }
+  // Solo gli stadi di trattamento: un serbatoio ubicato in linea resta un serbatoio e ha già
+  // la sua riga nel layout — includerlo qui lo disegnerebbe due volte.
+  const stadi: SchemaNodo['tipo'][] = ['essiccatore', 'filtro', 'separatore']
   return nodi
-    .filter(
-      (n) =>
-        n.gruppo === 'LINEA_DISTRIBUZIONE' && n.tipo !== 'tanica' && n.id !== raccoltaCondense?.id
-    )
+    .filter((n) => stadi.includes(n.tipo) && n.id !== raccoltaCondense?.id)
     .map((nodo, indice) => ({ nodo, chiave: rango(nodo) + indice }))
     .sort((a, b) => a.chiave - b.chiave)
     .map((v) => v.nodo)
@@ -251,6 +255,29 @@ export function buildSchemaModel(input: BuildSchemaModelInput): SchemaModel {
   }
 
   return { nodi, archi: buildArchi(nodi, input, raccoltaCondense) }
+}
+
+/**
+ * Nota sui diametri stampata sotto lo schema, come nelle relazioni storiche
+ * ("Collegamenti effettuati con tubazioni da Ø…"). Vuota se la scheda non dichiara diametri:
+ * il riquadro sparisce invece di annunciare una misura che nessuno ha rilevato.
+ *
+ * Legge i DN in mm e non i vecchi campi a testo libero, e ricava gli estremi da tutti e
+ * quattro i valori: in scheda capita che min e max siano invertiti.
+ */
+export function notaTubazioni(scheda: SchedaDatiCompleta): string[] {
+  const d = scheda.dati_impianto
+  const valori = [d?.dn_sala_min, d?.dn_sala_max, d?.dn_distribuzione_min, d?.dn_distribuzione_max]
+    .filter((v): v is number => typeof v === 'number' && v > 0)
+  if (valori.length === 0) return []
+
+  const min = Math.min(...valori)
+  const max = Math.max(...valori)
+  return [
+    min === max
+      ? `Collegamenti effettuati con tubazioni da Ø${min}mm`
+      : `Collegamenti effettuati con tubazioni da Ø${min} a Ø${max}mm`,
+  ]
 }
 
 /** Il motore può generare solo se c'è almeno un collegamento compressore→serbatoio dichiarato. */
