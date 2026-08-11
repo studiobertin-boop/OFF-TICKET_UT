@@ -52,7 +52,14 @@ export interface CaricaDocumentoInput {
   tipo?: 'sorgente' | 'fascicolo'
 }
 
-export interface PatchClassificazione {
+/**
+ * Classificazione di un documento: non è un patch, è una riscrittura completa.
+ *
+ * `aggiornaClassificazione` scrive tutti e cinque i campi ad ogni chiamata — quelli omessi
+ * diventano `null` — perché i chiamanti passano sempre l'esito intero della classificazione,
+ * mai solo la parte che cambia.
+ */
+export interface ClassificazioneDocumento {
   ruoli: RuoloDocumento[]
   valvola?: string | null
   confidenza?: number
@@ -134,7 +141,7 @@ export const fascicoloDocumentiApi = {
     return (data ?? []).reduce((somma, r: { file_size: number }) => somma + r.file_size, 0)
   },
 
-  aggiornaClassificazione: async (id: string, patch: PatchClassificazione): Promise<void> => {
+  aggiornaClassificazione: async (id: string, patch: ClassificazioneDocumento): Promise<void> => {
     const { error } = await supabase
       .from('fascicolo_documenti')
       .update({
@@ -157,11 +164,14 @@ export const fascicoloDocumentiApi = {
       .single()
     if (erroreLettura) throw erroreLettura
 
-    // Prima i byte, poi la riga: al contrario un errore lascerebbe un file senza indice.
+    // Prima i byte, poi la riga: se lo storage fallisce ci si ferma qui, senza cancellare la
+    // riga. Inghiottire l'errore lascerebbe un file irraggiungibile — nessun percorso porta più
+    // a lui, non lo vede `eliminaOrfani`, non conta nel tetto — cioè spazio perso per sempre.
+    // Così l'unico stato residuo possibile è «riga che punta al vuoto», visibile e rimediabile.
     const { error: erroreStorage } = await supabase.storage
       .from(BUCKET_FASCICOLI)
       .remove([(data as { file_path: string }).file_path])
-    if (erroreStorage) console.error('Rimozione del file non riuscita:', erroreStorage)
+    if (erroreStorage) throw new Error(`Rimozione del file non riuscita: ${erroreStorage.message}`)
 
     const { error } = await supabase.from('fascicolo_documenti').delete().eq('id', id)
     if (error) throw error
@@ -174,6 +184,13 @@ export const fascicoloDocumentiApi = {
    * chiamato `S2` erediterebbe i documenti del vecchio `S2`.
    */
   eliminaOrfani: async (requestId: string, codiciValidi: string[]): Promise<number> => {
+    // Una lista vuota non è mai un elenco di codici validi da rispettare: è più probabile un
+    // errore a monte (calcolo dei codici non ancora pronto, scheda non ancora caricata), e
+    // trattarla come tale cancellerebbe ogni documento della pratica. Il caso legittimo — l'unica
+    // apparecchiatura viene eliminata — resta coperto dalla passata notturna, che i codici validi
+    // li ricava dal database, non da un elenco passato a mano.
+    if (codiciValidi.length === 0) return 0
+
     const { data, error } = await supabase
       .from('fascicolo_documenti')
       .select('id, codice, file_path')
@@ -184,9 +201,15 @@ export const fascicoloDocumentiApi = {
     const orfani = (data ?? []).filter((r: { codice: string }) => !validi.has(r.codice))
     if (orfani.length === 0) return 0
 
-    await supabase.storage
+    // Prima i byte, poi le righe: un fallimento qui deve fermare anche la cancellazione delle
+    // righe, altrimenti i file orfani nel bucket smettono pure di essere tracciati in tabella.
+    // Rimuovere un percorso già assente non è un errore per lo Storage, quindi propagare non
+    // rompe i casi normali.
+    const { error: erroreStorage } = await supabase.storage
       .from(BUCKET_FASCICOLI)
       .remove(orfani.map((r: { file_path: string }) => r.file_path))
+    if (erroreStorage) throw new Error(`Rimozione dei file orfani non riuscita: ${erroreStorage.message}`)
+
     const { error: erroreDelete } = await supabase
       .from('fascicolo_documenti')
       .delete()
