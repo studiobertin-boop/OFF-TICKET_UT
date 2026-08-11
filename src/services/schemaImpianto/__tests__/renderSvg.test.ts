@@ -113,6 +113,46 @@ describe('attacco alle ancore', () => {
     const atteso = `M ${compressore.x + 80} ${compressore.y}`
     expect(svg).toContain(atteso)
   })
+
+  // Questo è il caso che discrimina davvero il vecchio calcolo (corpoNodo/centro) dal nuovo:
+  // per il compressore l'ancora 'alto-out' coincide algebricamente col vecchio centro/cielo del
+  // corpo, quindi il test sopra passerebbe anche senza la modifica. Il separatore-pozzo invece
+  // riceve la condensa di fianco (ancora 'sx'), un punto diverso sia dal centro del corpo sia dal
+  // punto in cima che il vecchio calcolo produceva — solo qui una regressione a corpoNodo/centro
+  // farebbe fallire il test.
+  it('la linea condense entra di fianco nel separatore-pozzo, non dall’alto', () => {
+    const scheda = makeScheda({
+      essiccatori: [], scambiatori: [], filtri: [],
+      separatori: [makeSeparatore({ codice: 'SEP1' })],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'separatore' }),
+    })
+    const layout = layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } }))
+    const sep = layout.nodi.find((n) => n.id === 'SEP1')!
+    const svg = renderSvg(layout)
+
+    // ancora 'sx' del separatore: (6, 49) in coordinate locali — sul fianco sinistro del
+    // rombo, non al centro del corpo né in cima (dove atterrava il vecchio calcolo).
+    const atteso = `L ${sep.x + 6} ${sep.y + 49}" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="10 7" marker-end="url(#freccia)" />`
+    expect(svg).toContain(atteso)
+  })
+
+  // Simmetrico sulla partenza: il serbatoio scarica la condensa dalla propria ancora
+  // 'basso-out', non da un punto ricavato scendendo di 24px oltre il fondo del corpo (come
+  // faceva il vecchio calcolo).
+  it('la linea condense parte esattamente dall’ancora basso-out del serbatoio', () => {
+    const scheda = makeScheda({
+      essiccatori: [], scambiatori: [], filtri: [],
+      separatori: [makeSeparatore({ codice: 'SEP1' })],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'separatore' }),
+    })
+    const layout = layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } }))
+    const s1 = layout.nodi.find((n) => n.id === 'S1')!
+    const svg = renderSvg(layout)
+
+    // ancora 'basso-out' del serbatoio verticale: (75, 260) in coordinate locali.
+    const atteso = `M ${s1.x + 75} ${s1.y + 260}`
+    expect(svg).toContain(atteso)
+  })
 })
 
 describe('varchi nel muro', () => {
