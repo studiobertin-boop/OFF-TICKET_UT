@@ -1582,6 +1582,46 @@ git commit -m "feat(fascicolo): la data di cancellazione e la nota di scaduto si
 
 ---
 
+## Scostamenti applicati durante l'esecuzione
+
+Il testo dei task qui sopra è quello di partenza. Le revisioni hanno trovato difetti **nel piano
+stesso**, corretti in corso d'opera: dove il codice consegnato diverge da quello scritto sopra, è
+il codice ad avere ragione. In sintesi, per chi rileggesse il piano più tardi.
+
+**Decisioni prese dal committente**, perché contraddicevano ciò che il piano dichiarava:
+
+- **`inPreavviso` resta vero anche su una pratica scaduta** finché la passata notturna non
+  cancella davvero. Il piano prescriveva `!scaduta && …` ma il suo stesso test al giorno 30 esatto
+  pretendeva il contrario. Fra scadenza e cancellazione passano fino a 24 ore in cui i documenti
+  si possono ancora salvare: l'avviso serve proprio lì.
+- **La cancellazione dei documenti resta concessa a chi può modificare la scheda**, condivisione
+  compresa, anche se sulla scheda tecnica cancellare è riservato agli admin: il pulsante «togli»
+  del tecnico e la ripulitura della nota di scadenza al nuovo caricamento ne dipendono.
+- **Gli errori di rimozione dallo Storage si propagano** e la riga non si cancella, invece di
+  essere inghiottiti come fa `attachments.ts`; **`eliminaOrfani` con lista di codici vuota non fa
+  nulla**, e il caso legittimo resta coperto dalla passata notturna.
+
+**Correzioni applicate senza interpellare**, perché realizzano l'intento del piano invece di
+contraddirlo:
+
+- Policy di Storage con `case` invece di `and`: l'ordine di valutazione di `and` non è garantito e
+  il cast a `uuid` poteva far fallire le query sugli allegati, il cui percorso comincia con
+  `requests/`.
+- In `genera()`, il nuovo fascicolo si carica **prima** di eliminare il vecchio: un documento di
+  troppo si vede e si toglie, uno in meno sparisce in silenzio.
+- Nella passata notturna: guardia che impedisce alla migration riapplicata di riscrivere il
+  segreto col segnaposto e spegnere il job in silenzio; `try/catch` per pratica, perché una sola
+  pratica velenosa non blocchi tutto per sempre; `upsert` della nota di scadenza **prima** della
+  cancellazione delle righe; paginazione con `.range()` e `.in()` a lotti, contro il limite
+  implicito di 1000 righe di PostgREST; header `x-cron-key`, perché l'endpoint che cancella non
+  sia raggiungibile da chiunque abbia la anon key, che è pubblica.
+- **`collectCodes` estratta in `src/services/fascicolo/codiciScheda.ts`**, modulo puro senza
+  import, importato sia dal client sia dalla Edge Function. Il piano la faceva riscrivere da zero
+  nella funzione notturna: due nozioni diverse di «codice valido» sullo stesso criterio con cui si
+  decide di cancellare. È lo stesso trattamento già riservato a `scadenza.ts`.
+- La classificazione dei soli file nuovi ha richiesto di cablare il chiamante, che il piano non
+  aveva previsto: il Task 4 lo ha lasciato in sospeso con una nota e il Task 5 l'ha raccolta.
+
 ## Verifica finale del lavoro
 
 Prima di considerare chiuso il branch:
