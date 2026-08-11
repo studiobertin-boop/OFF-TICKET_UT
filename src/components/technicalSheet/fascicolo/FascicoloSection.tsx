@@ -201,13 +201,19 @@ export const FascicoloSection = ({ contesto, nomeFile, requestId, codice }: Fasc
       const composto = await componiFascicolo(pagine, { onProgresso: setAvanzamento })
       saveAs(composto.blob, nomeFile)
 
-      // Il fascicolo precedente non serve più: ne esiste uno solo per apparecchiatura.
+      // Si carica il nuovo fascicolo prima di eliminare il vecchio, non dopo: se `carica`
+      // fallisse a valle di un `elimina` già riuscito, l'apparecchiatura resterebbe senza
+      // fascicolo salvato pur avendone avuto uno — un buco silenzioso che l'utente non vede
+      // finché non riapre la scheda. Con questo ordine il caso peggiore è per un istante un
+      // fascicolo di troppo, mai uno di meno: un documento in più si vede e si toglie, uno in
+      // meno sparisce senza avviso. `vecchio` va cercato ora, sull'elenco di partenza — dopo il
+      // caricamento conterrebbe anche il fascicolo appena salito, ed è quello che non va toccato.
       const vecchio = documenti.find((d) => d.tipo === 'fascicolo')
-      if (vecchio) await fascicoloDocumentiApi.elimina(vecchio.id)
       await fascicoloDocumentiApi.carica({
         requestId, codice, tipo: 'fascicolo',
         file: new File([composto.blob], nomeFile, { type: 'application/pdf' }),
       })
+      if (vecchio) await fascicoloDocumentiApi.elimina(vecchio.id)
       ricarica()
 
       setEsito({ ...composto, mancanti })
