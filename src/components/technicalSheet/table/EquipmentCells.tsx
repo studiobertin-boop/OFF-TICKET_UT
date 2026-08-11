@@ -128,7 +128,12 @@ export const NumberCell = ({
             {...field}
             type="number"
             value={field.value ?? ''}
-            onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+            /* Svuotare la cella la lascia vuota: si scrive `null`, non `undefined`. Con
+               `undefined` react-hook-form considera il campo «non valorizzato» e il suo
+               `get` restituisce il default registrato alla nascita del campo — il valore
+               che c'era prima —, che ricompariva così alla cancellazione dell'ultima cifra.
+               Stessa ragione per cui `nuovaRiga` non lascia campi a `undefined`. */
+            onChange={(e) => field.onChange(e.target.value === '' ? null : Number(e.target.value))}
             placeholder={placeholder ?? '—'}
             disabled={disabled}
             inputProps={{ min, max, step, autoComplete: ac, style: { textAlign: 'right', fontVariantNumeric: 'tabular-nums' } }}

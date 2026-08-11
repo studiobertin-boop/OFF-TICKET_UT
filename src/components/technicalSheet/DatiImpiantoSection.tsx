@@ -47,7 +47,9 @@ const DnSelect = ({ control, name, aria }: { control: Control<any>; name: string
         disableUnderline
         inputProps={{ 'aria-label': aria }}
         value={field.value ?? ''}
-        onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+        /* `null` e non `undefined` sul «—»: react-hook-form ripesca il default di un campo
+           indefinito, e il DN appena tolto sarebbe tornato da sé. Vedi `NumberCell`. */
+        onChange={(e) => field.onChange(e.target.value === '' ? null : Number(e.target.value))}
         renderValue={(v) =>
           v === '' || v == null
             ? <Box component="span" sx={{ color: 'text.disabled' }}>—</Box>
