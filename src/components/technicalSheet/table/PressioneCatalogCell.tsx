@@ -129,18 +129,22 @@ export const PressioneCatalogCell = ({
               // Il valore del campo è un numero, non una variante, e due varianti possono
               // dichiarare la stessa pressione: nessuna voce del menu si marca come scelta.
               isOptionEqualToValue={() => false}
+              /* Il campo svuotato vale `null` e non `undefined`: quest'ultimo, per
+                 react-hook-form, è un campo mai valorizzato, e alla lettura ne
+                 ripescherebbe il default — la pressione che c'era prima. Stessa ragione
+                 documentata in `NumberCell`. */
               onChange={(_e, v) => {
-                if (v === null || (v as any) === '') { field.onChange(undefined); return }
+                if (v === null || (v as any) === '') { field.onChange(null); return }
                 if (typeof v === 'object') { field.onChange(v.value); applica(v); return }
                 const num = typeof v === 'number' ? v : parseFloat(v)
-                if (isNaN(num)) { field.onChange(undefined); return }
+                if (isNaN(num)) { field.onChange(null); return }
                 field.onChange(num)
                 applicaPressione(num)
               }}
               onInputChange={(_e, v, reason) => {
                 if (reason !== 'input') return
                 const num = parseFloat(v)
-                field.onChange(v === '' || isNaN(num) ? undefined : num)
+                field.onChange(v === '' || isNaN(num) ? null : num)
               }}
               sx={autocompleteSx}
               renderInput={(params) => (

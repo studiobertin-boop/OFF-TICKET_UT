@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   Box,
   CircularProgress,
@@ -40,6 +41,7 @@ import { normalizeSchedaCodes } from '@/utils/equipmentCodes'
 export const TechnicalDetails = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { user } = useAuth()
   const { data: request, isLoading: requestLoading, error: requestError } = useRequest(id!)
 
@@ -135,6 +137,16 @@ export const TechnicalDetails = () => {
     }
   }, [user, navigate])
 
+  /**
+   * L'elenco pratiche mostra lo stato di compilazione di questa scheda, e lo legge dalla
+   * scheda stessa: salvata la scheda, quella lista è vecchia. Si segna da invalidare invece
+   * di ricaricarla — mentre si compila non è montata, quindi non parte nessuna richiesta:
+   * la si rilegge tornando indietro.
+   */
+  const segnalaListeDaAggiornare = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['requests'] })
+  }, [queryClient])
+
   // Autosave function (senza alert/snackbar)
   const handleAutoSave = useCallback(async (data: SchedaDatiCompleta) => {
     if (!id) return
@@ -144,12 +156,13 @@ export const TechnicalDetails = () => {
       await technicalDataApi.updateEquipmentData(id, data)
       setFormData(data)
       setLastSaved(new Date())
+      segnalaListeDaAggiornare()
     } catch (err) {
       console.error('Error auto-saving:', err)
     } finally {
       setAutoSaving(false)
     }
-  }, [id])
+  }, [id, segnalaListeDaAggiornare])
 
   // Manual save function (con feedback)
   const handleFormSubmit = async (data: SchedaDatiCompleta) => {
@@ -164,6 +177,7 @@ export const TechnicalDetails = () => {
       setFormData(data)
       setLastSaved(new Date())
       setShowSaveSuccess(true)
+      segnalaListeDaAggiornare()
     } catch (err) {
       console.error('Error saving draft:', err)
       alert('Errore nel salvataggio della bozza')
@@ -186,6 +200,7 @@ export const TechnicalDetails = () => {
       setFormData(currentData)
       setLastSaved(new Date())
       setShowSaveSuccess(true)
+      segnalaListeDaAggiornare()
     } catch (err) {
       console.error('Error saving draft:', err)
       alert('Errore nel salvataggio della bozza')

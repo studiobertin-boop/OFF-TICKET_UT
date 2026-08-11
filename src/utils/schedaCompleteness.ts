@@ -24,6 +24,15 @@ import {
 export interface Completezza {
   compilati: number
   previsti: number
+  /**
+   * Quanti dei compilati portano un valore scritto da qualcuno.
+   *
+   * Una spunta e un campo con default applicato dal motore risultano compilati anche se
+   * nessuno li ha toccati — è giusto ai fini della percentuale, che dice quanti dati la
+   * scheda ha — ma su una scheda mai aperta farebbero un 30% che non corrisponde a niente.
+   * Questo conteggio è quello che distingue «non ancora cominciata» da «cominciata».
+   */
+  valorizzati: number
   /** Etichette dei campi previsti ma vuoti, nell'ordine in cui compaiono. */
   mancanti: string[]
 }
@@ -38,6 +47,7 @@ export const eCompleta = (c: Completezza) => c.compilati >= c.previsti
 export const somma = (parti: Completezza[]): Completezza => ({
   compilati: parti.reduce((n, p) => n + p.compilati, 0),
   previsti: parti.reduce((n, p) => n + p.previsti, 0),
+  valorizzati: parti.reduce((n, p) => n + p.valorizzati, 0),
   mancanti: parti.flatMap((p) => p.mancanti),
 })
 
@@ -63,18 +73,23 @@ const leggi = (riga: unknown, path: string): unknown =>
 
 /** Contatore incrementale: ogni campo dichiara se è previsto e se risulta compilato. */
 class Conteggio {
-  private c: Completezza = { compilati: 0, previsti: 0, mancanti: [] }
+  private c: Completezza = { compilati: 0, previsti: 0, valorizzati: 0, mancanti: [] }
 
-  /** Registra un campo previsto. `ok` a true lo dà per compilato. */
-  campo(label: string, ok: boolean) {
+  /**
+   * Registra un campo previsto. `ok` a true lo dà per compilato; `valorizzato` distingue il
+   * valore scritto dal compilato d'ufficio (spunte, default del motore) e vale `ok` quando
+   * i due coincidono.
+   */
+  campo(label: string, ok: boolean, valorizzato: boolean = ok) {
     this.c.previsti += 1
     if (ok) this.c.compilati += 1
     else this.c.mancanti.push(label)
+    if (valorizzato) this.c.valorizzati += 1
   }
 
   /** Registra un campo previsto solo se `quando` è vero (campi condizionali). */
-  campoSe(quando: boolean, label: string, ok: boolean) {
-    if (quando) this.campo(label, ok)
+  campoSe(quando: boolean, label: string, ok: boolean, valorizzato: boolean = ok) {
+    if (quando) this.campo(label, ok, valorizzato)
   }
 
   get risultato(): Completezza {
@@ -132,7 +147,7 @@ export const completezzaRiga = (def: EquipmentTypeDef, riga: unknown): Completez
 
   for (const f of def.extra) {
     if (extraDaIgnorare(f)) continue
-    q.campoSe(extraPrevisto(f, r), f.label, extraCompilato(f, r))
+    q.campoSe(extraPrevisto(f, r), f.label, extraCompilato(f, r), presente(leggi(r, f.name)))
   }
 
   return q.risultato
@@ -183,6 +198,22 @@ export const righeComplete = (scheda: unknown): { complete: number; totali: numb
   return { complete: parti.filter(eCompleta).length, totali: parti.length }
 }
 
+/**
+ * Completezza dell'intera scheda dati: contesto e apparecchiature nello stesso conteggio.
+ *
+ * È il numero che la testata della scheda mostra come percentuale, e quello da cui l'elenco
+ * pratiche desume l'icona di compilazione: uno solo, altrimenti la stessa scheda risulterebbe
+ * completa in un posto e a metà nell'altro.
+ */
+export const completezzaScheda = (scheda: unknown): Completezza => {
+  const s = (scheda ?? {}) as Record<string, any>
+  return somma([
+    completezzaDatiGenerali(s.dati_generali),
+    completezzaDatiImpianto(s.dati_impianto),
+    completezzaApparecchiature(s),
+  ])
+}
+
 /** Completezza della banda «sopralluogo». Le note generali sono un commento: escluse. */
 export const completezzaDatiGenerali = (d: Partial<DatiGenerali> | undefined): Completezza => {
   const q = new Conteggio()
@@ -210,11 +241,12 @@ export const completezzaDatiImpianto = (d: Partial<DatiImpianto> | undefined): C
   q.campo('Raccolta condense', presente(i.raccolta_condense))
   q.campoSe(!i.locale_dedicato, 'Locale condiviso con', presente(i.locale_condiviso_con))
 
-  // Spunte: sempre compilate, per la stessa ragione delle spunte di riga.
-  q.campo('Locale dedicato', true)
-  q.campo('Accesso al locale vietato', true)
-  q.campo('Lontano da fonti di calore', true)
-  q.campo('Lontano da materiale infiammabile', true)
+  // Spunte: sempre compilate, per la stessa ragione delle spunte di riga. Valgono come dato
+  // scritto solo quando sono spuntate: a falso non si distinguono dal «mai aperta».
+  q.campo('Locale dedicato', true, !!i.locale_dedicato)
+  q.campo('Accesso al locale vietato', true, !!i.accesso_locale_vietato)
+  q.campo('Lontano da fonti di calore', true, !!i.lontano_fonti_calore)
+  q.campo('Lontano da materiale infiammabile', true, !!i.lontano_materiale_infiammabile)
 
   const tuttoLontano = !!i.lontano_fonti_calore && !!i.lontano_materiale_infiammabile
   q.campoSe(

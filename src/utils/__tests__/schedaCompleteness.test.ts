@@ -195,14 +195,15 @@ describe('completezza del contesto', () => {
 describe('aggregazione', () => {
   it('somma i conteggi e concatena i mancanti', () => {
     const c = somma([
-      { compilati: 3, previsti: 4, mancanti: ['Anno'] },
-      { compilati: 2, previsti: 2, mancanti: [] },
+      { compilati: 3, previsti: 4, valorizzati: 3, mancanti: ['Anno'] },
+      { compilati: 2, previsti: 2, valorizzati: 1, mancanti: [] },
     ])
-    expect(c).toEqual({ compilati: 5, previsti: 6, mancanti: ['Anno'] })
+    expect(c).toEqual({ compilati: 5, previsti: 6, valorizzati: 4, mancanti: ['Anno'] })
   })
 
   it('considera completa una sezione senza campi previsti', () => {
-    expect(percentuale({ compilati: 0, previsti: 0, mancanti: [] })).toBe(100)
-    expect(eCompleta({ compilati: 0, previsti: 0, mancanti: [] })).toBe(true)
+    const vuota = { compilati: 0, previsti: 0, valorizzati: 0, mancanti: [] }
+    expect(percentuale(vuota)).toBe(100)
+    expect(eCompleta(vuota)).toBe(true)
   })
 })

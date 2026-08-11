@@ -19,7 +19,7 @@ import { useTecnicoDM329Visibility } from '@/hooks/useTecnicoDM329Visibility'
 import { readSpec } from '@/services/equipmentAudit'
 import { rowKeyOf, useEquipmentCatalogContext } from '../EquipmentCatalogContext'
 import { VALVOLE_ROW_PREFIX } from '@/hooks/useHydrateCatalogOrigini'
-import { useRowExit } from './useRowExit'
+import { useCampoExit } from './useCampoExit'
 import { useRowCatalogDivergence } from '@/hooks/useRowCatalogDivergence'
 import { UpdateCatalogDialog } from '../UpdateCatalogDialog'
 import type { EquipmentCatalogItem } from '@/types'
@@ -161,8 +161,8 @@ interface EqRowProps {
   code: string
   /** Chiave della riga nella mappa delle provenienze dal catalogo. */
   rowKey: string
-  /** Chiamata quando il fuoco lascia la riga: verifica lo scostamento dal catalogo. */
-  onRowExit: () => void
+  /** Chiamata quando il fuoco lascia una cella della riga: verifica lo scostamento dal catalogo. */
+  onCampoExit: () => void
   /** Applica al form i dati tecnici della voce scelta a catalogo. */
   onSelected: (specs: Record<string, any>, item?: EquipmentCatalogItem) => void
   /** Un montante per ogni livello di annidamento; vuoto per le righe principali. */
@@ -176,10 +176,12 @@ interface EqRowProps {
 }
 
 const EqRow = ({
-  control, def, base, code, rowKey, onRowExit, onSelected, guide, adv, ocr, indice, onSelect, selezionata,
+  control, def, base, code, rowKey, onCampoExit, onSelected, guide, adv, ocr, indice, onSelect, selezionata,
 }: EqRowProps) => {
   const { setValue } = useFormContext()
-  const rowExit = useRowExit(onRowExit)
+  // Il confine è la cella: la verifica scatta anche passando da una colonna all'altra della
+  // stessa riga, non solo lasciando la riga.
+  const campoExit = useCampoExit(onCampoExit, 'td')
   useAutoPed(control, base, def, adv)
 
   const color = KIND_COLOR[def.kind]
@@ -244,7 +246,7 @@ const EqRow = ({
   return (
     <Box
       component="tr"
-      {...rowExit}
+      {...campoExit}
       sx={{
         '&:hover > td': { bgcolor: alpha(color, 0.06) },
         '& > td': stiliCella,
@@ -547,7 +549,7 @@ export const UnifiedEquipmentTable = ({ control, completezza, righeComplete, azi
         setOrigine(rowKey, { catalogItem: item, appliedSpecs: (item.specs ?? {}) as Record<string, unknown> })
       }
 
-  /** Handler di uscita dalla riga: verifica lo scostamento dai dati di catalogo. */
+  /** Handler di fine compilazione di un campo: verifica lo scostamento dai dati di catalogo. */
   const uscita = (def: EquipmentTypeDef, base: string, rowKey: string, code: string) => () =>
     divergenza.verificaRiga({ tipo: def.catalogType, base, rowKey, codice: code })
 
@@ -576,8 +578,9 @@ export const UnifiedEquipmentTable = ({ control, completezza, righeComplete, azi
   }) => {
     const { key, def, base, code, rowKey, guide, ocr, onDelete, append, identita } = args
     const onSelected = selettoreCatalogo(def, base, rowKey, identita)
+    const onExit = uscita(def, base, rowKey, code)
     const indice = voci.length
-    voci.push({ def, base, code, color: KIND_COLOR[def.kind], onSelected, onDelete, append })
+    voci.push({ def, base, code, color: KIND_COLOR[def.kind], onSelected, onExit, onDelete, append })
     rows.push(
       <EqRow
         key={key}
@@ -586,7 +589,7 @@ export const UnifiedEquipmentTable = ({ control, completezza, righeComplete, azi
         base={base}
         code={code}
         rowKey={rowKey}
-        onRowExit={uscita(def, base, rowKey, code)}
+        onCampoExit={onExit}
         onSelected={onSelected}
         guide={guide}
         adv={adv}
@@ -875,13 +878,20 @@ export const UnifiedEquipmentTable = ({ control, completezza, righeComplete, azi
         </Box>
       </Card>
 
+      {/* Uscire dalla finestra è come uscire da un campo: si verifica lo scostamento prima di
+          cambiare apparecchiatura o di chiudere. Il fuoco che lascia il campo lo farebbe già,
+          ma non quando si chiude con ESC o cliccando sullo sfondo. Chiedere due volte non
+          costa nulla: la verifica non riapre una domanda già in corso. */}
       <EquipmentDetailDialog
         control={control}
         dettaglio={dettaglioConChiusura}
         adv={adv}
         posizione={{ indice: (aperta ?? 0) + 1, totale: voci.length }}
-        onNaviga={(delta) => setAperta((n) => (n === null || voci.length === 0 ? n : (n + delta + voci.length) % voci.length))}
-        onClose={chiudiDettaglio}
+        onNaviga={(delta) => {
+          dettaglio?.onExit()
+          setAperta((n) => (n === null || voci.length === 0 ? n : (n + delta + voci.length) % voci.length))
+        }}
+        onClose={() => { dettaglio?.onExit(); chiudiDettaglio() }}
       />
 
       <UpdateCatalogDialog

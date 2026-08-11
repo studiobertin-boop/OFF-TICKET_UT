@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Box,
   Typography,
@@ -55,6 +55,8 @@ import { useActiveBlock } from '@/hooks/useRequestBlocks'
 import { isDM329Family } from '@/utils/workflow'
 import { FieldValue, SectionLabel } from '@/components/common'
 import { DM329StatusStepper } from '@/components/requests/DM329StatusStepper'
+import { SchedaStatoToggle } from '@/components/requests/SchedaStatoToggle'
+import { CAMPO_STATO_SCHEDA, compilazioneDiPratica, type StatoScheda } from '@/utils/schedaStato'
 import { useRequestTypes } from '@/hooks/useRequestTypes'
 import { hasIncompleteCustomerData } from '@/utils/customerValidation'
 import { type StatoFattura, type Customer } from '@/types'
@@ -113,6 +115,8 @@ export const RequestDetail = () => {
   const [offCacValue, setOffCacValue] = useState<'off' | 'cac' | ''>('')
   const [statoFatturaValue, setStatoFatturaValue] = useState<StatoFattura>('NO')
   const [togglingUrgent, setTogglingUrgent] = useState(false)
+  const [salvandoStatoScheda, setSalvandoStatoScheda] = useState(false)
+  const queryClient = useQueryClient()
 
   // Il tab attivo vive nella querystring: un refresh, un "indietro" o un link
   // condiviso riportano dove si stava guardando.
@@ -328,6 +332,27 @@ export const RequestDetail = () => {
     }
   }
 
+  /**
+   * Impone lo stato di compilazione della scheda dati, o lo restituisce al calcolo (`null`).
+   *
+   * Si scrive in `custom_fields` come le altre proprietà di pratica, e si invalidano anche le
+   * liste: l'icona che ne dipende sta lì.
+   */
+  const handleStatoScheda = async (stato: StatoScheda | null) => {
+    if (!id) return
+    try {
+      setSalvandoStatoScheda(true)
+      await requestsApi.updateCustomField(id, CAMPO_STATO_SCHEDA, stato)
+      await refetch()
+      await queryClient.invalidateQueries({ queryKey: ['requests'] })
+    } catch (err) {
+      console.error('Errore nel cambio di stato della scheda dati:', err)
+      alert('Errore nel cambio di stato della scheda dati')
+    } finally {
+      setSalvandoStatoScheda(false)
+    }
+  }
+
   const handleSaveNote = async () => {
     if (!request) return
     try {
@@ -539,6 +564,17 @@ export const RequestDetail = () => {
                 >
                   Scheda dati
                 </Button>
+              )}
+              {/* Lo stato che l'elenco pratiche mostra per questa scheda, e il comando per
+                  imporlo: sta accanto alla scheda cui si riferisce, non fra le azioni
+                  secondarie. Scrivere in `custom_fields` è concesso ad admin e userdm329,
+                  come per l'urgenza. */}
+              {canAccessTechnicalDetails && canToggleUrgent && (
+                <SchedaStatoToggle
+                  compilazione={compilazioneDiPratica(request)}
+                  onScegli={handleStatoScheda}
+                  disabled={salvandoStatoScheda}
+                />
               )}
               {/* Sbloccare è ciò che rimette in moto la pratica: fuori dal menu,
                   a differenza delle altre azioni secondarie. */}

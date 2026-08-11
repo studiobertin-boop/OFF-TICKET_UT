@@ -34,6 +34,7 @@ import {
   Warning as WarningIcon,
   AccessTime as AccessTimeIcon,
   Block as BlockIcon,
+  FactCheck as FactCheckIcon,
 } from '@mui/icons-material'
 import { Request, DM329Status, StatoFattura, STATO_FATTURA_OPTIONS, STATO_FATTURA_LABELS } from '@/types'
 import { getStatusColor, getStatusLabel, ALL_DM329_STATUSES, DM329_STATUS_LABELS } from '@/utils/workflow'
@@ -42,6 +43,11 @@ import { getStatusChipColors } from '@/theme/statusColors'
 import { useThemeMode } from '@/theme'
 import { usePersistedState } from '@/hooks/usePersistedState'
 import { useAuth } from '@/hooks/useAuth'
+import {
+  compilazioneDiPratica, ordineCompilazione, STATO_SCHEDA_LABELS,
+  type CompilazioneScheda, type StatoScheda,
+} from '@/utils/schedaStato'
+import { SchedaStatoIcon } from './SchedaStatoIcon'
 import { EditableSelectCell } from './EditableSelectCell'
 import { requestsApi } from '@/services/api/requests'
 import { updateRequestStatus } from '@/services/requestService'
@@ -83,6 +89,7 @@ type OrderBy =
   | 'is_blocked'
   | 'has_timer_alert'
   | 'no_civa'
+  | 'scheda_stato'
   | 'stato_fattura'
 
 // Colonna filtrabile → chiave del popover
@@ -108,6 +115,15 @@ const SEGNAL_META: { key: OrderBy; label: string; Icon: typeof PriorityHighIcon;
   { key: 'no_civa', label: 'No CIVA', Icon: BlockIcon, color: 'primary.main' },
 ]
 
+/**
+ * La compilazione della scheda dati non è un allarme acceso o spento come gli altri quattro:
+ * ha tre stati e una percentuale. Sta nella stessa colonna e nello stesso menu, ma con voci
+ * proprie.
+ */
+const SCHEDA_META = { key: 'scheda_stato' as const, label: 'Scheda dati', Icon: FactCheckIcon }
+
+const STATI_SCHEDA: StatoScheda[] = ['vuota', 'parziale', 'completa']
+
 // Larghezze fisse (px) delle colonne compatte; Cliente resta flessibile (assorbe lo spazio)
 const W = {
   select: 44,
@@ -116,13 +132,14 @@ const W = {
   tipo: 92,
   stato: 170,
   data: 104,
-  segnal: 134,
+  segnal: 158,
   note: 240,
   fattura: 120,
 }
 
-// Cella "Segnalazioni": 4 icone in posizione fissa, grigie quando non attive
-function SegnalazioniCell({ request }: { request: Request }) {
+// Cella "Segnalazioni": 4 icone in posizione fissa, grigie quando non attive, più lo stato
+// di compilazione della scheda dati
+function SegnalazioniCell({ request, compilazione }: { request: Request; compilazione: CompilazioneScheda }) {
   const active: Record<string, boolean> = {
     is_urgent: !!request.is_urgent,
     is_blocked: !!request.is_blocked,
@@ -140,6 +157,7 @@ function SegnalazioniCell({ request }: { request: Request }) {
           <Icon key={key} sx={{ fontSize: 19, color: 'text.disabled', opacity: 0.25 }} />
         )
       )}
+      <SchedaStatoIcon compilazione={compilazione} />
     </Box>
   )
 }
@@ -201,6 +219,7 @@ export const DM329TableView = ({
   const [urgentFilter, setUrgentFilter] = usePersistedState<TriState>('dm329Table_urgentFilter', 'all')
   const [blockedFilter, setBlockedFilter] = usePersistedState<TriState>('dm329Table_blockedFilter', 'all')
   const [timerAlertFilter, setTimerAlertFilter] = usePersistedState<TriState>('dm329Table_timerAlertFilter', 'all')
+  const [schedaFilter, setSchedaFilter] = usePersistedState<StatoScheda[]>('dm329Table_schedaFilter', [])
   const [statoFatturaFilter, setStatoFatturaFilter] = usePersistedState<StatoFattura[]>('dm329Table_statoFatturaFilter', [])
   const [tipoPraticaFilter, setTipoPraticaFilter] = usePersistedState<string>('dm329Table_tipoPraticaFilter', '')
 
@@ -273,6 +292,17 @@ export const DM329TableView = ({
   // Conteggio sale per cliente (per omettere/mostrare la lettera nel codice pratica)
   const salaCounts = useMemo(() => computeClientSalaCounts(requests), [requests])
 
+  /**
+   * Compilazione della scheda di ogni pratica, calcolata una volta sola: la si legge sia per
+   * l'icona di riga sia per filtro e ordinamento, e ricalcolarla dentro il comparatore
+   * significherebbe ripercorrere tutte le apparecchiature a ogni confronto.
+   */
+  const compilazioni = useMemo(
+    () => new Map(requests.map((r) => [r.id, compilazioneDiPratica(r)])),
+    [requests],
+  )
+  const compilazioneDi = (req: Request) => compilazioni.get(req.id) ?? compilazioneDiPratica(req)
+
   const filteredAndSortedRequests = useMemo(() => {
     let filtered = [...requests]
 
@@ -303,6 +333,12 @@ export const DM329TableView = ({
     if (timerAlertFilter !== 'all') {
       filtered = filtered.filter(req => (timerAlertFilter === 'true' ? req.has_timer_alert === true : req.has_timer_alert !== true))
     }
+    if (schedaFilter.length > 0) {
+      filtered = filtered.filter(req => {
+        const c = compilazioni.get(req.id)
+        return !!c && schedaFilter.includes(c.stato)
+      })
+    }
     if (statoFatturaFilter.length > 0) {
       filtered = filtered.filter(req => {
         const statoFattura = (req.custom_fields?.stato_fattura as StatoFattura) || 'NO'
@@ -321,6 +357,10 @@ export const DM329TableView = ({
         case 'is_blocked': aValue = a.is_blocked ? 1 : 0; bValue = b.is_blocked ? 1 : 0; break
         case 'has_timer_alert': aValue = a.has_timer_alert ? 1 : 0; bValue = b.has_timer_alert ? 1 : 0; break
         case 'no_civa': aValue = a.custom_fields?.no_civa ? 1 : 0; bValue = b.custom_fields?.no_civa ? 1 : 0; break
+        case 'scheda_stato':
+          aValue = ordineCompilazione(compilazioni.get(a.id) ?? compilazioneDiPratica(a))
+          bValue = ordineCompilazione(compilazioni.get(b.id) ?? compilazioneDiPratica(b))
+          break
         case 'updated_at': aValue = new Date(a.updated_at).getTime(); bValue = new Date(b.updated_at).getTime(); break
         case 'codice':
           aValue = codiceForRequest(a, salaCounts.get(a.customer_id || '') || 0)
@@ -340,7 +380,7 @@ export const DM329TableView = ({
     })
 
     return filtered
-  }, [requests, orderBy, order, clienteFilter, statoFilter, noCivaFilter, noteFilter, urgentFilter, blockedFilter, timerAlertFilter, statoFatturaFilter, tipoPraticaFilter, salaCounts])
+  }, [requests, orderBy, order, clienteFilter, statoFilter, noCivaFilter, noteFilter, urgentFilter, blockedFilter, timerAlertFilter, schedaFilter, statoFatturaFilter, tipoPraticaFilter, salaCounts, compilazioni])
 
   const clearFilters = () => {
     setClienteFilter([])
@@ -351,11 +391,12 @@ export const DM329TableView = ({
     setUrgentFilter('all')
     setBlockedFilter('all')
     setTimerAlertFilter('all')
+    setSchedaFilter([])
     setStatoFatturaFilter([])
     setTipoPraticaFilter('')
   }
 
-  const segnalFilterActive = urgentFilter !== 'all' || blockedFilter !== 'all' || timerAlertFilter !== 'all' || noCivaFilter !== 'all'
+  const segnalFilterActive = urgentFilter !== 'all' || blockedFilter !== 'all' || timerAlertFilter !== 'all' || noCivaFilter !== 'all' || schedaFilter.length > 0
   const hasActiveFilters =
     clienteFilter.length > 0 ||
     statoFilter.length > 0 ||
@@ -428,8 +469,8 @@ export const DM329TableView = ({
   const ellipsisSx = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } as const
 
   const colSpan = (selectionEnabled ? 1 : 0) + (isAdmin || isUserDM329 ? 9 : 8)
-  const isFlagSort = ['is_urgent', 'is_blocked', 'has_timer_alert', 'no_civa'].includes(orderBy)
-  const activeSegnal = SEGNAL_META.find(s => s.key === orderBy)
+  const isFlagSort = ['is_urgent', 'is_blocked', 'has_timer_alert', 'no_civa', 'scheda_stato'].includes(orderBy)
+  const activeSegnal = [...SEGNAL_META, SCHEDA_META].find(s => s.key === orderBy)
 
   // Contenuto del popover filtri
   const boolFilterRow = (label: string, value: TriState, setter: (v: TriState) => void, Icon?: typeof PriorityHighIcon) => (
@@ -515,7 +556,7 @@ export const DM329TableView = ({
         return (
           <Box sx={{ p: 1.5, minWidth: 230 }}>
             <Typography variant="overline" color="text.secondary">Ordina per</Typography>
-            {SEGNAL_META.map(({ key, label, Icon }) => (
+            {[...SEGNAL_META, SCHEDA_META].map(({ key, label, Icon }) => (
               <MenuItem key={key} dense selected={orderBy === key} onClick={() => handleSort(key)}>
                 <Icon sx={{ fontSize: 18, mr: 1, color: 'text.secondary' }} />
                 <ListItemText primary={label} />
@@ -530,6 +571,26 @@ export const DM329TableView = ({
             {boolFilterRow('Bloccata', blockedFilter, setBlockedFilter, WarningIcon)}
             {boolFilterRow('Scaduta', timerAlertFilter, setTimerAlertFilter, AccessTimeIcon)}
             {boolFilterRow('No CIVA', noCivaFilter, setNoCivaFilter, BlockIcon)}
+            {/* La scheda dati ha tre stati, non un sì/no: si spuntano quelli che si vogliono
+                vedere, come per lo stato della pratica. */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+              <FactCheckIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+              <Typography variant="caption" sx={{ fontWeight: 600 }}>Scheda dati</Typography>
+            </Box>
+            {STATI_SCHEDA.map(stato => (
+              <MenuItem
+                key={stato}
+                dense
+                onClick={() =>
+                  setSchedaFilter(prev =>
+                    prev.includes(stato) ? prev.filter(s => s !== stato) : [...prev, stato]
+                  )
+                }
+              >
+                <Checkbox size="small" checked={schedaFilter.includes(stato)} />
+                <ListItemText primary={STATO_SCHEDA_LABELS[stato]} />
+              </MenuItem>
+            ))}
           </Box>
         )
       case 'note':
@@ -600,6 +661,7 @@ export const DM329TableView = ({
             {blockedFilter !== 'all' && <Chip label={`Bloccate: ${blockedFilter === 'true' ? 'Sì' : 'No'}`} size="small" onDelete={() => setBlockedFilter('all')} />}
             {timerAlertFilter !== 'all' && <Chip label={`Scadute: ${timerAlertFilter === 'true' ? 'Sì' : 'No'}`} size="small" onDelete={() => setTimerAlertFilter('all')} />}
             {noCivaFilter !== 'all' && <Chip label={`No CIVA: ${noCivaFilter === 'true' ? 'Sì' : 'No'}`} size="small" onDelete={() => setNoCivaFilter('all')} />}
+            {schedaFilter.length > 0 && <Chip label={`Scheda: ${schedaFilter.join(', ')}`} size="small" onDelete={() => setSchedaFilter([])} />}
             {noteFilter && <Chip label={`Note: "${noteFilter}"`} size="small" onDelete={() => setNoteFilter('')} />}
             {statoFatturaFilter.length > 0 && <Chip label={`Stato Fattura: ${statoFatturaFilter.length}`} size="small" onDelete={() => setStatoFatturaFilter([])} />}
           </Box>
@@ -716,7 +778,7 @@ export const DM329TableView = ({
                     {format(new Date(request.updated_at), 'dd/MM/yyyy', { locale: it })}
                   </TableCell>
                   <TableCell sx={{ textAlign: 'center' }}>
-                    <SegnalazioniCell request={request} />
+                    <SegnalazioniCell request={request} compilazione={compilazioneDi(request)} />
                   </TableCell>
                   <TableCell sx={ellipsisSx} title={note}>{note}</TableCell>
                   {(isAdmin || isUserDM329) && (

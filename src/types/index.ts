@@ -144,8 +144,18 @@ export interface Request {
   indirizzo_impianto?: string | null
   impianto_uguale_sede_legale?: boolean
   pratica_padre_id?: string | null
+  /**
+   * Scheda dati DM329 agganciata, nel solo pezzo che serve a dirne il grado di compilazione.
+   * Assente sulle pratiche che non ne hanno una e su quelle che chi guarda non può leggere.
+   */
+  technical_data?: SchedaAgganciata | SchedaAgganciata[] | null
   created_at: string
   updated_at: string
+}
+
+/** La scheda dati come arriva agganciata alla pratica: `equipment_data` è tutta la scheda. */
+export interface SchedaAgganciata {
+  equipment_data?: Record<string, any> | null
 }
 
 export interface RequestHistory {
