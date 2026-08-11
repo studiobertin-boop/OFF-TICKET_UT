@@ -17,7 +17,10 @@ export interface LayoutSalvato {
 }
 
 export function serializzaLayout(layout: SchemaLayout): LayoutSalvato {
-  return { versione: VERSIONE, nodi: layout.nodi, archi: layout.archi }
+  // Copia profonda, non solo degli array: chi tiene il risultato deve avere un'istantanea
+  // vera. Senza clonare anche i singoli nodi/archi, un trascinamento successivo nell'editor
+  // (che muta x/y in place sullo stesso oggetto) si propagherebbe dentro al "salvato".
+  return { versione: VERSIONE, nodi: structuredClone(layout.nodi), archi: structuredClone(layout.archi) }
 }
 
 export function deserializzaLayout(salvato: LayoutSalvato | null | undefined): SchemaLayout | null {
@@ -29,6 +32,18 @@ export interface EsitoRiconciliazione {
   layout: SchemaLayout
   aggiunti: string[]
   rimossi: string[]
+}
+
+/**
+ * Identità di una tubazione per il confronto salvato/modello: i capi (nodo+ancora da un lato
+ * e dall'altro) più lo stile. Non l'id: `buildArchi` lo genera con un contatore che riparte
+ * a ogni chiamata (`flex-1`, `std-2`, ...), quindi dipende dall'ordine di iterazione (per
+ * esempio dall'ordine delle chiavi in `collegamentiCompressoriSerbatoi`) e non è stabile fra
+ * una scheda e la successiva. Due archi scollegati possono ricevere lo stesso id per
+ * coincidenza: confrontare gli id scarterebbe in silenzio un arco nuovo davvero diverso.
+ */
+function identitaArco(arco: SchemaArco): string {
+  return `${arco.da.nodo}#${arco.da.ancora}->${arco.a.nodo}#${arco.a.ancora}:${arco.stile}`
 }
 
 export function riconcilia(salvato: LayoutSalvato, modello: SchemaModel): EsitoRiconciliazione {
@@ -53,12 +68,15 @@ export function riconcilia(salvato: LayoutSalvato, modello: SchemaModel): EsitoR
   const nodi = [...superstiti, ...posizionati]
   const idNodi = new Set(nodi.map((n) => n.id))
 
-  // Gli archi salvati restano solo se entrambi i capi esistono ancora; per le apparecchiature
-  // nuove si prendono quelli che il modello propone.
-  const archiSalvati = salvato.archi.filter((a) => idNodi.has(a.da.nodo) && idNodi.has(a.a.nodo))
-  const idArchi = new Set(archiSalvati.map((a) => a.id))
+  // Gli archi salvati restano per default; per le apparecchiature nuove si aggiungono quelli
+  // che il modello propone, a meno che un arco con la stessa identità (capi + stile) non sia
+  // già fra i salvati. L'invariante "nessun capo su un nodo assente" si impone una sola volta,
+  // alla fine, sull'unione: qui sopra gli elenchi possono ancora contenere un arco salvato che
+  // puntava a un nodo appena rimosso, o un arco nuovo verso un nodo che poi risulta scartato.
+  const archiSalvati = salvato.archi
+  const identitaSalvate = new Set(archiSalvati.map(identitaArco))
   const archiNuovi = modello.archi.filter(
-    (a) => !idArchi.has(a.id) && (aggiunti.includes(a.da.nodo) || aggiunti.includes(a.a.nodo))
+    (a) => !identitaSalvate.has(identitaArco(a)) && (aggiunti.includes(a.da.nodo) || aggiunti.includes(a.a.nodo))
   )
   const archi = [...archiSalvati, ...archiNuovi].filter((a) => idNodi.has(a.da.nodo) && idNodi.has(a.a.nodo))
 

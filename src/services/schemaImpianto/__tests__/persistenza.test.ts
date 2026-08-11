@@ -39,6 +39,18 @@ describe('serializzazione', () => {
 
     expect(tornato.muro).toEqual(layout.muro)
   })
+
+  it('restituisce una copia difensiva: mutare il layout originale non tocca il salvato', () => {
+    const layout = layoutSchema(modelloDiProva(['C1']))
+    const salvato = serializzaLayout(layout)
+
+    // Simula un trascinamento nell'editor: muta in place gli stessi oggetti restituiti da layoutSchema.
+    layout.nodi[0].x = 999999
+    layout.archi[0].stile = 'condensa'
+
+    expect(salvato.nodi[0].x).not.toBe(999999)
+    expect(salvato.archi[0].stile).not.toBe('condensa')
+  })
 })
 
 describe('riconciliazione con la scheda', () => {
@@ -80,6 +92,22 @@ describe('riconciliazione con la scheda', () => {
       expect(idNodi.has(arco.da.nodo)).toBe(true)
       expect(idNodi.has(arco.a.nodo)).toBe(true)
     }
+  })
+
+  it('non scarta un arco nuovo solo perché rigenera per coincidenza l’id di un arco salvato non correlato', () => {
+    // buildArchi numera gli archi con un contatore che riparte a ogni chiamata: il primo arco
+    // di una scheda è sempre "flex-1", indipendentemente da quali nodi collega. Qui il
+    // compressore connesso al serbatoio cambia da C1 a C2 fra il salvataggio e la
+    // riconciliazione: l'arco salvato e quello nuovo hanno lo stesso id ma capi diversi, e
+    // quello nuovo (che tocca l'apparecchiatura appena aggiunta C2) deve sopravvivere.
+    const salvato = serializzaLayout(layoutSchema(modelloDiProva(['C1'])))
+    expect(salvato.archi[0].id).toBe('flex-1')
+
+    const esito = riconcilia(salvato, modelloDiProva(['C2', 'C1']))
+    const arcoNuovo = esito.layout.archi.find((a) => a.da.nodo === 'C2' && a.a.nodo === 'S1')
+
+    expect(esito.aggiunti).toContain('C2')
+    expect(arcoNuovo).toBeDefined()
   })
 
   it('riparte da zero quando il layout salvato è vuoto: tutti i nodi della scheda sono aggiunti', () => {
