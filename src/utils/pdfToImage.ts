@@ -1,11 +1,4 @@
-import * as pdfjsLib from 'pdfjs-dist'
-
-// Configura worker per pdfjs - usa il worker locale da node_modules
-// Vite servirà automaticamente questo file come static asset
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url
-).href
+import { pdfjsLib } from './pdfjs'
 
 export interface PDFPageImage {
   pageNumber: number

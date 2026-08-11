@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Box,
   CircularProgress,
@@ -16,6 +16,7 @@ import { useCustomers } from '@/hooks/useCustomers'
 import { technicalDataApi } from '@/services/api/technicalData'
 import { requestsApi } from '@/services/api/requests'
 import { customersApi } from '@/services/api/customers'
+import { supabase } from '@/services/supabase'
 import { TechnicalSheetForm, type TechnicalSheetFormRef } from '@/components/technicalSheet/TechnicalSheetForm'
 import { OCRReviewDialog } from '@/components/technicalSheet/OCRReviewDialog'
 import { ShareDialog } from '@/components/technicalSheet/ShareDialog'
@@ -288,6 +289,43 @@ export const TechnicalDetails = () => {
     [clientDm329Overview]
   )
 
+  // Ultimo cambio di stato della pratica: insieme a `request.status/updated_at/created_at`
+  // dice alla sezione fascicolo quando i documenti verranno cancellati. Anche questa prima
+  // delle uscite anticipate.
+  //
+  // `tecnicoDM329` non ha alcuna policy di SELECT su `request_history` (verificato sul database
+  // di produzione: le uniche policy coprono admin, tecnico, utente, userdm329). Questo NON produce
+  // un errore: `authenticated` ha comunque il GRANT di tabella, quindi Postgres applica l'RLS
+  // filtrando le righe in silenzio — la query torna `data: null, error: null`, indistinguibile da
+  // «la pratica non ha righe di storia». Controllare solo `error` non basta: propagarlo protegge
+  // da guasti genuini (rete, permessi cambiati), ma per `tecnicoDM329` il risultato vuoto è sempre
+  // e comunque inaffidabile, non solo a volte. Per questo la query resta disabilitata per quel
+  // ruolo — a monte, prima ancora di interrogare — invece di fidarsi di un `null` che potrebbe
+  // nascondere una storia che esiste ma che quell'utente non può leggere: `dataCancellazione`
+  // scivolerebbe su `creataIl` e mostrerebbe una data falsa, su una pratica chiusa da tempo
+  // sparita mesi fa invece che fra 30 giorni dalla chiusura.
+  //
+  // `isSuccess` distingue quindi tre casi, non due: query disabilitata (`tecnicoDM329`, sempre
+  // inaffidabile) e query fallita (rete, RLS futura su altri ruoli) restano entrambe `false` —
+  // `movimenti` sotto resta `undefined` e la sezione fascicolo non mostra alcuna data; query
+  // riuscita con nessuna riga (`maybeSingle` su una pratica senza storia) resta `true` con
+  // `ultimoCambioStato: null`, e il ripiego su `creataIl` in `scadenza.ts` è quello giusto.
+  const { data: ultimoCambioStato, isSuccess: storiaLetta } = useQuery({
+    queryKey: ['ultimo-cambio-stato', id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('request_history')
+        .select('created_at')
+        .eq('request_id', id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (error) throw error
+      return data?.created_at ?? null
+    },
+    enabled: Boolean(id) && user?.role !== 'tecnicoDM329',
+  })
+
   // IMPORTANT: Calculate sedeLegale BEFORE early returns to avoid React Hook ordering issues
   // Get sede legale from customer data using formatFullAddress
   // Priority: request.customer > customerByName > custom_fields.sede_legale
@@ -394,6 +432,21 @@ export const TechnicalDetails = () => {
             onAutoSave={handleAutoSave}
             customerName={customerName}
             sedeLegale={sedeLegale}
+            codicePratica={codicePratica}
+            requestId={request.id}
+            // undefined quando la lettura di request_history è fallita (RLS, rete): senza un
+            // ultimo cambio di stato certo non si passa alcun `movimenti`, e la sezione fascicolo
+            // non mostra alcuna data invece di una calcolata su un ripiego potenzialmente falso.
+            movimenti={
+              storiaLetta
+                ? {
+                    stato: request.status,
+                    ultimoCambioStato: ultimoCambioStato ?? null,
+                    aggiornataIl: request.updated_at,
+                    creataIl: request.created_at,
+                  }
+                : undefined
+            }
             header={(completezza) => (
               <TechnicalSheetHeader
                 customerName={customerName}

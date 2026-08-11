@@ -201,6 +201,7 @@ export type NotificationEventType =
   | 'request_blocked'
   | 'block_resolved'
   | 'request_urgent'
+  | 'fascicolo_in_scadenza'
 
 export interface Notification {
   id: string

@@ -55,6 +55,8 @@ const VOCI: DettaglioRiga[] = [0, 1].map((i) => ({
   onExit: () => {},
   onDelete: null,
   append: null,
+  // Il test guarda lo scorrimento fra le voci, non il fascicolo: nessuna sezione da montare.
+  fascicolo: null,
 }))
 
 /** Una cella della tabella dietro: serve solo a tenere il campo registrato nel form. */

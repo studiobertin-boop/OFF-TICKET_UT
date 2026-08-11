@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { composeCodicePratica, nomeFileRelazione } from '../practiceCode'
+import { composeCodicePratica, nomeFileFascicolo, nomeFileRelazione } from '../practiceCode'
 
 describe('nomeFileRelazione', () => {
   test('infila RELAZIONE fra le due parti del codice pratica', () => {
@@ -26,5 +26,30 @@ describe('nomeFileRelazione', () => {
 
   test('non produce un nome vuoto nemmeno senza cliente', () => {
     expect(nomeFileRelazione('', '')).toBe('Relazione_senza_cliente.docx')
+  })
+})
+
+describe('nomeFileFascicolo', () => {
+  test('attacca il codice apparecchiatura alla prima parte del codice pratica', () => {
+    expect(nomeFileFascicolo('602A_01-2026', 'E1', 'ESEMPIO S.P.A.'))
+      .toBe('602A-E1_CERTIFICATI_MANUALI_FOTO_01-2026.pdf')
+    expect(nomeFileFascicolo('123_00-2025', 'S2', 'ESEMPIO S.P.A.'))
+      .toBe('123-S2_CERTIFICATI_MANUALI_FOTO_00-2025.pdf')
+  })
+
+  test('tiene il punto dei codici delle apparecchiature collegate', () => {
+    // Il disoleatore del primo compressore è `C1.1`: il punto fa parte del codice,
+    // non è l'estensione del file.
+    expect(nomeFileFascicolo('602A_01-2026', 'C1.1', 'ESEMPIO S.P.A.'))
+      .toBe('602A-C1.1_CERTIFICATI_MANUALI_FOTO_01-2026.pdf')
+  })
+
+  test('ripiega sulla ragione sociale quando la pratica non ha ancora un codice', () => {
+    expect(nomeFileFascicolo('', 'E1', 'ESEMPIO S.P.A.')).toBe('Fascicolo_E1_ESEMPIO S.P.A..pdf')
+    expect(nomeFileFascicolo('602A', 'E1', 'ESEMPIO S.P.A.')).toBe('Fascicolo_E1_ESEMPIO S.P.A..pdf')
+  })
+
+  test('non produce un nome vuoto nemmeno senza cliente', () => {
+    expect(nomeFileFascicolo('', 'E1', '')).toBe('Fascicolo_E1_senza_cliente.pdf')
   })
 })

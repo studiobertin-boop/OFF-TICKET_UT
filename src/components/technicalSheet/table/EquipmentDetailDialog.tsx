@@ -14,8 +14,11 @@ import { CheckCell, NumberCell, SelectCell, TextCell } from './EquipmentCells'
 import { ValvoleProtezioneCell } from './ValvoleProtezioneCell'
 import { useCellePrincipali } from './useCellePrincipali'
 import { useCampoExit } from './useCampoExit'
-import type { EquipmentTypeDef, ExtraFieldDef } from './equipmentConfig'
+import { FascicoloSection } from '../fascicolo/FascicoloSection'
+import { EQUIPMENT_DEFS, type EquipmentTypeDef, type ExtraFieldDef } from './equipmentConfig'
 import type { EquipmentCatalogItem } from '@/types'
+import type { Apparecchiatura, ContestoFascicolo } from '@/services/fascicolo/types'
+import type { MovimentoPratica } from '@/services/fascicolo/scadenza'
 
 /**
  * Riga di cui sono aperti i dettagli.
@@ -39,6 +42,30 @@ export interface DettaglioRiga {
   onExit: () => void
   onDelete: (() => void) | null
   append: { label: string; onClick: () => void } | null
+  /**
+   * Composizione del fascicolo dell'apparecchiatura. `null` per le valvole, che non ne hanno
+   * uno proprio: il loro certificato entra in quello del recipiente che le porta.
+   */
+  fascicolo: RigaFascicolo | null
+}
+
+/**
+ * Ciò che serve alla sezione del fascicolo, oltre ai valori della riga.
+ *
+ * Le altre apparecchiature in gioco arrivano come percorsi e non come valori: la finestra li
+ * osserva da sé, così i dati di targa con cui si riconoscono i documenti sono quelli correnti
+ * anche se il tecnico li corregge mentre il fascicolo è aperto.
+ */
+export interface RigaFascicolo {
+  /** Nome del file da scaricare, già composto dal codice pratica. */
+  nomeFile: string
+  valvole: { codice: string; base: string }[]
+  principale: { codice: string; base: string; def: EquipmentTypeDef } | null
+  /** Pratica e codice: insieme individuano i documenti salvati di questa apparecchiatura. */
+  requestId: string
+  codice: string
+  /** Stato e date della pratica: da qui si ricava quando i documenti verranno cancellati. */
+  movimenti?: MovimentoPratica
 }
 
 interface EquipmentDetailDialogProps {
@@ -189,6 +216,12 @@ const Contenuto = ({
             </Campo>
           ))}
         </Box>
+
+        {dettaglio.fascicolo && (
+          <Box sx={{ mt: 2, pt: 1.5, borderTop: 1, borderColor: 'divider' }}>
+            <SezioneFascicolo control={control} def={def} base={base} code={code} fascicolo={dettaglio.fascicolo} />
+          </Box>
+        )}
       </Box>
 
       {/* Piede: le azioni che riguardano l'apparecchiatura intera, e il promemoria sul
@@ -214,6 +247,58 @@ const Contenuto = ({
         </Button>
       </Box>
     </>
+  )
+}
+
+/** Legge un valore del form seguendo un percorso a punti. */
+const leggi = (valori: any, percorso: string) =>
+  percorso.split('.').reduce((o: any, k: string) => o?.[k], valori)
+
+/** Dati con cui si riconoscono i documenti di un'apparecchiatura, presi dai valori correnti. */
+const apparecchiaturaDa = (def: EquipmentTypeDef, codice: string, v: any): Apparecchiatura => ({
+  codice,
+  tipo: def.label.toLowerCase(),
+  marca: v?.marca ?? null,
+  modello: v?.modello ?? null,
+  anno: v?.anno ?? null,
+  n_fabbrica: v?.n_fabbrica ?? null,
+  pressione: def.pressioneField ? (v?.[def.pressioneField] ?? null) : null,
+})
+
+/**
+ * Sezione del fascicolo, con il contesto composto dai valori correnti della scheda.
+ *
+ * Osserva l'intero form e non i singoli percorsi: le apparecchiature che entrano nel contesto
+ * sono un numero variabile — una valvola o tre — e osservarle una per una vorrebbe dire un
+ * numero variabile di hook. La finestra è comunque l'unica cosa a schermo mentre è aperta.
+ */
+const SezioneFascicolo = ({ control, def, base, code, fascicolo }: {
+  control: Control<any>
+  def: EquipmentTypeDef
+  base: string
+  code: string
+  fascicolo: RigaFascicolo
+}) => {
+  const tutti = useWatch({ control })
+
+  const contesto: ContestoFascicolo = {
+    apparecchiatura: apparecchiaturaDa(def, code, leggi(tutti, base)),
+    valvole: fascicolo.valvole.map((v) =>
+      apparecchiaturaDa(EQUIPMENT_DEFS.valvola, v.codice, leggi(tutti, v.base))
+    ),
+    principale: fascicolo.principale
+      ? apparecchiaturaDa(fascicolo.principale.def, fascicolo.principale.codice, leggi(tutti, fascicolo.principale.base))
+      : null,
+  }
+
+  return (
+    <FascicoloSection
+      contesto={contesto}
+      nomeFile={fascicolo.nomeFile}
+      requestId={fascicolo.requestId}
+      codice={fascicolo.codice}
+      movimenti={fascicolo.movimenti}
+    />
   )
 }
 

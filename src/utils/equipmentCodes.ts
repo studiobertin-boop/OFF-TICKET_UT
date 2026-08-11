@@ -10,25 +10,20 @@
 import { EQUIPMENT_LIMITS } from '@/types'
 import type { AdditionalInfo, TipoGiri } from '@/services/relazione/types'
 import { elencaValvole } from '@/utils/valvoleImpianto'
+import {
+  parseCode,
+  collectCodes,
+  PARENT_ARRAYS,
+  CHILD_ARRAYS,
+  type ParsedCode,
+} from '@/services/fascicolo/codiciScheda'
 
-export interface ParsedCode {
-  prefix: string
-  num: number
-  /** Sotto-numero dei figli: `C1.1` → sub 1. Assente nei codici principali. */
-  sub?: number
-}
-
-const CODE_RE = /^([A-Z]+)(\d+)(?:\.(\d+))?$/
-
-/** Scompone un codice, o ritorna null se non è un codice valido. */
-export function parseCode(code: unknown): ParsedCode | null {
-  if (typeof code !== 'string') return null
-  const m = CODE_RE.exec(code.trim())
-  if (!m) return null
-  const parsed: ParsedCode = { prefix: m[1], num: Number(m[2]) }
-  if (m[3] !== undefined) parsed.sub = Number(m[3])
-  return parsed
-}
+// `parseCode`, `collectCodes` e la lista degli 8 array vivono in codiciScheda.ts: li importa
+// anche la passata notturna che rimuove i documenti orfani (Edge Function, via percorso
+// relativo), e le due parti devono concordare sulla stessa nozione di «codice valido». Qui si
+// ri-esportano per non rompere gli import esistenti (`from '@/utils/equipmentCodes'`).
+export { parseCode, collectCodes }
+export type { ParsedCode }
 
 /**
  * Ordine naturale dei codici: S1 < S2 < S10, C1 < C1.1, prefissi raggruppati.
@@ -80,32 +75,6 @@ export function codeForArrayIndex(array: string, index: number): string | null {
   const limits = (EQUIPMENT_LIMITS as Record<string, { prefix: string; max: number; suffix?: string }>)[array]
   if (!limits || !Number.isInteger(index) || index < 0) return null
   return `${limits.prefix}${index + 1}${limits.suffix ?? ''}`
-}
-
-/** Array principali della scheda: prefisso e massimo vengono da EQUIPMENT_LIMITS. */
-const PARENT_ARRAYS = ['serbatoi', 'compressori', 'essiccatori', 'filtri', 'separatori'] as const
-
-/** Array dipendenti: il codice si deriva dal padre tramite il campo di riferimento. */
-const CHILD_ARRAYS = [
-  { array: 'disoleatori', ref: 'compressore_associato' },
-  { array: 'scambiatori', ref: 'essiccatore_associato' },
-  { array: 'recipienti_filtro', ref: 'filtro_associato' },
-] as const
-
-/** Tutti i codici validi presenti nella scheda, per validare i riferimenti. */
-export function collectCodes(scheda: any): Set<string> {
-  const codes = new Set<string>()
-  const names: string[] = [...PARENT_ARRAYS, ...CHILD_ARRAYS.map((c) => c.array)]
-  for (const name of names) {
-    const items = scheda?.[name]
-    if (!Array.isArray(items)) continue
-    for (const item of items) {
-      // `parseCode` tollera gli spazi: il codice entra nell'insieme nella stessa forma normalizzata,
-      // altrimenti un `'S1 '` memorizzato farebbe scartare a `pruneAdditionalInfo` un riferimento valido.
-      if (parseCode(item?.codice)) codes.add(item.codice.trim())
-    }
-  }
-  return codes
 }
 
 /**

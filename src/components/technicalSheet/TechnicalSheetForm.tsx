@@ -21,6 +21,7 @@ import {
   eCompleta, righeComplete, somma, type Completezza,
 } from '@/utils/schedaCompleteness'
 import { useHydrateCatalogOrigini } from '@/hooks/useHydrateCatalogOrigini'
+import { type MovimentoPratica } from '@/services/fascicolo/scadenza'
 import type { SchedaDatiCompleta } from '@/types'
 import type { BatchOCRResult, BatchOCRItem } from '@/types/ocr'
 import type { EquipmentCatalogType } from '@/types'
@@ -33,6 +34,12 @@ interface TechnicalSheetFormProps {
   onAutoSave?: (data: SchedaDatiCompleta) => void
   customerName?: string
   sedeLegale?: string
+  /** Codice pratica: entra nel nome dei fascicoli generati dalle apparecchiature. */
+  codicePratica?: string
+  /** Pratica a cui appartengono i fascicoli: serve a salvarne i documenti. */
+  requestId?: string
+  /** Stato e date della pratica: da qui si ricava quando i documenti dei fascicoli scadono. */
+  movimenti?: MovimentoPratica
   /**
    * Barra agganciata della pagina. La disegna il chiamante (che ha stato di
    * salvataggio e permessi) ma la rende il form, perché la completezza si calcola
@@ -128,6 +135,9 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
   onAutoSave,
   customerName,
   sedeLegale,
+  codicePratica = '',
+  requestId = '',
+  movimenti,
   header,
 }, ref) => {
   const methods = useForm<SchedaDatiCompleta>({
@@ -522,6 +532,10 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
               errors={errors}
               completezza={compApparecchi}
               righeComplete={righe}
+              codicePratica={codicePratica}
+              requestId={requestId}
+              movimenti={movimenti}
+              ragioneSociale={customerName}
               azioni={
                 <Button
                   size="small"
