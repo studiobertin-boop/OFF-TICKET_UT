@@ -380,20 +380,28 @@ export const TechnicalDetails = () => {
     enabled: !!id && canGenerateDocs,
   })
   const { data: dichiarazioniSalvate } = useQuery({
-    queryKey: ['dichiarazioni-documento', id],
+    queryKey: ['dichiarazioni-finale', id],
     queryFn: () => dichiarazioniDocumentiApi.ultimoFinale(id!),
     enabled: !!id && canGenerateDocs,
   })
 
   const handleScaricaRelazione = async () => {
     if (!relazioneSalvata) return
-    const blob = await relazioneDocumentiApi.scarica(relazioneSalvata.filePath)
-    saveAs(blob, relazioneSalvata.nome)
+    try {
+      const blob = await relazioneDocumentiApi.scarica(relazioneSalvata.filePath)
+      saveAs(blob, relazioneSalvata.nome)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Scaricamento non riuscito')
+    }
   }
   const handleScaricaDichiarazioni = async () => {
     if (!dichiarazioniSalvate) return
-    const blob = await dichiarazioniDocumentiApi.scarica(dichiarazioniSalvate.filePath)
-    saveAs(blob, dichiarazioniSalvate.nome)
+    try {
+      const blob = await dichiarazioniDocumentiApi.scarica(dichiarazioniSalvate.filePath)
+      saveAs(blob, dichiarazioniSalvate.nome)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Scaricamento non riuscito')
+    }
   }
 
   // Relazione + dichiarazioni + un fascicolo per ogni apparecchiatura con adempimento, in
@@ -402,24 +410,31 @@ export const TechnicalDetails = () => {
   // l'utente può aver aggiunto o tolto apparecchiature rispetto a quando la pagina si è
   // caricata.
   const handleScaricaCompleta = async () => {
-    if (relazioneSalvata) {
-      const blob = await relazioneDocumentiApi.scarica(relazioneSalvata.filePath)
-      saveAs(blob, relazioneSalvata.nome)
-    }
-    if (dichiarazioniSalvate) {
-      const blob = await dichiarazioniDocumentiApi.scarica(dichiarazioniSalvate.filePath)
-      saveAs(blob, dichiarazioniSalvate.nome)
-    }
-    // Un file per codice: il browser mette in coda i download consecutivi, non serve uno zip
-    // lato client per un pugno di file — la scelta è deliberatamente la più semplice che
-    // funzioni (vedi documento di design, sezione «Fuori scope»).
-    const codici = codiciConAdempimento(calcolaEsitiPerCodice(formRef.current?.getFormData() ?? {}))
-    for (const codice of codici) {
-      const documenti = await fascicoloDocumentiApi.elenca(id!, codice)
-      const fascicolo = documenti.find((d) => d.tipo === 'fascicolo')
-      if (!fascicolo) continue
-      const blob = await fascicoloDocumentiApi.scarica(fascicolo.filePath)
-      saveAs(blob, fascicolo.nome)
+    try {
+      if (relazioneSalvata) {
+        const blob = await relazioneDocumentiApi.scarica(relazioneSalvata.filePath)
+        saveAs(blob, relazioneSalvata.nome)
+      }
+      if (dichiarazioniSalvate) {
+        const blob = await dichiarazioniDocumentiApi.scarica(dichiarazioniSalvate.filePath)
+        saveAs(blob, dichiarazioniSalvate.nome)
+      }
+      // Un file per codice: il browser mette in coda i download consecutivi, non serve uno zip
+      // lato client per un pugno di file — la scelta è deliberatamente la più semplice che
+      // funzioni (vedi documento di design, sezione «Fuori scope»).
+      const codici = codiciConAdempimento(calcolaEsitiPerCodice(formRef.current?.getFormData() ?? {}))
+      for (const codice of codici) {
+        const documenti = await fascicoloDocumentiApi.elenca(id!, codice)
+        const fascicolo = documenti.find((d) => d.tipo === 'fascicolo')
+        if (!fascicolo) {
+          console.warn('[handleScaricaCompleta] Nessun fascicolo trovato per il codice', codice)
+          continue
+        }
+        const blob = await fascicoloDocumentiApi.scarica(fascicolo.filePath)
+        saveAs(blob, fascicolo.nome)
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Scaricamento non riuscito')
     }
   }
 
@@ -609,7 +624,6 @@ export const TechnicalDetails = () => {
             onClose={() => {
               setDichiarazioniDialogOpen(false)
               riaggiornaAdditionalInfo()
-              queryClient.invalidateQueries({ queryKey: ['dichiarazioni-documento', id] })
             }}
             requestId={request.id}
             scheda={technicalData.equipment_data as SchedaDatiCompleta}
