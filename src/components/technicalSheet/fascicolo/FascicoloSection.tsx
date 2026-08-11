@@ -335,8 +335,12 @@ export const FascicoloSection = ({ contesto, nomeFile, requestId, codice, movime
   const sopraSoglia = occupati > TETTO_BYTE_APPARECCHIATURA * 0.8
 
   // Quando i documenti vivono ancora, la scadenza si sa per certo solo conoscendo stato e date
-  // della pratica: senza `movimenti` (un istante, mentre la pagina li sta ancora caricando) non
-  // si mostra nulla piuttosto che una data calcolata su dati parziali.
+  // della pratica: senza `movimenti` non si mostra nulla, piuttosto che una data calcolata su
+  // dati parziali. `movimenti` manca in due casi, entrambi reali e non solo un istante di
+  // caricamento: mentre la pagina lo sta ancora recuperando, oppure — durevolmente — quando
+  // `TechnicalDetails` non è riuscito a leggere `request_history` (RLS: `tecnicoDM329` non ha
+  // policy di SELECT su quella tabella) e per questo non passa affatto l'oggetto `movimenti`,
+  // invece di passarne uno con l'ultimo cambio di stato finto.
   const scadenzaCorrente = movimenti && documenti.length > 0 ? statoScadenza(movimenti, new Date()) : null
 
   return (
