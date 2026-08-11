@@ -35,6 +35,8 @@ interface TechnicalSheetFormProps {
   sedeLegale?: string
   /** Codice pratica: entra nel nome dei fascicoli generati dalle apparecchiature. */
   codicePratica?: string
+  /** Pratica a cui appartengono i fascicoli: serve a salvarne i documenti. */
+  requestId?: string
   /**
    * Barra agganciata della pagina. La disegna il chiamante (che ha stato di
    * salvataggio e permessi) ma la rende il form, perché la completezza si calcola
@@ -131,6 +133,7 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
   customerName,
   sedeLegale,
   codicePratica = '',
+  requestId = '',
   header,
 }, ref) => {
   const methods = useForm<SchedaDatiCompleta>({
@@ -526,6 +529,7 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
               completezza={compApparecchi}
               righeComplete={righe}
               codicePratica={codicePratica}
+              requestId={requestId}
               ragioneSociale={customerName}
               azioni={
                 <Button

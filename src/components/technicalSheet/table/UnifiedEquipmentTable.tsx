@@ -14,7 +14,6 @@ import { cellTdSx, PAD_CELLA, PAD_TITOLO_AZIONE } from './EquipmentCells'
 import { useCellePrincipali } from './useCellePrincipali'
 import { EquipmentDetailDialog, type DettaglioRiga, type RigaFascicolo } from './EquipmentDetailDialog'
 import { nomeFileFascicolo } from '@/utils/practiceCode'
-import type { DocumentoFascicolo } from '@/services/fascicolo/types'
 import { codiciValvoleDisoleatore, codiciValvoleSerbatoio } from '@/utils/valvoleImpianto'
 import { SingleOCRButton } from '../SingleOCRButton'
 import { useTecnicoDM329Visibility } from '@/hooks/useTecnicoDM329Visibility'
@@ -396,10 +395,12 @@ interface UnifiedEquipmentTableProps {
   /** Codice pratica e cliente: servono a nominare il fascicolo di ogni apparecchiatura. */
   codicePratica?: string
   ragioneSociale?: string
+  /** Pratica a cui appartengono i fascicoli: serve a salvarne e a rileggerne i documenti. */
+  requestId?: string
 }
 
 export const UnifiedEquipmentTable = ({
-  control, completezza, righeComplete, azioni, codicePratica = '', ragioneSociale = '',
+  control, completezza, righeComplete, azioni, codicePratica = '', ragioneSociale = '', requestId = '',
 }: UnifiedEquipmentTableProps) => {
   const { showAdvancedFields: adv, showRecipienteFiltro, isTecnicoDM329 } = useTecnicoDM329Visibility()
   const { setValue, getValues } = useFormContext()
@@ -417,19 +418,6 @@ export const UnifiedEquipmentTable = ({
    */
   const [aperta, setAperta] = useState<number | null>(null)
   const chiudiDettaglio = () => setAperta(null)
-
-  /**
-   * Documenti caricati per il fascicolo, per codice di apparecchiatura.
-   *
-   * Vivono qui e non nella finestra perché la finestra si chiude e si riapre di continuo — si
-   * scorre da un'apparecchiatura all'altra — e ricaricare i file a ogni ritorno non avrebbe
-   * senso. Vivono in memoria e non a database perché il fascicolo è un prodotto da consegnare,
-   * non un archivio: ricaricando la pagina si ricomincia.
-   */
-  const [fascicoli, setFascicoli] = useState<Record<string, DocumentoFascicolo[]>>({})
-  const documentiDi = (codice: string) => fascicoli[codice] ?? []
-  const cambiaDocumenti = (codice: string) => (documenti: DocumentoFascicolo[]) =>
-    setFascicoli((f) => ({ ...f, [codice]: documenti }))
 
   const ask: AskDelete = (label, code, conferma) =>
     setPending({ testo: `Confermi di voler eliminare ${label} ${code}?`, conferma })
@@ -595,8 +583,8 @@ export const UnifiedEquipmentTable = ({
     nomeFile: nomeFileFascicolo(codicePratica, args.code, ragioneSociale),
     valvole: args.valvole ?? [],
     principale: args.principale ?? null,
-    documenti: documentiDi(args.code),
-    onCambia: cambiaDocumenti(args.code),
+    requestId,
+    codice: args.code,
   })
 
   /** Aggiunge una riga alla tabella e la relativa voce all'elenco navigabile. */

@@ -16,7 +16,7 @@ import { useCellePrincipali } from './useCellePrincipali'
 import { FascicoloSection } from '../fascicolo/FascicoloSection'
 import { EQUIPMENT_DEFS, type EquipmentTypeDef, type ExtraFieldDef } from './equipmentConfig'
 import type { EquipmentCatalogItem } from '@/types'
-import type { Apparecchiatura, ContestoFascicolo, DocumentoFascicolo } from '@/services/fascicolo/types'
+import type { Apparecchiatura, ContestoFascicolo } from '@/services/fascicolo/types'
 
 /**
  * Riga di cui sono aperti i dettagli.
@@ -53,8 +53,9 @@ export interface RigaFascicolo {
   nomeFile: string
   valvole: { codice: string; base: string }[]
   principale: { codice: string; base: string; def: EquipmentTypeDef } | null
-  documenti: DocumentoFascicolo[]
-  onCambia: (documenti: DocumentoFascicolo[]) => void
+  /** Pratica e codice: insieme individuano i documenti salvati di questa apparecchiatura. */
+  requestId: string
+  codice: string
 }
 
 interface EquipmentDetailDialogProps {
@@ -272,8 +273,8 @@ const SezioneFascicolo = ({ control, def, base, code, fascicolo }: {
     <FascicoloSection
       contesto={contesto}
       nomeFile={fascicolo.nomeFile}
-      documenti={fascicolo.documenti}
-      onCambia={fascicolo.onCambia}
+      requestId={fascicolo.requestId}
+      codice={fascicolo.codice}
     />
   )
 }

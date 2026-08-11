@@ -380,6 +380,7 @@ export const TechnicalDetails = () => {
             customerName={customerName}
             sedeLegale={sedeLegale}
             codicePratica={codicePratica}
+            requestId={request.id}
             header={(completezza) => (
               <TechnicalSheetHeader
                 customerName={customerName}

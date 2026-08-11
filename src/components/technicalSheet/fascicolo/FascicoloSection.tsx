@@ -1,11 +1,12 @@
 import { useRef, useState } from 'react'
 import { saveAs } from 'file-saver'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Alert, Box, Button, Chip, CircularProgress, IconButton, MenuItem, Select, Tooltip, Typography,
 } from '@mui/material'
 import {
   CloudUpload as UploadIcon, Delete as DeleteIcon, PictureAsPdf as PdfIcon,
-  Image as ImageIcon, AutoAwesome as AutoIcon,
+  Image as ImageIcon, AutoAwesome as AutoIcon, Download as DownloadIcon,
 } from '@mui/icons-material'
 import { radii } from '@/theme/tokens'
 import { classificaDocumenti } from '@/services/fascicolo/classifica'
@@ -15,21 +16,20 @@ import {
   ORDINE_RUOLI, etichettaRuolo,
   type ContestoFascicolo, type DocumentoFascicolo, type RuoloDocumento,
 } from '@/services/fascicolo/types'
+import { fascicoloDocumentiApi, TETTO_BYTE_APPARECCHIATURA } from '@/services/api/fascicoloDocumenti'
+import { apriDocumento, eUnImmagine } from '@/services/fascicolo/sorgente'
 
 export interface FascicoloSectionProps {
   contesto: ContestoFascicolo
   /** Nome del file da scaricare, già composto dal codice pratica. */
   nomeFile: string
-  documenti: DocumentoFascicolo[]
-  onCambia: (documenti: DocumentoFascicolo[]) => void
+  requestId: string
+  codice: string
 }
 
 const ACCETTATI = 'image/*,.pdf,application/pdf'
 
 const peso = (byte: number) => `${(byte / 1024 / 1024).toFixed(1)} MB`
-
-const eUnImmagine = (file: File) =>
-  file.type.startsWith('image/') || /\.(jpe?g|png|gif|webp|bmp|heic|tiff?)$/i.test(file.name)
 
 /** Esito della generazione, da mostrare finché non si tocca di nuovo l'elenco. */
 interface Esito {
@@ -50,10 +50,31 @@ interface Esito {
  * delle targhette. Il sistema riconosce che cos'è ciascun file, li dispone nell'ordine prescritto
  * e li rilega in un PDF unico in formato A4.
  *
- * I file restano in memoria per la durata della pagina: si caricano, si genera, si scarica.
- * Ricaricando la pagina si ricomincia — è la conseguenza voluta del non archiviarli.
+ * I documenti si salvano non appena caricati (bucket `fascicoli` + tabella
+ * `fascicolo_documenti`): ricaricando la pagina, o riaprendo la scheda un altro giorno, restano
+ * al loro posto coi ruoli già assegnati.
  */
-export const FascicoloSection = ({ contesto, nomeFile, documenti, onCambia }: FascicoloSectionProps) => {
+export const FascicoloSection = ({ contesto, nomeFile, requestId, codice }: FascicoloSectionProps) => {
+  const queryClient = useQueryClient()
+  const chiave = ['fascicolo-documenti', requestId, codice]
+
+  const { data: documenti = [], isLoading } = useQuery({
+    queryKey: chiave,
+    queryFn: () => fascicoloDocumentiApi.elenca(requestId, codice),
+    enabled: Boolean(requestId && codice),
+  })
+
+  const { data: scadenza } = useQuery({
+    queryKey: ['fascicolo-scadenza', requestId, codice],
+    queryFn: () => fascicoloDocumentiApi.scadenzaDi(requestId, codice),
+    enabled: Boolean(requestId && codice),
+  })
+
+  const ricarica = () => {
+    queryClient.invalidateQueries({ queryKey: chiave })
+    queryClient.invalidateQueries({ queryKey: ['fascicolo-scadenza', requestId, codice] })
+  }
+
   const [stato, setStato] = useState<'pronto' | 'analisi' | 'generazione'>('pronto')
   const [avanzamento, setAvanzamento] = useState('')
   const [avviso, setAvviso] = useState<string | null>(null)
@@ -64,74 +85,131 @@ export const FascicoloSection = ({ contesto, nomeFile, documenti, onCambia }: Fa
 
   const previsti = ruoliPrevisti(contesto)
   const lavorando = stato !== 'pronto'
+  const bloccato = lavorando || isLoading
 
   const aggiungi = async (files: FileList | File[]) => {
-    const nuovi: DocumentoFascicolo[] = Array.from(files)
-      .filter((f) => eUnImmagine(f) || f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'))
-      .map((file, i) => ({
-        id: `${Date.now()}-${i}-${file.name}`,
-        file,
-        ruoli: [],
-      }))
-
-    if (nuovi.length === 0) {
+    const accettati = Array.from(files).filter(
+      (f) => f.type.startsWith('image/') || f.type === 'application/pdf' || /\.(pdf|jpe?g|png|gif|webp|bmp|heic|tiff?)$/i.test(f.name)
+    )
+    if (accettati.length === 0) {
       setErrore('Si possono caricare solo PDF e immagini.')
       return
     }
 
     setErrore(null)
     setEsito(null)
-    const conNuovi = [...documenti, ...nuovi]
-    onCambia(conNuovi)
-
-    // La classificazione riguarda l'insieme: due certificati si distinguono l'uno dall'altro,
-    // quindi si rianalizza tutto, non solo ciò che è appena arrivato.
+    setAvviso(null)
     setStato('analisi')
-    setAvanzamento('Riconoscimento dei documenti…')
+    setAvanzamento('Caricamento dei documenti…')
+
     try {
+      // Un file alla volta, e si prosegue anche se uno fallisce: un allegato troppo
+      // pesante o una connessione che cade non devono far perdere quelli già saliti.
+      const caricati: DocumentoFascicolo[] = []
+      const fileCaricati: File[] = []
+      const nonCaricati: string[] = []
+      for (const file of accettati) {
+        try {
+          const doc = await fascicoloDocumentiApi.carica({ requestId, codice, file })
+          caricati.push(doc)
+          fileCaricati.push(file)
+        } catch (e) {
+          nonCaricati.push(`${file.name} (${e instanceof Error ? e.message : 'errore sconosciuto'})`)
+        }
+      }
+
+      if (caricati.length === 0) {
+        setErrore(`Caricamento non riuscito: ${nonCaricati.join('; ')}`)
+        return
+      }
+      ricarica()
+
+      // Si classificano solo i file nuovi: rianalizzare l'insieme cancellerebbe le correzioni
+      // fatte a mano sui documenti già salvati, oltre a riscaricarli e ripagare l'analisi.
+      //
+      // NOTA: qui manca il terzo argomento con i ruoli già coperti dai documenti esistenti
+      // (`documenti.filter(d => d.ruoli.length > 0).map(...)`) — la firma di `classificaDocumenti`
+      // non lo prevede ancora. Lo aggiunge il Task 5, che introduce anche il parametro.
       const { risultati, avviso: nota } = await classificaDocumenti(
-        conNuovi.map((d) => ({ id: d.id, file: d.file })),
+        caricati.map((d, i) => ({ id: d.id, file: fileCaricati[i] })),
         contesto
       )
-      const perId = new Map(risultati.map((r) => [r.id, r]))
-      onCambia(conNuovi.map((d) => {
-        const r = perId.get(d.id)
-        return r ? { ...d, ruoli: r.ruoli, valvola: r.valvola, confidenza: r.confidenza, motivazione: r.motivazione, origine: r.origine } : d
-      }))
-      setAvviso(nota ?? null)
+
+      for (const r of risultati) {
+        await fascicoloDocumentiApi.aggiornaClassificazione(r.id, {
+          ruoli: r.ruoli, valvola: r.valvola, confidenza: r.confidenza,
+          motivazione: r.motivazione, origine: r.origine,
+        })
+      }
+      ricarica()
+
+      setAvviso(
+        [nota, nonCaricati.length ? `Non caricati: ${nonCaricati.join('; ')}` : null]
+          .filter(Boolean)
+          .join(' ') || null
+      )
     } catch (e) {
-      setErrore(e instanceof Error ? e.message : 'Riconoscimento non riuscito')
+      setErrore(e instanceof Error ? e.message : 'Caricamento non riuscito')
     } finally {
       setStato('pronto')
       setAvanzamento('')
     }
   }
 
-  const rimuovi = (id: string) => {
+  const rimuovi = async (id: string) => {
     setEsito(null)
-    onCambia(documenti.filter((d) => d.id !== id))
+    try {
+      await fascicoloDocumentiApi.elimina(id)
+      ricarica()
+    } catch (e) {
+      // `elimina` non tocca la riga se lo storage rifiuta la rimozione: l'utente deve
+      // saperlo, non vedere sparire un documento che in realtà è ancora lì.
+      setErrore(e instanceof Error ? e.message : 'Eliminazione non riuscita')
+    }
   }
 
-  const assegna = (id: string, ruoli: RuoloDocumento[]) => {
+  const assegna = async (id: string, ruoli: RuoloDocumento[]) => {
     setEsito(null)
-    onCambia(documenti.map((d) => (d.id === id ? { ...d, ruoli, origine: 'manuale' } : d)))
+    const doc = documenti.find((d) => d.id === id)
+    try {
+      await fascicoloDocumentiApi.aggiornaClassificazione(id, {
+        ruoli, valvola: doc?.valvola, confidenza: doc?.confidenza,
+        motivazione: doc?.motivazione, origine: 'manuale',
+      })
+      ricarica()
+    } catch (e) {
+      setErrore(e instanceof Error ? e.message : 'Assegnazione non riuscita')
+    }
   }
 
   const genera = async () => {
     setErrore(null)
     setStato('generazione')
     try {
-      const { sequenza, mancanti } = ordinaFascicolo(documenti, contesto)
-      const composto = await componiFascicolo(
-        sequenza.map((d) => ({
-          file: d.file,
-          etichetta: d.file.name,
+      const sorgenti = documenti.filter((d) => d.tipo !== 'fascicolo')
+      const { sequenza, mancanti } = ordinaFascicolo(sorgenti, contesto)
+
+      setAvanzamento('Lettura dei documenti…')
+      const pagine = await Promise.all(
+        sequenza.map(async (d) => ({
+          file: await apriDocumento(d),
+          etichetta: d.nome,
           foto: d.ruoli.some((r) => r === 'FOTO_TARGHETTA' || r === 'FOTO_TARGHETTA_PRINCIPALE'),
-        })),
-        { onProgresso: setAvanzamento }
+        }))
       )
 
+      const composto = await componiFascicolo(pagine, { onProgresso: setAvanzamento })
       saveAs(composto.blob, nomeFile)
+
+      // Il fascicolo precedente non serve più: ne esiste uno solo per apparecchiatura.
+      const vecchio = documenti.find((d) => d.tipo === 'fascicolo')
+      if (vecchio) await fascicoloDocumentiApi.elimina(vecchio.id)
+      await fascicoloDocumentiApi.carica({
+        requestId, codice, tipo: 'fascicolo',
+        file: new File([composto.blob], nomeFile, { type: 'application/pdf' }),
+      })
+      ricarica()
+
       setEsito({ ...composto, mancanti })
     } catch (e) {
       setErrore(e instanceof Error ? e.message : 'Generazione non riuscita')
@@ -141,7 +219,22 @@ export const FascicoloSection = ({ contesto, nomeFile, documenti, onCambia }: Fa
     }
   }
 
-  const classificati = documenti.filter((d) => d.ruoli.length > 0).length
+  /** Riscarica un documento già salvato — tipicamente il fascicolo generato in precedenza. */
+  const scarica = async (doc: DocumentoFascicolo) => {
+    try {
+      const file = await apriDocumento(doc)
+      saveAs(file, doc.nome)
+    } catch (e) {
+      setErrore(e instanceof Error ? e.message : 'Scaricamento non riuscito')
+    }
+  }
+
+  const sorgentiElenco = documenti.filter((d) => d.tipo !== 'fascicolo')
+  const fascicoloGenerato = documenti.find((d) => d.tipo === 'fascicolo')
+  const classificati = sorgentiElenco.filter((d) => d.ruoli.length > 0).length
+
+  const occupati = documenti.reduce((somma, d) => somma + d.peso, 0)
+  const sopraSoglia = occupati > TETTO_BYTE_APPARECCHIATURA * 0.8
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, width: '100%' }}>
@@ -158,19 +251,26 @@ export const FascicoloSection = ({ contesto, nomeFile, documenti, onCambia }: Fa
         </Typography>
       </Box>
 
+      {scadenza && (
+        <Alert severity="info" sx={{ py: 0.25 }}>
+          I {scadenza.n_file} documenti precedenti sono stati rimossi il{' '}
+          {new Date(scadenza.purgato_il).toLocaleDateString('it-IT')}: vanno ricaricati.
+        </Alert>
+      )}
+
       {/* Area di trascinamento. Fa anche da elenco quando i file ci sono: tenerli separati
           costringerebbe a scorrere per tornare al punto in cui si aggiunge. */}
       <Box
-        onDragOver={(e) => { e.preventDefault(); setSopra(true) }}
+        onDragOver={(e) => { e.preventDefault(); if (!bloccato) setSopra(true) }}
         onDragLeave={() => setSopra(false)}
-        onDrop={(e) => { e.preventDefault(); setSopra(false); if (!lavorando) aggiungi(e.dataTransfer.files) }}
-        onClick={() => !lavorando && inputRef.current?.click()}
+        onDrop={(e) => { e.preventDefault(); setSopra(false); if (!bloccato) aggiungi(e.dataTransfer.files) }}
+        onClick={() => !bloccato && inputRef.current?.click()}
         sx={{
           border: '1px dashed', borderRadius: `${radii.control}px`,
           borderColor: sopra ? 'primary.main' : 'divider',
           bgcolor: sopra ? 'action.hover' : 'transparent',
           px: 1.5, py: documenti.length ? 1 : 2,
-          cursor: lavorando ? 'default' : 'pointer',
+          cursor: bloccato ? 'default' : 'pointer',
           transition: 'border-color .15s, background-color .15s',
         }}
       >
@@ -183,16 +283,21 @@ export const FascicoloSection = ({ contesto, nomeFile, documenti, onCambia }: Fa
           onChange={(e) => { if (e.target.files) aggiungi(e.target.files); e.target.value = '' }}
         />
 
-        {documenti.length === 0 ? (
+        {isLoading ? (
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, color: 'text.secondary' }}>
+            <CircularProgress size={14} />
+            <Typography variant="body2">Lettura dei documenti salvati…</Typography>
+          </Box>
+        ) : documenti.length === 0 ? (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, color: 'text.secondary' }}>
             <UploadIcon fontSize="small" />
             <Typography variant="body2">Trascina qui i documenti, o fai clic per sceglierli</Typography>
           </Box>
         ) : (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }} onClick={(e) => e.stopPropagation()}>
-            {documenti.map((d) => (
+            {sorgentiElenco.map((d) => (
               <Box key={d.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-                {eUnImmagine(d.file)
+                {eUnImmagine(d)
                   ? <ImageIcon fontSize="small" sx={{ color: 'text.disabled', flex: 'none' }} />
                   : <PdfIcon fontSize="small" sx={{ color: 'text.disabled', flex: 'none' }} />}
 
@@ -202,12 +307,12 @@ export const FascicoloSection = ({ contesto, nomeFile, documenti, onCambia }: Fa
                     noWrap
                     sx={{ flex: '1 1 30%', minWidth: 0, color: d.ruoli.length ? 'text.primary' : 'warning.main' }}
                   >
-                    {d.file.name}
+                    {d.nome}
                   </Typography>
                 </Tooltip>
 
                 <Typography variant="caption" color="text.disabled" sx={{ flex: 'none', fontVariantNumeric: 'tabular-nums' }}>
-                  {peso(d.file.size)}
+                  {peso(d.peso)}
                 </Typography>
 
                 {/* Il ruolo assegnato resta modificabile: la classificazione è una proposta,
@@ -253,17 +358,35 @@ export const FascicoloSection = ({ contesto, nomeFile, documenti, onCambia }: Fa
                   )}
                 </Box>
 
-                <IconButton size="small" onClick={() => rimuovi(d.id)} disabled={lavorando} aria-label={`Togli ${d.file.name}`}>
+                <IconButton size="small" onClick={() => rimuovi(d.id)} disabled={lavorando} aria-label={`Togli ${d.nome}`}>
                   <DeleteIcon sx={{ fontSize: 16 }} />
                 </IconButton>
               </Box>
             ))}
 
+            {fascicoloGenerato && (
+              <Box key={fascicoloGenerato.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, pt: 0.5, borderTop: '1px solid', borderColor: 'divider' }}>
+                <PdfIcon fontSize="small" sx={{ color: 'primary.main', flex: 'none' }} />
+                <Typography variant="body2" noWrap sx={{ flex: '1 1 auto', minWidth: 0 }}>
+                  {fascicoloGenerato.nome}
+                </Typography>
+                <Typography variant="caption" color="text.disabled" sx={{ flex: 'none', fontVariantNumeric: 'tabular-nums' }}>
+                  {peso(fascicoloGenerato.peso)}
+                </Typography>
+                <IconButton size="small" onClick={() => scarica(fascicoloGenerato)} aria-label={`Scarica ${fascicoloGenerato.nome}`}>
+                  <DownloadIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+                <IconButton size="small" onClick={() => rimuovi(fascicoloGenerato.id)} disabled={lavorando} aria-label={`Togli ${fascicoloGenerato.nome}`}>
+                  <DeleteIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Box>
+            )}
+
             <Button
               size="small"
               startIcon={<UploadIcon sx={{ fontSize: 16 }} />}
               onClick={() => inputRef.current?.click()}
-              disabled={lavorando}
+              disabled={bloccato}
               sx={{ alignSelf: 'flex-start', mt: 0.25 }}
             >
               Aggiungi altri
@@ -299,24 +422,24 @@ export const FascicoloSection = ({ contesto, nomeFile, documenti, onCambia }: Fa
           color="primary"
           startIcon={stato === 'generazione' ? <CircularProgress size={14} color="inherit" /> : <PdfIcon />}
           onClick={genera}
-          disabled={lavorando || classificati === 0}
+          disabled={bloccato || classificati === 0}
           sx={{ borderColor: 'primary.main' }}
         >
           Genera fascicolo
         </Button>
 
-        {documenti.length > 0 && (
+        {sorgentiElenco.length > 0 && (
           <Chip
             size="small"
             variant="outlined"
-            color={classificati === documenti.length ? 'default' : 'warning'}
-            label={`${classificati} di ${documenti.length} riconosciuti`}
+            color={classificati === sorgentiElenco.length ? 'default' : 'warning'}
+            label={`${classificati} di ${sorgentiElenco.length} riconosciuti`}
             sx={{ height: 20, fontSize: '0.68rem' }}
           />
         )}
 
-        <Typography variant="caption" color="text.disabled" sx={{ minWidth: 0 }}>
-          I file restano solo per questa sessione: ricaricando la pagina vanno ricaricati.
+        <Typography variant="caption" color={sopraSoglia ? 'warning.main' : 'text.disabled'} sx={{ minWidth: 0 }}>
+          {`${peso(occupati)} di ${peso(TETTO_BYTE_APPARECCHIATURA)}`}
         </Typography>
       </Box>
     </Box>
