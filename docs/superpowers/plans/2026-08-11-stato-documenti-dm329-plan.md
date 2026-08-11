@@ -415,7 +415,9 @@ const fromMock = vi.fn()
 const storageFromMock = vi.fn()
 const getSessionMock = vi.fn()
 
-vi.mock('../supabase', () => ({
+// Il percorso è relativo a QUESTO file (dentro __tests__/), non al servizio sotto test:
+// da src/services/api/__tests__/ a src/services/supabase.ts sono due livelli, non uno.
+vi.mock('../../supabase', () => ({
   supabase: {
     from: (...args: unknown[]) => fromMock(...args),
     storage: { from: (...args: unknown[]) => storageFromMock(...args) },
@@ -1168,7 +1170,7 @@ git commit -m "feat(dm329): estrae calcolaEsitiPerCodice, per sapere quali appar
 
 - [ ] **Step 1: Scrivi il test del nuovo metodo**
 
-Se `src/services/api/__tests__/fascicoloDocumenti.test.ts` non esiste, crealo con lo stesso schema di mock del Task 3 (`vi.mock('../supabase', ...)`); se esiste, aggiungi questo blocco:
+Se `src/services/api/__tests__/fascicoloDocumenti.test.ts` non esiste, crealo con lo stesso schema di mock del Task 3 (`vi.mock('../../supabase', ...)` — il percorso relativo è due livelli sopra `__tests__/`, non uno); se esiste, aggiungi questo blocco:
 ```typescript
 describe('fascicoloDocumentiApi.codiciConFascicolo', () => {
   it('restituisce i soli codici con un fascicolo composto (tipo=fascicolo)', async () => {
