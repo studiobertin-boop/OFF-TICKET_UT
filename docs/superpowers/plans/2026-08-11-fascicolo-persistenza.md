@@ -331,8 +331,11 @@ create policy "Accesso ai documenti del fascicolo"
   using (public.can_access_fascicolo(request_id))
   with check (public.can_access_fascicolo(request_id));
 
-drop policy if exists "Lettura delle scadenze del fascicolo" on public.fascicolo_scadenze;
-create policy "Lettura delle scadenze del fascicolo"
+-- Concede anche la cancellazione a chi modifica la scheda, mentre sulla scheda stessa è
+-- riservata agli admin: togliere un file caricato per sbaglio è lavoro ordinario, e la nota di
+-- scadenza dev'essere ripulibile al primo nuovo caricamento.
+drop policy if exists "Accesso alle scadenze del fascicolo" on public.fascicolo_scadenze;
+create policy "Accesso alle scadenze del fascicolo"
   on public.fascicolo_scadenze for all
   using (public.can_access_fascicolo(request_id))
   with check (public.can_access_fascicolo(request_id));
@@ -343,16 +346,23 @@ values ('fascicoli', 'fascicoli', false)
 on conflict (id) do nothing;
 
 -- Il request_id è il primo segmento del percorso: {request_id}/{codice}/{file}
+-- `case` e non `and`: `storage.objects` è condivisa fra i bucket, e quelli di `attachments`
+-- hanno percorsi che cominciano con `requests/`. Postgres non garantisce l'ordine di
+-- valutazione dei termini di un `and`, quindi `'requests'::uuid` potrebbe essere valutato
+-- prima del filtro sul bucket e far fallire le query sugli allegati; nel `case` l'ordine è
+-- garantito.
 drop policy if exists "Accesso agli oggetti del fascicolo" on storage.objects;
 create policy "Accesso agli oggetti del fascicolo"
   on storage.objects for all
   using (
-    bucket_id = 'fascicoli'
-    and public.can_access_fascicolo(((storage.foldername(name))[1])::uuid)
+    case when bucket_id = 'fascicoli'
+         then public.can_access_fascicolo(((storage.foldername(name))[1])::uuid)
+         else false end
   )
   with check (
-    bucket_id = 'fascicoli'
-    and public.can_access_fascicolo(((storage.foldername(name))[1])::uuid)
+    case when bucket_id = 'fascicoli'
+         then public.can_access_fascicolo(((storage.foldername(name))[1])::uuid)
+         else false end
   );
 
 -- Ciò che serve a datare la scadenza, per le sole pratiche che hanno documenti.
