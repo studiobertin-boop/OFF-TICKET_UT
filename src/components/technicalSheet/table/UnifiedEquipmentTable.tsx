@@ -7,7 +7,7 @@ import {
 import { Add as AddIcon, ChevronRight as ChevronRightIcon, Folder as FolderIcon } from '@mui/icons-material'
 import { alpha } from '@mui/material/styles'
 import { radii } from '@/theme/tokens'
-import { CompletenessBar, CompletenessDot } from '@/components/common'
+import { AzioneIcona, CompletenessBar, CompletenessDot } from '@/components/common'
 import { completezzaRiga, type Completezza } from '@/utils/schedaCompleteness'
 import { ALTEZZA_BARRA } from '../TechnicalSheetHeader'
 import { cellTdSx, PAD_CELLA, PAD_TITOLO_AZIONE } from './EquipmentCells'
@@ -914,10 +914,11 @@ export const UnifiedEquipmentTable = ({
           })}
           <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
             {azioni}
-            {/* Contornato: l'unica azione a fondo pieno della pagina è «Completa scheda». */}
-            <Button size="small" variant="outlined" color="primary" startIcon={<AddIcon />} onClick={(e) => setMenuAnchor(e.currentTarget)} sx={{ borderColor: 'primary.main' }}>
-              Nuova apparecchiatura
-            </Button>
+            <AzioneIcona
+              icona={<AddIcon fontSize="small" />}
+              testo="Nuova apparecchiatura"
+              onClick={(e) => setMenuAnchor(e.currentTarget)}
+            />
           </Box>
           <Menu anchorEl={menuAnchor} open={!!menuAnchor} onClose={() => setMenuAnchor(null)}>
             {NEW_EQUIPMENT_KINDS.map((k) => (

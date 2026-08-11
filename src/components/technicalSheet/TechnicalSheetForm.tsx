@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState, useImperativeHandle, forwardRef, 
 import {
   Box,
   Divider,
-  Button,
 } from '@mui/material'
 import {
   AutoFixHigh as AutoFixHighIcon,
@@ -14,7 +13,7 @@ import { SchedaSection } from './SchedaSection'
 import { UnifiedEquipmentTable } from './table/UnifiedEquipmentTable'
 import { AltriApparecchiSection } from './AllEquipmentSections'
 import { BatchOCRDialog } from './BatchOCRDialog'
-import { CompletenessBar, SectionLabel } from '@/components/common'
+import { AzioneIcona, CompletenessBar, SectionLabel } from '@/components/common'
 import { radii } from '@/theme/tokens'
 import {
   completezzaApparecchiature, completezzaDatiGenerali, completezzaDatiImpianto,
@@ -537,16 +536,11 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
               movimenti={movimenti}
               ragioneSociale={customerName}
               azioni={
-                <Button
-                  size="small"
-                  variant="outlined"
-                  color="primary"
-                  startIcon={<AutoFixHighIcon />}
+                <AzioneIcona
+                  icona={<AutoFixHighIcon fontSize="small" />}
+                  testo="Riconosci automaticamente"
                   onClick={() => setBatchOCRDialogOpen(true)}
-                  sx={{ borderColor: 'primary.main' }}
-                >
-                  Riconosci automaticamente
-                </Button>
+                />
               }
             />
 
