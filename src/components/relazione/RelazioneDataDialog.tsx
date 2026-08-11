@@ -43,18 +43,7 @@ import { validateRelazione, haErrori } from '@/services/relazione/preflight'
 import type { AdditionalInfo, PraticaInfo, SchemaImpianto, TipoGiri } from '@/services/relazione/types'
 import { leggiSchemaImpianto, FORMATI_SCHEMA } from './schemaImpiantoFile'
 import { collectCodes, pruneAdditionalInfo } from '@/utils/equipmentCodes'
-
-/**
- * Data odierna in forma ISO, come la vuole il campo data.
- *
- * Composta dai componenti locali e non da `toISOString`, che riporta l'istante in UTC: a
- * fuso avanti, generare una relazione dopo cena la daterebbe al giorno prima.
- */
-function oggiISO(): string {
-  const d = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
+import { oggiISO } from '@/services/relazione/helpers'
 
 interface RelazioneDataDialogProps {
   open: boolean
@@ -451,7 +440,7 @@ export default function RelazioneDataDialog({
             onChange={(e) => setDataEmissione(e.target.value)}
             slotProps={{ inputLabel: { shrink: true } }}
             sx={{ maxWidth: 240 }}
-            helperText="Finisce nella colonna DATA della tabella delle revisioni, in copertina."
+            helperText="Finisce nella colonna DATA della tabella delle revisioni, in copertina. Condivisa con il campo data del form Dichiarazioni."
           />
 
           {eRevisione && (

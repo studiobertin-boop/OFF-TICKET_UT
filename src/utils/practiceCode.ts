@@ -63,6 +63,19 @@ export function nomeFileFascicolo(
 }
 
 /**
+ * Nome del file delle dichiarazioni: il codice pratica con «DICHIARAZIONI» in mezzo alle
+ * sue due parti — `602A_00-2026` → `602A_DICHIARAZIONI_00-2026.pdf`.
+ *
+ * Stesso ripiego di `nomeFileRelazione`: le pratiche senza codice — dati vecchi — userebbero
+ * un nome fatto di soli separatori.
+ */
+export function nomeFileDichiarazioni(codicePratica: string, ragioneSociale: string): string {
+  const [cliente, pratica] = codicePratica.split('_')
+  if (!cliente || !pratica) return `Dichiarazioni_${ragioneSociale || 'senza_cliente'}.pdf`
+  return `${cliente}_DICHIARAZIONI_${pratica}.pdf`
+}
+
+/**
  * Numero di sale distinte di un cliente, calcolato dalle pratiche già caricate
  * (pratiche primarie: pratica_padre_id assente). Usato per decidere se mostrare la lettera.
  */

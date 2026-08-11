@@ -131,6 +131,25 @@ export const installersApi = {
   },
 
   /**
+   * L'installatore predefinito: quello i cui asset statici (template dichiarazione + doc.
+   * identità) sono usati in public/templates/dichiarazioni/ salvo diversa indicazione.
+   */
+  getPredefinito: async (): Promise<Installer | null> => {
+    const { data, error } = await supabase
+      .from('installers')
+      .select('*')
+      .eq('predefinito', true)
+      .maybeSingle()
+
+    if (error) {
+      console.error('Error fetching default installer:', error)
+      throw new Error(`Errore nel caricamento dell'installatore predefinito: ${error.message}`)
+    }
+
+    return data
+  },
+
+  /**
    * Create new installer
    * Validates input and normalizes data
    */

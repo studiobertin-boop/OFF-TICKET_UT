@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { composeCodicePratica, nomeFileFascicolo, nomeFileRelazione } from '../practiceCode'
+import { composeCodicePratica, nomeFileDichiarazioni, nomeFileFascicolo, nomeFileRelazione } from '../practiceCode'
 
 describe('nomeFileRelazione', () => {
   test('infila RELAZIONE fra le due parti del codice pratica', () => {
@@ -51,5 +51,21 @@ describe('nomeFileFascicolo', () => {
 
   test('non produce un nome vuoto nemmeno senza cliente', () => {
     expect(nomeFileFascicolo('', 'E1', '')).toBe('Fascicolo_E1_senza_cliente.pdf')
+  })
+})
+
+describe('nomeFileDichiarazioni', () => {
+  test('infila DICHIARAZIONI fra le due parti del codice pratica', () => {
+    expect(nomeFileDichiarazioni('602A_00-2026', 'ESEMPIO S.P.A.')).toBe('602A_DICHIARAZIONI_00-2026.pdf')
+    expect(nomeFileDichiarazioni('123_01-2025', 'ESEMPIO S.P.A.')).toBe('123_DICHIARAZIONI_01-2025.pdf')
+  })
+
+  test('ripiega sulla ragione sociale quando la pratica non ha ancora un codice', () => {
+    expect(nomeFileDichiarazioni('', 'ESEMPIO S.P.A.')).toBe('Dichiarazioni_ESEMPIO S.P.A..pdf')
+    expect(nomeFileDichiarazioni('602A', 'ESEMPIO S.P.A.')).toBe('Dichiarazioni_ESEMPIO S.P.A..pdf')
+  })
+
+  test('non produce un nome vuoto nemmeno senza cliente', () => {
+    expect(nomeFileDichiarazioni('', '')).toBe('Dichiarazioni_senza_cliente.pdf')
   })
 })
