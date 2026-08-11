@@ -1303,10 +1303,14 @@ async function rimuoviOrfani(supabase: ReturnType<typeof createClient>): Promise
   if (!documenti?.length) return 0
 
   const pratiche = [...new Set(documenti.map((d) => d.request_id))]
-  const { data: schede } = await supabase
+  const { data: schede, error } = await supabase
     .from('dm329_technical_data')
     .select('request_id, equipment_data')
     .in('request_id', pratiche)
+
+  // Senza le schede ogni documento sembrerebbe orfano: meglio non cancellare niente che
+  // cancellare tutto per una lettura fallita.
+  if (error) throw error
 
   const codiciDi = new Map<string, Set<string>>()
   for (const s of schede ?? []) {
@@ -1320,7 +1324,13 @@ async function rimuoviOrfani(supabase: ReturnType<typeof createClient>): Promise
     codiciDi.set(s.request_id, codici)
   }
 
-  const orfani = documenti.filter((d) => !(codiciDi.get(d.request_id)?.has(d.codice) ?? false))
+  // Una pratica di cui non è tornata la scheda si salta: è un'assenza di informazione, non la
+  // prova che i codici non esistano più. 333 schede su 359 hanno equipment_data vuoto — sono
+  // pratiche vecchie senza apparecchiature, e infatti non hanno documenti da rimuovere.
+  const orfani = documenti.filter((d) => {
+    const codici = codiciDi.get(d.request_id)
+    return codici ? !codici.has(d.codice) : false
+  })
   if (orfani.length === 0) return 0
 
   await supabase.storage.from(BUCKET).remove(orfani.map((d) => d.file_path))
@@ -1378,11 +1388,22 @@ create extension if not exists pg_net;
 
 -- La chiave sta nel Vault e non nel comando del job: cron.job è leggibile, un segreto in chiaro
 -- lì dentro sarebbe un segreto in meno.
-select vault.create_secret(
-  '<service role key>',
-  'service_role_key',
-  'Chiave usata dai job notturni per chiamare le Edge Function'
-);
+-- `create_secret` fallisce se il nome esiste già: la migration deve restare rieseguibile.
+do $$
+begin
+  if exists (select 1 from vault.secrets where name = 'service_role_key') then
+    perform vault.update_secret(
+      (select id from vault.secrets where name = 'service_role_key'),
+      '<service role key>'
+    );
+  else
+    perform vault.create_secret(
+      '<service role key>',
+      'service_role_key',
+      'Chiave usata dai job notturni per chiamare le Edge Function'
+    );
+  end if;
+end $$;
 
 select cron.unschedule('pulisci-fascicoli-scaduti')
 where exists (select 1 from cron.job where jobname = 'pulisci-fascicoli-scaduti');
