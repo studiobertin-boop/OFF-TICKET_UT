@@ -81,6 +81,18 @@ export const fascicoloDocumentiApi = {
     return (data ?? []).map(daRiga)
   },
 
+  /** Codici che hanno già un fascicolo composto (tipo='fascicolo'), per l'intera pratica. */
+  codiciConFascicolo: async (requestId: string): Promise<Set<string>> => {
+    const { data, error } = await supabase
+      .from('fascicolo_documenti')
+      .select('codice')
+      .eq('request_id', requestId)
+      .eq('tipo', 'fascicolo')
+
+    if (error) throw error
+    return new Set((data ?? []).map((r: { codice: string }) => r.codice))
+  },
+
   carica: async ({ requestId, codice, file, tipo = 'sorgente' }: CaricaDocumentoInput): Promise<DocumentoFascicolo> => {
     const { data: sessione } = await supabase.auth.getSession()
     if (!sessione.session) throw new Error('Non autenticato')
