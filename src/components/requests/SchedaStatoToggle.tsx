@@ -21,6 +21,11 @@ export interface SchedaStatoToggleProps {
   /** `null` riporta lo stato al calcolo automatico. */
   onScegli: (stato: StatoScheda | null) => void
   disabled?: boolean
+  /**
+   * 'raggruppato' toglie contorno e angoli propri: usato dentro SchedaDatiStatoGroup, che
+   * fornisce già il bordo condiviso col pulsante "Scheda dati".
+   */
+  variante?: 'autonomo' | 'raggruppato'
 }
 
 /**
@@ -30,7 +35,7 @@ export interface SchedaStatoToggleProps {
 const statoDaPercentuale = (p: number): StatoScheda =>
   p === 0 ? 'vuota' : p === 100 ? 'completa' : 'parziale'
 
-export const SchedaStatoToggle = ({ compilazione, onScegli, disabled }: SchedaStatoToggleProps) => {
+export const SchedaStatoToggle = ({ compilazione, onScegli, disabled, variante = 'autonomo' }: SchedaStatoToggleProps) => {
   const [anchor, setAnchor] = useState<null | HTMLElement>(null)
   const chiudi = () => setAnchor(null)
   const scegli = (stato: StatoScheda | null) => { chiudi(); onScegli(stato) }
@@ -49,7 +54,12 @@ export const SchedaStatoToggle = ({ compilazione, onScegli, disabled }: SchedaSt
             onClick={(e) => setAnchor(e.currentTarget)}
             aria-label="Stato di compilazione della scheda dati"
             endIcon={<ArrowDropDownIcon />}
-            sx={{ minWidth: 0, px: 0.75, '& .MuiButton-endIcon': { ml: 0.25 } }}
+            sx={{
+              minWidth: 0, px: 0.75, '& .MuiButton-endIcon': { ml: 0.25 },
+              ...(variante === 'raggruppato'
+                ? { border: 'none', borderRadius: 0, borderLeft: '1px solid', borderColor: 'divider' }
+                : {}),
+            }}
           >
             <SchedaStatoMark compilazione={compilazione} />
           </Button>
