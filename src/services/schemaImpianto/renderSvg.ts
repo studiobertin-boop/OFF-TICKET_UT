@@ -6,7 +6,7 @@
  * diametri delle tubazioni, tabella "Lista Apparecchiature" in basso.
  */
 import { DIMENSIONI_NODO, corpoNodo, dimensioniLayout, pozzoCondense } from './layout'
-import { escapeXml, simboloDi, simboloMuro, valvolaIntercettazione, TRATTO } from './symbols'
+import { ancoraDi, escapeXml, simboloDi, simboloMuro, valvolaIntercettazione, TRATTO } from './symbols'
 import type { SchemaLayout, SchemaNodoPosizionato } from './types'
 
 const FONT = 'Arial, Helvetica, sans-serif'
@@ -22,6 +22,20 @@ const AVVICINAMENTO = 34
 interface Punto {
   x: number
   y: number
+}
+
+/**
+ * Posizione assoluta di un'ancora del nodo, in coordinate del disegno. Fallisce piano: se
+ * l'ancora non esiste (dato incoerente), ripiega sul centro del corpo invece di produrre
+ * coordinate NaN che spaccherebbero la polilinea.
+ */
+export function posizioneAncora(nodo: SchemaNodoPosizionato, ancoraId: string): Punto {
+  const ancora = ancoraDi(nodo, ancoraId)
+  if (!ancora) {
+    const corpo = corpoNodo(nodo)
+    return { x: corpo.x + corpo.larghezza / 2, y: corpo.y + corpo.altezza / 2 }
+  }
+  return { x: nodo.x + ancora.x, y: nodo.y + ancora.y }
 }
 
 function percorso(punti: Punto[]): string {
@@ -70,52 +84,51 @@ function ondeVerticali(x: number, yPartenza: number, lunghezza = 40): string {
  */
 function renderMandataCompressore(
   da: SchemaNodoPosizionato,
+  ancoraDa: string,
   a: SchemaNodoPosizionato,
+  ancoraA: string,
   yCollettore: number
 ): { svg: string; punti: Punto[] } {
-  const cDa = centro(da)
-  const cA = centro(a)
-  const corpoA = corpoNodo(a)
-  const yTetto = corpoNodo(da).y
+  const pDa = posizioneAncora(da, ancoraDa)
+  const pA = posizioneAncora(a, ancoraA)
   // La discesa si stacca dal fianco del recipiente e l'ultimo tratto entra in orizzontale:
   // scendendo sul bordo, la linea si confonderebbe col contorno del simbolo.
-  const xDiscesa = corpoA.x - AVVICINAMENTO
+  const xDiscesa = pA.x - AVVICINAMENTO
 
   const punti: Punto[] = [
-    { x: cDa.x, y: yTetto },
-    { x: cDa.x, y: yCollettore },
+    { x: pDa.x, y: pDa.y },
+    { x: pDa.x, y: yCollettore },
     { x: xDiscesa, y: yCollettore },
-    { x: xDiscesa, y: cA.y },
-    { x: corpoA.x, y: cA.y },
+    { x: xDiscesa, y: pA.y },
+    { x: pA.x, y: pA.y },
   ]
   const linea = `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" marker-end="url(#freccia)" />`
   // Flessibile e valvola di intercettazione stanno sul montante, appena sopra la macchina.
   // La valvola sta sul montante: farfalla verticale, in linea col tubo.
   const svg =
-    linea + ondeVerticali(cDa.x, yTetto - 4) + valvolaIntercettazione(cDa.x, yTetto - 62, 'verticale')
+    linea + ondeVerticali(pDa.x, pDa.y - 4) + valvolaIntercettazione(pDa.x, pDa.y - 62, 'verticale')
   return { svg, punti }
 }
 
 /** Mandata di linea fra due stadi di trattamento: tratto orizzontale con valvola in ingresso. */
 function renderMandataLinea(
   da: SchemaNodoPosizionato,
-  a: SchemaNodoPosizionato
+  ancoraDa: string,
+  a: SchemaNodoPosizionato,
+  ancoraA: string
 ): { svg: string; punti: Punto[] } {
-  const cDa = centro(da)
-  const cA = centro(a)
-  const corpoDa = corpoNodo(da)
-  const corpoA = corpoNodo(a)
-  const xUscita = corpoDa.x + corpoDa.larghezza
-  const xMedia = (xUscita + corpoA.x) / 2
+  const pDa = posizioneAncora(da, ancoraDa)
+  const pA = posizioneAncora(a, ancoraA)
+  const xMedia = (pDa.x + pA.x) / 2
   const punti: Punto[] = [
-    { x: xUscita, y: cDa.y },
-    { x: xMedia, y: cDa.y },
-    { x: xMedia, y: cA.y },
-    { x: corpoA.x, y: cA.y },
+    { x: pDa.x, y: pDa.y },
+    { x: xMedia, y: pDa.y },
+    { x: xMedia, y: pA.y },
+    { x: pA.x, y: pA.y },
   ]
   const svg =
     `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" marker-end="url(#freccia)" />` +
-    valvolaIntercettazione(corpoA.x - 22, cA.y)
+    valvolaIntercettazione(pA.x - 22, pA.y)
   return { svg, punti }
 }
 
@@ -125,19 +138,18 @@ function renderMandataLinea(
  */
 function renderLineaCondense(
   da: SchemaNodoPosizionato,
+  ancoraDa: string,
   a: SchemaNodoPosizionato,
+  ancoraA: string,
   yCorsia: number
 ): { svg: string; punti: Punto[] } {
-  const cDa = centro(da)
-  const corpoDa = corpoNodo(da)
-  const corpoA = corpoNodo(a)
-  const xArrivo = corpoA.x + corpoA.larghezza / 2
-  const yUscita = corpoDa.y + corpoDa.altezza + 24
+  const pDa = posizioneAncora(da, ancoraDa)
+  const pA = posizioneAncora(a, ancoraA)
   const punti: Punto[] = [
-    { x: cDa.x, y: yUscita },
-    { x: cDa.x, y: yCorsia },
-    { x: xArrivo, y: yCorsia },
-    { x: xArrivo, y: corpoA.y },
+    { x: pDa.x, y: pDa.y },
+    { x: pDa.x, y: yCorsia },
+    { x: pA.x, y: yCorsia },
+    { x: pA.x, y: pA.y },
   ]
   const svg = `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" stroke-dasharray="10 7" marker-end="url(#freccia)" />`
   return { svg, punti }
@@ -160,10 +172,10 @@ function renderArchi(
 
     const reso =
       arco.stile === 'condensa'
-        ? renderLineaCondense(da, a, yCorsiaCondense)
+        ? renderLineaCondense(da, arco.da.ancora, a, arco.a.ancora, yCorsiaCondense)
         : arco.stile === 'flessibile'
-          ? renderMandataCompressore(da, a, yCollettore)
-          : renderMandataLinea(da, a)
+          ? renderMandataCompressore(da, arco.da.ancora, a, arco.a.ancora, yCollettore)
+          : renderMandataLinea(da, arco.da.ancora, a, arco.a.ancora)
 
     parti.push(reso.svg)
     if (layout.muro) varchi.push(...quoteAttraversamento(reso.punti, layout.muro.x))

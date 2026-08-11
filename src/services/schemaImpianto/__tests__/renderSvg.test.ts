@@ -99,6 +99,22 @@ describe('renderSvg', () => {
   })
 })
 
+describe('attacco alle ancore', () => {
+  it('la polilinea della mandata comincia esattamente sull’ancora del compressore', () => {
+    const scheda = makeScheda({
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+      essiccatori: [], scambiatori: [], filtri: [],
+    })
+    const layout = layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } }))
+    const compressore = layout.nodi.find((n) => n.id === 'C1')!
+    const svg = renderSvg(layout)
+
+    // ancora 'alto-out' del compressore: (larghezza/2, 0) in coordinate locali
+    const atteso = `M ${compressore.x + 80} ${compressore.y}`
+    expect(svg).toContain(atteso)
+  })
+})
+
 describe('varchi nel muro', () => {
   /** Fasce verticali occupate dai tronconi pieni di muratura. */
   function tronconi(svg: string, xMuro: number): [number, number][] {
