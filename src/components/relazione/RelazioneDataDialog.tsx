@@ -4,7 +4,7 @@
  *
  * ⚠️ Da verificare nell'app in esecuzione (UI non coperta dai test unitari).
  */
-import { useEffect, useMemo, useState, type DragEvent } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Dialog,
   DialogTitle,
@@ -41,7 +41,7 @@ import { generateAndDownloadRelazione } from '@/services/relazione/generateRelaz
 import { buildRelazioneModel } from '@/services/relazione/buildRelazioneModel'
 import { validateRelazione, haErrori } from '@/services/relazione/preflight'
 import type { AdditionalInfo, PraticaInfo, SchemaImpianto, TipoGiri } from '@/services/relazione/types'
-import { leggiSchemaImpianto, FORMATI_SCHEMA } from './schemaImpiantoFile'
+import { SchemaImpiantoSection } from './SchemaImpiantoSection'
 import { collectCodes, pruneAdditionalInfo } from '@/utils/equipmentCodes'
 
 /**
@@ -128,22 +128,7 @@ export default function RelazioneDataDialog({
   const [collegamenti, setCollegamenti] = useState<Record<string, string[]>>({})
   const [schema, setSchema] = useState<SchemaImpianto | null>(null)
   const [saving, setSaving] = useState(false)
-  /** Lettura dello schema in corso (parsing PDF, rendering, scansione pixel, encoding PNG):
-   *  può richiedere secondi su un file grande, quindi guida anche i controlli sotto. */
-  const [schemaInCaricamento, setSchemaInCaricamento] = useState(false)
   const [droppedRefs, setDroppedRefs] = useState<string[]>([])
-  /** Un'immagine è sospesa sopra l'area: l'area lo dice, altrimenti non si sa se accetta. */
-  const [schemaSopra, setSchemaSopra] = useState(false)
-
-  /** Object URL dell'anteprima dello schema già ritagliato: revocato dall'effect sotto
-   *  ogni volta che cambia, così non si accumulano URL non più referenziati. */
-  const [schemaPreviewUrl, setSchemaPreviewUrl] = useState<string | null>(null)
-
-  useEffect(() => {
-    return () => {
-      if (schemaPreviewUrl) URL.revokeObjectURL(schemaPreviewUrl)
-    }
-  }, [schemaPreviewUrl])
 
   // Sincronizza lo stato all'apertura del dialog
   useEffect(() => {
@@ -166,55 +151,7 @@ export default function RelazioneDataDialog({
     setDroppedRefs(dropped)
     // Lo schema non è persistito: a ogni apertura si riparte da vuoto.
     setSchema(null)
-    setSchemaPreviewUrl(null)
-    setSchemaSopra(false)
-    setSchemaInCaricamento(false)
   }, [open, initialAdditionalInfo, customer, schedaCodes])
-
-  const handleSchemaFile = async (file: File | undefined) => {
-    if (!file) return
-    setSchemaInCaricamento(true)
-    try {
-      const letto = await leggiSchemaImpianto(file)
-      setSchema(letto)
-      setSchemaPreviewUrl(URL.createObjectURL(new Blob([letto.dati as BlobPart], { type: 'image/png' })))
-    } catch (err) {
-      setSchema(null)
-      setSchemaPreviewUrl(null)
-      toast.error(err instanceof Error ? err.message : 'Immagine non leggibile.')
-    } finally {
-      setSchemaInCaricamento(false)
-    }
-  }
-
-  /**
-   * Trascinamento dello schema sull'area.
-   *
-   * `preventDefault` sul dragover non è un dettaglio: senza, il browser considera l'area non
-   * ricevente e al rilascio apre l'immagine al posto della pagina, buttando via il lavoro
-   * fatto nel dialog. Il file passa poi dalla stessa lettura del pulsante, così formato e
-   * dimensione restano controllati in un punto solo.
-   */
-  const schemaSospeso = (e: DragEvent<HTMLElement>) => {
-    e.preventDefault()
-    if (saving || schemaInCaricamento) return
-    e.dataTransfer.dropEffect = 'copy'
-    setSchemaSopra(true)
-  }
-
-  const schemaUscito = (e: DragEvent<HTMLElement>) => {
-    // Il passaggio su un figlio dell'area emette un `dragleave` che non è un'uscita.
-    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
-    setSchemaSopra(false)
-  }
-
-  const schemaRilasciato = (e: DragEvent<HTMLElement>) => {
-    e.preventDefault()
-    setSchemaSopra(false)
-    if (saving || schemaInCaricamento) return
-    // Il paragrafo ospita un solo schema: di un rilascio multiplo si prende il primo.
-    void handleSchemaFile(e.dataTransfer.files?.[0])
-  }
 
   const setGiroFor = (code: string, value: TipoGiri) =>
     setGiri((prev) => ({ ...prev, [code]: value }))
@@ -573,92 +510,13 @@ export default function RelazioneDataDialog({
           </FormControl>
 
           <Divider />
-          <Typography variant="subtitle2">Schema d’impianto (§2.3)</Typography>
-          <Typography variant="body2" color="text.secondary">
-            L’immagine (o la prima pagina, se scegli un PDF) viene ritagliata
-            automaticamente al contenuto dello schema e incorporata nel documento alla
-            dimensione massima possibile senza uscire dalla pagina. Non viene salvata: va
-            riselezionata a ogni generazione. Formati PNG, JPEG o PDF, max 10 MB.
-          </Typography>
-          <Box
-            onDragEnter={schemaSospeso}
-            onDragOver={schemaSospeso}
-            onDragLeave={schemaUscito}
-            onDrop={schemaRilasciato}
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: 2,
-              p: 2,
-              borderRadius: 1,
-              border: '1px dashed',
-              borderColor: schemaSopra ? 'primary.main' : 'divider',
-              bgcolor: schemaSopra ? 'action.hover' : 'transparent',
-              transition: 'border-color 120ms, background-color 120ms',
-            }}
-          >
-            <Button component="label" variant="outlined" size="small" disabled={saving || schemaInCaricamento}>
-              {schema ? 'Sostituisci schema' : 'Scegli schema'}
-              <input
-                type="file"
-                hidden
-                accept={FORMATI_SCHEMA.join(',')}
-                onChange={(e) => {
-                  void handleSchemaFile(e.target.files?.[0])
-                  // Consente di riselezionare lo stesso file dopo una rimozione.
-                  e.target.value = ''
-                }}
-              />
-            </Button>
-            {schemaInCaricamento && (
-              <Stack direction="row" spacing={1} alignItems="center">
-                <CircularProgress size={16} />
-                <Typography variant="body2" color="text.secondary">
-                  Lettura dello schema in corso…
-                </Typography>
-              </Stack>
-            )}
-            {schema ? (
-              <>
-                {schemaPreviewUrl && (
-                  <Box
-                    component="img"
-                    src={schemaPreviewUrl}
-                    alt="Anteprima schema d’impianto ritagliato"
-                    sx={{
-                      maxWidth: 160,
-                      maxHeight: 120,
-                      borderRadius: 1,
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      bgcolor: 'common.white',
-                    }}
-                  />
-                )}
-                <Typography variant="body2">
-                  {schema.nomeFile} — {schema.larghezzaPx}×{schema.altezzaPx} px
-                </Typography>
-                <Button
-                  size="small"
-                  color="inherit"
-                  onClick={() => {
-                    setSchema(null)
-                    setSchemaPreviewUrl(null)
-                  }}
-                  disabled={saving || schemaInCaricamento}
-                >
-                  Rimuovi
-                </Button>
-              </>
-            ) : (
-              !schemaInCaricamento && (
-                <Typography variant="body2" color="text.secondary">
-                  …oppure trascina qui il file. Senza schema il paragrafo resterà vuoto.
-                </Typography>
-              )
-            )}
-          </Box>
+          <SchemaImpiantoSection
+            scheda={scheda}
+            collegamentiCompressoriSerbatoi={collegamenti}
+            schema={schema}
+            onSchemaChange={setSchema}
+            disabled={saving}
+          />
 
           <Divider />
           <Typography variant="subtitle2">Controllo di completezza</Typography>
