@@ -7,7 +7,7 @@ import {
   makeSerbatoio,
 } from '@/services/relazione/__tests__/fixtures'
 import { buildSchemaModel } from '../buildSchemaModel'
-import { calcolaMuro, DIMENSIONI_NODO, dimensioniLayout, layoutSchema } from '../layout'
+import { calcolaMuro, DIMENSIONI_NODO, MARGINE_SUPERIORE, dimensioniLayout, layoutSchema } from '../layout'
 import type { SchemaLayout } from '../types'
 
 function nodo(layout: SchemaLayout, id: string) {
@@ -143,6 +143,50 @@ describe('layoutSchema', () => {
     it('non c’è muro se manca uno dei due lati', () => {
       const base = { tipo: 'compressore' as const, etichetta: '', valvoleSicurezza: [], origine: 'scheda' as const }
       expect(calcolaMuro([{ ...base, id: 'C1', gruppo: 'SALA_COMPRESSORI', x: 40, y: 200 }])).toBeNull()
+    })
+
+    it('copre per intero l’inviluppo verticale dei nodi, con lo stesso margine sopra e sotto', () => {
+      // Quote scelte apposta ben distanti fra loro: il nodo in sala è quello più in alto
+      // (y minore), quello in linea è quello più in basso, così l'asserzione verifica
+      // davvero l'inviluppo dei due gruppi e non solo di uno dei due.
+      const compressore = {
+        tipo: 'compressore' as const,
+        etichetta: '',
+        valvoleSicurezza: [],
+        origine: 'scheda' as const,
+        id: 'C1',
+        gruppo: 'SALA_COMPRESSORI' as const,
+        x: 40,
+        y: 100,
+      }
+      const essiccatore = {
+        tipo: 'essiccatore' as const,
+        etichetta: '',
+        valvoleSicurezza: [],
+        origine: 'scheda' as const,
+        id: 'E1',
+        gruppo: 'LINEA_DISTRIBUZIONE' as const,
+        x: 500,
+        y: 400,
+      }
+
+      const muro = calcolaMuro([compressore, essiccatore])
+      expect(muro).not.toBeNull()
+
+      const yTop = Math.min(compressore.y, essiccatore.y)
+      const yBottom = Math.max(
+        compressore.y + DIMENSIONI_NODO.compressore.altezza,
+        essiccatore.y + DIMENSIONI_NODO.essiccatore.altezza
+      )
+
+      // Il margine è identico sopra e sotto (non i 55/35 asimmetrici di prima, quando
+      // yMin era ancorato allo spazio riservato al collettore sopra le apparecchiature e
+      // yMax all'altezza fissa della tanica, a prescindere da dove fosse il pozzo vero):
+      // qui non ci sono più le quote interne del layout automatico da cui recuperare
+      // un'asimmetria intenzionale, quindi lo stesso margine (MARGINE_SUPERIORE / 2) si
+      // applica identico ai due lati dell'inviluppo dei nodi.
+      expect(muro!.yMin).toBe(yTop - MARGINE_SUPERIORE / 2)
+      expect(muro!.yMax).toBe(yBottom + MARGINE_SUPERIORE / 2)
     })
   })
 

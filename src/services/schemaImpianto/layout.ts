@@ -50,8 +50,13 @@ export function pozzoCondense<T extends SchemaNodo>(
 export { DIMENSIONI_NODO }
 
 const MARGINE = 40
-/** Spazio sopra le apparecchiature: ci passano il collettore di mandata e la freccia verso le utenze. */
-const MARGINE_SUPERIORE = 110
+/**
+ * Spazio sopra le apparecchiature: ci passano il collettore di mandata e la freccia verso
+ * le utenze. Esportata perché è anche il margine, sopra e sotto, con cui `calcolaMuro`
+ * allarga l'inviluppo verticale dei nodi: il test che fissa quella relazione la importa
+ * invece di ripetere il numero.
+ */
+export const MARGINE_SUPERIORE = 110
 const PASSO_ORIZZONTALE = 60
 /** Distanza verticale fra la riga dei compressori e quella dei serbatoi. */
 const PASSO_VERTICALE = 80
