@@ -19,6 +19,8 @@ import { requestsApi } from '@/services/api/requests'
 import { customersApi } from '@/services/api/customers'
 import { relazioneDocumentiApi } from '@/services/api/relazioneDocumenti'
 import { dichiarazioniDocumentiApi } from '@/services/api/dichiarazioniDocumenti'
+import { fascicoloDocumentiApi } from '@/services/api/fascicoloDocumenti'
+import { calcolaEsitiPerCodice, codiciConAdempimento } from '@/utils/dm329Classification'
 import { supabase } from '@/services/supabase'
 import { TechnicalSheetForm, type TechnicalSheetFormRef } from '@/components/technicalSheet/TechnicalSheetForm'
 import { OCRReviewDialog } from '@/components/technicalSheet/OCRReviewDialog'
@@ -394,6 +396,33 @@ export const TechnicalDetails = () => {
     saveAs(blob, dichiarazioniSalvate.nome)
   }
 
+  // Relazione + dichiarazioni + un fascicolo per ogni apparecchiatura con adempimento, in
+  // un solo clic. I codici si calcolano sull'istantanea più fresca della scheda — presa da
+  // `formRef` al momento del clic, non da uno stato osservato prima — perché nel frattempo
+  // l'utente può aver aggiunto o tolto apparecchiature rispetto a quando la pagina si è
+  // caricata.
+  const handleScaricaCompleta = async () => {
+    if (relazioneSalvata) {
+      const blob = await relazioneDocumentiApi.scarica(relazioneSalvata.filePath)
+      saveAs(blob, relazioneSalvata.nome)
+    }
+    if (dichiarazioniSalvate) {
+      const blob = await dichiarazioniDocumentiApi.scarica(dichiarazioniSalvate.filePath)
+      saveAs(blob, dichiarazioniSalvate.nome)
+    }
+    // Un file per codice: il browser mette in coda i download consecutivi, non serve uno zip
+    // lato client per un pugno di file — la scelta è deliberatamente la più semplice che
+    // funzioni (vedi documento di design, sezione «Fuori scope»).
+    const codici = codiciConAdempimento(calcolaEsitiPerCodice(formRef.current?.getFormData() ?? {}))
+    for (const codice of codici) {
+      const documenti = await fascicoloDocumentiApi.elenca(id!, codice)
+      const fascicolo = documenti.find((d) => d.tipo === 'fascicolo')
+      if (!fascicolo) continue
+      const blob = await fascicoloDocumentiApi.scarica(fascicolo.filePath)
+      saveAs(blob, fascicolo.nome)
+    }
+  }
+
   // IMPORTANT: Calculate sedeLegale BEFORE early returns to avoid React Hook ordering issues
   // Get sede legale from customer data using formatFullAddress
   // Priority: request.customer > customerByName > custom_fields.sede_legale
@@ -525,6 +554,8 @@ export const TechnicalDetails = () => {
                 dichiarazioniPronte={!!dichiarazioniSalvate}
                 onScaricaRelazione={handleScaricaRelazione}
                 onScaricaDichiarazioni={handleScaricaDichiarazioni}
+                requestId={id!}
+                onScaricaCompleta={handleScaricaCompleta}
               />
             )}
           />

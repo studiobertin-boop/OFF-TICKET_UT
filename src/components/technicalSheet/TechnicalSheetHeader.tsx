@@ -1,4 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
+import { useFormContext, useWatch } from 'react-hook-form'
+import { useQuery } from '@tanstack/react-query'
 import { Box, Button, Chip, CircularProgress, Tooltip, Typography } from '@mui/material'
 import {
   ArrowBack as ArrowBackIcon,
@@ -14,6 +16,9 @@ import {
 } from '@mui/icons-material'
 import { AzioneIcona } from '@/components/common'
 import { eCompleta, percentuale, type Completezza } from '@/utils/schedaCompleteness'
+import { calcolaEsitiPerCodice, codiciConAdempimento } from '@/utils/dm329Classification'
+import { fascicoloDocumentiApi } from '@/services/api/fascicoloDocumenti'
+import type { SchedaDatiCompleta } from '@/types/technicalSheet'
 
 /**
  * Altezza della barra agganciata, pubblicata come variabile CSS.
@@ -49,6 +54,8 @@ export interface TechnicalSheetHeaderProps {
   dichiarazioniPronte: boolean
   onScaricaRelazione: () => void
   onScaricaDichiarazioni: () => void
+  requestId: string
+  onScaricaCompleta: () => void
 }
 
 /**
@@ -84,8 +91,44 @@ export const TechnicalSheetHeader = ({
   dichiarazioniPronte,
   onScaricaRelazione,
   onScaricaDichiarazioni,
+  requestId,
+  onScaricaCompleta,
 }: TechnicalSheetHeaderProps) => {
   const pieno = eCompleta(completezza)
+
+  // Prontezza dei fascicoli: quali codici richiedono un adempimento (letto in diretta dal
+  // form, che ci ospita tramite il render-prop `header` — vedi TechnicalSheetForm.tsx) e
+  // quali fra questi hanno già un fascicolo composto (letto dal database). Il pulsante
+  // "Scarica documentazione completa" resta disabilitato finché anche uno solo manca.
+  const { control } = useFormContext<SchedaDatiCompleta>()
+  const perAdempimento = useWatch({
+    control,
+    name: ['serbatoi', 'disoleatori', 'scambiatori', 'recipienti_filtro'],
+  })
+  const codiciRichiesti = useMemo(
+    () =>
+      codiciConAdempimento(
+        calcolaEsitiPerCodice({
+          serbatoi: perAdempimento[0] ?? [],
+          disoleatori: perAdempimento[1] ?? [],
+          scambiatori: perAdempimento[2] ?? [],
+          recipienti_filtro: perAdempimento[3] ?? [],
+        })
+      ),
+    [perAdempimento]
+  )
+  const { data: codiciConFascicoloPronto } = useQuery({
+    queryKey: ['fascicolo-codici-pronti', requestId],
+    queryFn: () => fascicoloDocumentiApi.codiciConFascicolo(requestId),
+    enabled: !!requestId,
+  })
+  const fascicoliMancanti = codiciRichiesti.filter((c) => !codiciConFascicoloPronto?.has(c))
+  const mancano = [
+    !relazionePronta && 'relazione',
+    !dichiarazioniPronte && 'dichiarazioni',
+    ...fascicoliMancanti.map((c) => `fascicolo di ${c}`),
+  ].filter(Boolean) as string[]
+  const tuttoPronto = mancano.length === 0
 
   const barra = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -232,6 +275,17 @@ export const TechnicalSheetHeader = ({
             ) : (
               <AzioneIcona icona={<GavelIcon fontSize="small" />} testo="Genera dichiarazioni" onClick={onDichiarazioni} />
             )
+          )}
+
+          {canGenerateDocs && (
+            <AzioneIcona
+              icona={<Inventory2Icon fontSize="small" />}
+              testo={tuttoPronto ? 'Scarica documentazione completa' : `Mancano: ${mancano.join(', ')}`}
+              onClick={onScaricaCompleta}
+              colore="success"
+              pieno={tuttoPronto}
+              disabled={!tuttoPronto}
+            />
           )}
         </Box>
       </Box>
