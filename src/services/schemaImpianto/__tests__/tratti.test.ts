@@ -273,6 +273,27 @@ describe('trascinaTratto', () => {
     expect(centrali.some((p) => p.y === 40)).toBe(true)
   })
 
+  it('un gomito a valle del tratto trascinato, non toccato dal gesto, sopravvive', () => {
+    // Difetto reale scovato in revisione: un errore nell'ordine degli argomenti passati a
+    // `raccordaPreservando` sul lato "successivo" faceva sparire il gomito a valle invece di
+    // riportarlo in coda all'array. Tre gomiti collineari a gradino: si trascina il tratto
+    // centrale, il terzo gomito (il montante verticale finale) non deve sparire.
+    const pDa = { x: 0, y: 0 }
+    const pA = { x: 300, y: 100 }
+    const gomiti = [
+      { x: 50, y: 0 },
+      { x: 150, y: 0 },
+      { x: 150, y: 100 },
+    ]
+    const nuovi = trascinaTratto(pDa, gomiti, pA, 1, { x: 0, y: 30 })
+    // Il gomito del montante finale, (150,100), deve comparire ancora — non toccato dal
+    // trascinamento del tratto (50,0)-(150,0).
+    expect(nuovi).toContainEqual({ x: 150, y: 100 })
+    // La polilinea ricostruita arriva ancora a pA senza salti né duplicati impliciti.
+    const full = polilineaConGomiti(pDa, nuovi, pA)
+    expect(full[full.length - 1]).toEqual(pA)
+  })
+
   it('un indice fuori range non tocca i gomiti', () => {
     const pDa = { x: 0, y: 0 }
     const pA = { x: 100, y: 100 }

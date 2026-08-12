@@ -50,7 +50,7 @@ export function polilineaConGomiti(inizio: Punto, gomiti: Punto[], fine: Punto):
 function raccordaPreservando(fisso: Punto, daPreservare: Punto, orizzontale: boolean): Punto[] {
   const allineato = orizzontale ? fisso.y === daPreservare.y : fisso.x === daPreservare.x
   if (allineato) return [daPreservare]
-  const gomito = orizzontale ? { x: fisso.x, y: daPreservare.y } : { x: daPreservare.x, y: fisso.y }
+  const gomito = orizzontale ? { x: daPreservare.x, y: fisso.y } : { x: fisso.x, y: daPreservare.y }
   return [gomito, daPreservare]
 }
 
@@ -89,7 +89,7 @@ export function trascinaTratto(
     ...full.slice(1, indiceTratto),
     ...raccordaPreservando(precedente, nuovoA, orizzontale),
     nuovoB,
-    ...raccordaPreservando(successivo, nuovoB, orizzontale),
+    ...raccordaPreservando(nuovoB, successivo, orizzontale),
     ...full.slice(indiceTratto + 3),
   ]
 
