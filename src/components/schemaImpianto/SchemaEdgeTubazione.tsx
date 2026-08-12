@@ -138,6 +138,7 @@ interface SchemaSegnoProps {
   punto: { x: number; y: number }
   tipo: SchemaSegnoTuboTipo
   polilinea: Punto[]
+  orientamento: 'orizzontale' | 'verticale'
   onSposta?: (indice: number, t: number, concluso: boolean) => void
   onRimuovi?: (indice: number) => void
 }
@@ -154,7 +155,7 @@ interface SchemaSegnoProps {
  * parametrico su `x`/`y`, quindi si chiama con `(0, 0)` e si trasla il contenitore, non il
  * simbolo.
  */
-function SchemaSegno({ indice, punto, tipo, polilinea, onSposta, onRimuovi }: SchemaSegnoProps) {
+function SchemaSegno({ indice, punto, tipo, polilinea, orientamento, onSposta, onRimuovi }: SchemaSegnoProps) {
   const { screenToFlowPosition } = useReactFlow()
   const mossoRef = useRef(false)
 
@@ -219,7 +220,7 @@ function SchemaSegno({ indice, punto, tipo, polilinea, onSposta, onRimuovi }: Sc
         height={40}
         viewBox="-20 -20 40 40"
         style={{ overflow: 'visible' }}
-        dangerouslySetInnerHTML={{ __html: disegna(0, 0) }}
+        dangerouslySetInnerHTML={{ __html: disegna(0, 0, orientamento) }}
       />
     </div>
   )
@@ -301,7 +302,7 @@ export function SchemaEdgeTubazione({
           />
         ))}
         {(edgeData?.segni ?? []).map((segno, indice) => {
-          const { punto } = puntoSuTratto(polilinea, segno.t)
+          const { punto, orizzontale } = puntoSuTratto(polilinea, segno.t)
           return (
             <SchemaSegno
               key={`${id}-segno-${indice}`}
@@ -309,6 +310,7 @@ export function SchemaEdgeTubazione({
               punto={punto}
               tipo={segno.tipo}
               polilinea={polilinea}
+              orientamento={orizzontale ? 'orizzontale' : 'verticale'}
               onSposta={edgeData?.onSpostaSegno}
               onRimuovi={edgeData?.onRimuoviSegno}
             />
