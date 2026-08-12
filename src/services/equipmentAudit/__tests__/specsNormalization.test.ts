@@ -158,7 +158,8 @@ describe('chiave di variante', () => {
     expect(variantSpecKey('Compressori')).toBe('pressione_esercizio')
     expect(variantSpecKey('Valvole di sicurezza')).toBe('ptar')
     expect(variantSpecKey('Serbatoi')).toBe('ps')
-    expect(variantSpecKey('Filtri')).toBeNull()
+    expect(variantSpecKey('Filtri')).toBe('ps')
+    expect(variantSpecKey('Separatori')).toBeNull()
     expect(variantSpecKey(null)).toBeNull()
   })
 
@@ -184,7 +185,7 @@ describe('chiave di variante', () => {
 
   it('restituisce null se il tipo non ha varianti o il dato manca', () => {
     expect(readVariantValue('Serbatoi', { ps: 11 })).toBe(11)
-    expect(readVariantValue('Filtri', { ps: 11 })).toBeNull()
+    expect(readVariantValue('Separatori', { ps: 11 })).toBeNull()
     expect(readVariantValue('Compressori', { fad: 2000 })).toBeNull()
     expect(readVariantValue('Compressori', null)).toBeNull()
   })
@@ -214,7 +215,7 @@ describe('pressione dichiarata dalla scheda dati', () => {
 
   it('senza pressioni, o su un tipo che non ne ha, è null', () => {
     expect(readSheetPressure('Compressori', { fad: 2000 })).toBeNull()
-    expect(readSheetPressure('Filtri', { ps: 11 })).toBeNull()
+    expect(readSheetPressure('Separatori', { ps: 11 })).toBeNull()
     expect(readSheetPressure(null, { ps: 11 })).toBeNull()
   })
 })
@@ -235,5 +236,23 @@ describe('pressione_esercizio resta operativa pur essendo interna', () => {
   it('sopravvive alla normalizzazione', () => {
     const r = normalizeSpecs('Compressori', { pressione_esercizio: '10', pressione_max: '11', volume: '1680' })
     expect(r.canonical).toEqual({ pressione_esercizio: 10, pressione_max: 11, fad: 1680 })
+  })
+})
+
+describe('Filtri — PS opzionale, a parità con gli altri recipienti', () => {
+  it('ha una chiave di variante come i recipienti, ma non è obbligatoria', () => {
+    expect(variantSpecKey('Filtri')).toBe('ps')
+    expect(missingCanonicalSpecs('Filtri', {}).map(d => d.key)).toEqual([])
+  })
+
+  it('legge PS come pressione di scheda, come sugli altri recipienti', () => {
+    expect(sheetPressureKey('Filtri')).toBe('ps')
+    expect(readSheetPressure('Filtri', { ps: 11 })).toBe(11)
+    expect(readVariantValue('Filtri', { ps: 11 })).toBe(11)
+  })
+
+  it('traduce i campi della scheda dati come per i serbatoi', () => {
+    expect(canonicalFromForm('Filtri', { ps_pressione_max: 11, ts: '-10 ÷ +50' }))
+      .toEqual({ ps: 11, ts: '-10 ÷ +50' })
   })
 })

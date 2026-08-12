@@ -91,6 +91,12 @@ const TS: CanonicalSpecDef = {
 const CATEGORIA_PED: CanonicalSpecDef = {
   key: 'categoria_ped', label: 'Categoria PED', unit: null, kind: 'enum', options: CATEGORIA_PED_OPTIONS,
 }
+/**
+ * Come `PS`, ma non obbligatoria: a differenza degli altri recipienti, il Filtro la dichiara
+ * solo quando ha senso (es. filtro monoblocco già in pressione, senza un Recipiente filtro
+ * separato) e non deve mai risultare "incompleto" per la sua assenza.
+ */
+const PS_OPZIONALE: CanonicalSpecDef = { ...PS, required: false }
 
 const RECIPIENTE_SPECS = [VOLUME, PS, TS, CATEGORIA_PED] as const
 
@@ -148,7 +154,7 @@ export const CANONICAL_SPECS: Record<EquipmentCatalogType, readonly CanonicalSpe
     { key: 'diametro', label: 'Diametro', unit: null, kind: 'text' },
     CATEGORIA_PED,
   ],
-  Filtri: [],
+  Filtri: [PS_OPZIONALE, TS],
   Separatori: [],
   Altro: [],
 }
@@ -231,7 +237,11 @@ export const FORM_TO_CANONICAL: Record<EquipmentCatalogType, Readonly<Record<str
     diametro: 'diametro',
     categoria_ped: 'categoria_ped',
   },
-  Filtri: {},
+  Filtri: {
+    ps_pressione_max: 'ps',
+    ts: 'ts',
+    ts_temperatura: 'ts',
+  },
   Separatori: {},
   Altro: {},
 }
