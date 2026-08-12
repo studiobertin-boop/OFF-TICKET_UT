@@ -5,7 +5,7 @@
  * riapertura le due cose vanno rimesse d'accordo senza buttare il lavoro di disposizione.
  * Il muro non si salva — è derivato dalle posizioni e si ricalcola.
  */
-import { calcolaMuro, layoutSchema } from './layout'
+import { calcolaMuro, layoutSchema, DIMENSIONI_NODO } from './layout'
 import type { SchemaArco, SchemaLayout, SchemaModel, SchemaNodoPosizionato } from './types'
 
 const VERSIONE = 1
@@ -23,8 +23,22 @@ export function serializzaLayout(layout: SchemaLayout): LayoutSalvato {
   return { versione: VERSIONE, nodi: structuredClone(layout.nodi), archi: structuredClone(layout.archi) }
 }
 
+/**
+ * Vero se `salvato` è abbastanza riconoscibile da poter essere usato: a monte Zod lo accetta
+ * come `z.any()`, quindi qui deve reggersi da solo. Un `tipo` che il registro simboli non
+ * conosce (ritirato, o un JSON modificato a mano) altrimenti arriva intonso fino a
+ * `calcolaMuro`/`definizioneDi`, che si aspettano di trovarlo sempre — e in produzione lo
+ * schianto sarebbe una schermata bianca all'apertura del dialog invece del ripiego
+ * sull'auto-layout.
+ */
+function contenutoRiconoscibile(salvato: LayoutSalvato): boolean {
+  if (!Array.isArray(salvato.nodi) || !Array.isArray(salvato.archi)) return false
+  return salvato.nodi.every((n) => Boolean(n) && typeof n === 'object' && n.tipo in DIMENSIONI_NODO)
+}
+
 export function deserializzaLayout(salvato: LayoutSalvato | null | undefined): SchemaLayout | null {
   if (!salvato || salvato.versione !== VERSIONE) return null
+  if (!contenutoRiconoscibile(salvato)) return null
   return { nodi: salvato.nodi, archi: salvato.archi, muro: calcolaMuro(salvato.nodi) }
 }
 

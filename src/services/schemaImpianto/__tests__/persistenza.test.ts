@@ -44,6 +44,21 @@ describe('serializzazione', () => {
     expect(deserializzaLayout(undefined)).toBeNull()
   })
 
+  it('rifiuta un salvato con un tipo di nodo sconosciuto invece di rompersi più avanti', () => {
+    // A monte Zod accetta il contenuto come z.any(): un tipo ritirato o una modifica manuale
+    // del JSON arriverebbero fin qui. Senza il controllo, `calcolaMuro` (chiamato subito
+    // sotto) esplode leggendo `DIMENSIONI_NODO[tipoInventato]`, che è `undefined`.
+    const salvato = serializzaLayout(layoutSchema(modelloDiProva(['C1'])))
+    salvato.nodi[0] = { ...salvato.nodi[0], tipo: 'tipo-inventato' as never }
+
+    expect(deserializzaLayout(salvato)).toBeNull()
+  })
+
+  it('rifiuta un salvato con nodi o archi che non sono array', () => {
+    expect(deserializzaLayout({ versione: 1, nodi: 'non un array', archi: [] } as never)).toBeNull()
+    expect(deserializzaLayout({ versione: 1, nodi: [], archi: null } as never)).toBeNull()
+  })
+
   it('ricalcola il muro invece di fidarsi di un valore salvato', () => {
     const layout = layoutSchema(modelloDiProva(['C1']))
     const salvato = serializzaLayout(layout)
@@ -181,6 +196,21 @@ describe('layoutIniziale', () => {
     )
     expect(esito.layout.nodi.find((n) => n.id === 'C1')!.y).toBe(
       automatico.nodi.find((n) => n.id === 'C1')!.y
+    )
+    expect(esito.aggiunti).toEqual([])
+    expect(esito.rimossi).toEqual([])
+  })
+
+  it('scarta un salvato con un tipo di nodo sconosciuto e riparte dall’auto-layout', () => {
+    const modello = modelloDiProva(['C1'])
+    const salvato = serializzaLayout(layoutSchema(modello))
+    salvato.nodi[0] = { ...salvato.nodi[0], tipo: 'tipo-inventato' as never, x: 4000, y: 4000 }
+
+    const esito = layoutIniziale(salvato, modello)
+    const automatico = layoutSchema(modello)
+
+    expect(esito.layout.nodi.find((n) => n.id === 'C1')!.x).toBe(
+      automatico.nodi.find((n) => n.id === 'C1')!.x
     )
     expect(esito.aggiunti).toEqual([])
     expect(esito.rimossi).toEqual([])
