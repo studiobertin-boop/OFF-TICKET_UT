@@ -686,7 +686,7 @@ Chiude i rossi lasciati dal Task 4: `buildSchemaModel` semina il segno di defaul
 
 - [ ] **Step 1: Scrivere il test su `buildSchemaModel`**
 
-In `src/services/schemaImpianto/__tests__/buildSchemaModel.test.ts`, vicino ai test su `buildArchi`/gli archi standard, aggiungi:
+In `src/services/schemaImpianto/__tests__/buildSchemaModel.test.ts`, vicino ai test su `buildArchi`/gli archi standard, aggiungi (importa anche `ID_UTENZE` da `../buildSchemaModel` se il file non lo importa già):
 
 ```ts
 it('ogni arco standard e flessibile nasce con un segno di valvola di intercettazione', () => {
@@ -700,7 +700,12 @@ it('ogni arco standard e flessibile nasce con un segno di valvola di intercettaz
   })
   const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
 
-  const rigideOFlessibili = model.archi.filter((a) => a.stile === 'standard' || a.stile === 'flessibile')
+  // Esclude l'arco verso ID_UTENZE: è 'standard' ma è il codolo del terminale, non riceve
+  // un segno (vedi la sezione «Implementare» qui sotto — il difetto originale del piano
+  // includeva quell'arco in questo filtro, contraddicendo la sua stessa istruzione più avanti).
+  const rigideOFlessibili = model.archi.filter(
+    (a) => (a.stile === 'standard' || a.stile === 'flessibile') && a.a.nodo !== ID_UTENZE
+  )
   expect(rigideOFlessibili.length).toBeGreaterThan(0)
   for (const arco of rigideOFlessibili) {
     expect(arco.segni).toHaveLength(1)
