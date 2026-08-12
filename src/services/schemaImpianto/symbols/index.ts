@@ -30,6 +30,7 @@ const DIMENSIONI: Record<SchemaNodoTipo, { larghezza: number; altezza: number }>
   tanica: { larghezza: 80, altezza: 70 },
   pacco_bombole: { larghezza: 120, altezza: 100 },
   utenze: { larghezza: 190, altezza: 120 },
+  giunzione: { larghezza: 50, altezza: 50 },
 }
 
 /** Testo: `x`/`y` sono il centro, o il capo iniziale/finale se `ancora` lo dice. */
@@ -323,6 +324,22 @@ export function simboloPaccoBombole(nodo: SchemaNodo): string {
 }
 
 /**
+ * Giunzione a tre attacchi (TEE): simbolo segnaposto, non un blocco CAD di riferimento — tre
+ * monconi che confluiscono in un punto pieno. Nessun testo: il nodo non ha una riga in
+ * `righeLista` che ne spieghi un codice, e disegnarlo comunque confonderebbe.
+ */
+export function simboloGiunzione(_nodo: SchemaNodo): string {
+  const cx = 25
+  const cy = 25
+  return [
+    traccia(`M 0 ${cy} L ${cx} ${cy}`),
+    traccia(`M ${2 * cx} ${cy} L ${cx} ${cy}`),
+    traccia(`M ${cx} ${2 * cy} L ${cx} ${cy}`),
+    `<circle cx="${cx}" cy="${cy}" r="4" fill="#000" />`,
+  ].join('')
+}
+
+/**
  * Geometria del terminale utenze, condivisa fra chi lo disegna (`simboloUtenze`) e chi ne calcola
  * l'ingombro (`dimensioniDi`): sono la stessa cosa vista da due parti, e tenerle separate è
  * esattamente ciò che faceva uscire la scritta dal riquadro.
@@ -441,6 +458,15 @@ export const REGISTRO_SIMBOLI: Record<ChiaveSimbolo, DefinizioneSimbolo> = {
     ancore: [{ id: 'dx', x: 114, y: 60, accetta: ['aria'] }],
     disegna: simboloPaccoBombole,
   },
+  giunzione: {
+    dimensioni: DIMENSIONI.giunzione,
+    ancore: [
+      { id: 'sx', x: 0, y: 25, accetta: ['aria'] },
+      { id: 'dx', x: 50, y: 25, accetta: ['aria'] },
+      { id: 'basso', x: 25, y: 50, accetta: ['aria'] },
+    ],
+    disegna: simboloGiunzione,
+  },
   utenze: {
     dimensioni: DIMENSIONI.utenze,
     // Una sola: la linea aria ci arriva e finisce lì. Sta in fondo al codolo, dove il
@@ -493,6 +519,7 @@ export const DIMENSIONI_NODO: Record<SchemaNodoTipo, { larghezza: number; altezz
   separatore: REGISTRO_SIMBOLI.separatore.dimensioni,
   tanica: REGISTRO_SIMBOLI.tanica.dimensioni,
   pacco_bombole: REGISTRO_SIMBOLI.pacco_bombole.dimensioni,
+  giunzione: REGISTRO_SIMBOLI.giunzione.dimensioni,
   utenze: REGISTRO_SIMBOLI.utenze.dimensioni,
 }
 

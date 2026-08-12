@@ -34,6 +34,12 @@ export type SchemaNodoTipo =
    * d'ufficio da `renderUscitaUtenze` e quindi non toccabile nell'editor.
    */
   | 'utenze'
+  /**
+   * Giunzione a tre attacchi (TEE): dirama la linea, è un nodo vero e non un segno sul tubo
+   * (a differenza di valvole e riduttori, che hanno solo un dentro e un fuori). Non entra
+   * nella lista apparecchiature né in legenda: non ha codice, non è un dato di scheda.
+   */
+  | 'giunzione'
 
 export type SchemaGruppo = 'SALA_COMPRESSORI' | 'LINEA_DISTRIBUZIONE' | 'ALTRO'
 

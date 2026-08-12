@@ -9,7 +9,7 @@ describe('chiaveSimbolo', () => {
     expect(chiaveSimbolo({ tipo: 'serbatoio', orientamento: 'ORIZZONTALE' })).toBe('serbatoio:ORIZZONTALE')
   })
 
-  it('assume il serbatoio verticale quando l’orientamento manca', () => {
+  it('assume il serbatoio verticale quando l\'orientamento manca', () => {
     expect(chiaveSimbolo({ tipo: 'serbatoio' })).toBe('serbatoio:VERTICALE')
   })
 
@@ -20,7 +20,7 @@ describe('chiaveSimbolo', () => {
 })
 
 describe('registro dei simboli', () => {
-  it('ogni definizione dichiara almeno un’ancora, con identificativi distinti', () => {
+  it('ogni definizione dichiara almeno un\'ancora, con identificativi distinti', () => {
     for (const [chiave, def] of Object.entries(REGISTRO_SIMBOLI)) {
       expect(def.ancore.length, chiave).toBeGreaterThan(0)
       const ids = def.ancore.map((a) => a.id)
@@ -28,7 +28,7 @@ describe('registro dei simboli', () => {
     }
   })
 
-  it('ogni ancora accetta almeno un tipo e cade dentro il riquadro d’ingombro', () => {
+  it('ogni ancora accetta almeno un tipo e cade dentro il riquadro d\'ingombro', () => {
     for (const [chiave, def] of Object.entries(REGISTRO_SIMBOLI)) {
       for (const a of def.ancore) {
         expect(a.accetta.length, `${chiave}/${a.id}`).toBeGreaterThan(0)
@@ -92,7 +92,7 @@ describe('simbolo «Alle utenze»', () => {
   // allarga da sé la tela». Con la larghezza fissa a 190 restavano ~17-18 caratteri: oltre, la
   // scritta usciva dal riquadro — tagliata subito nell'editor, tagliata nel PNG appena superava
   // il margine. E il campo di rinomina invita a scrivere («Utenze aria», «Utenze azoto»).
-  it('l’ingombro del terminale cresce con la lunghezza della scritta', () => {
+  it('l\'ingombro del terminale cresce con la lunghezza della scritta', () => {
     const corta = dimensioniDi({ ...utenze, etichetta: 'Utenze aria' })
     const lunga = dimensioniDi({ ...utenze, etichetta: 'Utenze aria compressa reparto 2' })
     const piuLunga = dimensioniDi({ ...utenze, etichetta: 'Utenze aria compressa reparto 2 e 3' })
@@ -110,7 +110,7 @@ describe('simbolo «Alle utenze»', () => {
     expect(lunga.altezza).toBe(corta.altezza)
   })
 
-  it('gli altri tipi conservano l’ingombro del registro', () => {
+  it('gli altri tipi conservano l\'ingombro del registro', () => {
     // `dimensioniDi` non deve diventare una seconda fonte di verità sugli ingombri: per tutto
     // ciò che non è il terminale è il registro a decidere, com'è sempre stato.
     for (const chiave of Object.keys(REGISTRO_SIMBOLI)) {
@@ -122,9 +122,37 @@ describe('simbolo «Alle utenze»', () => {
     }
   })
 
-  it('l’ancora accetta l’aria e rifiuta la condensa', () => {
+  it('l\'ancora accetta l\'aria e rifiuta la condensa', () => {
     expect(capoValido(utenze, 'in', 'standard')).toBe(true)
     expect(capoValido(utenze, 'in', 'flessibile')).toBe(true)
     expect(capoValido(utenze, 'in', 'condensa')).toBe(false)
+  })
+})
+
+describe('simboloGiunzione', () => {
+  it('disegna tre monconi di tubo che confluiscono in un punto pieno, senza testo', () => {
+    const svg = REGISTRO_SIMBOLI.giunzione.disegna({
+      id: 'M-G1',
+      tipo: 'giunzione',
+      etichetta: 'Giunzione',
+      gruppo: 'LINEA_DISTRIBUZIONE',
+      valvoleSicurezza: [],
+      origine: 'manuale',
+    })
+    expect(svg).not.toContain('<text')
+    expect((svg.match(/<path/g) ?? []).length).toBe(3)
+    expect(svg).toContain('<circle')
+  })
+
+  it('ha tre ancore che accettano aria, dentro l\'ingombro dichiarato', () => {
+    const def = REGISTRO_SIMBOLI.giunzione
+    expect(def.ancore.map((a) => a.id).sort()).toEqual(['basso', 'dx', 'sx'])
+    for (const ancora of def.ancore) {
+      expect(ancora.accetta).toEqual(['aria'])
+      expect(ancora.x).toBeGreaterThanOrEqual(0)
+      expect(ancora.x).toBeLessThanOrEqual(def.dimensioni.larghezza)
+      expect(ancora.y).toBeGreaterThanOrEqual(0)
+      expect(ancora.y).toBeLessThanOrEqual(def.dimensioni.altezza)
+    }
   })
 })
