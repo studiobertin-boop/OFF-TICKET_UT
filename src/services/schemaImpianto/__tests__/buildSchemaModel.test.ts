@@ -135,6 +135,27 @@ describe('buildSchemaModel', () => {
     ).toEqual(['S1->E1', 'E1->F1', 'F1->UTENZE'])
   })
 
+  // Stesso rischio del terminale utenze (vedi 'terminale verso le utenze' sotto): con un solo
+  // serbatoio candidato qualunque regola di scelta (primo, ultimo, ...) darebbe lo stesso
+  // risultato e non discriminerebbe un'inversione dell'ordine. Due serbatoi, e si verifica che
+  // la catena parta da quello che alimenta davvero la linea (S1), non dal secondo (S2).
+  it('la catena di trattamento parte dal serbatoio che alimenta la linea, non da un secondo serbatoio qualsiasi', () => {
+    const scheda = makeScheda({
+      serbatoi: [makeSerbatoio({ codice: 'S1' }), makeSerbatoio({ codice: 'S2' })],
+      essiccatori: [makeEssiccatore()],
+      scambiatori: [],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+
+    const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1', 'S2'] } })
+
+    expect(model.archi.find((a) => a.stile === 'standard' && a.a.nodo === 'E1')?.da).toEqual({
+      nodo: 'S1',
+      ancora: 'dx',
+    })
+  })
+
   it('mette in serie la catena di trattamento a valle del serbatoio, prefiltri per primi', () => {
     const scheda = makeScheda({
       filtri: [
@@ -355,16 +376,20 @@ describe('terminale verso le utenze', () => {
   })
 
   it('senza catena di trattamento parte dal serbatoio che alimenta la linea', () => {
+    // Due serbatoi, non uno solo: con un solo candidato qualunque regola di scelta (primo,
+    // ultimo, o altro) restituirebbe lo stesso risultato e il test non discriminerebbe fra
+    // "il serbatoio da cui la linea parte" (serbatoiChiave[0], quello giusto) e "l'ultimo
+    // serbatoio" (la vecchia formulazione sbagliata della spec, corretta in questo task).
     const scheda = makeScheda({
       compressori: [makeCompressore({ ha_disoleatore: false })],
       disoleatori: [],
-      serbatoi: [makeSerbatoio()],
+      serbatoi: [makeSerbatoio({ codice: 'S1' }), makeSerbatoio({ codice: 'S2' })],
       essiccatori: [],
       scambiatori: [],
       filtri: [],
       dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
     })
-    const modello = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    const modello = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1', 'S2'] } })
 
     expect(modello.archi.find((a) => a.a.nodo === 'UTENZE')!.da).toEqual({ nodo: 'S1', ancora: 'dx' })
   })

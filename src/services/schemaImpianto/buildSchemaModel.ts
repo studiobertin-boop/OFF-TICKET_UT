@@ -290,7 +290,7 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
   }
 
   // Tubazione finale verso le utenze. Il nodo esiste solo se ha da chi partire, quindi qui si
-  // decide anche se `buildSchemaModel` deve aggiungerlo (vedi `sorgenteUtenze`).
+  // decide anche se `buildSchemaModel` deve aggiungerlo (vedi `sorgente`, sotto).
   const sorgente = catenaLinea.length > 0 ? catenaLinea[catenaLinea.length - 1].id : serbatoiChiave[0]
   if (sorgente) {
     archi.push({
