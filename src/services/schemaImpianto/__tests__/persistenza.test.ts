@@ -282,6 +282,29 @@ describe('terminale utenze nei layout salvati prima che esistesse', () => {
     expect(esito.layout.archi.some((a) => a.a.nodo === 'UTENZE')).toBe(true)
   })
 
+  // «Aggiunte dalla scheda: UTENZE» è falso su entrambi i fronti — il terminale non è
+  // un'apparecchiatura (per questo resta fuori dalla lista e non conta per il muro) e non viene
+  // dalla scheda — e capiterebbe una volta su ogni pratica già salvata.
+  it('non lo annuncia all’utente fra le apparecchiature arrivate dalla scheda', () => {
+    const modello = modelloDiProva(['C1'])
+    const esito = riconcilia(salvatoSenzaUtenze(modello), modello)
+
+    // Resta fra gli `aggiunti`, che è l'elenco vero dei nodi collocati dalla riconciliazione…
+    expect(esito.aggiunti).toContain('UTENZE')
+    // …ma non fra quelli di cui vale la pena avvisare.
+    expect(esito.aggiuntiDaScheda).toEqual([])
+  })
+
+  it('annuncia però le apparecchiature vere comparse insieme a lui', () => {
+    // Discrimina un `aggiuntiDaScheda` sempre vuoto: qui la scheda ha davvero un compressore in
+    // più, e quello all'utente va detto.
+    const salvato = salvatoSenzaUtenze(modelloDiProva(['C1']))
+    const esito = riconcilia(salvato, modelloDiProva(['C1', 'C2']))
+
+    expect(esito.aggiunti.sort()).toEqual(['C2', 'UTENZE'])
+    expect(esito.aggiuntiDaScheda).toEqual(['C2'])
+  })
+
   it('lo mette dove cadeva la freccia automatica, non in fondo alla tela', () => {
     const modello = modelloDiProva(['C1'])
     const salvato = salvatoSenzaUtenze(modello)

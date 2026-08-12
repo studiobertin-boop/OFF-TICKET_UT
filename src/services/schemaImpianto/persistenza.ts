@@ -67,7 +67,22 @@ export function layoutDaPersistere(
 
 export interface EsitoRiconciliazione {
   layout: SchemaLayout
+  /**
+   * Tutti i nodi che la riconciliazione ha collocato: elenco vero, a uso interno. Comprende il
+   * terminale utenze, che è un nodo a tutti gli effetti.
+   */
   aggiunti: string[]
+  /**
+   * Quelli di cui vale la pena avvisare l'utente. È `aggiunti` senza il terminale utenze: non è
+   * un'apparecchiatura (per questo resta fuori dalla lista e non conta per il muro) e non viene
+   * dalla scheda, quindi annunciarlo come «Aggiunte dalla scheda: UTENZE» sarebbe falso su
+   * entrambi i fronti — e capiterebbe una volta su ogni pratica già salvata.
+   *
+   * Due elenchi invece di uno solo filtrato in presentazione: quale nodo sia un'apparecchiatura
+   * è cognizione di dominio, e qui sta sotto un test di funzione pura, mentre nel componente
+   * finirebbe fuori dalla copertura (la convenzione del progetto è: nessun test di UI).
+   */
+  aggiuntiDaScheda: string[]
   rimossi: string[]
 }
 
@@ -93,7 +108,7 @@ export function layoutIniziale(
   modello: SchemaModel
 ): EsitoRiconciliazione {
   const ripristinato = deserializzaLayout(salvato)
-  if (!ripristinato) return { layout: layoutSchema(modello), aggiunti: [], rimossi: [] }
+  if (!ripristinato) return { layout: layoutSchema(modello), aggiunti: [], aggiuntiDaScheda: [], rimossi: [] }
   return riconcilia(ripristinato, modello)
 }
 
@@ -160,6 +175,7 @@ export function riconcilia(salvato: Pick<SchemaLayout, 'nodi' | 'archi'>, modell
   const piede = superstiti.length > 0 ? Math.max(...superstiti.map((n) => n.y)) + 320 : 0
   const automatico = layoutSchema(modello)
   const aggiunti = nuovi.map((n) => n.id)
+  const aggiuntiDaScheda = nuovi.filter((n) => n.tipo !== 'utenze').map((n) => n.id)
   const posizionati = nuovi.map((n) => {
     const proposto = automatico.nodi.find((p) => p.id === n.id)!
     if (n.tipo === 'utenze') {
@@ -207,5 +223,5 @@ export function riconcilia(salvato: Pick<SchemaLayout, 'nodi' | 'archi'>, modell
     if (dalModello) archi.push(dalModello)
   }
 
-  return { layout: { nodi, archi, muro: calcolaMuro(nodi) }, aggiunti, rimossi }
+  return { layout: { nodi, archi, muro: calcolaMuro(nodi) }, aggiunti, aggiuntiDaScheda, rimossi }
 }

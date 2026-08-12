@@ -138,9 +138,11 @@ export function SchemaImpiantoSection({
     generazioneTentata.current = true
     const modello = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi })
     const esito = layoutIniziale(layoutSalvato, modello)
+    // `aggiuntiDaScheda`, non `aggiunti`: il secondo comprende anche il terminale utenze, che
+    // non è un'apparecchiatura e non viene dalla scheda (vedi `EsitoRiconciliazione`).
     setEsitoRiconciliazione(
-      esito.aggiunti.length > 0 || esito.rimossi.length > 0
-        ? { aggiunti: esito.aggiunti, rimossi: esito.rimossi }
+      esito.aggiuntiDaScheda.length > 0 || esito.rimossi.length > 0
+        ? { aggiunti: esito.aggiuntiDaScheda, rimossi: esito.rimossi }
         : null
     )
     void disegna(esito.layout)
