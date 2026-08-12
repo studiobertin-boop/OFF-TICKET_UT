@@ -36,6 +36,7 @@ import type { SchemaArcoStile, SchemaLayout, SchemaNodoTipo } from '@/services/s
 import { SchemaEdgeTubazione, type SchemaEdgeData } from './SchemaEdgeTubazione'
 import { SchemaNodeSymbol, type SchemaNodeData } from './SchemaNodeSymbol'
 import { TIPO_ARCO_FLOW, TIPO_NODO_FLOW, flowALayout, layoutAFlow } from './conversioneFlow'
+import { useGomiti } from './useGomiti'
 import { useSchemaHistory } from './useSchemaHistory'
 
 const tipiNodo = { [TIPO_NODO_FLOW]: SchemaNodeSymbol }
@@ -132,6 +133,10 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
     },
     [applica, aggiornaSenzaCronologia]
   )
+
+  // Creare, spostare e togliere un gomito: logica isolata in un hook suo (vedi
+  // useGomiti.ts) per non far crescere ulteriormente questo file.
+  const { creaGomito, edgesConGomiti } = useGomiti(stato, applica, aggiornaSenzaCronologia)
 
   // Rifiuta la connessione mentre la si sta ancora trascinando, non dopo: un capo posato su
   // un'ancora che non lo accetta non deve nemmeno agganciarsi. Una tubazione nuova nasce
@@ -352,13 +357,14 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
       <Box sx={{ flex: 1, minWidth: 0, border: 1, borderColor: 'divider' }}>
         <ReactFlow
           nodes={stato.nodes}
-          edges={stato.edges}
+          edges={edgesConGomiti}
           nodeTypes={tipiNodo}
           edgeTypes={tipiArco}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onReconnect={onReconnect}
+          onEdgeDoubleClick={creaGomito}
           isValidConnection={isValidConnection}
           onSelectionChange={setSelezione}
           onlyRenderVisibleElements
