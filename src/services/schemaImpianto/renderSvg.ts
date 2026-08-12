@@ -10,6 +10,7 @@ import {
   ancoraDi,
   campioneTubazione,
   escapeXml,
+  riduttorePressione,
   simboloDi,
   simboloMuro,
   valvolaIntercettazione,
@@ -268,11 +269,17 @@ export function righeLista(layout: SchemaLayout): RigaTabella[] {
  */
 export function righeLegenda(layout: SchemaLayout): RigaTabella[] {
   const stili = new Set(layout.archi.map((a) => a.stile))
+  const segni = layout.archi.flatMap((a) => a.segni ?? [])
   const righe: RigaTabella[] = []
 
-  // La disegnano le mandate, rigide e flessibili: nessuna linea condense la porta.
-  if (stili.has('standard') || stili.has('flessibile')) {
+  // La disegnano le mandate: nessuna linea condense la porta. Ma la presenza in legenda si
+  // legge dai segni veri posati sull'arco, non dallo stile — la disegnano le mandate solo
+  // indirettamente, tramite il segno che `buildSchemaModel` semina (Task 5).
+  if (segni.some((s) => s.tipo === 'valvola_intercettazione')) {
     righe.push({ sinistra: { simbolo: valvolaIntercettazione(0, 0) }, descrizione: 'Valvola di intercettazione' })
+  }
+  if (segni.some((s) => s.tipo === 'riduttore_pressione')) {
+    righe.push({ sinistra: { simbolo: riduttorePressione(0, 0) }, descrizione: 'Riduttore di pressione' })
   }
   if (layout.nodi.some((n) => CON_VALVOLA_SCARICO.includes(n.tipo))) {
     righe.push({ sinistra: { simbolo: valvolaScarico(0, -4) }, descrizione: 'Valvola di scarico' })

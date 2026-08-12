@@ -13,6 +13,7 @@ import { buildSchemaModel } from '../buildSchemaModel'
 import { layoutSchema } from '../layout'
 import { renderSvg, righeLista, righeLegenda, raccordoOrtogonale, posizioneAncora } from '../renderSvg'
 import { dimensioniDi } from '../symbols'
+import type { SchemaSegnoTubo } from '../types'
 
 function svgMinimo(noteTubazioni?: string[]) {
   const scheda = makeScheda({
@@ -613,5 +614,38 @@ describe('legenda dei simboli', () => {
     // dalla tela e le fa sparire dal PNG.
     const altezza = Number(svg.match(/height="(\d+(?:\.\d+)?)"/)![1])
     expect(Math.max(...quote) + 34).toBeLessThanOrEqual(altezza)
+  })
+})
+
+describe('righeLegenda — riduttore di pressione', () => {
+  function layoutConSegno(segni: SchemaSegnoTubo[]) {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ ha_disoleatore: false })],
+      disoleatori: [],
+      serbatoi: [makeSerbatoio()],
+      essiccatori: [],
+      scambiatori: [],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const layout = layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } }))
+    layout.archi[0].segni = segni
+    return layout
+  }
+
+  it('compare solo se il disegno ha davvero un riduttore', () => {
+    const senza = layoutConSegno([{ id: 'v1', tipo: 'valvola_intercettazione', t: 0.5 }])
+    const con = layoutConSegno([{ id: 'r1', tipo: 'riduttore_pressione', t: 0.5 }])
+
+    expect(righeLegenda(senza).map((r) => r.descrizione)).not.toContain('Riduttore di pressione')
+    expect(righeLegenda(con).map((r) => r.descrizione)).toContain('Riduttore di pressione')
+  })
+
+  it('la valvola di intercettazione in legenda guarda i segni veri, non lo stile dell’arco', () => {
+    // Prima di questo blocco la riga compariva per ogni arco standard/flessibile: da qui in
+    // poi la valvola è un segno che l'utente può togliere, e se l'ha tolta la legenda non
+    // deve promettere un simbolo che il disegno non ha più.
+    const senzaValvole = layoutConSegno([])
+    expect(righeLegenda(senzaValvole).map((r) => r.descrizione)).not.toContain('Valvola di intercettazione')
   })
 })

@@ -91,6 +91,26 @@ export function valvolaIntercettazione(
   return traccia(d)
 }
 
+/**
+ * Riduttore di pressione: la stessa farfalla della valvola di intercettazione più uno stelo
+ * di regolazione, per distinguerlo a colpo d'occhio. Simbolo segnaposto (vedi nota di testa
+ * al file sui simboli nuovi di questo blocco), non un blocco CAD del committente.
+ */
+export function riduttorePressione(
+  x: number,
+  y: number,
+  orientamento: 'orizzontale' | 'verticale' = 'orizzontale'
+): string {
+  const base = valvolaIntercettazione(x, y, orientamento)
+  const stelo =
+    orientamento === 'orizzontale'
+      ? traccia(`M ${x} ${y - 8} L ${x} ${y - 16}`) +
+        `<rect x="${x - 5}" y="${y - 22}" width="10" height="6" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
+      : traccia(`M ${x + 8} ${y} L ${x + 16} ${y}`) +
+        `<rect x="${x + 16}" y="${y - 5}" width="6" height="10" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
+  return base + stelo
+}
+
 /** Valvola di scarico: farfalla verticale con stelo. `x`/`y` al centro della farfalla. */
 export function valvolaScarico(x: number, y: number): string {
   const l = 8

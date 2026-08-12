@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { chiaveSimbolo } from '../types'
-import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, simboloDi } from '../symbols'
+import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, simboloDi, valvolaIntercettazione, riduttorePressione } from '../symbols'
 import { capoValido } from '../agganci'
 
 describe('chiaveSimbolo', () => {
@@ -154,5 +154,23 @@ describe('simboloGiunzione', () => {
       expect(ancora.y).toBeGreaterThanOrEqual(0)
       expect(ancora.y).toBeLessThanOrEqual(def.dimensioni.altezza)
     }
+  })
+})
+
+describe('riduttorePressione', () => {
+  it('contiene la farfalla della valvola di intercettazione più uno stelo di regolazione', () => {
+    const valvola = valvolaIntercettazione(50, 50)
+    const riduttore = riduttorePressione(50, 50)
+    // Stesso corpo della valvola (farfalla), riconoscibile perché il riduttore lo contiene
+    // per intero: è la valvola con un elemento in più, non un disegno indipendente.
+    expect(riduttore).toContain(valvola)
+    expect(riduttore).not.toBe(valvola)
+    expect(riduttore).toContain('<rect')
+  })
+
+  it('ruota lo stelo con l’orientamento, come la valvola sottostante', () => {
+    const orizzontale = riduttorePressione(50, 50, 'orizzontale')
+    const verticale = riduttorePressione(50, 50, 'verticale')
+    expect(orizzontale).not.toBe(verticale)
   })
 })
