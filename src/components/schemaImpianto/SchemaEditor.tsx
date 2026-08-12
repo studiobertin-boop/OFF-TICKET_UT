@@ -46,7 +46,7 @@ import {
   AlignVerticalBottom as AllineaBassoIcon,
 } from '@mui/icons-material'
 import toast from 'react-hot-toast'
-import { capoValido } from '@/services/schemaImpianto/agganci'
+import { capoValido, connessioneAmmessa, stileIniziale } from '@/services/schemaImpianto/agganci'
 import type { Asse, Bordo } from '@/services/schemaImpianto/allineamento'
 import { DIMENSIONI_NODO } from '@/services/schemaImpianto/layout'
 import { renderSvg } from '@/services/schemaImpianto/renderSvg'
@@ -200,8 +200,10 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
   const { guide, onNodeDrag, onNodeDragStop } = useGuideAllineamento(stato.nodes)
 
   // Rifiuta la connessione mentre la si sta ancora trascinando, non dopo: un capo posato su
-  // un'ancora che non lo accetta non deve nemmeno agganciarsi. Una tubazione nuova nasce
-  // rigida, ed è lo stile con cui `onConnect` la crea.
+  // un'ancora che non lo accetta non deve nemmeno agganciarsi. Ammessa se almeno uno stile
+  // (aria o condensa) è accettato da entrambi i capi — non solo 'standard': altrimenti
+  // nessuna linea condense nascerebbe mai, perché nessuna ancora che accetta condensa
+  // accetta anche aria. `onConnect` deduce poi con quale stile la tubazione nasce davvero.
   const isValidConnection = useCallback(
     (c: Connection | Edge) => {
       const partenza = stato.nodes.find((n) => n.id === c.source)
@@ -209,28 +211,41 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
       if (!partenza || !arrivo) return false
       const nodoDa = (partenza.data as SchemaNodeData).nodo
       const nodoA = (arrivo.data as SchemaNodeData).nodo
-      return (
-        capoValido(nodoDa, c.sourceHandle ?? '', 'standard') &&
-        capoValido(nodoA, c.targetHandle ?? '', 'standard')
-      )
+      return connessioneAmmessa(nodoDa, c.sourceHandle ?? '', nodoA, c.targetHandle ?? '')
     },
     [stato.nodes]
   )
 
   const onConnect = useCallback(
     (connessione: Connection) => {
-      applica((s) => ({
-        ...s,
-        edges: addEdge(
-          {
-            ...connessione,
-            id: `manuale-${s.edges.length + 1}-${connessione.source}-${connessione.target}`,
-            type: TIPO_ARCO_FLOW,
-            data: { stile: 'standard' } satisfies SchemaEdgeData,
-          },
-          s.edges
-        ),
-      }))
+      applica((s) => {
+        const partenza = s.nodes.find((n) => n.id === connessione.source)
+        const arrivo = s.nodes.find((n) => n.id === connessione.target)
+        // Se un capo non si trova più (caso di frontiera, non dovrebbe capitare perché
+        // isValidConnection ha già verificato gli stessi nodi) si ripiega su 'standard',
+        // il comportamento di sempre.
+        const stile =
+          partenza && arrivo
+            ? stileIniziale(
+                (partenza.data as SchemaNodeData).nodo,
+                connessione.sourceHandle ?? '',
+                (arrivo.data as SchemaNodeData).nodo,
+                connessione.targetHandle ?? ''
+              )
+            : 'standard'
+        return {
+          ...s,
+          edges: addEdge(
+            {
+              ...connessione,
+              id: `manuale-${s.edges.length + 1}-${connessione.source}-${connessione.target}`,
+              type: TIPO_ARCO_FLOW,
+              data: { stile } satisfies SchemaEdgeData,
+            },
+            s.edges
+          ),
+        }
+      })
     },
     [applica]
   )
