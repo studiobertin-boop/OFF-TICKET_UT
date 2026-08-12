@@ -1,9 +1,15 @@
 /**
- * Collegamento dell'editor. I tre stili corrispondono alle convenzioni del CAD:
- * rigida continua, flessibile ondulata, condense tratteggiata.
+ * Collegamento dell'editor. I tre stili corrispondono alle convenzioni del CAD: rigida
+ * continua, flessibile ondulata, condense tratteggiata.
+ *
+ * Il flessibile rinuncia alla rotta `smoothstep` di react-flow perché l'onda richiede una
+ * polilinea: sulla tela va quindi dritto da un capo all'altro, mentre il pannello di anteprima
+ * mostra la rotta vera. È l'approssimazione già dichiarata per il resto della tela, non un
+ * difetto.
  */
 import { useCallback, useRef } from 'react'
 import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, useReactFlow, type EdgeProps } from '@xyflow/react'
+import { ondula } from '@/services/schemaImpianto/tratti'
 import type { SchemaArcoStile } from '@/services/schemaImpianto/types'
 
 export interface SchemaEdgeData extends Record<string, unknown> {
@@ -143,9 +149,17 @@ export function SchemaEdgeTubazione({
   // Quando ci sono gomiti imposti a mano, il percorso è la polilinea che passa per loro:
   // getSmoothStepPath serve solo a piazzare l'etichetta, non più a disegnare la linea.
   const punti = edgeData?.punti ?? []
-  const path = punti.length
-    ? [`M ${sourceX} ${sourceY}`, ...punti.map((p) => `L ${p.x} ${p.y}`), `L ${targetX} ${targetY}`].join(' ')
-    : pathAutomatico
+  const polilinea = [{ x: sourceX, y: sourceY }, ...punti, { x: targetX, y: targetY }]
+  // Il flessibile si riconosce dall'onda, come nel disegno finale e nel campione di legenda:
+  // per averla serve una polilinea, quindi qui si rinuncia alla rotta `smoothstep` e si va
+  // dritti da un capo all'altro. È una delle approssimazioni dichiarate della tela — il
+  // giudice dell'aspetto resta il pannello di anteprima, che disegna la rotta vera.
+  const path =
+    stile === 'flessibile'
+      ? ondula(polilinea)
+      : punti.length
+        ? [`M ${sourceX} ${sourceY}`, ...punti.map((p) => `L ${p.x} ${p.y}`), `L ${targetX} ${targetY}`].join(' ')
+        : pathAutomatico
 
   return (
     <>
