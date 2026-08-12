@@ -129,12 +129,15 @@ describe('renderSvg', () => {
     // difetto (doppia punta) con lo stesso totale di marker. Si guarda quindi, arco per arco,
     // il path che vi arriva — individuato dal punto dove finisce, non dalla posizione
     // nell'array — e si verifica che sia proprio e solo quello verso il terminale a mancarne.
+    // Il flessibile arriva con una curva (comando Q), non con un segmento retto (L): il punto
+    // finale va cercato dopo l'uno o l'altro comando, non solo dopo "L".
     for (const arco of layout.archi) {
       const nodoA = indice.get(arco.a.nodo)!
       const fine = posizioneAncora(nodoA, arco.a.ancora)
+      const finePattern = new RegExp(`(?:L|Q [-\\d.]+ [-\\d.]+) ${fine.x} ${fine.y}"`)
       const path = svg
         .match(/<path d="[^"]*"[^>]*\/>/g)
-        ?.find((p) => p.includes(`L ${fine.x} ${fine.y}"`))
+        ?.find((p) => finePattern.test(p))
       expect(path, `nessun path trovato per l'arco verso ${arco.a.nodo}`).toBeDefined()
       if (nodoA.tipo === 'utenze') {
         expect(path).not.toContain('marker-end')
@@ -239,13 +242,22 @@ describe('varchi nel muro', () => {
 
   // Con un serbatoio in linea, mandata e linee condense attraversano il muro a quote diverse:
   // un varco solo (com'era) lasciava la muratura a tagliare le tubazioni.
-  /** Quote alle quali le tubazioni disegnate attraversano la verticale `x`. */
+  /**
+   * Quote alle quali le tubazioni disegnate attraversano la verticale `x`. Il flessibile ora
+   * arriva ondulato (comandi Q, non L): si leggono anche i punti d'arrivo delle curve, non solo
+   * quelli dei segmenti retti. Ogni Q d'un tratto originariamente orizzontale interpola in linea
+   * retta lungo quello stesso tratto (solo il punto di controllo si scosta in perpendicolare), e
+   * resta quindi a y costante: la sequenza di piccoli sotto-segmenti individuati così attraversa
+   * `x` esattamente dove lo attraverserebbe il tratto liscio.
+   */
   function attraversamenti(svg: string, x: number): number[] {
     const quote: number[] = []
     for (const path of svg.matchAll(/<path d="([^"]+)"/g)) {
-      const punti = [...path[1].matchAll(/[ML] ([\d.-]+) ([\d.-]+)/g)].map((p) => ({
-        x: Number(p[1]),
-        y: Number(p[2]),
+      const punti = [
+        ...path[1].matchAll(/[ML] ([\d.-]+) ([\d.-]+)|Q [\d.-]+ [\d.-]+ ([\d.-]+) ([\d.-]+)/g),
+      ].map((p) => ({
+        x: Number(p[1] ?? p[3]),
+        y: Number(p[2] ?? p[4]),
       }))
       for (let i = 1; i < punti.length; i++) {
         const a = punti[i - 1]
@@ -393,5 +405,47 @@ describe('righeLista', () => {
       'E1',
       'SEP1',
     ])
+  })
+
+  it('disegna il flessibile ondulato per tutta la lunghezza, non a riccioli', () => {
+    const svg = svgMinimo()
+    const flessibile = svg.match(/<path d="M [^"]*Q [^"]*" fill="none" stroke="#000"[^>]*marker-end/g) ?? []
+
+    expect(flessibile.length).toBeGreaterThan(0)
+    // Molte onde, non le quattro del vecchio ricciolo da 40 unità.
+    expect((flessibile[0].match(/Q /g) ?? []).length).toBeGreaterThan(8)
+  })
+
+  it('i varchi nel muro si calcolano sulla polilinea liscia, non sull’onda', () => {
+    // Se `quoteAttraversamento` ricevesse il tracciato ondulato, i tratti orizzontali non
+    // sarebbero più orizzontali e nessun varco si aprirebbe: il muro tornerebbe pieno.
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ ha_disoleatore: false })],
+      disoleatori: [],
+      serbatoi: [makeSerbatoio({ ubicazione: 'LINEA_DISTRIBUZIONE' })],
+      essiccatori: [],
+      scambiatori: [],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const layout = layoutSchema(
+      buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    )
+
+    expect(layout.muro).not.toBeNull()
+    const svg = renderSvg(layout)
+
+    // I tronconi pieni del muro sono i rect di spessore 14. Se `quoteAttraversamento` non
+    // trovasse più tratti orizzontali, non si aprirebbe nessun varco e i tronconi coprirebbero
+    // l'intera altezza del muro: è questo il confronto che discrimina, non il loro numero (con
+    // un varco a ridosso di un estremo il troncone resta uno solo).
+    const altezze = [...svg.matchAll(/<rect x="[\d.]+" y="[-\d.]+" width="14" height="([\d.]+)"/g)].map(
+      (m) => Number(m[1])
+    )
+    const coperto = altezze.reduce((s, h) => s + h, 0)
+    const altezzaMuro = layout.muro!.yMax - layout.muro!.yMin
+
+    expect(altezze.length).toBeGreaterThan(0)
+    expect(coperto).toBeLessThan(altezzaMuro)
   })
 })

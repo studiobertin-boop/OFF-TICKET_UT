@@ -7,7 +7,10 @@
  */
 import { corpoNodo, dimensioniLayout, pozzoCondense } from './layout'
 import { ancoraDi, escapeXml, simboloDi, simboloMuro, valvolaIntercettazione, TRATTO } from './symbols'
+import { ondula, type Punto } from './tratti'
 import type { SchemaLayout, SchemaNodoPosizionato } from './types'
+
+export type { Punto }
 
 const FONT = 'Arial, Helvetica, sans-serif'
 const MARGINE = 40
@@ -16,11 +19,6 @@ const COLONNA_CODICE = 130
 const ALTEZZA_NOTA = 90
 /** Rientro del montante rispetto al fianco del recipiente: evita che corra sul contorno. */
 const AVVICINAMENTO = 34
-
-export interface Punto {
-  x: number
-  y: number
-}
 
 /**
  * Posizione assoluta di un'ancora del nodo, in coordinate del disegno. Fallisce piano: se
@@ -82,15 +80,6 @@ export interface RenderSvgOptions {
   noteTubazioni?: string[]
 }
 
-/** Tratto ondulato verticale: convenzione CAD per la tubazione flessibile. */
-function ondeVerticali(x: number, yPartenza: number, lunghezza = 40): string {
-  const onde = Array.from({ length: Math.round(lunghezza / 10) }, (_, i) => {
-    const y0 = yPartenza - i * 10
-    return `M ${x} ${y0} q -5 -2.5 0 -5 q 5 -2.5 0 -5`
-  }).join(' ')
-  return `<path d="${onde}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
-}
-
 /**
  * Mandata compressore → serbatoio: montante dal cielo del compressore fino al collettore
  * comune, poi tratto orizzontale fino all'ingresso del serbatoio. È la resa degli schemi
@@ -120,11 +109,12 @@ function renderMandataCompressore(
           { x: xDiscesa, y: pA.y },
           { x: pA.x, y: pA.y },
         ]
-  const linea = `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" marker-end="url(#freccia)" />`
-  // Flessibile e valvola di intercettazione stanno sul montante, appena sopra la macchina.
+  // Il flessibile è ondulato da un capo all'altro, come nei blocchi di riferimento: prima del
+  // 12-08-2026 l'onda era un ricciolo di 40 unità sul solo montante, e la legenda — che ne
+  // mostra un campione — rendeva la differenza evidente.
+  const linea = `<path d="${ondula(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" marker-end="url(#freccia)" />`
   // La valvola sta sul montante: farfalla verticale, in linea col tubo.
-  const svg =
-    linea + ondeVerticali(pDa.x, pDa.y - 4) + valvolaIntercettazione(pDa.x, pDa.y - 62, 'verticale')
+  const svg = linea + valvolaIntercettazione(pDa.x, pDa.y - 62, 'verticale')
   return { svg, punti }
 }
 

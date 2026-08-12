@@ -1548,13 +1548,32 @@ Expected: **PASS**.
 
 Se il secondo test non passasse perché nella configurazione scelta il muro non nasce o nessuna linea lo attraversa, **non allentarlo**: cambia la configurazione della scheda finché non c'è davvero un compressore da un lato e un serbatoio dall'altro, e annota nel report la configurazione usata.
 
+**Correzione emersa durante l'implementazione (12-08-2026):** il file di test dello Step 1 usa
+`arriviQ(d).at(-1)`, e il piano lo prescrive verbatim in tre punti. `Array.prototype.at` è
+ES2022, ma `tsconfig.json` fissa `"lib": ["ES2020", "DOM", "DOM.Iterable"]`: con quel lib
+`npx tsc --noEmit` fallisce su tutti e tre gli usi (`TS2550`), anche se Vitest (che passa da
+esbuild, non da tsc) esegue i test senza batter ciglio. La correzione è alzare `lib` a
+`"ES2022"` in `tsconfig.json` — non tocca `target` (irrilevante con `noEmit: true`, la
+transpilazione reale la fa Vite/esbuild) e non restringe nulla, solo aggiunge dichiarazioni di
+tipo. Chi esegue lo Step 7 deve aggiungere anche `tsconfig.json` al commit.
+
+**Correzione emersa durante l'implementazione (12-08-2026), seconda:** due test già esistenti in
+`renderSvg.test.ts` — *"la tubazione che arriva al terminale non porta una seconda punta di
+freccia"* e *"apre un varco per ogni tubazione che attraversa il muro"* — ri-derivano la
+geometria del disegno riparsando l'attributo `d` degli `<path>` con regex che riconoscono solo i
+comandi `M`/`L`. Da questo task in poi il flessibile disegna curve (`Q`), quindi quelle regex non
+trovano più i suoi segmenti e i due test falliscono per la stessa causa, non per una regressione
+nella logica dei varchi (che lavora sulla polilinea liscia, non sull'SVG). Vanno aggiornate per
+riconoscere anche i comandi `Q`, leggendo il punto d'arrivo della curva (le due coordinate finali)
+invece che il punto di controllo.
+
 - [ ] **Step 7: Verifica e commit**
 
-Run: `npx tsc --noEmit` → nessun errore (`ondeVerticali` non deve restare importata o dichiarata).
+Run: `npx tsc --noEmit` → nessun errore (`ondeVerticali` non deve restare importata o dichiarata; vedi la correzione sopra su `tsconfig.json`).
 Run: `npx vitest run` → verde.
 
 ```bash
-git add src/services/schemaImpianto/tratti.ts src/services/schemaImpianto/__tests__/tratti.test.ts src/services/schemaImpianto/renderSvg.ts src/services/schemaImpianto/__tests__/renderSvg.test.ts
+git add src/services/schemaImpianto/tratti.ts src/services/schemaImpianto/__tests__/tratti.test.ts src/services/schemaImpianto/renderSvg.ts src/services/schemaImpianto/__tests__/renderSvg.test.ts tsconfig.json
 git commit -m "feat(schema-impianto): il flessibile è ondulato per tutta la lunghezza del tratto"
 ```
 
