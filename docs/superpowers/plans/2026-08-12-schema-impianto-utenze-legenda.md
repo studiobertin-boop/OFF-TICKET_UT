@@ -1038,8 +1038,8 @@ Gli schemi salvati prima di oggi non hanno quel nodo. La strada generica li mett
 - Modify: `src/services/schemaImpianto/__tests__/persistenza.test.ts`
 
 **Interfaces:**
-- Consumes: `ID_UTENZE` da `./buildSchemaModel` (Task 4), `DIMENSIONI_NODO` da `./layout`.
-- Produces: nessuna firma nuova. `riconcilia` colloca il nodo `utenze` mancante con la regola geometrica della vecchia freccia.
+- Consumes: `DIMENSIONI_NODO` e `pozzoCondense` da `./layout`.
+- Produces: nessuna firma nuova. `riconcilia` colloca il nodo `utenze` mancante con la regola geometrica della vecchia freccia, escludendo dal calcolo il pozzo di raccolta condense (tanica o separatore) tramite `pozzoCondense`.
 
 - [ ] **Step 1: Scrivere i test**
 
@@ -1072,7 +1072,9 @@ describe('terminale utenze nei layout salvati prima che esistesse', () => {
     const utenze = esito.layout.nodi.find((n) => n.tipo === 'utenze')!
 
     // La regola della vecchia `renderUscitaUtenze`: a destra del nodo più a destra escluso il
-    // pozzo condense, con l'ancora alla quota del suo centro.
+    // pozzo condense, con l'ancora alla quota del suo centro. Qui `raccolta_condense: 'Nessuna'`
+    // (vedi `modelloDiProva`), quindi non c'è pozzo da escludere: l'unico candidato oltre al
+    // compressore è S1.
     const ultimo = salvato.nodi
       .filter((n) => n.tipo !== 'compressore' && n.tipo !== 'tanica')
       .reduce((a, b) => (a.x > b.x ? a : b))
@@ -1081,9 +1083,43 @@ describe('terminale utenze nei layout salvati prima che esistesse', () => {
     expect(utenze.x).toBe(ultimo.x + dimUltimo.larghezza + 50)
     expect(utenze.y + DIMENSIONI_NODO.utenze.altezza).toBe(ultimo.y + dimUltimo.altezza / 2)
 
-    // Il ripiego generico l'avrebbe buttato sotto tutto il disegno: qui non deve succedere.
+    // Il ripiego generico l'avrebbe buttato sotto tutto il disegno (y = piede + 320 = 540, con
+    // questa fixture): qui il terminale sta a y = 120, ben al di sotto della soglia, quindi il
+    // confronto discrimina davvero fra le due strade e non è un caso di numeri vicini.
     const piede = Math.max(...salvato.nodi.map((n) => n.y))
     expect(utenze.y).toBeLessThan(piede + 320)
+  })
+
+  it('esclude dal calcolo il pozzo di raccolta condense anche quando è un separatore, non solo quando è una tanica', () => {
+    // Il pozzo di raccolta condense non è sempre una tanica: quando la scheda dichiara
+    // `raccolta_condense: 'separatore'` è un separatore a farne le veci, e sta comunque nella
+    // corsia bassa in basso a destra (vedi `layoutSchema`) — abbastanza a destra da rischiare
+    // di risultare il nodo più a destra in assoluto. Un filtro che esclude solo `tipo ===
+    // 'tanica'` lo lascerebbe fra i candidati, e il terminale finirebbe posizionato rispetto al
+    // pozzo invece che rispetto a S1, l'unico vero stadio della linea.
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ codice: 'C1', ha_disoleatore: false })],
+      disoleatori: [], essiccatori: [], scambiatori: [], filtri: [],
+      serbatoi: [makeSerbatoio()],
+      separatori: [makeSeparatore()],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'separatore' }),
+    })
+    const modello = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    const salvato = salvatoSenzaUtenze(modello)
+    const esito = riconcilia(salvato, modello)
+    const utenze = esito.layout.nodi.find((n) => n.tipo === 'utenze')!
+
+    const s1 = salvato.nodi.find((n) => n.id === 'S1')!
+    const dimS1 = DIMENSIONI_NODO.serbatoio
+    // Atteso: posizionato rispetto a S1 (x=340, y=110 con questa fixture) → x=540, y=120.
+    expect(utenze.x).toBe(s1.x + dimS1.larghezza + 50)
+    expect(utenze.y + DIMENSIONI_NODO.utenze.altezza).toBe(s1.y + dimS1.altezza / 2)
+
+    // Col difetto (escludere solo 'tanica') il terminale finirebbe invece rispetto a SEP1
+    // (x=550, y=435, dim 110×110): x=710. Ben diverso dal valore atteso.
+    const sep1 = salvato.nodi.find((n) => n.id === 'SEP1')!
+    const dimSep1 = DIMENSIONI_NODO.separatore
+    expect(utenze.x).not.toBe(sep1.x + dimSep1.larghezza + 50)
   })
 
   it('non lo duplica se il layout salvato ce l’ha già, e non ne sposta la posizione', () => {
@@ -1137,21 +1173,25 @@ describe('terminale utenze nei layout salvati prima che esistesse', () => {
 })
 ```
 
-Aggiungi agli import: `DIMENSIONI_NODO` e `layoutSchema` da `../layout`.
+Aggiungi agli import: `DIMENSIONI_NODO` e `layoutSchema` da `../layout`, e `makeSeparatore` da
+`@/services/relazione/__tests__/fixtures` (serve al test sul pozzo-separatore).
 
 - [ ] **Step 2: Vedere i test fallire**
 
 Run: `npx vitest run src/services/schemaImpianto/__tests__/persistenza.test.ts`
-Expected: **FAIL** — il terminale viene aggiunto ma sotto il disegno (`y` pari a `piede + 320`), e la scritta scelta dall'utente viene riscritta con «Utenze aria» dal modello.
+Expected: **FAIL** — il terminale viene aggiunto ma sotto il disegno (o comunque non nella
+posizione dedicata), e la scritta scelta dall'utente viene riscritta con «Utenze aria» dal
+modello.
 
 - [ ] **Step 3: Collocare il terminale e conservarne la scritta**
 
 In `src/services/schemaImpianto/persistenza.ts`, aggiungi l'import:
 
 ```ts
-import { ID_UTENZE } from './buildSchemaModel'
-import { calcolaMuro, layoutSchema, DIMENSIONI_NODO } from './layout'
+import { calcolaMuro, layoutSchema, DIMENSIONI_NODO, pozzoCondense } from './layout'
 ```
+
+(`ID_UTENZE` non serve: la funzione riconosce il terminale da `tipo === 'utenze'`, come fa già il resto del file.)
 
 Sopra `riconcilia`, aggiungi:
 
@@ -1164,9 +1204,19 @@ Sopra `riconcilia`, aggiungi:
  * `renderUscitaUtenze` prima del 12-08-2026 — a destra dell'ultimo stadio della linea, con
  * l'ancora alla quota del suo centro — così chi riapre un disegno lo ritrova dove ha sempre
  * visto la freccia.
+ *
+ * Il pozzo di raccolta condense va escluso dai candidati, e non è sempre la tanica: quando la
+ * scheda dichiara `raccolta_condense: 'separatore'` è un separatore a farne le veci, e sta
+ * comunque nella corsia bassa in basso a destra — abbastanza a destra da rischiare di risultare
+ * il nodo più a destra in assoluto. Si esclude quindi con `pozzoCondense` (la stessa funzione
+ * che usava `renderUscitaUtenze`), non con un controllo sul solo tipo `tanica`.
  */
-function posizioneTerminale(nodi: SchemaNodoPosizionato[]): { x: number; y: number } | null {
-  const inLinea = nodi.filter((n) => n.tipo !== 'compressore' && n.tipo !== 'tanica' && n.tipo !== 'utenze')
+function posizioneTerminale(
+  nodi: SchemaNodoPosizionato[],
+  archi: SchemaArco[]
+): { x: number; y: number } | null {
+  const pozzo = pozzoCondense(nodi, { archi })
+  const inLinea = nodi.filter((n) => n.tipo !== 'compressore' && n.tipo !== 'utenze' && n.id !== pozzo?.id)
   if (inLinea.length === 0) return null
   const ultimo = inLinea.reduce((a, b) => (a.x > b.x ? a : b))
   const dim = DIMENSIONI_NODO[ultimo.tipo]
@@ -1183,7 +1233,7 @@ Dentro `riconcilia`, dopo il calcolo di `superstiti` e prima di `const nodi = [.
   const posizionati = nuovi.map((n) => {
     const proposto = automatico.nodi.find((p) => p.id === n.id)!
     if (n.tipo === 'utenze') {
-      const dedicata = posizioneTerminale(superstiti)
+      const dedicata = posizioneTerminale(superstiti, modello.archi)
       if (dedicata) return { ...proposto, ...dedicata }
     }
     return { ...proposto, y: proposto.y + piede }
@@ -2046,4 +2096,4 @@ Da eseguire **dopo** il Task 11, prima di dichiarare chiuso il blocco. Le prove 
 
 **Nessun segnaposto.** Ogni step porta il codice vero, non la sua descrizione. I due punti in cui il piano ammette di poter essere incompleto (Task 2 Step 6 e Task 10 Step 8) prescrivono cosa fare: correggere e aggiornare l'elenco Files nello stesso commit.
 
-**Coerenza dei nomi.** `ID_UTENZE` è dichiarato nel Task 4 e consumato nel 7. `ondula`/`PASSO_ONDA`/`Punto` sono dichiarati nel Task 8 e consumati nei Task 9 e 10. `RigaTabella`/`CellaSinistra`/`righeLegenda`/`campioneTubazione` nascono nel Task 10 e non servono ad altri. L'ancora del terminale si chiama `in` ovunque; il suo id di nodo è `UTENZE` ovunque; l'ingombro `190×120` è lo stesso nel Task 3, nel test del Task 5 e nella formula del Task 7.
+**Coerenza dei nomi.** `ID_UTENZE` è dichiarato nel Task 4 e resta interno a `buildSchemaModel.ts`: il Task 7 riconosce il terminale da `tipo === 'utenze'`, come fa già il resto di `persistenza.ts` per gli altri tipi, e non ha bisogno di importare la costante. `ondula`/`PASSO_ONDA`/`Punto` sono dichiarati nel Task 8 e consumati nei Task 9 e 10. `RigaTabella`/`CellaSinistra`/`righeLegenda`/`campioneTubazione` nascono nel Task 10 e non servono ad altri. L'ancora del terminale si chiama `in` ovunque; il suo id di nodo è `UTENZE` ovunque; l'ingombro `190×120` è lo stesso nel Task 3, nel test del Task 5 e nella formula del Task 7.

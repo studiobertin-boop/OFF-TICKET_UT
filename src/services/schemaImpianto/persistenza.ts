@@ -5,7 +5,7 @@
  * riapertura le due cose vanno rimesse d'accordo senza buttare il lavoro di disposizione.
  * Il muro non si salva — è derivato dalle posizioni e si ricalcola.
  */
-import { calcolaMuro, layoutSchema, DIMENSIONI_NODO } from './layout'
+import { calcolaMuro, layoutSchema, DIMENSIONI_NODO, pozzoCondense } from './layout'
 import type { SchemaArco, SchemaLayout, SchemaModel, SchemaNodoPosizionato } from './types'
 
 const VERSIONE = 1
@@ -97,6 +97,36 @@ export function layoutIniziale(
   return riconcilia(ripristinato, modello)
 }
 
+/**
+ * Dove far comparire il terminale utenze in un layout salvato che non ce l'ha. La strada
+ * generica dei nodi nuovi (sotto tutto il disegno) qui sarebbe sbagliata: il terminale chiude
+ * la linea aria, e messo in fondo alla tela costringerebbe la sua tubazione a risalire tutto il
+ * foglio. Si riapplica invece, alle posizioni salvate, la stessa regola geometrica che usava
+ * `renderUscitaUtenze` prima del 12-08-2026 — a destra dell'ultimo stadio della linea, con
+ * l'ancora alla quota del suo centro — così chi riapre un disegno lo ritrova dove ha sempre
+ * visto la freccia.
+ *
+ * Il pozzo di raccolta condense va escluso dai candidati, e non è sempre la tanica: quando la
+ * scheda dichiara `raccolta_condense: 'separatore'` è un separatore a farne le veci, e sta
+ * comunque nella corsia bassa in basso a destra — abbastanza a destra da rischiare di risultare
+ * il nodo più a destra in assoluto. Si esclude quindi con `pozzoCondense` (la stessa funzione
+ * che usava `renderUscitaUtenze`), non con un controllo sul solo tipo `tanica`.
+ */
+function posizioneTerminale(
+  nodi: SchemaNodoPosizionato[],
+  archi: SchemaArco[]
+): { x: number; y: number } | null {
+  const pozzo = pozzoCondense(nodi, { archi })
+  const inLinea = nodi.filter((n) => n.tipo !== 'compressore' && n.tipo !== 'utenze' && n.id !== pozzo?.id)
+  if (inLinea.length === 0) return null
+  const ultimo = inLinea.reduce((a, b) => (a.x > b.x ? a : b))
+  const dim = DIMENSIONI_NODO[ultimo.tipo]
+  return {
+    x: ultimo.x + dim.larghezza + 50,
+    y: ultimo.y + dim.altezza / 2 - DIMENSIONI_NODO.utenze.altezza,
+  }
+}
+
 export function riconcilia(salvato: Pick<SchemaLayout, 'nodi' | 'archi'>, modello: SchemaModel): EsitoRiconciliazione {
   const inScheda = new Set(modello.nodi.map((n) => n.id))
   const salvatiPerId = new Map(salvato.nodi.map((n) => [n.id, n]))
@@ -113,7 +143,12 @@ export function riconcilia(salvato: Pick<SchemaLayout, 'nodi' | 'archi'>, modell
     .map((n) => {
       if (n.origine === 'manuale') return n
       const daScheda = modelloPerId.get(n.id)
-      return daScheda ? { ...daScheda, x: n.x, y: n.y } : n
+      if (!daScheda) return n
+      // Il terminale utenze è l'unico nodo di origine 'scheda' la cui etichetta l'utente può
+      // cambiare (le altre vengono dalla scheda dati e vanno riscritte da lì): riscriverla
+      // renderebbe inutile poterla cambiare.
+      const etichetta = n.tipo === 'utenze' ? n.etichetta : daScheda.etichetta
+      return { ...daScheda, etichetta, x: n.x, y: n.y }
     })
   const rimossi = salvato.nodi
     .filter((n) => n.origine !== 'manuale' && !inScheda.has(n.id))
@@ -127,6 +162,10 @@ export function riconcilia(salvato: Pick<SchemaLayout, 'nodi' | 'archi'>, modell
   const aggiunti = nuovi.map((n) => n.id)
   const posizionati = nuovi.map((n) => {
     const proposto = automatico.nodi.find((p) => p.id === n.id)!
+    if (n.tipo === 'utenze') {
+      const dedicata = posizioneTerminale(superstiti, modello.archi)
+      if (dedicata) return { ...proposto, ...dedicata }
+    }
     return { ...proposto, y: proposto.y + piede }
   })
 

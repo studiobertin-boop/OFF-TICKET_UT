@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { makeCompressore, makeDatiImpianto, makeScheda, makeSerbatoio, makeValvola } from '@/services/relazione/__tests__/fixtures'
+import { makeCompressore, makeDatiImpianto, makeScheda, makeSeparatore, makeSerbatoio, makeValvola } from '@/services/relazione/__tests__/fixtures'
 import { buildSchemaModel } from '../buildSchemaModel'
-import { layoutSchema } from '../layout'
+import { layoutSchema, DIMENSIONI_NODO } from '../layout'
 import { serializzaLayout, deserializzaLayout, riconcilia, layoutIniziale, layoutDaPersistere } from '../persistenza'
 
 function modelloDiProva(codiciCompressore: string[]) {
@@ -260,5 +260,133 @@ describe('layoutDaPersistere', () => {
   it('senza un salvato da cui ripiegare, resta undefined', () => {
     expect(layoutDaPersistere(null, false, null)).toBeUndefined()
     expect(layoutDaPersistere(null, false, undefined)).toBeUndefined()
+  })
+})
+
+describe('terminale utenze nei layout salvati prima che esistesse', () => {
+  /** Un layout salvato «vecchio»: quello che il motore produce oggi, meno il terminale. */
+  function salvatoSenzaUtenze(modello: ReturnType<typeof modelloDiProva>) {
+    const layout = layoutSchema(modello)
+    return {
+      nodi: layout.nodi.filter((n) => n.tipo !== 'utenze'),
+      archi: layout.archi.filter((a) => a.a.nodo !== 'UTENZE'),
+    }
+  }
+
+  it('lo aggiunge, con la sua tubazione', () => {
+    const modello = modelloDiProva(['C1'])
+    const esito = riconcilia(salvatoSenzaUtenze(modello), modello)
+
+    expect(esito.aggiunti).toContain('UTENZE')
+    expect(esito.layout.nodi.some((n) => n.tipo === 'utenze')).toBe(true)
+    expect(esito.layout.archi.some((a) => a.a.nodo === 'UTENZE')).toBe(true)
+  })
+
+  it('lo mette dove cadeva la freccia automatica, non in fondo alla tela', () => {
+    const modello = modelloDiProva(['C1'])
+    const salvato = salvatoSenzaUtenze(modello)
+    const esito = riconcilia(salvato, modello)
+    const utenze = esito.layout.nodi.find((n) => n.tipo === 'utenze')!
+
+    // La regola della vecchia `renderUscitaUtenze`: a destra del nodo più a destra escluso il
+    // pozzo condense, con l'ancora alla quota del suo centro. Qui `raccolta_condense: 'Nessuna'`
+    // (vedi `modelloDiProva`), quindi non c'è pozzo da escludere: l'unico candidato oltre al
+    // compressore è S1.
+    const ultimo = salvato.nodi
+      .filter((n) => n.tipo !== 'compressore' && n.tipo !== 'tanica')
+      .reduce((a, b) => (a.x > b.x ? a : b))
+    const dimUltimo = DIMENSIONI_NODO[ultimo.tipo]
+
+    expect(utenze.x).toBe(ultimo.x + dimUltimo.larghezza + 50)
+    expect(utenze.y + DIMENSIONI_NODO.utenze.altezza).toBe(ultimo.y + dimUltimo.altezza / 2)
+
+    // Il ripiego generico l'avrebbe buttato sotto tutto il disegno (y = piede + 320 = 540, con
+    // questa fixture): qui il terminale sta a y = 120, ben al di sotto della soglia, quindi il
+    // confronto discrimina davvero fra le due strade e non è un caso di numeri vicini.
+    const piede = Math.max(...salvato.nodi.map((n) => n.y))
+    expect(utenze.y).toBeLessThan(piede + 320)
+  })
+
+  it('esclude dal calcolo il pozzo di raccolta condense anche quando è un separatore, non solo quando è una tanica', () => {
+    // Il pozzo di raccolta condense non è sempre una tanica: quando la scheda dichiara
+    // `raccolta_condense: 'separatore'` è un separatore a farne le veci, e sta comunque nella
+    // corsia bassa in basso a destra (vedi `layoutSchema`) — abbastanza a destra da rischiare
+    // di risultare il nodo più a destra in assoluto. Un filtro che esclude solo `tipo ===
+    // 'tanica'` (il difetto del brief originale) lo lascerebbe fra i candidati, e il terminale
+    // finirebbe posizionato rispetto al pozzo invece che rispetto a S1, l'unico vero stadio
+    // della linea.
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ codice: 'C1', ha_disoleatore: false })],
+      disoleatori: [], essiccatori: [], scambiatori: [], filtri: [],
+      serbatoi: [makeSerbatoio()],
+      separatori: [makeSeparatore()],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'separatore' }),
+    })
+    const modello = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    const salvato = salvatoSenzaUtenze(modello)
+    const esito = riconcilia(salvato, modello)
+    const utenze = esito.layout.nodi.find((n) => n.tipo === 'utenze')!
+
+    const s1 = salvato.nodi.find((n) => n.id === 'S1')!
+    const dimS1 = DIMENSIONI_NODO.serbatoio
+    // Atteso: posizionato rispetto a S1 (x=340, y=110 con questa fixture) → x=540, y=120.
+    expect(utenze.x).toBe(s1.x + dimS1.larghezza + 50)
+    expect(utenze.y + DIMENSIONI_NODO.utenze.altezza).toBe(s1.y + dimS1.altezza / 2)
+
+    // Col difetto del brief il terminale finirebbe invece rispetto a SEP1 (x=550, y=435, dim
+    // 110×110): x=710, y=370. Ben diverso dal valore atteso, così se il difetto tornasse il
+    // test lo scoprirebbe subito.
+    const sep1 = salvato.nodi.find((n) => n.id === 'SEP1')!
+    const dimSep1 = DIMENSIONI_NODO.separatore
+    expect(utenze.x).not.toBe(sep1.x + dimSep1.larghezza + 50)
+  })
+
+  it('non lo duplica se il layout salvato ce l’ha già, e non ne sposta la posizione', () => {
+    const modello = modelloDiProva(['C1'])
+    const salvato = { ...salvatoSenzaUtenze(modello) }
+    salvato.nodi = [
+      ...salvato.nodi,
+      {
+        id: 'UTENZE',
+        tipo: 'utenze',
+        etichetta: 'Utenze azoto',
+        gruppo: 'LINEA_DISTRIBUZIONE',
+        valvoleSicurezza: [],
+        origine: 'scheda',
+        x: 1234,
+        y: 56,
+      },
+    ]
+    const esito = riconcilia(salvato, modello)
+    const utenze = esito.layout.nodi.filter((n) => n.tipo === 'utenze')
+
+    expect(utenze).toHaveLength(1)
+    expect(utenze[0].x).toBe(1234)
+    expect(utenze[0].y).toBe(56)
+    expect(esito.aggiunti).not.toContain('UTENZE')
+  })
+
+  it('la scritta scelta dall’utente sopravvive alla riapertura', () => {
+    // Il terminale è di origine 'scheda', quindi la riconciliazione riscriverebbe i suoi campi
+    // dal modello: l'etichetta però è l'unica cosa che l'utente può cambiare, e perderla a ogni
+    // riapertura renderebbe inutile poterla cambiare.
+    const modello = modelloDiProva(['C1'])
+    const salvato = { ...salvatoSenzaUtenze(modello) }
+    salvato.nodi = [
+      ...salvato.nodi,
+      {
+        id: 'UTENZE',
+        tipo: 'utenze',
+        etichetta: 'Utenze azoto',
+        gruppo: 'LINEA_DISTRIBUZIONE',
+        valvoleSicurezza: [],
+        origine: 'scheda',
+        x: 900,
+        y: 100,
+      },
+    ]
+
+    const esito = riconcilia(salvato, modello)
+    expect(esito.layout.nodi.find((n) => n.tipo === 'utenze')!.etichetta).toBe('Utenze azoto')
   })
 })
