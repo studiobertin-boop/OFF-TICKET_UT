@@ -109,8 +109,9 @@ export async function dividiPagineDoppie(file: File): Promise<RisultatoDivisione
           paginaOut.drawImage(embedded, { x: 0, y: 0, width: meta.larghezza, height: meta.altezza })
         }
         pagineSeparate.push(i + 1)
-      } catch {
+      } catch (errore) {
         // Non si riesce a separarla: meglio la pagina doppia intatta che nessuna pagina.
+        console.warn(`Separazione della pagina doppia ${i + 1} non riuscita, resta intatta:`, errore)
         const [copiata] = await out.copyPages(sorgente, [i])
         out.addPage(copiata)
       }
@@ -121,7 +122,8 @@ export async function dividiPagineDoppie(file: File): Promise<RisultatoDivisione
       file: new File([nuoviBytes.slice()], file.name, { type: 'application/pdf' }),
       pagineSeparate,
     }
-  } catch {
+  } catch (errore) {
+    console.warn('Divisione delle pagine doppie non riuscita, il file resta invariato:', errore)
     return { file, pagineSeparate: [] }
   }
 }
