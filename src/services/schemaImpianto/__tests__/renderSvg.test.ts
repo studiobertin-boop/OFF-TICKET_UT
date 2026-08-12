@@ -562,16 +562,30 @@ describe('legenda dei simboli', () => {
     expect((riga.sinistra as { simbolo: string }).simbolo).toContain('Q ')
   })
 
-  it('la tabella disegna la legenda sotto le apparecchiature e cresce di conseguenza', () => {
+  it('la tabella disegna la legenda sotto le apparecchiature e la viewBox la contiene', () => {
     const layout = layoutCon({ condense: true, essiccatore: true })
     const svg = renderSvg(layout)
 
     expect(svg).toContain('Valvola di intercettazione')
     expect(svg).toContain('Tubazione flessibile')
-    // L'altezza totale deve tenere conto anche delle righe di legenda: se non lo facesse, le
-    // ultime righe finirebbero fuori dalla viewBox e sparirebbero dal PNG.
+
+    const legenda = righeLegenda(layout)
+    const righeTotali = righeLista(layout).length + legenda.length
+    expect(legenda.length).toBeGreaterThan(0)
+
+    // Righe della tabella: rettangoli a filo del margine sinistro, alti quanto una riga.
+    const quote = [...svg.matchAll(/<rect x="40" y="([\d.]+)" width="[\d.]+" height="34"/g)].map((m) =>
+      Number(m[1])
+    )
+    // Intestazione più una riga per voce, legenda compresa.
+    expect(quote).toHaveLength(righeTotali + 1)
+
+    // Il fondo dell'ultima riga dev'essere dentro la viewBox. Il confronto con una soglia
+    // (`altezza > 34 × righeTotali`) non discriminava: con questa fixture valeva 374 contro
+    // un'altezza vera di ~1050, e sarebbe stata vera anche calcolando l'altezza sulle sole
+    // `righeLista` — cioè proprio il difetto da coprire, che lascia le righe di legenda fuori
+    // dalla tela e le fa sparire dal PNG.
     const altezza = Number(svg.match(/height="(\d+(?:\.\d+)?)"/)![1])
-    const righeTotali = righeLista(layout).length + righeLegenda(layout).length
-    expect(altezza).toBeGreaterThan(34 * righeTotali)
+    expect(Math.max(...quote) + 34).toBeLessThanOrEqual(altezza)
   })
 })
