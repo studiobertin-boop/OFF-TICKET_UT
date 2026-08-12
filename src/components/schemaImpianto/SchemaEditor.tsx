@@ -10,6 +10,7 @@ import {
   Controls,
   ReactFlow,
   ReactFlowProvider,
+  ViewportPortal,
   addEdge,
   applyEdgeChanges,
   applyNodeChanges,
@@ -21,22 +22,42 @@ import {
   type NodeChange,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Box, Button, Divider, Stack, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from '@mui/material'
+import {
+  Box,
+  Button,
+  Divider,
+  IconButton,
+  Stack,
+  ToggleButton,
+  ToggleButtonGroup,
+  Tooltip,
+  Typography,
+} from '@mui/material'
 import {
   Undo as UndoIcon,
   Delete as DeleteIcon,
   Add as AddIcon,
   Visibility as AnteprimaIcon,
+  AlignHorizontalLeft as AllineaSinistraIcon,
+  AlignHorizontalCenter as AllineaCentroXIcon,
+  AlignHorizontalRight as AllineaDestraIcon,
+  AlignVerticalTop as AllineaAltoIcon,
+  AlignVerticalCenter as AllineaCentroYIcon,
+  AlignVerticalBottom as AllineaBassoIcon,
 } from '@mui/icons-material'
 import toast from 'react-hot-toast'
 import { capoValido } from '@/services/schemaImpianto/agganci'
+import type { Asse, Bordo } from '@/services/schemaImpianto/allineamento'
 import { DIMENSIONI_NODO } from '@/services/schemaImpianto/layout'
 import { renderSvg } from '@/services/schemaImpianto/renderSvg'
 import type { SchemaArcoStile, SchemaLayout, SchemaNodoTipo } from '@/services/schemaImpianto/types'
 import { SchemaEdgeTubazione, type SchemaEdgeData } from './SchemaEdgeTubazione'
 import { SchemaNodeSymbol, type SchemaNodeData } from './SchemaNodeSymbol'
 import { TIPO_ARCO_FLOW, TIPO_NODO_FLOW, flowALayout, layoutAFlow } from './conversioneFlow'
+import { GuideAllineamento } from './GuideAllineamento'
+import { useAllineamentoSelezione } from './useAllineamentoSelezione'
 import { useGomiti } from './useGomiti'
+import { useGuideAllineamento } from './useGuideAllineamento'
 import { useSchemaHistory } from './useSchemaHistory'
 
 const tipiNodo = { [TIPO_NODO_FLOW]: SchemaNodeSymbol }
@@ -63,6 +84,29 @@ const NOME_STILE: Record<SchemaArcoStile, string> = {
   standard: 'una tubazione rigida',
   flessibile: 'una tubazione flessibile',
   condensa: 'una linea condense',
+}
+
+/** I sei bordi/centri su cui si può allineare la selezione, con icona e dizione del tooltip. */
+const ALLINEAMENTI: { bordo: Bordo; etichetta: string; Icona: typeof AllineaSinistraIcon }[] = [
+  { bordo: 'sinistra', etichetta: 'Allinea a sinistra', Icona: AllineaSinistraIcon },
+  { bordo: 'centroX', etichetta: 'Allinea al centro orizzontale', Icona: AllineaCentroXIcon },
+  { bordo: 'destra', etichetta: 'Allinea a destra', Icona: AllineaDestraIcon },
+  { bordo: 'alto', etichetta: 'Allinea in alto', Icona: AllineaAltoIcon },
+  { bordo: 'centroY', etichetta: 'Allinea al centro verticale', Icona: AllineaCentroYIcon },
+  { bordo: 'basso', etichetta: 'Allinea in basso', Icona: AllineaBassoIcon },
+]
+
+const DISTRIBUZIONI: { asse: Asse; etichetta: string }[] = [
+  { asse: 'orizzontale', etichetta: 'Distribuisci orizzontalmente' },
+  { asse: 'verticale', etichetta: 'Distribuisci verticalmente' },
+]
+
+/** Spostamento per una pressione di freccia, in pixel di griglia: coerente con `snapGrid`. */
+const PASSI: Record<string, [number, number]> = {
+  ArrowLeft: [-1, 0],
+  ArrowRight: [1, 0],
+  ArrowUp: [0, -1],
+  ArrowDown: [0, 1],
 }
 
 interface StatoEditor {
@@ -137,6 +181,10 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
   // Creare, spostare e togliere un gomito: logica isolata in un hook suo (vedi
   // useGomiti.ts) per non far crescere ulteriormente questo file.
   const { creaGomito, edgesConGomiti } = useGomiti(stato, applica, aggiornaSenzaCronologia)
+
+  // Guide di allineamento durante il trascinamento: stato locale, non cronologia (vedi
+  // useGuideAllineamento.ts), azzerate a fine gesto in onNodeDragStop qui sotto.
+  const { guide, onNodeDrag, onNodeDragStop } = useGuideAllineamento(stato.nodes)
 
   // Rifiuta la connessione mentre la si sta ancora trascinando, non dopo: un capo posato su
   // un'ancora che non lo accetta non deve nemmeno agganciarsi. Una tubazione nuova nasce
@@ -269,18 +317,56 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
     }))
   }, [applica, selezione])
 
-  // Ctrl+Z sull'intera finestra: l'editor occupa tutto il dialog, e chiedere all'utente di
-  // mettere prima a fuoco la tela per annullare sarebbe un tranello.
+  // Allineamento e distribuzione della selezione: logica isolata in un hook suo (vedi
+  // useAllineamentoSelezione.ts), stesso motivo di useGomiti.ts qui sopra.
+  const { applicaAllineamento, applicaDistribuzione } = useAllineamentoSelezione(selezione, applica)
+
+  // Spostamento con le frecce. `ripetuto` distingue la prima pressione dalla ripetizione
+  // automatica del tasto tenuto premuto (KeyboardEvent.repeat): solo la prima entra in
+  // cronologia, così un tocco singolo resta annullabile con un solo Ctrl+Z, e tenere
+  // premuta una freccia — che genera molti eventi in un secondo — non svuota la
+  // cronologia (profonda solo PROFONDITA_CRONOLOGIA) consumandola con ogni passo intermedio.
+  // Le ripetizioni si accumulano senza toccare la cronologia, esattamente come i tanti
+  // eventi di un trascinamento col mouse in onNodesChange qui sopra: un Ctrl+Z alla fine
+  // di una pressione tenuta riporta all'inizio del gesto, non a un passo intermedio.
+  const sposta = useCallback(
+    (dx: number, dy: number, ripetuto: boolean) => {
+      const selezionati = new Set(selezione.nodes.map((n) => n.id))
+      if (selezionati.size === 0) return
+      const aggiorna = ripetuto ? aggiornaSenzaCronologia : applica
+      aggiorna((s) => ({
+        ...s,
+        nodes: s.nodes.map((n) => {
+          if (!selezionati.has(n.id)) return n
+          const nodo = (n.data as SchemaNodeData).nodo
+          const x = nodo.x + dx
+          const y = nodo.y + dy
+          return { ...n, position: { x, y }, data: { nodo: { ...nodo, x, y } } }
+        }),
+      }))
+    },
+    [applica, aggiornaSenzaCronologia, selezione.nodes]
+  )
+
+  // Ctrl+Z e frecce sull'intera finestra: l'editor occupa tutto il dialog, e chiedere
+  // all'utente di mettere prima a fuoco la tela per annullare o spostare sarebbe un tranello.
   useEffect(() => {
     const suTasto = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault()
         annulla()
+        return
+      }
+      const passo = PASSI[e.key]
+      if (passo && selezione.nodes.length > 0) {
+        e.preventDefault()
+        const fattore = e.shiftKey ? 10 : 1
+        sposta(passo[0] * fattore, passo[1] * fattore, e.repeat)
       }
     }
     window.addEventListener('keydown', suTasto)
     return () => window.removeEventListener('keydown', suTasto)
-  }, [annulla])
+  }, [annulla, selezione.nodes, sposta])
 
   const stileSelezionato =
     selezione.edges.length > 0
@@ -333,6 +419,38 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
         <Divider orientation="vertical" flexItem />
 
         <Typography variant="caption" color="text.secondary">
+          Allinea:
+        </Typography>
+        {ALLINEAMENTI.map(({ bordo, etichetta, Icona }) => (
+          <Tooltip key={bordo} title={etichetta}>
+            <span>
+              <IconButton
+                size="small"
+                onClick={() => applicaAllineamento(bordo)}
+                disabled={selezione.nodes.length < 2}
+              >
+                <Icona fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+        ))}
+        {DISTRIBUZIONI.map(({ asse, etichetta }) => (
+          <Tooltip key={asse} title={etichetta}>
+            <span>
+              <Button
+                size="small"
+                onClick={() => applicaDistribuzione(asse)}
+                disabled={selezione.nodes.length < 3}
+              >
+                {asse === 'orizzontale' ? 'Distrib. orizz.' : 'Distrib. vert.'}
+              </Button>
+            </span>
+          </Tooltip>
+        ))}
+
+        <Divider orientation="vertical" flexItem />
+
+        <Typography variant="caption" color="text.secondary">
           Aggiungi:
         </Typography>
         {PALETTE.map((voce) => (
@@ -365,11 +483,15 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
           onConnect={onConnect}
           onReconnect={onReconnect}
           onEdgeDoubleClick={creaGomito}
+          onNodeDrag={onNodeDrag}
+          onNodeDragStop={onNodeDragStop}
           isValidConnection={isValidConnection}
           onSelectionChange={setSelezione}
           onlyRenderVisibleElements
           fitView
           // Lo schema è un disegno tecnico: si trascina sulla griglia del CAD, non a piacere.
+          // gap=10 sulla griglia visibile: stesso passo di snapGrid, altrimenti il disegno
+          // mostrerebbe un reticolo diverso da quello a cui i nodi si agganciano davvero.
           snapToGrid
           snapGrid={[10, 10]}
           deleteKeyCode={['Delete', 'Backspace']}
@@ -378,8 +500,11 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
             [4000, 4000],
           ]}
         >
-          <Background gap={20} />
+          <Background gap={10} />
           <Controls />
+          <ViewportPortal>
+            <GuideAllineamento guide={guide} />
+          </ViewportPortal>
         </ReactFlow>
       </Box>
 

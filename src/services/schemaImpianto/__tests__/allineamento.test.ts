@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { allinea, distribuisci } from '../allineamento'
+import { allinea, distribuisci, guideDiAllineamento } from '../allineamento'
 import type { SchemaNodoPosizionato } from '../types'
 
 function nodo(id: string, x: number, y: number, tipo: SchemaNodoPosizionato['tipo'] = 'essiccatore'): SchemaNodoPosizionato {
@@ -81,5 +81,27 @@ describe('distribuisci', () => {
     // Output nell'ordine originale [A, B, C]: [300, 0, 150]
     const esito = distribuisci([nodo('A', 300, 0), nodo('B', 0, 0), nodo('C', 10, 0)], 'orizzontale')
     expect(esito.map((n) => n.x)).toEqual([300, 0, 150])
+  })
+})
+
+describe('guideDiAllineamento', () => {
+  it('segnala i bordi sinistri in riga', () => {
+    const guide = guideDiAllineamento(nodo('A', 100, 0), [nodo('B', 102, 400)])
+    expect(guide).toContainEqual({ orientamento: 'verticale', quota: 102 })
+  })
+
+  it('segnala i bordi superiori in riga', () => {
+    const guide = guideDiAllineamento(nodo('A', 0, 100), [nodo('B', 400, 102)])
+    expect(guide).toContainEqual({ orientamento: 'orizzontale', quota: 102 })
+  })
+
+  it('tace quando nessun riferimento coincide', () => {
+    expect(guideDiAllineamento(nodo('A', 0, 0), [nodo('B', 500, 500)])).toEqual([])
+  })
+
+  it('non ripete la stessa quota per più vicini', () => {
+    const guide = guideDiAllineamento(nodo('A', 100, 0), [nodo('B', 100, 300), nodo('C', 100, 600)])
+    const verticali = guide.filter((g) => g.orientamento === 'verticale' && g.quota === 100)
+    expect(verticali).toHaveLength(1)
   })
 })

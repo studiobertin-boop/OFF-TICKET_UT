@@ -1354,6 +1354,11 @@ git commit -m "feat(schema-impianto): gomiti trascinabili sulle tubazioni"
 
 **Files:**
 - Modify: `src/components/schemaImpianto/SchemaEditor.tsx`
+- Modify: `src/services/schemaImpianto/allineamento.ts` (aggiunge `guideDiAllineamento`, accanto ad `allinea`/`distribuisci`)
+- Test: `src/services/schemaImpianto/__tests__/allineamento.test.ts`
+- Create: `src/components/schemaImpianto/useAllineamentoSelezione.ts` — `applicaAllineamento`/`applicaDistribuzione`, isolate dall'editor per lo stesso motivo di `useGomiti.ts`.
+- Create: `src/components/schemaImpianto/useGuideAllineamento.ts` — stato e calcolo delle guide durante il trascinamento, stesso motivo di `useGomiti.ts`.
+- Create: `src/components/schemaImpianto/GuideAllineamento.tsx` — resa delle guide in `<ViewportPortal>`; file a parte dall'hook per non mescolare hook e JSX nello stesso modulo.
 
 **Interfaces:**
 - Consumes: `allinea`, `distribuisci` (Task 10)

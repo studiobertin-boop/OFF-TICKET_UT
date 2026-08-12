@@ -55,3 +55,50 @@ export function distribuisci(nodi: SchemaNodoPosizionato[], asse: Asse): SchemaN
   const nuova = new Map(ordinati.map((n, i) => [n.id, Math.round(primo + passo * i)]))
   return nodi.map((n) => ({ ...n, [chiave]: nuova.get(n.id)! }))
 }
+
+/** Tolleranza entro cui due bordi si considerano in riga: mezzo passo di griglia. */
+const TOLLERANZA = 5
+
+export interface Guida {
+  orientamento: 'verticale' | 'orizzontale'
+  /** x se verticale, y se orizzontale. */
+  quota: number
+}
+
+/**
+ * Quote su cui il nodo trascinato si trova in riga con almeno un altro. Si confrontano i
+ * tre riferimenti che l'occhio usa — bordo iniziale, centro, bordo finale — su entrambi gli assi.
+ */
+export function guideDiAllineamento(
+  trascinato: SchemaNodoPosizionato,
+  altri: SchemaNodoPosizionato[]
+): Guida[] {
+  const rif = (n: SchemaNodoPosizionato) => {
+    const d = DIMENSIONI_NODO[n.tipo]
+    return {
+      x: [n.x, n.x + d.larghezza / 2, n.x + d.larghezza],
+      y: [n.y, n.y + d.altezza / 2, n.y + d.altezza],
+    }
+  }
+  const mio = rif(trascinato)
+  const guide: Guida[] = []
+
+  for (const altro of altri) {
+    const suo = rif(altro)
+    for (const q of mio.x) {
+      for (const s of suo.x) {
+        if (Math.abs(q - s) <= TOLLERANZA) guide.push({ orientamento: 'verticale', quota: s })
+      }
+    }
+    for (const q of mio.y) {
+      for (const s of suo.y) {
+        if (Math.abs(q - s) <= TOLLERANZA) guide.push({ orientamento: 'orizzontale', quota: s })
+      }
+    }
+  }
+
+  // Più coppie possono concordare sulla stessa quota: una riga sola basta a dirlo.
+  return guide.filter(
+    (g, i) => guide.findIndex((h) => h.orientamento === g.orientamento && h.quota === g.quota) === i
+  )
+}
