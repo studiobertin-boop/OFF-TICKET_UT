@@ -811,7 +811,7 @@ e includili nell'elenco:
 - [ ] **Step 4: Vedere i test passare**
 
 Run: `npx vitest run src/services/schemaImpianto/__tests__/layout.test.ts`
-Expected: **PASS**.
+Expected: **il piano diceva PASS, ma non è così**: 13 verdi su 14, con **1 test preesistente che regredisce**, `layoutSchema > non disegna il muro quando tutte le apparecchiature stanno in sala compressori` (`expected { x: 520, yMin: 55, yMax: 425 } to be null`). Non è un effetto della posizione scelta per il terminale (spostarlo non lo risolverebbe): la causa è che `posizionatiUtenze` entra comunque nell'array `nodi` passato a `calcolaMuro`, e il nodo `utenze` porta `gruppo: 'LINEA_DISTRIBUZIONE'` fissato in `nodoUtenze()` (Task 4) — quindi da questo task in poi `calcolaMuro` trova sempre un nodo «in linea» ogni volta che la linea termina in un'utenza, anche quando nessun'altra apparecchiatura vi si trova. È una decisione di design che il Task 5 (solo posizionamento) non può prendere da sé: se il terminale debba contare come «in linea distribuzione» ai fini del muro (fisicamente le utenze sono sempre fuori sala) o se `calcolaMuro`/`nodoUtenze` debbano ignorarlo. I 3 test nuovi di questo task passano tutti; i restanti 10 test già del file restano verdi.
 
 Run: `npx tsc --noEmit` → nessun errore.
 

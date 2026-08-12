@@ -146,11 +146,21 @@ export function layoutSchema(model: SchemaModel): SchemaLayout {
   const yCondense = yBase + CORSIA_CONDENSE
   const rigaRaccolta = disponiInRiga(raccolta, Math.max(rigaCatena.xFinale, MARGINE), yCondense)
 
+  // Il terminale utenze non sta in nessuna riga: si appoggia a destra di tutto ciò che lo
+  // precede, con l'ancora (in fondo al codolo, vedi il registro simboli) proprio sulla fascia
+  // orizzontale dove corrono le tubazioni di linea — così la tubazione che vi arriva entra
+  // dritta invece di fare due gomiti per raggiungerlo.
+  const utenze = model.nodi.filter((n) => n.tipo === 'utenze')
+  const posizionatiUtenze = utenze.map((n) =>
+    posiziona(n, rigaCatena.xFinale, yCentroSerbatoi - DIMENSIONI_NODO.utenze.altezza)
+  )
+
   const nodi = [
     ...rigaCompressori.posizionati,
     ...rigaSerbatoi.posizionati,
     ...rigaCatena.posizionati,
     ...rigaRaccolta.posizionati,
+    ...posizionatiUtenze,
   ]
 
   return { nodi, archi: model.archi, muro: calcolaMuro(nodi) }

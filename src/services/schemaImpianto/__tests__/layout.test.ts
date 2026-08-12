@@ -3,6 +3,7 @@ import {
   makeCompressore,
   makeDatiImpianto,
   makeDisoleatore,
+  makeEssiccatore,
   makeScheda,
   makeSerbatoio,
 } from '@/services/relazione/__tests__/fixtures'
@@ -228,5 +229,49 @@ describe('layoutSchema', () => {
       expect(n.x).toBeGreaterThanOrEqual(0)
       expect(n.y).toBeGreaterThanOrEqual(0)
     }
+  })
+
+  describe('collocazione del terminale utenze', () => {
+    function layoutConUtenze() {
+      const scheda = makeScheda({
+        compressori: [makeCompressore({ ha_disoleatore: false })],
+        disoleatori: [],
+        serbatoi: [makeSerbatoio()],
+        essiccatori: [makeEssiccatore()],
+        scambiatori: [],
+        filtri: [],
+        dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+      })
+      return layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } }))
+    }
+
+    it('sta a destra di tutto il resto della linea', () => {
+      const layout = layoutConUtenze()
+      const utenze = layout.nodi.find((n) => n.tipo === 'utenze')!
+      const altri = layout.nodi.filter((n) => n.tipo !== 'utenze')
+
+      expect(utenze.x).toBeGreaterThan(Math.max(...altri.map((n) => n.x)))
+    })
+
+    it('mette l’ancora alla quota della fascia su cui corrono le tubazioni di linea', () => {
+      const layout = layoutConUtenze()
+      const utenze = layout.nodi.find((n) => n.tipo === 'utenze')!
+      const essiccatore = layout.nodi.find((n) => n.tipo === 'essiccatore')!
+
+      // L'ancora `in` sta in fondo al codolo: la sua quota assoluta è y + altezza.
+      const quotaAncora = utenze.y + DIMENSIONI_NODO.utenze.altezza
+      const centroEssiccatore = essiccatore.y + DIMENSIONI_NODO.essiccatore.altezza / 2
+
+      expect(quotaAncora).toBe(centroEssiccatore)
+    })
+
+    it('allarga il disegno fino a comprendere la scritta', () => {
+      const layout = layoutConUtenze()
+      const utenze = layout.nodi.find((n) => n.tipo === 'utenze')!
+
+      expect(dimensioniLayout(layout).larghezza).toBeGreaterThanOrEqual(
+        utenze.x + DIMENSIONI_NODO.utenze.larghezza
+      )
+    })
   })
 })
