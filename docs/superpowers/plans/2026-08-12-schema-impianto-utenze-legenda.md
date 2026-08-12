@@ -1308,7 +1308,8 @@ describe('ondula', () => {
       { x: 50, y: 0 },
     ])
     expect(d.startsWith('M 0 0')).toBe(true)
-    expect(arriviQ(d).at(-1)).toEqual([50, 0])
+    const arrivi = arriviQ(d)
+    expect(arrivi[arrivi.length - 1]).toEqual([50, 0])
   })
 
   it('mette un’onda ogni PASSO_ONDA unità', () => {
@@ -1351,8 +1352,9 @@ describe('ondula', () => {
       { x: 50, y: 30 },
     ])
     // Il vertice dev'essere toccato esattamente, non tagliato da un'onda a cavallo.
-    expect(arriviQ(d)).toContainEqual([50, 0])
-    expect(arriviQ(d).at(-1)).toEqual([50, 30])
+    const arrivi = arriviQ(d)
+    expect(arrivi).toContainEqual([50, 0])
+    expect(arrivi[arrivi.length - 1]).toEqual([50, 30])
   })
 
   it('un tratto più corto di un’onda resta un’onda sola, e finisce dove deve', () => {
@@ -1364,6 +1366,20 @@ describe('ondula', () => {
     expect(arriviQ(d)[0]).toEqual([3, 0])
   })
 
+  // Con PASSO_ONDA = 5, un tratto sotto le 2,5 unità farebbe arrotondare mezziPeriodi a 0 senza
+  // la guardia Math.max(1, ...): il ciclo interno non girerebbe e il tracciato si fermerebbe al
+  // primo punto, senza mai raggiungere l'ancora. Il caso di 3 unità sopra non basta a
+  // dimostrarlo (Math.round(3/5) fa già 1 da solo): qui la guardia è l'unica cosa che salva il
+  // risultato.
+  it('un tratto sotto mezzo passo resta comunque un’onda sola che tocca l’ancora', () => {
+    const d = ondula([
+      { x: 0, y: 0 },
+      { x: 1, y: 0 },
+    ])
+    expect(arriviQ(d)).toHaveLength(1)
+    expect(arriviQ(d)[0]).toEqual([1, 0])
+  })
+
   it('salta i tratti di lunghezza nulla senza produrre NaN', () => {
     const d = ondula([
       { x: 10, y: 10 },
@@ -1371,7 +1387,8 @@ describe('ondula', () => {
       { x: 10, y: 40 },
     ])
     expect(d).not.toContain('NaN')
-    expect(arriviQ(d).at(-1)).toEqual([10, 40])
+    const arrivi = arriviQ(d)
+    expect(arrivi[arrivi.length - 1]).toEqual([10, 40])
   })
 })
 ```
@@ -1463,7 +1480,7 @@ function arrotonda(valore: number): number {
 - [ ] **Step 4: Vedere i test passare**
 
 Run: `npx vitest run src/services/schemaImpianto/__tests__/tratti.test.ts`
-Expected: **PASS**, 7 test.
+Expected: **PASS**, 8 test.
 
 - [ ] **Step 5: Far ondulare il flessibile nel render statico**
 
@@ -1548,16 +1565,13 @@ Expected: **PASS**.
 
 Se il secondo test non passasse perché nella configurazione scelta il muro non nasce o nessuna linea lo attraversa, **non allentarlo**: cambia la configurazione della scheda finché non c'è davvero un compressore da un lato e un serbatoio dall'altro, e annota nel report la configurazione usata.
 
-**Correzione emersa durante l'implementazione (12-08-2026):** il file di test dello Step 1 usa
-`arriviQ(d).at(-1)`, e il piano lo prescrive verbatim in tre punti. `Array.prototype.at` è
-ES2022, ma `tsconfig.json` fissa `"lib": ["ES2020", "DOM", "DOM.Iterable"]`: con quel lib
-`npx tsc --noEmit` fallisce su tutti e tre gli usi (`TS2550`), anche se Vitest (che passa da
-esbuild, non da tsc) esegue i test senza batter ciglio. La correzione è alzare `lib` a
-`"ES2022"` in `tsconfig.json` — non tocca `target` (irrilevante con `noEmit: true`, la
-transpilazione reale la fa Vite/esbuild) e non restringe nulla, solo aggiunge dichiarazioni di
-tipo. Chi esegue lo Step 7 deve aggiungere anche `tsconfig.json` al commit.
+I due test non vanno accodati alla cieca in fondo al file: innestarli dentro `describe('righeLista',
+...)` — l'ultimo blocco del file — li mette dove non c'entrano nulla. Il primo (flessibile ondulato)
+va in `describe('renderSvg', ...)`, insieme alle altre proprietà generali dell'SVG; il secondo
+(varchi sulla polilinea liscia) va in `describe('varchi nel muro', ...)`, accanto al test già
+esistente che ci somiglia.
 
-**Correzione emersa durante l'implementazione (12-08-2026), seconda:** due test già esistenti in
+**Correzione emersa durante l'implementazione (12-08-2026):** due test già esistenti in
 `renderSvg.test.ts` — *"la tubazione che arriva al terminale non porta una seconda punta di
 freccia"* e *"apre un varco per ogni tubazione che attraversa il muro"* — ri-derivano la
 geometria del disegno riparsando l'attributo `d` degli `<path>` con regex che riconoscono solo i
@@ -1569,11 +1583,11 @@ invece che il punto di controllo.
 
 - [ ] **Step 7: Verifica e commit**
 
-Run: `npx tsc --noEmit` → nessun errore (`ondeVerticali` non deve restare importata o dichiarata; vedi la correzione sopra su `tsconfig.json`).
+Run: `npx tsc --noEmit` → nessun errore (`ondeVerticali` non deve restare importata o dichiarata).
 Run: `npx vitest run` → verde.
 
 ```bash
-git add src/services/schemaImpianto/tratti.ts src/services/schemaImpianto/__tests__/tratti.test.ts src/services/schemaImpianto/renderSvg.ts src/services/schemaImpianto/__tests__/renderSvg.test.ts tsconfig.json
+git add src/services/schemaImpianto/tratti.ts src/services/schemaImpianto/__tests__/tratti.test.ts src/services/schemaImpianto/renderSvg.ts src/services/schemaImpianto/__tests__/renderSvg.test.ts
 git commit -m "feat(schema-impianto): il flessibile è ondulato per tutta la lunghezza del tratto"
 ```
 

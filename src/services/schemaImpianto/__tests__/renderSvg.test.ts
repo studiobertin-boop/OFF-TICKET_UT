@@ -174,6 +174,15 @@ describe('renderSvg', () => {
     expect(svg).toContain('ROSSI &amp; FIGLI')
     expect(svg).not.toMatch(/&(?!amp;|lt;|gt;|quot;|apos;|#)/)
   })
+
+  it('disegna il flessibile ondulato per tutta la lunghezza, non a riccioli', () => {
+    const svg = svgMinimo()
+    const flessibile = svg.match(/<path d="M [^"]*Q [^"]*" fill="none" stroke="#000"[^>]*marker-end/g) ?? []
+
+    expect(flessibile.length).toBeGreaterThan(0)
+    // Molte onde, non le quattro del vecchio ricciolo da 40 unità.
+    expect((flessibile[0].match(/Q /g) ?? []).length).toBeGreaterThan(8)
+  })
 })
 
 describe('attacco alle ancore', () => {
@@ -291,6 +300,39 @@ describe('varchi nel muro', () => {
       expect(muratura.some(([a, b]) => y > a && y < b)).toBe(false)
     }
   })
+
+  it('i varchi nel muro si calcolano sulla polilinea liscia, non sull’onda', () => {
+    // Se `quoteAttraversamento` ricevesse il tracciato ondulato, i tratti orizzontali non
+    // sarebbero più orizzontali e nessun varco si aprirebbe: il muro tornerebbe pieno.
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ ha_disoleatore: false })],
+      disoleatori: [],
+      serbatoi: [makeSerbatoio({ ubicazione: 'LINEA_DISTRIBUZIONE' })],
+      essiccatori: [],
+      scambiatori: [],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const layout = layoutSchema(
+      buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    )
+
+    expect(layout.muro).not.toBeNull()
+    const svg = renderSvg(layout)
+
+    // I tronconi pieni del muro sono i rect di spessore 14. Se `quoteAttraversamento` non
+    // trovasse più tratti orizzontali, non si aprirebbe nessun varco e i tronconi coprirebbero
+    // l'intera altezza del muro: è questo il confronto che discrimina, non il loro numero (con
+    // un varco a ridosso di un estremo il troncone resta uno solo).
+    const altezze = [...svg.matchAll(/<rect x="[\d.]+" y="[-\d.]+" width="14" height="([\d.]+)"/g)].map(
+      (m) => Number(m[1])
+    )
+    const coperto = altezze.reduce((s, h) => s + h, 0)
+    const altezzaMuro = layout.muro!.yMax - layout.muro!.yMin
+
+    expect(altezze.length).toBeGreaterThan(0)
+    expect(coperto).toBeLessThan(altezzaMuro)
+  })
 })
 
 describe('punti di passaggio', () => {
@@ -405,47 +447,5 @@ describe('righeLista', () => {
       'E1',
       'SEP1',
     ])
-  })
-
-  it('disegna il flessibile ondulato per tutta la lunghezza, non a riccioli', () => {
-    const svg = svgMinimo()
-    const flessibile = svg.match(/<path d="M [^"]*Q [^"]*" fill="none" stroke="#000"[^>]*marker-end/g) ?? []
-
-    expect(flessibile.length).toBeGreaterThan(0)
-    // Molte onde, non le quattro del vecchio ricciolo da 40 unità.
-    expect((flessibile[0].match(/Q /g) ?? []).length).toBeGreaterThan(8)
-  })
-
-  it('i varchi nel muro si calcolano sulla polilinea liscia, non sull’onda', () => {
-    // Se `quoteAttraversamento` ricevesse il tracciato ondulato, i tratti orizzontali non
-    // sarebbero più orizzontali e nessun varco si aprirebbe: il muro tornerebbe pieno.
-    const scheda = makeScheda({
-      compressori: [makeCompressore({ ha_disoleatore: false })],
-      disoleatori: [],
-      serbatoi: [makeSerbatoio({ ubicazione: 'LINEA_DISTRIBUZIONE' })],
-      essiccatori: [],
-      scambiatori: [],
-      filtri: [],
-      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
-    })
-    const layout = layoutSchema(
-      buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
-    )
-
-    expect(layout.muro).not.toBeNull()
-    const svg = renderSvg(layout)
-
-    // I tronconi pieni del muro sono i rect di spessore 14. Se `quoteAttraversamento` non
-    // trovasse più tratti orizzontali, non si aprirebbe nessun varco e i tronconi coprirebbero
-    // l'intera altezza del muro: è questo il confronto che discrimina, non il loro numero (con
-    // un varco a ridosso di un estremo il troncone resta uno solo).
-    const altezze = [...svg.matchAll(/<rect x="[\d.]+" y="[-\d.]+" width="14" height="([\d.]+)"/g)].map(
-      (m) => Number(m[1])
-    )
-    const coperto = altezze.reduce((s, h) => s + h, 0)
-    const altezzaMuro = layout.muro!.yMax - layout.muro!.yMin
-
-    expect(altezze.length).toBeGreaterThan(0)
-    expect(coperto).toBeLessThan(altezzaMuro)
   })
 })
