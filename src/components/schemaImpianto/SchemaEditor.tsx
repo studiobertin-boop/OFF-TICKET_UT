@@ -628,6 +628,21 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
           onSelectionChange={setSelezione}
           onlyRenderVisibleElements
           fitView
+          // Senza questo, `fitView` non inquadra affatto tutto il disegno: il minimo di
+          // default di react-flow è 0.5, ma uno schema tipico (~1250 unità di larghezza) in
+          // un riquadro da ~530px — metà dialog, l'altra metà è l'anteprima — richiede circa
+          // 0.36. Lo zoom resta bloccato a 0.5, la tela mostra solo la fascia centrale e le
+          // prime ~95 unità a sinistra diventano irraggiungibili: nessuna panoramica le
+          // riporta dentro, perché è «Fit View» stesso a ricentrare lì.
+          //
+          // Insieme a `onlyRenderVisibleElements` questo cancellava dal DOM i nodi appena
+          // aggiunti: `aggiungiNodo` li mette tutti a x=40, dentro quella fascia cieca, e
+          // react-flow (correttamente) non disegna ciò che è fuori campo. Si salvavano solo i
+          // tipi abbastanza larghi da sporgere oltre x=136 — serbatoio (150), pacco bombole
+          // (120), filtro/essiccatore/separatore (110) — mentre giunzione (50) e raccolta
+          // condense (80) restavano invisibili per sempre, senza alcun errore in console.
+          // Non era quindi un difetto del simbolo TEE: era la soglia di larghezza.
+          minZoom={0.1}
           // react-flow ha una propria gestione delle frecce da tastiera sul nodo selezionato
           // (accessibilità): senza disattivarla, ogni pressione muove il nodo anche per
           // conto suo (di un passo pari a snapGrid) e lo mette a fuoco nel DOM al click,
