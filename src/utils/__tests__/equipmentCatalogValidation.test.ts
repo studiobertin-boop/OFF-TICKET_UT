@@ -121,6 +121,16 @@ describe('schema dei dati tecnici generato dal tipo', () => {
     expect(specsSchemaFor('Filtri').safeParse({ ps: 11, ts: '-10 ÷ +50' }).success).toBe(true)
   })
 
+  it('un TS memorizzato a catalogo come numero non blocca il salvataggio', () => {
+    // In produzione molte righe «Filtri» hanno il TS salvato come numero JSON invece che
+    // come stringa: se il campo non viene toccato in fase di modifica, il form lo
+    // ripropone così com'è e lo schema deve accettarlo, coercendolo a stringa.
+    const esito = specsSchemaFor('Filtri').safeParse({ ts: 66 })
+    expect(esito.success).toBe(true)
+    const r = specsSchemaFor('Filtri').parse({ ts: 66 })
+    expect(r.ts).toBe('66')
+  })
+
   it('lo schema valida ciò che è memorizzato, definizioni interne comprese', () => {
     // Protegge da un `.filter(d => !d.isInternal)` aggiunto qui per uniformare questa funzione a
     // `specsFieldsFor`: se sparisse, `pressione_esercizio` — la chiave dell'indice unico dei
