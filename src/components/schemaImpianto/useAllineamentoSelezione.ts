@@ -29,7 +29,15 @@ export function useAllineamentoSelezione<T extends StatoConNodi>(
       const selezionati = new Set(selezione.nodes.map((n) => n.id))
       if (selezionati.size < 2) return
       applica((s) => {
-        const nodi = s.nodes.filter((n) => selezionati.has(n.id)).map((n) => (n.data as SchemaNodeData).nodo)
+        // `n.position`, non `(n.data as SchemaNodeData).nodo.x/y`: `position` è l'unica
+        // coordinata viva mentre il nodo vive nell'editor — `applyNodeChanges` (trascinamento,
+        // frecce) aggiorna solo quella, mai la copia in `data.nodo` — ed è anche l'unica che
+        // `flowALayout` guarda alla conferma (sovrascrive `data.nodo.x/y` con `position`,
+        // scartandoli). Leggere `data.nodo` qui avrebbe riportato indietro l'asse non toccato
+        // dall'allineamento a un valore precedente a un eventuale trascinamento.
+        const nodi = s.nodes
+          .filter((n) => selezionati.has(n.id))
+          .map((n) => ({ ...(n.data as SchemaNodeData).nodo, x: n.position.x, y: n.position.y }))
         const spostati = new Map(allinea(nodi, bordo).map((n) => [n.id, n]))
         return {
           ...s,
@@ -43,13 +51,16 @@ export function useAllineamentoSelezione<T extends StatoConNodi>(
     [applica, selezione.nodes]
   )
 
-  // Stessa forma di applicaAllineamento, per la spaziatura uguale fra estremi fermi.
+  // Stessa forma di applicaAllineamento, per la spaziatura uguale fra estremi fermi — e
+  // stesso motivo per leggere `position`: vedi il commento lì sopra.
   const applicaDistribuzione = useCallback(
     (asse: Asse) => {
       const selezionati = new Set(selezione.nodes.map((n) => n.id))
       if (selezionati.size < 3) return
       applica((s) => {
-        const nodi = s.nodes.filter((n) => selezionati.has(n.id)).map((n) => (n.data as SchemaNodeData).nodo)
+        const nodi = s.nodes
+          .filter((n) => selezionati.has(n.id))
+          .map((n) => ({ ...(n.data as SchemaNodeData).nodo, x: n.position.x, y: n.position.y }))
         const spostati = new Map(distribuisci(nodi, asse).map((n) => [n.id, n]))
         return {
           ...s,

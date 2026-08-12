@@ -510,7 +510,12 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
           // (accessibilità): senza disattivarla, ogni pressione muove il nodo anche per
           // conto suo (di un passo pari a snapGrid) e lo mette a fuoco nel DOM al click,
           // in concorrenza con la nostra — due spostamenti e due voci di cronologia per un
-          // solo tocco. Vedi giro di riparazione 1, causa A.
+          // solo tocco. Vedi giro di riparazione 1, causa A. `disableKeyboardA11y` spegne
+          // anche altro (Enter/Escape per selezionare/deselezionare da tastiera, il
+          // centraggio automatico sul nodo che riceve il focus, gli annunci per gli screen
+          // reader): nessuna di queste funzioni è usata dall'editor, che seleziona sempre a
+          // clic/shift+clic/rettangolo, quindi la perdita è accettata, non solo un
+          // sottoprodotto trascurato.
           disableKeyboardA11y
           // Lo schema è un disegno tecnico: si trascina sulla griglia del CAD, non a piacere.
           // gap=10 sulla griglia visibile: stesso passo di snapGrid, altrimenti il disegno
