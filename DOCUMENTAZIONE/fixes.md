@@ -3,10 +3,7 @@ DOPO CHE HAI APPLICATO IL FIX E LO ABBIAMO BATTEZZATO COME RISOLTO E MANDATO IN 
 
 # ELENCO FIXES DA APPLICARE
 
-| DATA | DESCRIZIONE |
-| --- | --- |
-| 2026-08-12 | Genera relazione: il pulsante verde "scarica" e l'icona "rigenera" si fondono in un solo pulsante con menu (Scarica / Rigenera). |
-| 2026-08-12 | Relazione/dichiarazioni: generavano dai dati letti al caricamento della pagina, non da quelli appena salvati — una modifica alla scheda (es. flag materiale infiammabile) non compariva finché non si ricaricava la pagina prima di generare. |
+_Nessun fix in attesa._
 
 ** ELENCO FIXES APPLICATI **
 
@@ -19,3 +16,5 @@ DOPO CHE HAI APPLICATO IL FIX E LO ABBIAMO BATTEZZATO COME RISOLTO E MANDATO IN 
 | 2026-08-11 | Scheda dati: svuotare un campo numerico lo lascia vuoto. Cancellando l'ultima cifra tornava il valore di partenza, e per cambiarlo bisognava digitare il nuovo prima di togliere il vecchio. |
 | 2026-08-11 | Scheda dati: passando all'apparecchiatura successiva la finestra dei dettagli mostra la sua, non quella lasciata. I campi restavano precompilati e alla prima modifica quei dati ci finivano davvero; anche i contatori seguono la riga giusta. |
 | 2026-08-11 | Elenco pratiche DM329: nuova icona di compilazione della scheda dati (vuota, percentuale a due cifre, completa), ordinabile e filtrabile. Lo stato si può imporre a mano dal dettaglio pratica, accanto al pulsante «Scheda dati», e riportare all'automatico. |
+| 2026-08-12 | Relazione/dichiarazioni: generavano dai dati letti al caricamento della pagina, non da quelli appena salvati — una modifica alla scheda non compariva nel documento senza prima ricaricare la pagina. |
+| 2026-08-12 | Genera relazione: pulsante verde "scarica" e icona "rigenera" (poco visibile) uniti in un solo pulsante con menu Scarica / Rigenera. |
