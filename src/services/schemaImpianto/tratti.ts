@@ -88,3 +88,64 @@ export function ondula(punti: Punto[]): string {
 function arrotonda(valore: number): number {
   return Math.round(valore * 100) / 100
 }
+
+/**
+ * Punto lungo una polilinea GIÀ RISOLTA (compresi i gomiti automatici di
+ * `polilineaConGomiti`) a una frazione `t` della lunghezza totale — non del numero di
+ * segmenti, o un tratto lungo poco sposterebbe il segno quanto uno lungo molto. Ritorna anche
+ * se il tratto locale è orizzontale, per orientare il simbolo (`valvolaIntercettazione` e
+ * `riduttorePressione` vogliono sapere se sono su un montante o su un tratto in linea).
+ */
+export function puntoSuTratto(punti: Punto[], t: number): { punto: Punto; orizzontale: boolean } {
+  if (punti.length === 0) return { punto: { x: 0, y: 0 }, orizzontale: true }
+  if (punti.length === 1) return { punto: punti[0], orizzontale: true }
+
+  const lunghezze = punti.slice(1).map((p, i) => Math.hypot(p.x - punti[i].x, p.y - punti[i].y))
+  const totale = lunghezze.reduce((s, l) => s + l, 0)
+  const target = Math.max(0, Math.min(1, t)) * totale
+
+  let percorsa = 0
+  for (let i = 0; i < lunghezze.length; i++) {
+    const l = lunghezze[i]
+    if (percorsa + l >= target || i === lunghezze.length - 1) {
+      const frazioneLocale = l === 0 ? 0 : (target - percorsa) / l
+      const a = punti[i]
+      const b = punti[i + 1]
+      return {
+        punto: { x: a.x + (b.x - a.x) * frazioneLocale, y: a.y + (b.y - a.y) * frazioneLocale },
+        orizzontale: a.y === b.y,
+      }
+    }
+    percorsa += l
+  }
+  return { punto: punti[punti.length - 1], orizzontale: true }
+}
+
+/**
+ * Inversa di `puntoSuTratto`: la `t` del punto della polilinea più vicino a un punto libero
+ * (es. dove il mouse ha rilasciato un segno trascinato). Proietta su ogni segmento, bloccando
+ * la proiezione ai suoi estremi, e tiene il segmento a distanza minima — così un rilascio
+ * fuori dalla linea si aggancia al tratto più vicino, non al primo della lista.
+ */
+export function tSuTratto(punti: Punto[], p: Punto): number {
+  if (punti.length < 2) return 0
+
+  const lunghezze = punti.slice(1).map((pt, i) => Math.hypot(pt.x - punti[i].x, pt.y - punti[i].y))
+  const totale = lunghezze.reduce((s, l) => s + l, 0)
+  if (totale === 0) return 0
+
+  let percorsa = 0
+  let migliore = { distanza: Infinity, t: 0 }
+  for (let i = 0; i < lunghezze.length; i++) {
+    const a = punti[i]
+    const b = punti[i + 1]
+    const l = lunghezze[i]
+    const frazioneLocale =
+      l === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / (l * l)))
+    const proiezione = { x: a.x + (b.x - a.x) * frazioneLocale, y: a.y + (b.y - a.y) * frazioneLocale }
+    const distanza = Math.hypot(p.x - proiezione.x, p.y - proiezione.y)
+    if (distanza < migliore.distanza) migliore = { distanza, t: (percorsa + frazioneLocale * l) / totale }
+    percorsa += l
+  }
+  return migliore.t
+}

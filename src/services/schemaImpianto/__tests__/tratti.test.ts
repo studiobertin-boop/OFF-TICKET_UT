@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { ondula, AMPIEZZA_ONDA, PASSO_ONDA } from '../tratti'
+import { ondula, AMPIEZZA_ONDA, PASSO_ONDA, puntoSuTratto, tSuTratto } from '../tratti'
 
 /** Coppie (x,y) di tutti i punti d'arrivo dei comandi Q, nell'ordine. */
 function arriviQ(d: string): [number, number][] {
@@ -169,5 +169,58 @@ describe('ondula', () => {
     expect(d).not.toContain('NaN')
     const arrivi = arriviQ(d)
     expect(arrivi[arrivi.length - 1]).toEqual([10, 40])
+  })
+})
+
+describe('puntoSuTratto', () => {
+  const orizzontale = [
+    { x: 0, y: 100 },
+    { x: 200, y: 100 },
+  ]
+  const conAngolo = [
+    { x: 0, y: 0 },
+    { x: 100, y: 0 },
+    { x: 100, y: 50 },
+  ]
+
+  it('t=0 e t=1 cadono esattamente sui due capi', () => {
+    expect(puntoSuTratto(orizzontale, 0).punto).toEqual({ x: 0, y: 100 })
+    expect(puntoSuTratto(orizzontale, 1).punto).toEqual({ x: 200, y: 100 })
+  })
+
+  it('t=0.5 cade a metà della lunghezza totale, non del solo primo tratto', () => {
+    // Primo tratto lungo 100, secondo lungo 50: metà dei 150 totali cade a 75 sul primo tratto.
+    const risultato = puntoSuTratto(conAngolo, 0.5)
+    expect(risultato.punto).toEqual({ x: 75, y: 0 })
+    expect(risultato.orizzontale).toBe(true)
+  })
+
+  it('riconosce il tratto verticale dopo l’angolo', () => {
+    // 100/150 = 0.667: appena oltre l'angolo, sul tratto verticale.
+    const risultato = puntoSuTratto(conAngolo, 0.7)
+    expect(risultato.orizzontale).toBe(false)
+    expect(risultato.punto.x).toBe(100)
+  })
+})
+
+describe('tSuTratto', () => {
+  const conAngolo = [
+    { x: 0, y: 0 },
+    { x: 100, y: 0 },
+    { x: 100, y: 50 },
+  ]
+
+  it('è l’inversa di puntoSuTratto sui punti che restituisce', () => {
+    for (const t of [0, 0.25, 0.5, 0.75, 1]) {
+      const { punto } = puntoSuTratto(conAngolo, t)
+      expect(tSuTratto(conAngolo, punto)).toBeCloseTo(t, 5)
+    }
+  })
+
+  it('un punto fuori dalla polilinea si proietta sul tratto più vicino, non sul più lontano', () => {
+    // (100, 25) è il punto medio del tratto verticale (x=100, da y=0 a y=50): a distanza 0 da
+    // quel tratto, contro 25 dal tratto orizzontale. Lunghezza percorsa fino a lì: 100 (primo
+    // tratto) + 25 (metà del secondo, lungo 50) = 125 su 150 totali → t = 125/150 = 5/6.
+    expect(tSuTratto(conAngolo, { x: 100, y: 25 })).toBeCloseTo(5 / 6, 2)
   })
 })

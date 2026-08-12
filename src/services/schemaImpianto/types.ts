@@ -114,6 +114,21 @@ export function chiaveSimbolo(nodo: { tipo: SchemaNodoTipo; orientamento?: 'VERT
 
 export type SchemaArcoStile = 'standard' | 'flessibile' | 'condensa'
 
+export type SchemaSegnoTuboTipo = 'valvola_intercettazione' | 'riduttore_pressione'
+
+/**
+ * Segno che vive SULLA tubazione, non un nodo: valvola di intercettazione o riduttore di
+ * pressione. Scorre lungo il tratto e lo segue quando un'apparecchiatura si sposta perché la
+ * sua posizione è relativa alla polilinea (`t`), non assoluta — a differenza della giunzione,
+ * che è un nodo vero con tre attacchi propri.
+ */
+export interface SchemaSegnoTubo {
+  id: string
+  tipo: SchemaSegnoTuboTipo
+  /** Posizione lungo la polilinea del tratto: 0 = capo Da, 1 = capo A. */
+  t: number
+}
+
 export interface SchemaArco {
   id: string
   da: SchemaCapo
@@ -121,6 +136,8 @@ export interface SchemaArco {
   stile: SchemaArcoStile
   /** Gomiti imposti a mano, in coordinate assolute. Assente: percorso automatico. */
   punti?: { x: number; y: number }[]
+  /** Valvole di intercettazione e riduttori di pressione posati sul tratto. */
+  segni?: SchemaSegnoTubo[]
 }
 
 /** Output di `buildSchemaModel`: struttura logica, senza ancora una disposizione grafica. */
