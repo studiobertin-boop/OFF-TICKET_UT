@@ -125,6 +125,45 @@ describe('layoutSchema', () => {
     }
   })
 
+  describe('il terminale utenze non conta ai fini del muro', () => {
+    it('un impianto di soli compressori e serbatoi in sala, col solo terminale in linea, non ha muro', () => {
+      const scheda = makeScheda({
+        serbatoi: [makeSerbatoio({ ubicazione: 'SALA_COMPRESSORI' })],
+        essiccatori: [],
+        scambiatori: [],
+        filtri: [],
+        dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+      })
+
+      const layout = layoutSchema(
+        buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+      )
+
+      // Il terminale c'è (la linea finisce da qualche parte), ma da solo non è un motivo per
+      // separare la sala compressori da una "linea distribuzione" che di fatto non esiste.
+      expect(layout.nodi.some((n) => n.tipo === 'utenze')).toBe(true)
+      expect(layout.muro).toBeNull()
+    })
+
+    it('ma un impianto con anche una sola apparecchiatura vera in linea il muro lo disegna ancora', () => {
+      // Discrimina un'implementazione che, per far sparire il muro col terminale, finisse per
+      // non disegnarlo mai: qui c'è un essiccatore vero in linea, e il muro deve tornare.
+      const scheda = makeScheda({
+        serbatoi: [makeSerbatoio({ ubicazione: 'SALA_COMPRESSORI' })],
+        essiccatori: [makeEssiccatore()],
+        scambiatori: [],
+        filtri: [],
+        dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+      })
+
+      const layout = layoutSchema(
+        buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+      )
+
+      expect(layout.muro).not.toBeNull()
+    })
+  })
+
   describe('calcolaMuro', () => {
     it('segue il bordo destro della sala compressori', () => {
       const base = { tipo: 'compressore' as const, etichetta: '', valvoleSicurezza: [], origine: 'scheda' as const }

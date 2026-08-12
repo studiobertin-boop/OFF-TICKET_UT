@@ -108,6 +108,11 @@ che dopo il layout dice quasi sempre la stessa cosa ma non può essere valutata 
 
 `ordinaCatenaTrattamento` e `pozzoCondense` devono ignorare il tipo `utenze`: non è uno stadio
 di trattamento né un pozzo. `righeLista` lo salta: non è un'apparecchiatura e non ha codice.
+`calcolaMuro` deve ignorarlo allo stesso modo nei due gruppi che confronta: pur avendo
+`gruppo: 'LINEA_DISTRIBUZIONE'` (corretto, sta davvero a valle), contarlo farebbe nascere un
+muro ogni volta che la linea termina in un'utenza, anche senza altro in linea — e il disegno di
+riferimento del committente (`DOCUMENTAZIONE/relazione/schema.png`, un solo compressore e un
+solo serbatoio, nessun'altra apparecchiatura) non ha muro pur avendo la freccia «Utenze aria».
 
 `renderUscitaUtenze` e `SPAZIO_UTENZE` **spariscono**. Un solo percorso di disegno, quindi due
 frecce impossibili per costruzione.
@@ -223,7 +228,7 @@ Il campione «tubazione flessibile» della legenda esce dalla stessa funzione.
 | `services/schemaImpianto/types.ts` | tipo `utenze` in `SchemaNodoTipo`; commento sulla valvola di scarico corretto (oggi elenca separatore e disoleatore, che non la disegnano) |
 | `services/schemaImpianto/symbols/index.ts` | definizione del simbolo `utenze` con ingombro e ancora; campioni per la legenda; `definizioneDi`/`ancoraDi`/`simboloDi` accettano `SchemaNodo` |
 | `services/schemaImpianto/buildSchemaModel.ts` | crea il nodo `utenze` e il suo arco; `ordinaCatenaTrattamento` lo ignora |
-| `services/schemaImpianto/layout.ts` | colloca il nodo `utenze`; `pozzoCondense` lo ignora |
+| `services/schemaImpianto/layout.ts` | colloca il nodo `utenze`; `pozzoCondense` e `calcolaMuro` lo ignorano |
 | `services/schemaImpianto/renderSvg.ts` | via `renderUscitaUtenze` e `SPAZIO_UTENZE`; `righeLegenda`; `renderTabella` con la cella a due forme; ondulazione lungo tutta la polilinea; via `ondeVerticali` |
 | `services/schemaImpianto/persistenza.ts` | `riconcilia`: collocazione dedicata dell'elemento `utenze` mancante |
 | `components/schemaImpianto/conversioneFlow.ts` | `data.nodo` senza `x`/`y` |

@@ -82,8 +82,14 @@ function posiziona(nodo: SchemaNodo, x: number, y: number): SchemaNodoPosizionat
  * apparecchiature nel resto del disegno: il muro segue sempre ciò che deve dividere.
  */
 export function calcolaMuro(nodi: SchemaNodoPosizionato[]): SchemaMuroSeparazione | null {
-  const inSala = nodi.filter((n) => n.gruppo === 'SALA_COMPRESSORI')
-  const inLinea = nodi.filter((n) => n.gruppo === 'LINEA_DISTRIBUZIONE')
+  // Il terminale utenze porta `gruppo: 'LINEA_DISTRIBUZIONE'` — sta davvero a valle — ma non è
+  // un'apparecchiatura da separare con un muro, è un raccordo (stesso motivo per cui
+  // `ordinaCatenaTrattamento` e `pozzoCondense` lo ignorano, e per cui il Task 6 lo esclude da
+  // `righeLista`). Un impianto con un solo compressore e un solo serbatoio in sala, senza altro
+  // in linea, non ha muro nel disegno di riferimento del committente pur avendo la freccia
+  // «Utenze aria»: contarlo qui produrrebbe un muro che quel riferimento smentisce.
+  const inSala = nodi.filter((n) => n.gruppo === 'SALA_COMPRESSORI' && n.tipo !== 'utenze')
+  const inLinea = nodi.filter((n) => n.gruppo === 'LINEA_DISTRIBUZIONE' && n.tipo !== 'utenze')
   if (inSala.length === 0 || inLinea.length === 0) return null
 
   const rilevanti = [...inSala, ...inLinea]

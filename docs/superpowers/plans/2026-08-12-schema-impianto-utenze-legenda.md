@@ -717,12 +717,12 @@ git commit -m "feat(schema-impianto): il modello costruisce il terminale utenze 
 ### Task 5: `layoutSchema` colloca il terminale
 
 **Files:**
-- Modify: `src/services/schemaImpianto/layout.ts` (`layoutSchema`)
+- Modify: `src/services/schemaImpianto/layout.ts` (`layoutSchema`, e — scoperto durante l'implementazione, vedi Step 3bis — `calcolaMuro`)
 - Modify: `src/services/schemaImpianto/__tests__/layout.test.ts`
 
 **Interfaces:**
 - Consumes: il nodo `utenze` nel modello (Task 4), `DIMENSIONI_NODO.utenze` (Task 3).
-- Produces: il nodo `UTENZE` posizionato a destra della catena, con l'ancora `in` alla quota della fascia orizzontale su cui corrono le tubazioni di linea.
+- Produces: il nodo `UTENZE` posizionato a destra della catena, con l'ancora `in` alla quota della fascia orizzontale su cui corrono le tubazioni di linea. `calcolaMuro` esclude i nodi `utenze` dai due gruppi che confronta, per lo stesso motivo per cui `ordinaCatenaTrattamento`/`pozzoCondense` già lo ignorano.
 
 - [ ] **Step 1: Scrivere il test**
 
@@ -808,10 +808,25 @@ e includili nell'elenco:
   ]
 ```
 
+- [ ] **Step 3bis: `calcolaMuro` deve ignorare il terminale**
+
+Scoperto durante l'implementazione, non previsto dal testo originale di questo task: posizionare il nodo `utenze` lo fa entrare nell'array `nodi` che `layoutSchema` passa a `calcolaMuro` (invariato fino a qui, la funzione esisteva già dal blocco «fondamenta»). `nodoUtenze()` (Task 4) gli assegna sempre `gruppo: 'LINEA_DISTRIBUZIONE'` — corretto, le utenze stanno davvero a valle — ma `calcolaMuro` lo legge come un'apparecchiatura «in linea» qualsiasi: da qui in poi, ogni volta che la linea termina in un'utenza (quasi sempre), c'è per costruzione un nodo in `LINEA_DISTRIBUZIONE`, e il muro rischia di comparire anche quando in linea non c'è nient'altro.
+
+**Il terminale non deve contare per il muro.** Tre ragioni:
+1. Il disegno di riferimento del committente (`DOCUMENTAZIONE/relazione/schema.png`) mostra un impianto con un solo compressore e un solo serbatoio, nessun'altra apparecchiatura in linea: nessun muro, e la freccia «Utenze aria» presente. Farlo nascere dal terminale produrrebbe un disegno che quel riferimento smentisce.
+2. Stesso principio già approvato per `righeLista` (Task 6): il terminale è un raccordo, non un'apparecchiatura. Il muro separa la sala compressori dalle apparecchiature di linea; un raccordo non è un'apparecchiatura da separare, come non è una riga di tabella.
+3. Coerente con `ordinaCatenaTrattamento` e `pozzoCondense`, che il tipo `utenze` già lo ignorano.
+
+**Non si cambia `gruppo` in `nodoUtenze()`**: `LINEA_DISTRIBUZIONE` resta corretto (le utenze stanno davvero a valle) e cambiarlo sposterebbe il problema dentro ogni altra funzione che filtra per gruppo, invece di risolverlo dove sta — dentro `calcolaMuro`, che escude i nodi `utenze` dai due gruppi che confronta.
+
+Test che discriminano l'implementazione sbagliata (una che non disegnasse mai il muro passerebbe il primo ma non il secondo), in coda a `describe('layoutSchema', ...)` in `layout.test.ts`: un impianto di solo compressore+serbatoio in sala col terminale in linea non ha muro; lo stesso impianto con anche un essiccatore vero in linea il muro lo ha ancora.
+
+Rosso prima (`.superpowers/sdd/2026-08-12-schema-impianto-utenze-legenda/task-5-muro-red.txt`): 2 falliti — il test preesistente che regrediva e quello nuovo «non ha muro», entrambi `expected {...} to be null`. Poi in `calcolaMuro`, `inSala`/`inLinea` escludono `n.tipo !== 'utenze'`. Verde dopo (`task-5-muro-green.txt`): 16/16.
+
 - [ ] **Step 4: Vedere i test passare**
 
 Run: `npx vitest run src/services/schemaImpianto/__tests__/layout.test.ts`
-Expected: **il piano diceva PASS, ma non è così**: 13 verdi su 14, con **1 test preesistente che regredisce**, `layoutSchema > non disegna il muro quando tutte le apparecchiature stanno in sala compressori` (`expected { x: 520, yMin: 55, yMax: 425 } to be null`). Non è un effetto della posizione scelta per il terminale (spostarlo non lo risolverebbe): la causa è che `posizionatiUtenze` entra comunque nell'array `nodi` passato a `calcolaMuro`, e il nodo `utenze` porta `gruppo: 'LINEA_DISTRIBUZIONE'` fissato in `nodoUtenze()` (Task 4) — quindi da questo task in poi `calcolaMuro` trova sempre un nodo «in linea» ogni volta che la linea termina in un'utenza, anche quando nessun'altra apparecchiatura vi si trova. È una decisione di design che il Task 5 (solo posizionamento) non può prendere da sé: se il terminale debba contare come «in linea distribuzione» ai fini del muro (fisicamente le utenze sono sempre fuori sala) o se `calcolaMuro`/`nodoUtenze` debbano ignorarlo. I 3 test nuovi di questo task passano tutti; i restanti 10 test già del file restano verdi.
+Expected: **PASS**, 16/16 (i 3 test del terminale dello Step 1, i 2 del muro dello Step 3bis, e i preesistenti — incluso quello sul muro in sala compressori, che con lo Step 3bis torna verde senza bisogno di modificarlo).
 
 Run: `npx tsc --noEmit` → nessun errore.
 
