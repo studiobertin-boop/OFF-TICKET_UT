@@ -25,9 +25,14 @@ import '@xyflow/react/dist/style.css'
 import {
   Box,
   Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   IconButton,
   Stack,
+  TextField,
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
@@ -151,6 +156,12 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
   const { stato, applica, aggiornaSenzaCronologia, annulla, puoAnnullare } = storia
   const [selezione, setSelezione] = useState<{ nodes: Node[]; edges: Edge[] }>({ nodes: [], edges: [] })
   const [anteprimaAperta, setAnteprimaAperta] = useState(true)
+
+  // Rinomina del terminale utenze. Solo di quello: le etichette delle apparecchiature vengono
+  // dalla scheda dati e la riconciliazione le riscrive alla riapertura (è la regola che tiene
+  // la §2.3 aggiornata quando si corregge marca o modello), quindi permettere di cambiarle qui
+  // sarebbe una modifica che si perde in silenzio.
+  const [rinomina, setRinomina] = useState<{ id: string; valore: string } | null>(null)
 
   // La tela di react-flow è un'approssimazione: mostra nodi e archi, non muro, uscita verso
   // le utenze, nota e tabella, e instrada le linee a modo suo. L'anteprima qui accanto è
@@ -429,6 +440,30 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
     onConferma(flowALayout(stato.nodes, stato.edges))
   }, [onConferma, stato.edges, stato.nodes])
 
+  const onNodeDoubleClick = useCallback((_: React.MouseEvent, nodo: Node) => {
+    const dati = (nodo.data as SchemaNodeData).nodo
+    if (dati.tipo !== 'utenze') return
+    setRinomina({ id: nodo.id, valore: dati.etichetta })
+  }, [])
+
+  const confermaRinomina = useCallback(() => {
+    if (!rinomina) return
+    const { id, valore } = rinomina
+    const etichetta = valore.trim()
+    setRinomina(null)
+    if (!etichetta) return
+    // Passa da `applica`, non da `aggiornaSenzaCronologia`: è un gesto come lo spostamento, e
+    // un solo Ctrl+Z deve annullarlo.
+    applica((s) => ({
+      ...s,
+      nodes: s.nodes.map((n) =>
+        n.id === id
+          ? { ...n, data: { nodo: { ...(n.data as SchemaNodeData).nodo, etichetta } } satisfies SchemaNodeData }
+          : n
+      ),
+    }))
+  }, [applica, rinomina])
+
   return (
     <Stack sx={{ height: '100%' }}>
       <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ p: 1 }}>
@@ -535,6 +570,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
           onConnect={onConnect}
           onReconnect={onReconnect}
           onEdgeDoubleClick={creaGomito}
+          onNodeDoubleClick={onNodeDoubleClick}
           onNodeDrag={onNodeDrag}
           onNodeDragStop={onNodeDragStop}
           isValidConnection={isValidConnection}
@@ -600,6 +636,33 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
           Conferma schema
         </Button>
       </Stack>
+
+      <Dialog open={rinomina !== null} onClose={() => setRinomina(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Scritta del terminale</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            fullWidth
+            margin="dense"
+            label="Testo"
+            helperText="Per esempio «Utenze aria», «Utenze azoto»."
+            value={rinomina?.valore ?? ''}
+            onChange={(e) => setRinomina((r) => (r ? { ...r, valore: e.target.value } : r))}
+            onKeyDown={(e) => {
+              // Il dialog vive dentro l'editor, che ascolta le frecce e Ctrl+Z sull'intera
+              // finestra: senza fermarli qui, scrivere nel campo sposterebbe il nodo selezionato.
+              e.stopPropagation()
+              if (e.key === 'Enter') confermaRinomina()
+            }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRinomina(null)}>Lascia com'è</Button>
+          <Button variant="contained" onClick={confermaRinomina}>
+            Cambia scritta
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   )
 }
