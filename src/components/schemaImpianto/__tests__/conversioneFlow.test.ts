@@ -37,6 +37,7 @@ function layoutDiProva(): SchemaLayout {
         a: { nodo: 'F1', ancora: 'sx' },
         stile: 'flessibile',
         punti: [{ x: 300, y: 260 }],
+        segni: [{ id: 'v1', tipo: 'valvola_intercettazione', t: 0.5 }],
       },
     ],
     muro: null,
@@ -91,5 +92,22 @@ describe('layoutAFlow / flowALayout', () => {
     expect(s1.orientamento).toBe('VERTICALE')
     expect(s1.origine).toBe('scheda')
     expect((nodes[0].data as SchemaNodeData).nodo.id).toBe('S1')
+  })
+
+  it('l’andata e ritorno conserva anche i segni sulla tubazione', () => {
+    const layout = layoutDiProva()
+    const { nodes, edges } = layoutAFlow(layout)
+    const tornato = flowALayout(nodes, edges)
+
+    expect(tornato.archi[0].segni).toEqual(layout.archi[0].segni)
+  })
+
+  it('un arco senza segni torna senza segni, non con un array vuoto inventato', () => {
+    const layout = layoutDiProva()
+    delete layout.archi[0].segni
+    const { nodes, edges } = layoutAFlow(layout)
+    const tornato = flowALayout(nodes, edges)
+
+    expect(tornato.archi[0].segni).toBeUndefined()
   })
 })

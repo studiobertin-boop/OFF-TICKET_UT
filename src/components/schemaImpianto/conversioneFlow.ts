@@ -29,7 +29,7 @@ export function layoutAFlow(layout: SchemaLayout): { nodes: Node[]; edges: Edge[
     sourceHandle: arco.da.ancora,
     targetHandle: arco.a.ancora,
     type: TIPO_ARCO_FLOW,
-    data: { stile: arco.stile, punti: arco.punti } satisfies SchemaEdgeData,
+    data: { stile: arco.stile, punti: arco.punti, segni: arco.segni } satisfies SchemaEdgeData,
   }))
 
   return { nodes, edges }
@@ -54,6 +54,7 @@ export function flowALayout(nodes: Node[], edges: Edge[]): SchemaLayout {
       a: { nodo: e.target, ancora: e.targetHandle ?? '' },
       stile: ((e.data as SchemaEdgeData | undefined)?.stile ?? 'standard') as SchemaArcoStile,
       punti: (e.data as SchemaEdgeData | undefined)?.punti,
+      segni: (e.data as SchemaEdgeData | undefined)?.segni,
     })),
     muro: calcolaMuro(nodi),
   }

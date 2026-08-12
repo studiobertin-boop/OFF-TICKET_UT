@@ -10,12 +10,14 @@
 import { useCallback, useRef } from 'react'
 import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, useReactFlow, type EdgeProps } from '@xyflow/react'
 import { ondula } from '@/services/schemaImpianto/tratti'
-import type { SchemaArcoStile } from '@/services/schemaImpianto/types'
+import type { SchemaArcoStile, SchemaSegnoTubo } from '@/services/schemaImpianto/types'
 
 export interface SchemaEdgeData extends Record<string, unknown> {
   stile: SchemaArcoStile
   /** Gomiti imposti a mano, in coordinate assolute: disegnano la polilinea imposta. */
   punti?: { x: number; y: number }[]
+  /** Valvole di intercettazione e riduttori di pressione posati sul tratto. */
+  segni?: SchemaSegnoTubo[]
   /**
    * Legate a questo arco specifico da `useGomiti` (vedi `edgesConGomiti` lì dentro): il
    * componente dell'arco non conosce la cronologia, sa solo chiedere di aggiornarla.
