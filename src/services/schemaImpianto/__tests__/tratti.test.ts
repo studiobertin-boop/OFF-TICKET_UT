@@ -139,6 +139,27 @@ describe('ondula', () => {
     expect(comandi.slice(0, -1).every(([, cy]) => Math.abs(cy) === AMPIEZZA_ONDA)).toBe(true)
   })
 
+  // PASSO_ONDA e AMPIEZZA_ONDA valgono entrambi 5, quindi nessuna misura può distinguerli
+  // finché i valori restano uguali: scambiarli nel codice oggi non cambierebbe un solo carattere
+  // del tracciato. Queste asserzioni legano ciascuna costante al proprio ruolo — lo scostamento
+  // perpendicolare ad AMPIEZZA_ONDA, il passo lungo l'asse a PASSO_ONDA — così lo scambio viene
+  // scoperto non appena i due valori divergono. La lunghezza è un multiplo esatto del passo,
+  // altrimenti la ridistribuzione lo accorcerebbe e i conti tornerebbero solo per caso.
+  it('scosta i controlli di AMPIEZZA_ONDA e li fa arrivare ogni PASSO_ONDA', () => {
+    const semiperiodi = 4
+    const comandi = comandiQ(ondula([{ x: 0, y: 0 }, { x: PASSO_ONDA * semiperiodi, y: 0 }]))
+
+    expect(comandi).toHaveLength(semiperiodi)
+    comandi.forEach(([cx, cy, ex], k) => {
+      // Lungo l'asse: il controllo sta a metà semiperiodo, l'arrivo alla sua fine.
+      expect(cx).toBe(PASSO_ONDA * (k + 0.5))
+      expect(ex).toBe(PASSO_ONDA * (k + 1))
+      // In perpendicolare: l'ampiezza piena, tranne l'ultimo semiperiodo che va in asse perché
+      // la punta di freccia si orienta lì sopra (vedi il test sulla tangente finale).
+      expect(Math.abs(cy)).toBe(k === semiperiodi - 1 ? 0 : AMPIEZZA_ONDA)
+    })
+  })
+
   it('salta i tratti di lunghezza nulla senza produrre NaN', () => {
     const d = ondula([
       { x: 10, y: 10 },
