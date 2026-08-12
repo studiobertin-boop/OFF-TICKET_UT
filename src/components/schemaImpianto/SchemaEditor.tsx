@@ -4,7 +4,7 @@
  * valvole aggiuntive, quali tratti sono flessibili o linee condense, e la sistemazione fine
  * del layout. Per i casi fuori portata resta l'upload del disegno AutoCAD.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Background,
   Controls,
@@ -156,14 +156,27 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
   }, [anteprimaAperta, noteTubazioni, stato.edges, stato.nodes])
 
+  // Se il trascinamento in corso ha già registrato in cronologia lo stato da cui è partito:
+  // senza, l'evento conclusivo (`dragging: false`) sarebbe quello che chiama `applica`, ma a
+  // quel punto gli eventi intermedi (molti al secondo, ognuno un render) hanno già portato
+  // `stato` — e quindi ciò che `applica` legge come "precedente" — alla posizione pressoché
+  // finale: la cronologia registrerebbe come "prima del gesto" uno stato che è già il suo
+  // risultato, e Ctrl+Z non riporterebbe mai al punto di partenza (per un trascinamento
+  // rapido, a nessun effetto visibile). Vedi giro di riparazione 1, causa B.
+  const trascinamentoNodoAvviato = useRef(false)
+
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      // Un trascinamento produce molti eventi: solo quello conclusivo entra in cronologia,
-      // altrimenti un singolo spostamento consumerebbe tutti i livelli di annullamento.
-      const concludeUnGesto = changes.some(
-        (c) => (c.type === 'position' && c.dragging === false) || c.type === 'remove'
-      )
-      const aggiorna = concludeUnGesto ? applica : aggiornaSenzaCronologia
+      const haEventoDiPosizione = changes.some((c) => c.type === 'position')
+      const finisceOra = changes.some((c) => (c.type === 'position' && c.dragging === false) || c.type === 'remove')
+      // Il PRIMO evento di posizione di un gesto entra in cronologia — non l'ultimo — perché
+      // solo lì `stato` è ancora quello di partenza, non uno già spostato dagli eventi
+      // intermedi. Un gesto brevissimo (un solo evento, già con dragging:false) è comunque il
+      // "primo" e finisce in cronologia correttamente. `remove` è sempre un gesto a sé.
+      const primoEventoDelGesto = haEventoDiPosizione && !trascinamentoNodoAvviato.current
+      if (haEventoDiPosizione) trascinamentoNodoAvviato.current = !finisceOra
+      const registraInCronologia = primoEventoDelGesto || changes.some((c) => c.type === 'remove')
+      const aggiorna = registraInCronologia ? applica : aggiornaSenzaCronologia
       aggiorna((s) => ({ ...s, nodes: applyNodeChanges(changes, s.nodes) }))
     },
     [applica, aggiornaSenzaCronologia]
@@ -338,9 +351,13 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
         ...s,
         nodes: s.nodes.map((n) => {
           if (!selezionati.has(n.id)) return n
+          // `n.position`, non `(n.data as SchemaNodeData).nodo.x/y`: un trascinamento col
+          // mouse (o, prima della correzione di questo giro, la mossa da tastiera nativa
+          // di react-flow) aggiorna solo `position` via `applyNodeChanges`, mai la copia in
+          // `data.nodo` — leggere da lì avrebbe sommato il passo a un valore superato.
           const nodo = (n.data as SchemaNodeData).nodo
-          const x = nodo.x + dx
-          const y = nodo.y + dy
+          const x = n.position.x + dx
+          const y = n.position.y + dy
           return { ...n, position: { x, y }, data: { nodo: { ...nodo, x, y } } }
         }),
       }))
@@ -489,6 +506,12 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
           onSelectionChange={setSelezione}
           onlyRenderVisibleElements
           fitView
+          // react-flow ha una propria gestione delle frecce da tastiera sul nodo selezionato
+          // (accessibilità): senza disattivarla, ogni pressione muove il nodo anche per
+          // conto suo (di un passo pari a snapGrid) e lo mette a fuoco nel DOM al click,
+          // in concorrenza con la nostra — due spostamenti e due voci di cronologia per un
+          // solo tocco. Vedi giro di riparazione 1, causa A.
+          disableKeyboardA11y
           // Lo schema è un disegno tecnico: si trascina sulla griglia del CAD, non a piacere.
           // gap=10 sulla griglia visibile: stesso passo di snapGrid, altrimenti il disegno
           // mostrerebbe un reticolo diverso da quello a cui i nodi si agganciano davvero.

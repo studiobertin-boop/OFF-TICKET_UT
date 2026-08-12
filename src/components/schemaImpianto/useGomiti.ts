@@ -5,7 +5,7 @@
  * che fare con lo stato del disegno, e tenerla qui evita di far crescere ulteriormente
  * SchemaEditor.tsx — già segnalato come file da non gonfiare senza motivo.
  */
-import { useCallback, useMemo, type MouseEvent as ReactMouseEvent } from 'react'
+import { useCallback, useMemo, useRef, type MouseEvent as ReactMouseEvent } from 'react'
 import { useReactFlow, type Edge, type Node } from '@xyflow/react'
 import { ancoraDi } from '@/services/schemaImpianto/symbols'
 import type { SchemaNodoTipo } from '@/services/schemaImpianto/types'
@@ -116,13 +116,19 @@ export function useGomiti<T extends StatoConNodiEdArchi>(
     [applica, screenToFlowPosition, stato.nodes]
   )
 
-  // Trascinamento della maniglia: solo il rilascio finale entra in cronologia, come per lo
-  // spostamento di un nodo (vedi `onNodesChange` in SchemaEditor.tsx). Un trascinamento che
-  // consumasse un livello di annullamento per ogni evento di movimento renderebbe Ctrl+Z
-  // inutile dopo un solo gesto.
+  // Trascinamento della maniglia: il PRIMO evento del gesto entra in cronologia, non
+  // l'ultimo — come per lo spostamento di un nodo (vedi `onNodesChange` in
+  // SchemaEditor.tsx, stesso difetto misurato e corretto nel giro di riparazione 1, causa
+  // B/C). Registrare l'ultimo (il rilascio) leggerebbe uno stato ormai già spostato dagli
+  // eventi intermedi (`concluso:false`, uno per ogni movimento del mouse durante il
+  // trascinamento): Ctrl+Z non tornerebbe mai al punto di partenza.
+  const trascinamentoGomitoAvviato = useRef(false)
+
   const spostaGomito = useCallback(
     (arcoId: string, indice: number, posizione: { x: number; y: number }, concluso: boolean) => {
-      const aggiorna = concluso ? applica : aggiornaSenzaCronologia
+      const primoEventoDelGesto = !trascinamentoGomitoAvviato.current
+      trascinamentoGomitoAvviato.current = !concluso
+      const aggiorna = primoEventoDelGesto ? applica : aggiornaSenzaCronologia
       aggiorna((s) => ({
         ...s,
         edges: s.edges.map((e) => {

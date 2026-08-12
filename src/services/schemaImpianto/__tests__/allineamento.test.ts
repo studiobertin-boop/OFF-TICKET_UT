@@ -104,4 +104,17 @@ describe('guideDiAllineamento', () => {
     const verticali = guide.filter((g) => g.orientamento === 'verticale' && g.quota === 100)
     expect(verticali).toHaveLength(1)
   })
+
+  // Fissano il valore esatto della tolleranza (5px): senza questi due, un'implementazione
+  // con una tolleranza qualunque (anche molto più larga) passerebbe comunque tutti gli
+  // altri casi, che usano scarti di 0, 2 o 500px.
+  it('segnala ancora un allineamento al limite della tolleranza (scarto di 5px)', () => {
+    const guide = guideDiAllineamento(nodo('A', 100, 0), [nodo('B', 105, 400)])
+    expect(guide).toContainEqual({ orientamento: 'verticale', quota: 105 })
+  })
+
+  it('non segnala più un allineamento appena oltre la tolleranza (scarto di 6px)', () => {
+    const guide = guideDiAllineamento(nodo('A', 100, 0), [nodo('B', 106, 400)])
+    expect(guide.some((g) => g.orientamento === 'verticale')).toBe(false)
+  })
 })
