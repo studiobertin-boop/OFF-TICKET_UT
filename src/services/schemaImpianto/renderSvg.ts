@@ -242,7 +242,7 @@ export function righeLista(layout: SchemaLayout): RigaTabella[] {
   for (const nodo of layout.nodi) {
     // Il terminale utenze è un raccordo, non un'apparecchiatura: non ha codice né marca, e in
     // tabella occuperebbe una riga che non dice nulla. La legenda spiegherà i simboli, non lui.
-    if (nodo.tipo === 'utenze') continue
+    if (nodo.tipo === 'utenze' || nodo.tipo === 'giunzione') continue
     righe.push({ sinistra: { codice: nodo.id }, descrizione: nodo.etichetta })
     if (nodo.accessorio) {
       righe.push({ sinistra: { codice: nodo.accessorio.codice }, descrizione: nodo.accessorio.etichetta })

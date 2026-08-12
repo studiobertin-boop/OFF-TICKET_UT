@@ -113,6 +113,32 @@ describe('renderSvg', () => {
     expect(righeLista(layout).map((r) => (r.sinistra as { codice: string }).codice)).not.toContain('UTENZE')
   })
 
+  it('la giunzione non compare fra le apparecchiature in lista', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ ha_disoleatore: false })],
+      disoleatori: [],
+      serbatoi: [makeSerbatoio()],
+      essiccatori: [],
+      scambiatori: [],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const layout = layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } }))
+    layout.nodi.push({
+      id: 'M-G1',
+      tipo: 'giunzione',
+      etichetta: 'Giunzione',
+      gruppo: 'LINEA_DISTRIBUZIONE',
+      valvoleSicurezza: [],
+      origine: 'manuale',
+      x: 500,
+      y: 300,
+    })
+
+    const codici = righeLista(layout).map((r) => (r.sinistra as { codice: string }).codice)
+    expect(codici).not.toContain('M-G1')
+  })
+
   it('la tubazione che arriva al terminale non porta una seconda punta di freccia, le altre sì', () => {
     const scheda = makeScheda({
       compressori: [makeCompressore({ ha_disoleatore: false })],
