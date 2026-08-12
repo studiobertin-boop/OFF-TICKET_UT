@@ -13,7 +13,7 @@
  * disegna i simboli, quindi il registro (`REGISTRO_SIMBOLI`) è la fonte unica e `layout.ts`
  * si limita a riesportare `DIMENSIONI_NODO` per i consumatori esistenti.
  */
-import type { SchemaNodoTipo, SchemaNodoPosizionato, SchemaAncora, ChiaveSimbolo } from '../types'
+import type { SchemaNodoTipo, SchemaNodo, SchemaAncora, ChiaveSimbolo } from '../types'
 import { chiaveSimbolo } from '../types'
 
 export const TRATTO = 2
@@ -106,7 +106,7 @@ export function valvolaScarico(x: number, y: number): string {
  * centrata; quando c'è il disoleatore la girante slitta a destra per fargli posto, il codice
  * passa a destra e a sinistra compaiono la valvola di sicurezza e il riquadro del disoleatore.
  */
-export function simboloCompressore(nodo: SchemaNodoPosizionato): string {
+export function simboloCompressore(nodo: SchemaNodo): string {
   const { larghezza, altezza } = DIMENSIONI.compressore
   const corpo = `<rect x="0" y="0" width="${larghezza}" height="${altezza}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
   const raggio = 36
@@ -147,7 +147,7 @@ export function simboloCompressore(nodo: SchemaNodoPosizionato): string {
 }
 
 /** Serbatoio: capsula verticale od orizzontale, con valvole di sicurezza sopra e scarico sotto. */
-export function simboloSerbatoio(nodo: SchemaNodoPosizionato): string {
+export function simboloSerbatoio(nodo: SchemaNodo): string {
   const { larghezza, altezza } = DIMENSIONI.serbatoio
   const orizzontale = nodo.orientamento === 'ORIZZONTALE'
 
@@ -192,7 +192,7 @@ export function simboloSerbatoio(nodo: SchemaNodoPosizionato): string {
  * si innestano le tubazioni.
  */
 function simboloRombo(
-  nodo: SchemaNodoPosizionato,
+  nodo: SchemaNodo,
   segno: 'verticale' | 'orizzontale',
   conScarico: boolean
 ): string {
@@ -241,16 +241,16 @@ function simboloRombo(
   return rombo + attacchi + interno + etichettaCodice + accessorio + scarico
 }
 
-export function simboloEssiccatore(nodo: SchemaNodoPosizionato): string {
+export function simboloEssiccatore(nodo: SchemaNodo): string {
   return simboloRombo(nodo, 'orizzontale', true)
 }
 
-export function simboloFiltro(nodo: SchemaNodoPosizionato): string {
+export function simboloFiltro(nodo: SchemaNodo): string {
   return simboloRombo(nodo, 'verticale', true)
 }
 
 /** Il separatore scarica da un codolo nudo, senza valvola: così nel blocco di riferimento. */
-export function simboloSeparatore(nodo: SchemaNodoPosizionato): string {
+export function simboloSeparatore(nodo: SchemaNodo): string {
   const { larghezza, altezza } = DIMENSIONI.separatore
   const cx = larghezza / 2
   const cy = altezza / 2 - 6
@@ -259,7 +259,7 @@ export function simboloSeparatore(nodo: SchemaNodoPosizionato): string {
 }
 
 /** Tanica raccolta condense: riquadro chiuso col solo codice dentro. */
-export function simboloTanica(nodo: SchemaNodoPosizionato): string {
+export function simboloTanica(nodo: SchemaNodo): string {
   const { larghezza, altezza } = DIMENSIONI.tanica
   const x = 6
   const y = 6
@@ -272,7 +272,7 @@ export function simboloTanica(nodo: SchemaNodoPosizionato): string {
 }
 
 /** Pacco bombole: quattro bombole a fondo piatto e cielo arrotondato, col codice sopra il telaio. */
-export function simboloPaccoBombole(nodo: SchemaNodoPosizionato): string {
+export function simboloPaccoBombole(nodo: SchemaNodo): string {
   const { larghezza, altezza } = DIMENSIONI.pacco_bombole
   const bombole = 4
   const yTelaio = 22
@@ -304,7 +304,7 @@ export function simboloPaccoBombole(nodo: SchemaNodoPosizionato): string {
 export interface DefinizioneSimbolo {
   dimensioni: { larghezza: number; altezza: number }
   ancore: SchemaAncora[]
-  disegna: (nodo: SchemaNodoPosizionato) => string
+  disegna: (nodo: SchemaNodo) => string
 }
 
 /** Ancore condivise da essiccatore e filtro, che hanno la stessa geometria e sono solo stadi della linea aria. */
@@ -403,7 +403,7 @@ export const DIMENSIONI_NODO: Record<SchemaNodoTipo, { larghezza: number; altezz
 }
 
 /** Frammento SVG del nodo in coordinate locali (senza traslazione). */
-export function simboloDi(nodo: SchemaNodoPosizionato): string {
+export function simboloDi(nodo: SchemaNodo): string {
   return definizioneDi(nodo).disegna(nodo)
 }
 

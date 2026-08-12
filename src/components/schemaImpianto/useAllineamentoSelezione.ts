@@ -29,12 +29,8 @@ export function useAllineamentoSelezione<T extends StatoConNodi>(
       const selezionati = new Set(selezione.nodes.map((n) => n.id))
       if (selezionati.size < 2) return
       applica((s) => {
-        // `n.position`, non `(n.data as SchemaNodeData).nodo.x/y`: `position` è l'unica
-        // coordinata viva mentre il nodo vive nell'editor — `applyNodeChanges` (trascinamento,
-        // frecce) aggiorna solo quella, mai la copia in `data.nodo` — ed è anche l'unica che
-        // `flowALayout` guarda alla conferma (sovrascrive `data.nodo.x/y` con `position`,
-        // scartandoli). Leggere `data.nodo` qui avrebbe riportato indietro l'asse non toccato
-        // dall'allineamento a un valore precedente a un eventuale trascinamento.
+        // `data.nodo` non porta più le coordinate: `position` è l'unica fonte, e resta l'unica
+        // cosa da riscrivere quando l'allineamento sposta un nodo.
         const nodi = s.nodes
           .filter((n) => selezionati.has(n.id))
           .map((n) => ({ ...(n.data as SchemaNodeData).nodo, x: n.position.x, y: n.position.y }))
@@ -43,7 +39,7 @@ export function useAllineamentoSelezione<T extends StatoConNodi>(
           ...s,
           nodes: s.nodes.map((n) => {
             const nuovo = spostati.get(n.id)
-            return nuovo ? { ...n, position: { x: nuovo.x, y: nuovo.y }, data: { nodo: nuovo } } : n
+            return nuovo ? { ...n, position: { x: nuovo.x, y: nuovo.y } } : n
           }),
         }
       })
@@ -66,7 +62,7 @@ export function useAllineamentoSelezione<T extends StatoConNodi>(
           ...s,
           nodes: s.nodes.map((n) => {
             const nuovo = spostati.get(n.id)
-            return nuovo ? { ...n, position: { x: nuovo.x, y: nuovo.y }, data: { nodo: nuovo } } : n
+            return nuovo ? { ...n, position: { x: nuovo.x, y: nuovo.y } } : n
           }),
         }
       })

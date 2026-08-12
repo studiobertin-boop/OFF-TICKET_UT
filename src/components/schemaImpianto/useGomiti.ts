@@ -91,8 +91,7 @@ export function useGomiti<T extends StatoConNodiEdArchi>(
       const nodoPartenza = stato.nodes.find((n) => n.id === arco.source)
       const nodoArrivo = stato.nodes.find((n) => n.id === arco.target)
       if (!nodoPartenza || !nodoArrivo) return
-      // La posizione conta più di quella salvata in data.nodo.x/y: un nodo appena
-      // trascinato aggiorna solo `position`, non la copia nel modello.
+      // Le coordinate vivono solo in `position`: `data.nodo` non le ha più (vedi SchemaNodeData).
       const datiPartenza = { ...(nodoPartenza.data as SchemaNodeData).nodo, ...nodoPartenza.position }
       const datiArrivo = { ...(nodoArrivo.data as SchemaNodeData).nodo, ...nodoArrivo.position }
       const partenza = posizioneAncora(datiPartenza, arco.sourceHandle ?? '')

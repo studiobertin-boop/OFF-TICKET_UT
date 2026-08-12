@@ -4,10 +4,16 @@
  */
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { definizioneDi, simboloDi } from '@/services/schemaImpianto/symbols'
-import type { SchemaAncora, SchemaNodoPosizionato } from '@/services/schemaImpianto/types'
+import type { SchemaAncora, SchemaNodo } from '@/services/schemaImpianto/types'
 
 export interface SchemaNodeData extends Record<string, unknown> {
-  nodo: SchemaNodoPosizionato
+  /**
+   * Il nodo SENZA posizione: nell'editor l'unica coordinata viva è `Node.position`, che
+   * `applyNodeChanges` aggiorna a ogni trascinamento e che `flowALayout` legge alla conferma.
+   * Una seconda copia qui dentro divergerebbe al primo gesto — è la causa dei difetti di
+   * frecce, allineamento e distribuzione del blocco «fondamenta».
+   */
+  nodo: SchemaNodo
 }
 
 const ANCORA = { width: 10, height: 10, background: '#1976d2', border: 'none' }

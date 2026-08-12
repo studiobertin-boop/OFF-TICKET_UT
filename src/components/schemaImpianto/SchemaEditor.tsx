@@ -286,7 +286,6 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
           // Un'apparecchiatura presa dalla palette è una scelta deliberata dell'utente, non
           // qualcosa che la riconciliazione con la scheda deve poter cancellare.
           origine: 'manuale' as const,
-          ...posizione,
         }
         return {
           ...s,
@@ -391,14 +390,10 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
         ...s,
         nodes: s.nodes.map((n) => {
           if (!selezionati.has(n.id)) return n
-          // `n.position`, non `(n.data as SchemaNodeData).nodo.x/y`: un trascinamento col
-          // mouse (o, prima della correzione di questo giro, la mossa da tastiera nativa
-          // di react-flow) aggiorna solo `position` via `applyNodeChanges`, mai la copia in
-          // `data.nodo` — leggere da lì avrebbe sommato il passo a un valore superato.
-          const nodo = (n.data as SchemaNodeData).nodo
+          // Le coordinate vivono solo in position.
           const x = n.position.x + dx
           const y = n.position.y + dy
-          return { ...n, position: { x, y }, data: { nodo: { ...nodo, x, y } } }
+          return { ...n, position: { x, y } }
         }),
       }))
     },

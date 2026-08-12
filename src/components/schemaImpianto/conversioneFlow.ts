@@ -13,10 +13,10 @@ export const TIPO_NODO_FLOW = 'simbolo'
 export const TIPO_ARCO_FLOW = 'tubazione'
 
 export function layoutAFlow(layout: SchemaLayout): { nodes: Node[]; edges: Edge[] } {
-  const nodes: Node[] = layout.nodi.map((nodo) => ({
+  const nodes: Node[] = layout.nodi.map(({ x, y, ...nodo }) => ({
     id: nodo.id,
     type: TIPO_NODO_FLOW,
-    position: { x: nodo.x, y: nodo.y },
+    position: { x, y },
     data: { nodo } satisfies SchemaNodeData,
   }))
 
@@ -41,8 +41,8 @@ export function layoutAFlow(layout: SchemaLayout): { nodes: Node[]; edges: Edge[
  * altrimenti resterebbe ancorato a dov'era prima che l'utente spostasse le apparecchiature.
  */
 export function flowALayout(nodes: Node[], edges: Edge[]): SchemaLayout {
-  const nodi = nodes.map((n) => ({
-    ...((n.data as SchemaNodeData).nodo satisfies SchemaNodoPosizionato),
+  const nodi: SchemaNodoPosizionato[] = nodes.map((n) => ({
+    ...(n.data as SchemaNodeData).nodo,
     x: n.position.x,
     y: n.position.y,
   }))

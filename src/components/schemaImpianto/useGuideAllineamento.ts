@@ -11,8 +11,8 @@ import { guideDiAllineamento, type Guida } from '@/services/schemaImpianto/allin
 import type { SchemaNodoPosizionato } from '@/services/schemaImpianto/types'
 import type { SchemaNodeData } from './SchemaNodeSymbol'
 
-/** `position` (aggiornata a ogni evento di drag) prevale su `data.nodo.x/y`, che durante
- * un trascinamento in corso resta quella dell'ultimo stato commesso in cronologia. */
+/** `data.nodo` non porta coordinate (vedi SchemaNodeData): `position`, aggiornata a ogni
+ * evento di drag, è l'unica fonte da cui ricostruire il nodo posizionato. */
 function posizionato(n: Node): SchemaNodoPosizionato {
   return { ...(n.data as SchemaNodeData).nodo, x: n.position.x, y: n.position.y }
 }
