@@ -2081,7 +2081,34 @@ Fra le prop di `<ReactFlow>`, accanto a `onEdgeDoubleClick`:
 Subito prima della `</Stack>` che chiude il componente (dopo lo `Stack` dei pulsanti Annulla/Conferma):
 
 ```tsx
-      <Dialog open={rinomina !== null} onClose={() => setRinomina(null)} maxWidth="xs" fullWidth>
+      <Dialog
+        open={rinomina !== null}
+        onClose={() => setRinomina(null)}
+        maxWidth="xs"
+        fullWidth
+        // I tasti si fermano qui, sul dialog, e non sul solo campo di testo. Lo stopPropagation
+        // è indispensabile — l'editor ascolta frecce e Ctrl+Z sull'intera finestra, e senza di
+        // esso scrivere nel campo sposterebbe il nodo selezionato — ma sul campo protegge il
+        // campo, non il dialog: bastava un Tab per portare il fuoco su un pulsante, e da lì
+        // frecce e Ctrl+Z risalivano al listener su `window` spostando il nodo selezionato o
+        // annullando una modifica *mentre il dialog è aperto*.
+        //
+        // Esc va gestito esplicitamente e non lasciato a MUI: la chiusura da tastiera del Modal
+        // è un `onKeyDown` sul suo root (node_modules/@mui/material/Modal/useModal.js), quindi
+        // dentro l'albero React, dove lo stopPropagation qui sotto arriva.
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            e.stopPropagation()
+            setRinomina(null)
+            return
+          }
+          e.stopPropagation()
+          // Invio conferma solo dal campo di testo. Sui pulsanti l'Invio è già un click: farlo
+          // valere anche qui applicherebbe la rinomina pure a chi ha il fuoco su «Lascia com'è».
+          const daCampoDiTesto = (e.target as HTMLElement).tagName === 'INPUT'
+          if (e.key === 'Enter' && daCampoDiTesto && scrittaValida) confermaRinomina()
+        }}
+      >
         <DialogTitle>Scritta del terminale</DialogTitle>
         <DialogContent>
           <TextField
@@ -2092,29 +2119,18 @@ Subito prima della `</Stack>` che chiude il componente (dopo lo `Stack` dei puls
             helperText="Per esempio «Utenze aria», «Utenze azoto»."
             value={rinomina?.valore ?? ''}
             onChange={(e) => setRinomina((r) => (r ? { ...r, valore: e.target.value } : r))}
-            onKeyDown={(e) => {
-              // Esc chiude il campo senza cambiare nulla: va gestito qui, perché lo
-              // stopPropagation qui sotto (indispensabile: l'editor ascolta frecce e Ctrl+Z
-              // sull'intera finestra) ferma l'evento anche dentro l'albero React, quindi
-              // lasciato a MUI il Dialog non lo vedrebbe mai e resterebbe aperto.
-              if (e.key === 'Escape') {
-                e.stopPropagation()
-                setRinomina(null)
-                return
-              }
-              e.stopPropagation()
-              if (e.key === 'Enter') confermaRinomina()
-            }}
           />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setRinomina(null)}>Lascia com'è</Button>
-          <Button variant="contained" onClick={confermaRinomina}>
+          <Button variant="contained" onClick={confermaRinomina} disabled={!scrittaValida}>
             Cambia scritta
           </Button>
         </DialogActions>
       </Dialog>
 ```
+
+`scrittaValida` è `Boolean(rinomina?.valore.trim())`, calcolato accanto a `confermaRinomina`: una scritta vuota va rifiutata **prima**, disabilitando il pulsante, altrimenti chi svuota il campo e preme «Cambia scritta» crede di aver tolto la scritta mentre il gesto viene scartato in silenzio.
 
 Il pulsante di rinuncia si chiama «Lascia com'è» e non «Annulla»: nel dialog ci sono già un «Annulla» dell'editor e un «Annulla» del dialog esterno, e un terzo li renderebbe indistinguibili.
 
