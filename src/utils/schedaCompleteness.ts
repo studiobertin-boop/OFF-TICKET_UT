@@ -138,9 +138,9 @@ export const completezzaRiga = (def: EquipmentTypeDef, riga: unknown): Completez
 
   q.campo('Marca', campo('marca'))
   q.campo('Modello', campo('modello'))
-  if (def.pressioneField) q.campo('PS', campo(def.pressioneField))
+  if (def.pressioneField && !def.pressioneTsOpzionali) q.campo('PS', campo(def.pressioneField))
   if (def.capacitaField) q.campo('Capacità', campo(def.capacitaField))
-  if (def.ts) q.campo('TS', campo('ts'))
+  if (def.ts && !def.pressioneTsOpzionali) q.campo('TS', campo('ts'))
   if (def.cat === 'edit') q.campo('Cat. PED', campo('categoria_ped'))
   q.campo('Anno', campo('anno'))
   q.campo('N° fabbrica', campo('n_fabbrica'))

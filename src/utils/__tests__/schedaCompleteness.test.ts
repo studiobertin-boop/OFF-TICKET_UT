@@ -26,6 +26,18 @@ describe('completezzaRiga — il denominatore lo detta il tipo', () => {
     expect(percentuale(c)).toBe(100)
   })
 
+  it('non conta PS e TS sui filtri neppure quando sono compilati: sono opzionali', () => {
+    const vuoto = completezzaRiga(EQUIPMENT_DEFS.filtro, { ...targhetta })
+    const compilato = completezzaRiga(EQUIPMENT_DEFS.filtro, {
+      ...targhetta,
+      ps_pressione_max: 11,
+      ts: '150',
+    })
+    expect(compilato.previsti).toBe(vuoto.previsti)
+    expect(compilato.mancanti).not.toContain('PS')
+    expect(compilato.mancanti).not.toContain('TS')
+  })
+
   it('non conta TS e categoria sui compressori', () => {
     const c = completezzaRiga(EQUIPMENT_DEFS.compressore, {
       ...targhetta,
