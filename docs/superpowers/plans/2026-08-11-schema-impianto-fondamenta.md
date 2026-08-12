@@ -1287,6 +1287,7 @@ git commit -m "feat(schema-impianto): gli attacchi dell'editor vengono dal regis
 **Files:**
 - Modify: `src/components/schemaImpianto/SchemaEdgeTubazione.tsx`
 - Modify: `src/components/schemaImpianto/SchemaEditor.tsx`
+- Create: `src/components/schemaImpianto/useGomiti.ts` — geometria (segmento più vicino a un clic) e le tre callback dei gomiti, isolate dall'editor perché `SchemaEditor.tsx` era già segnalato come file da non far crescere senza motivo (419 righe prima del task).
 
 **Interfaces:**
 - Consumes: `SchemaArco.punti` (Task 4), `SchemaEdgeData.punti` (Task 11)

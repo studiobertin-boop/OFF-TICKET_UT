@@ -2,7 +2,7 @@
  * Collegamento dell'editor. I tre stili corrispondono alle convenzioni del CAD:
  * rigida continua, flessibile ondulata, condense tratteggiata.
  */
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, useReactFlow, type EdgeProps } from '@xyflow/react'
 import type { SchemaArcoStile } from '@/services/schemaImpianto/types'
 
@@ -42,11 +42,16 @@ interface SchemaGomitoProps {
  */
 function SchemaGomito({ indice, punto, onSposta, onRimuovi }: SchemaGomitoProps) {
   const { screenToFlowPosition } = useReactFlow()
+  // Un doppio clic è nativamente due cicli pointerdown/pointerup prima del dblclick: senza
+  // questo, ognuno dei due varrebbe come uno spostamento (anche a vuoto) e togliere un
+  // gomito scriverebbe tre voci di cronologia invece di una sola.
+  const mossoRef = useRef(false)
 
   const suPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    // Ferma qui il gesto: senza, il pointerdown sulla maniglia arriverebbe anche alla
-    // tubazione sottostante e diventerebbe un trascinamento dell'arco o un pan della tela.
+    // Ferma qui il gesto lato React: senza, il pointerdown sulla maniglia arriverebbe
+    // anche alla tubazione sottostante e diventerebbe un trascinamento dell'arco.
     e.stopPropagation()
+    mossoRef.current = false
     e.currentTarget.setPointerCapture(e.pointerId)
   }, [])
 
@@ -54,6 +59,7 @@ function SchemaGomito({ indice, punto, onSposta, onRimuovi }: SchemaGomitoProps)
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
       e.stopPropagation()
+      mossoRef.current = true
       onSposta?.(indice, screenToFlowPosition({ x: e.clientX, y: e.clientY }), false)
     },
     [indice, onSposta, screenToFlowPosition]
@@ -64,7 +70,12 @@ function SchemaGomito({ indice, punto, onSposta, onRimuovi }: SchemaGomitoProps)
       if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
       e.stopPropagation()
       e.currentTarget.releasePointerCapture(e.pointerId)
-      onSposta?.(indice, screenToFlowPosition({ x: e.clientX, y: e.clientY }), true)
+      // Nessun movimento (es. i due click di un doppio clic sulla maniglia): niente da
+      // spostare, e soprattutto niente da scrivere in cronologia per un gesto che non ha
+      // cambiato nulla.
+      if (mossoRef.current) {
+        onSposta?.(indice, screenToFlowPosition({ x: e.clientX, y: e.clientY }), true)
+      }
     },
     [indice, onSposta, screenToFlowPosition]
   )
@@ -82,6 +93,12 @@ function SchemaGomito({ indice, punto, onSposta, onRimuovi }: SchemaGomitoProps)
 
   return (
     <div
+      // La classe `nopan` è la convenzione di react-flow per escludere un elemento dal pan
+      // della tela: senza, il pointerdown sulla maniglia avvia *anche* il pan della tela
+      // (il suo listener è nativo, sulla pane, e parte prima che il nostro stopPropagation
+      // di React possa fermarlo). Il pan sposta il riferimento che screenToFlowPosition usa
+      // mentre siamo a metà trascinamento, e il gomito rilasciato torna dov'era.
+      className="nopan"
       onPointerDown={suPointerDown}
       onPointerMove={suPointerMove}
       onPointerUp={suPointerUp}
