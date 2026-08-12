@@ -43,7 +43,6 @@ interface Esito {
   sottoLimite: boolean
   ridotti: string[]
   scartati: { etichetta: string; motivo: string }[]
-  pagineSeparate: string[]
   mancanti: RuoloDocumento[]
 }
 
@@ -483,7 +482,6 @@ export const FascicoloSection = ({ contesto, nomeFile, requestId, codice, movime
           {esito.mancanti.length > 0 && ` Mancano: ${esito.mancanti.map((r) => etichettaRuolo(r, contesto)).join('; ')}.`}
           {esito.ridotti.length > 0 && ` Ridotti per rientrare nel peso: ${esito.ridotti.join(', ')}.`}
           {esito.scartati.length > 0 && ` Non leggibili: ${esito.scartati.map((s) => s.etichetta).join(', ')}.`}
-          {esito.pagineSeparate.length > 0 && ` Pagine doppie separate: ${esito.pagineSeparate.join(', ')}.`}
         </Alert>
       )}
 
