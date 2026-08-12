@@ -397,7 +397,10 @@ describe('simbolo «Alle utenze»', () => {
     expect(svg).toContain('stroke-dasharray="10 7"')
     // La punta è un triangolo pieno, non un marker: nell'editor il simbolo vive in un <svg>
     // suo, dove i <defs> di renderSvg non esistono e un marker-end non verrebbe disegnato.
-    expect(svg).toContain('fill="#000"')
+    // Il path completo (non il solo `fill="#000"`, che compare già sul <text> della scritta e
+    // quindi non discriminerebbe un'implementazione priva del triangolo) prova che il
+    // triangolo esiste davvero, con la geometria attesa.
+    expect(svg).toContain('<path d="M 6 27 L 12 14 L 18 27 Z" fill="#000" />')
     expect(svg).not.toContain('marker-end')
   })
 
