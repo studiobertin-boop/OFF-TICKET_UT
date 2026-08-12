@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { ondula, PASSO_ONDA } from '../tratti'
+import { ondula, AMPIEZZA_ONDA, PASSO_ONDA } from '../tratti'
 
 /** Coppie (x,y) di tutti i punti d'arrivo dei comandi Q, nell'ordine. */
 function arriviQ(d: string): [number, number][] {
@@ -7,6 +7,31 @@ function arriviQ(d: string): [number, number][] {
     Number(m[1]),
     Number(m[2]),
   ])
+}
+
+/** Ogni comando Q come [controlloX, controlloY, arrivoX, arrivoY], nell'ordine. */
+function comandiQ(d: string): [number, number, number, number][] {
+  return [...d.matchAll(/Q ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+)/g)].map((m) => [
+    Number(m[1]),
+    Number(m[2]),
+    Number(m[3]),
+    Number(m[4]),
+  ])
+}
+
+/**
+ * Angolo, in gradi, fra la tangente finale del tracciato e la direzione data. Per una curva
+ * quadratica la tangente in arrivo è `E − C`, ed è su quella che l'attributo `marker-end`
+ * orienta la punta di freccia: se non coincide con l'asse del tubo, la punta arriva storta.
+ */
+function angoloTangenteFinale(d: string, direzione: { x: number; y: number }): number {
+  const comandi = comandiQ(d)
+  const [cx, cy, ex, ey] = comandi[comandi.length - 1]
+  const tangente = { x: ex - cx, y: ey - cy }
+  const coseno =
+    (tangente.x * direzione.x + tangente.y * direzione.y) /
+    (Math.hypot(tangente.x, tangente.y) * Math.hypot(direzione.x, direzione.y))
+  return (Math.acos(Math.min(1, Math.max(-1, coseno))) * 180) / Math.PI
 }
 
 describe('ondula', () => {
@@ -86,6 +111,32 @@ describe('ondula', () => {
     ])
     expect(arriviQ(d)).toHaveLength(1)
     expect(arriviQ(d)[0]).toEqual([1, 0])
+  })
+
+  // La punta di freccia della tubazione la disegna `marker-end`, che si orienta sulla tangente
+  // finale del tracciato. Finché l'ultimo semiperiodo aveva il punto di controllo scostato di
+  // AMPIEZZA_ONDA, quella tangente formava 64° con l'asse del tubo e la punta arrivava ruotata,
+  // ora in su ora in giù secondo la parità del semiperiodo: in ogni disegno consegnato, perché
+  // la mandata compressore→serbatoio è flessibile in ogni impianto.
+  it('entra in asse: la tangente finale punta come il tubo, non di traverso', () => {
+    expect(angoloTangenteFinale(ondula([{ x: 0, y: 0 }, { x: 34, y: 0 }]), { x: 1, y: 0 })).toBeLessThan(1)
+  })
+
+  it('entra in asse anche quando l’ultimo tratto è verticale', () => {
+    const d = ondula([
+      { x: 0, y: 0 },
+      { x: 40, y: 0 },
+      { x: 40, y: 33 },
+    ])
+    expect(angoloTangenteFinale(d, { x: 0, y: 1 })).toBeLessThan(1)
+  })
+
+  it('raddrizza solo l’ultimo semiperiodo: il resto del tubo resta ondulato', () => {
+    const d = ondula([{ x: 0, y: 0 }, { x: 40, y: 0 }])
+    const comandi = comandiQ(d)
+    // Se il raddrizzamento si estendesse a tutto il tratto, il flessibile diventerebbe una
+    // linea retta e la legenda mostrerebbe un campione che il disegno smentisce.
+    expect(comandi.slice(0, -1).every(([, cy]) => Math.abs(cy) === AMPIEZZA_ONDA)).toBe(true)
   })
 
   it('salta i tratti di lunghezza nulla senza produrre NaN', () => {

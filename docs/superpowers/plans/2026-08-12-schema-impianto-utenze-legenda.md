@@ -1429,12 +1429,28 @@ export const AMPIEZZA_ONDA = 5
  * ridistribuisce, perché il tratto deve finire esattamente sull'ancora e non a un'onda di
  * distanza: un tubo che non tocca il bocchello è un errore di disegno visibile.
  *
+ * L'**ultimo semiperiodo dell'ultimo tratto** ha il punto di controllo sull'asse invece che
+ * scostato: `marker-end` orienta la punta di freccia sulla tangente finale della curva (`E − C`),
+ * e con un controllo scostato quella tangente formava 64° con l'asse del tubo — la punta arrivava
+ * ruotata, ora in su ora in giù secondo la parità del semiperiodo, in ogni disegno consegnato.
+ * Siccome i capi di ogni semiperiodo stanno già sull'asse, un controllo sull'asse rende quel
+ * pezzetto rettilineo e la tangente coincide con la direzione del tubo: è anche ciò che si vede
+ * nei blocchi CAD, dove il flessibile entra dritto nel raccordo. Un flessibile talmente corto da
+ * avere un solo semiperiodo diventa rettilineo, ed è invisibile a quella scala.
+ *
  * La polilinea passata resta la verità geometrica del percorso — chi calcola i varchi nel muro
  * continua a lavorare su quella, non su questo tracciato.
  */
 export function ondula(punti: Punto[]): string {
   if (punti.length === 0) return ''
   const parti = [`M ${punti[0].x} ${punti[0].y}`]
+
+  // Ultimo tratto che verrà davvero disegnato: quelli di lunghezza nulla sono saltati, e la
+  // punta di freccia si orienta sull'ultimo Q emesso, non sull'ultima coppia di punti.
+  let ultimoTratto = 0
+  for (let i = 1; i < punti.length; i++) {
+    if (Math.hypot(punti[i].x - punti[i - 1].x, punti[i].y - punti[i - 1].y) !== 0) ultimoTratto = i
+  }
 
   for (let i = 1; i < punti.length; i++) {
     const a = punti[i - 1]
@@ -1460,8 +1476,10 @@ export function ondula(punti: Punto[]): string {
       const inizio = k * passo
       const fine = inizio + passo
       const mezzo = inizio + passo / 2
-      const cx = a.x + ux * mezzo + px * AMPIEZZA_ONDA * verso
-      const cy = a.y + uy * mezzo + py * AMPIEZZA_ONDA * verso
+      // Ampiezza nulla sull'ultimo semiperiodo dell'ultimo tratto: vedi il commento in testa.
+      const ampiezza = i === ultimoTratto && k === mezziPeriodi - 1 ? 0 : AMPIEZZA_ONDA
+      const cx = a.x + ux * mezzo + px * ampiezza * verso
+      const cy = a.y + uy * mezzo + py * ampiezza * verso
       const ex = a.x + ux * fine
       const ey = a.y + uy * fine
       parti.push(`Q ${arrotonda(cx)} ${arrotonda(cy)} ${arrotonda(ex)} ${arrotonda(ey)}`)
