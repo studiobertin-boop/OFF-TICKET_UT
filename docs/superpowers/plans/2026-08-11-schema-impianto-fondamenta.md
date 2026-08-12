@@ -1217,9 +1217,13 @@ function latoDi(ancora: SchemaAncora, dim: { larghezza: number; altezza: number 
 // dentro il componente, prima dell'<svg>:
 {def.ancore.flatMap((ancora) => {
   const stile = { ...ANCORA, left: ancora.x, top: ancora.y, transform: 'translate(-50%, -50%)' }
+  // `target` va dichiarato per primo e `source` per secondo, non il contrario: due handle
+  // sovrapposti senza z-index si contendono il mousedown e vince l'ultimo nel DOM, e in
+  // connectionMode Strict (il default) è quell'ultimo handle ad avviare il trascinamento.
+  // Con `source` per primo il verso del gesto si scambia rispetto a `da`/`a`.
   return [
-    <Handle key={`s-${ancora.id}`} type="source" id={ancora.id} position={latoDi(ancora, def.dimensioni)} style={stile} />,
     <Handle key={`t-${ancora.id}`} type="target" id={ancora.id} position={latoDi(ancora, def.dimensioni)} style={stile} />,
+    <Handle key={`s-${ancora.id}`} type="source" id={ancora.id} position={latoDi(ancora, def.dimensioni)} style={stile} />,
   ]
 })}
 ```

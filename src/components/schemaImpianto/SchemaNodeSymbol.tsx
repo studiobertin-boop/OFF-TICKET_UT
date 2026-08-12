@@ -40,9 +40,15 @@ export function SchemaNodeSymbol({ data, selected }: NodeProps) {
         // non è l'handle ma `isValidConnection` in SchemaEditor, via `capoValido`.
         const stile = { ...ANCORA, left: ancora.x, top: ancora.y, transform: 'translate(-50%, -50%)' }
         const lato = latoDi(ancora, def.dimensioni)
+        // L'ordine qui non è indifferente: due handle sovrapposti senza z-index si
+        // contendono il mousedown, e vince l'ultimo nel DOM. In connectionMode Strict
+        // (il default, non sovrascritto) il trascinamento parte quindi dall'handle
+        // dichiarato per secondo e atterra sull'altro tipo sul nodo di arrivo — se
+        // `source` fosse primo, ogni tubazione tracciata a mano nascerebbe con `da`/`a`
+        // scambiati rispetto al gesto reale. `target` va dichiarato per primo apposta.
         return [
-          <Handle key={`s-${ancora.id}`} type="source" id={ancora.id} position={lato} style={stile} />,
           <Handle key={`t-${ancora.id}`} type="target" id={ancora.id} position={lato} style={stile} />,
+          <Handle key={`s-${ancora.id}`} type="source" id={ancora.id} position={lato} style={stile} />,
         ]
       })}
       <svg
