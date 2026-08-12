@@ -7,21 +7,10 @@ import type { Edge, Node } from '@xyflow/react'
 import { calcolaMuro } from '@/services/schemaImpianto/layout'
 import type { SchemaArcoStile, SchemaLayout, SchemaNodoPosizionato } from '@/services/schemaImpianto/types'
 import type { SchemaEdgeData } from './SchemaEdgeTubazione'
-import { ATTACCO, type SchemaNodeData } from './SchemaNodeSymbol'
+import type { SchemaNodeData } from './SchemaNodeSymbol'
 
 export const TIPO_NODO_FLOW = 'simbolo'
 export const TIPO_ARCO_FLOW = 'tubazione'
-
-/**
- * Attacchi di partenza e arrivo per stile di tubazione, scelti perché l'editor mostri le
- * stesse rotte del disegno finale: la mandata di un compressore sale al collettore, la
- * linea condense scende alla corsia bassa, la linea di trattamento corre in orizzontale.
- */
-export function attacchiPerStile(stile: SchemaArcoStile): { source: string; target: string } {
-  if (stile === 'flessibile') return { source: ATTACCO.altoUscita, target: ATTACCO.sinistra }
-  if (stile === 'condensa') return { source: ATTACCO.bassoUscita, target: ATTACCO.altoIngresso }
-  return { source: ATTACCO.destra, target: ATTACCO.sinistra }
-}
 
 export function layoutAFlow(layout: SchemaLayout): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = layout.nodi.map((nodo) => ({
@@ -31,18 +20,17 @@ export function layoutAFlow(layout: SchemaLayout): { nodes: Node[]; edges: Edge[
     data: { nodo } satisfies SchemaNodeData,
   }))
 
-  const edges: Edge[] = layout.archi.map((arco) => {
-    const attacchi = attacchiPerStile(arco.stile)
-    return {
-      id: arco.id,
-      source: arco.da.nodo,
-      target: arco.a.nodo,
-      sourceHandle: attacchi.source,
-      targetHandle: attacchi.target,
-      type: TIPO_ARCO_FLOW,
-      data: { stile: arco.stile } satisfies SchemaEdgeData,
-    }
-  })
+  // Da e a sono ora ancore vere del registro simboli, non attacchi dedotti dallo stile: gli
+  // identificativi degli handle di SchemaNodeSymbol coincidono con quelli delle ancore.
+  const edges: Edge[] = layout.archi.map((arco) => ({
+    id: arco.id,
+    source: arco.da.nodo,
+    target: arco.a.nodo,
+    sourceHandle: arco.da.ancora,
+    targetHandle: arco.a.ancora,
+    type: TIPO_ARCO_FLOW,
+    data: { stile: arco.stile, punti: arco.punti } satisfies SchemaEdgeData,
+  }))
 
   return { nodes, edges }
 }
@@ -65,6 +53,7 @@ export function flowALayout(nodes: Node[], edges: Edge[]): SchemaLayout {
       da: { nodo: e.source, ancora: e.sourceHandle ?? '' },
       a: { nodo: e.target, ancora: e.targetHandle ?? '' },
       stile: ((e.data as SchemaEdgeData | undefined)?.stile ?? 'standard') as SchemaArcoStile,
+      punti: (e.data as SchemaEdgeData | undefined)?.punti,
     })),
     muro: calcolaMuro(nodi),
   }

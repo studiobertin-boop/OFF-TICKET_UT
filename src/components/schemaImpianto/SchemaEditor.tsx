@@ -28,12 +28,14 @@ import {
   Add as AddIcon,
   Visibility as AnteprimaIcon,
 } from '@mui/icons-material'
+import toast from 'react-hot-toast'
+import { capoValido } from '@/services/schemaImpianto/agganci'
 import { DIMENSIONI_NODO } from '@/services/schemaImpianto/layout'
 import { renderSvg } from '@/services/schemaImpianto/renderSvg'
 import type { SchemaArcoStile, SchemaLayout, SchemaNodoTipo } from '@/services/schemaImpianto/types'
 import { SchemaEdgeTubazione, type SchemaEdgeData } from './SchemaEdgeTubazione'
 import { SchemaNodeSymbol, type SchemaNodeData } from './SchemaNodeSymbol'
-import { TIPO_ARCO_FLOW, TIPO_NODO_FLOW, attacchiPerStile, flowALayout, layoutAFlow } from './conversioneFlow'
+import { TIPO_ARCO_FLOW, TIPO_NODO_FLOW, flowALayout, layoutAFlow } from './conversioneFlow'
 import { useSchemaHistory } from './useSchemaHistory'
 
 const tipiNodo = { [TIPO_NODO_FLOW]: SchemaNodeSymbol }
@@ -54,6 +56,13 @@ const STILI: { valore: SchemaArcoStile; etichetta: string }[] = [
   { valore: 'flessibile', etichetta: 'Flessibile' },
   { valore: 'condensa', etichetta: 'Condense' },
 ]
+
+/** Nome da mettere nel toast di rifiuto: la stessa dizione usata per le tubazioni nel disegno. */
+const NOME_STILE: Record<SchemaArcoStile, string> = {
+  standard: 'una tubazione rigida',
+  flessibile: 'una tubazione flessibile',
+  condensa: 'una linea condense',
+}
 
 interface StatoEditor {
   nodes: Node[]
@@ -124,6 +133,24 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
     [applica, aggiornaSenzaCronologia]
   )
 
+  // Rifiuta la connessione mentre la si sta ancora trascinando, non dopo: un capo posato su
+  // un'ancora che non lo accetta non deve nemmeno agganciarsi. Una tubazione nuova nasce
+  // rigida, ed è lo stile con cui `onConnect` la crea.
+  const isValidConnection = useCallback(
+    (c: Connection | Edge) => {
+      const partenza = stato.nodes.find((n) => n.id === c.source)
+      const arrivo = stato.nodes.find((n) => n.id === c.target)
+      if (!partenza || !arrivo) return false
+      const nodoDa = (partenza.data as SchemaNodeData).nodo
+      const nodoA = (arrivo.data as SchemaNodeData).nodo
+      return (
+        capoValido(nodoDa, c.sourceHandle ?? '', 'standard') &&
+        capoValido(nodoA, c.targetHandle ?? '', 'standard')
+      )
+    },
+    [stato.nodes]
+  )
+
   const onConnect = useCallback(
     (connessione: Connection) => {
       applica((s) => ({
@@ -190,25 +217,39 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
     (stile: SchemaArcoStile) => {
       const selezionati = new Set(selezione.edges.map((e) => e.id))
       if (selezionati.size === 0) return
-      const attacchi = attacchiPerStile(stile)
+
+      // Gli attacchi non si spostano più col cambio di stile: sono le ancore vere su cui
+      // l'utente ha tracciato la tubazione. Cambiare stile ha senso solo se quelle ancore
+      // accettano il nuovo fluido — altrimenti si rifiuta tutta la selezione in blocco, un
+      // solo toast, e nessuna tubazione cambia: un esito misto (alcune sì, altre no)
+      // lascerebbe una selezione mista dietro a un click solo, più difficile da capire.
+      const rifiutata = stato.edges.find((e) => {
+        if (!selezionati.has(e.id)) return false
+        const partenza = stato.nodes.find((n) => n.id === e.source)
+        const arrivo = stato.nodes.find((n) => n.id === e.target)
+        if (!partenza || !arrivo) return true
+        const nodoDa = (partenza.data as SchemaNodeData).nodo
+        const nodoA = (arrivo.data as SchemaNodeData).nodo
+        return !(
+          capoValido(nodoDa, e.sourceHandle ?? '', stile) && capoValido(nodoA, e.targetHandle ?? '', stile)
+        )
+      })
+
+      if (rifiutata) {
+        toast.error(
+          `Questa tubazione non può diventare ${NOME_STILE[stile]}: gli attacchi a cui è collegata non la accettano.`
+        )
+        return
+      }
+
       applica((s) => ({
         ...s,
         edges: s.edges.map((e) =>
-          selezionati.has(e.id)
-            ? {
-                ...e,
-                // Gli attacchi seguono lo stile: una linea condense parte dal basso, una
-                // mandata di compressore sale. Cambiare solo il tratteggio lascerebbe il
-                // percorso di prima, che per il nuovo stile è quello sbagliato.
-                sourceHandle: attacchi.source,
-                targetHandle: attacchi.target,
-                data: { ...e.data, stile } satisfies SchemaEdgeData,
-              }
-            : e
+          selezionati.has(e.id) ? { ...e, data: { ...e.data, stile } satisfies SchemaEdgeData } : e
         ),
       }))
     },
-    [applica, selezione.edges]
+    [applica, selezione.edges, stato.edges, stato.nodes]
   )
 
   const eliminaSelezione = useCallback(() => {
@@ -318,6 +359,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onReconnect={onReconnect}
+          isValidConnection={isValidConnection}
           onSelectionChange={setSelezione}
           onlyRenderVisibleElements
           fitView

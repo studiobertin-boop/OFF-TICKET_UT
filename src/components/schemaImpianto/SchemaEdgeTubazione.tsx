@@ -7,6 +7,11 @@ import type { SchemaArcoStile } from '@/services/schemaImpianto/types'
 
 export interface SchemaEdgeData extends Record<string, unknown> {
   stile: SchemaArcoStile
+  /**
+   * Gomiti imposti a mano, in coordinate assolute: solo trasportati fra modello e
+   * react-flow qui, non ancora disegnati (arriva con l'editing del percorso).
+   */
+  punti?: { x: number; y: number }[]
 }
 
 /**

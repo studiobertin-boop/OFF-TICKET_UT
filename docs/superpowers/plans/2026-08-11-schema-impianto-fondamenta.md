@@ -1189,6 +1189,7 @@ git commit -m "feat(schema-impianto): allineamento e distribuzione della selezio
 - Modify: `src/components/schemaImpianto/SchemaNodeSymbol.tsx`
 - Modify: `src/components/schemaImpianto/conversioneFlow.ts`
 - Modify: `src/components/schemaImpianto/SchemaEditor.tsx`
+- Modify: `src/components/schemaImpianto/SchemaEdgeTubazione.tsx` — `SchemaEdgeData` è definita qui, non nei tre file sopra: aggiungerle il campo `punti` tocca questo file.
 
 **Interfaces:**
 - Consumes: `definizioneDi` (Task 2), `capoValido` (Task 3), `SchemaCapo` (Task 4)

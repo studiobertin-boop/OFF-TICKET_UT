@@ -3,9 +3,8 @@
  * vede mentre si corregge è ciò che finirà in relazione.
  */
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { DIMENSIONI_NODO } from '@/services/schemaImpianto/layout'
-import { simboloDi } from '@/services/schemaImpianto/symbols'
-import type { SchemaNodoPosizionato } from '@/services/schemaImpianto/types'
+import { definizioneDi, simboloDi } from '@/services/schemaImpianto/symbols'
+import type { SchemaAncora, SchemaNodoPosizionato } from '@/services/schemaImpianto/types'
 
 export interface SchemaNodeData extends Record<string, unknown> {
   nodo: SchemaNodoPosizionato
@@ -14,31 +13,42 @@ export interface SchemaNodeData extends Record<string, unknown> {
 const ANCORA = { width: 10, height: 10, background: '#1976d2', border: 'none' }
 
 /**
- * Identificativi degli attacchi. Servono espliciti perché il verso di partenza cambia il
- * senso del disegno: la mandata di un compressore sale al collettore, la linea condense
- * scende alla corsia bassa — le stesse rotte che poi traccia il render statico.
+ * Lato react-flow a cui appoggiare l'handle: quello del riquadro d'ingombro più vicino
+ * all'ancora. È solo resa grafica — l'aggancio vero, cioè cosa può collegarsi dove, lo
+ * decide `capoValido` dal registro simboli, non questa posizione.
  */
-export const ATTACCO = {
-  sinistra: 'sx',
-  destra: 'dx',
-  altoIngresso: 'alto-in',
-  altoUscita: 'alto-out',
-  bassoUscita: 'basso-out',
-} as const
+function latoDi(ancora: SchemaAncora, dim: { larghezza: number; altezza: number }): Position {
+  const distanze = [
+    { lato: Position.Left, d: ancora.x },
+    { lato: Position.Right, d: dim.larghezza - ancora.x },
+    { lato: Position.Top, d: ancora.y },
+    { lato: Position.Bottom, d: dim.altezza - ancora.y },
+  ]
+  return distanze.reduce((a, b) => (a.d <= b.d ? a : b)).lato
+}
 
 export function SchemaNodeSymbol({ data, selected }: NodeProps) {
   const { nodo } = data as SchemaNodeData
-  const dim = DIMENSIONI_NODO[nodo.tipo]
+  const def = definizioneDi(nodo)
+  const { larghezza, altezza } = def.dimensioni
 
   return (
-    <div style={{ position: 'relative', width: dim.larghezza, height: dim.altezza }}>
-      <Handle type="target" position={Position.Left} id={ATTACCO.sinistra} style={ANCORA} />
-      <Handle type="target" position={Position.Top} id={ATTACCO.altoIngresso} style={ANCORA} />
-      <Handle type="source" position={Position.Top} id={ATTACCO.altoUscita} style={ANCORA} />
+    <div style={{ position: 'relative', width: larghezza, height: altezza }}>
+      {def.ancore.flatMap((ancora) => {
+        // Ogni ancora ospita sia source sia target, sovrapposti: una tubazione può
+        // partire o arrivare dallo stesso punto. Chi decide se il collegamento è legale
+        // non è l'handle ma `isValidConnection` in SchemaEditor, via `capoValido`.
+        const stile = { ...ANCORA, left: ancora.x, top: ancora.y, transform: 'translate(-50%, -50%)' }
+        const lato = latoDi(ancora, def.dimensioni)
+        return [
+          <Handle key={`s-${ancora.id}`} type="source" id={ancora.id} position={lato} style={stile} />,
+          <Handle key={`t-${ancora.id}`} type="target" id={ancora.id} position={lato} style={stile} />,
+        ]
+      })}
       <svg
-        width={dim.larghezza}
-        height={dim.altezza}
-        viewBox={`0 0 ${dim.larghezza} ${dim.altezza}`}
+        width={larghezza}
+        height={altezza}
+        viewBox={`0 0 ${larghezza} ${altezza}`}
         style={{
           display: 'block',
           background: '#fff',
@@ -48,8 +58,6 @@ export function SchemaNodeSymbol({ data, selected }: NodeProps) {
         // input esterni, e le etichette passano già da escapeXml in symbols/index.ts.
         dangerouslySetInnerHTML={{ __html: simboloDi(nodo) }}
       />
-      <Handle type="source" position={Position.Right} id={ATTACCO.destra} style={ANCORA} />
-      <Handle type="source" position={Position.Bottom} id={ATTACCO.bassoUscita} style={ANCORA} />
     </div>
   )
 }
