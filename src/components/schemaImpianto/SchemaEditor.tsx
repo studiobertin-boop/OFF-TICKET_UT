@@ -310,11 +310,30 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
       // accettano il nuovo fluido — altrimenti si rifiuta tutta la selezione in blocco, un
       // solo toast, e nessuna tubazione cambia: un esito misto (alcune sì, altre no)
       // lascerebbe una selezione mista dietro a un click solo, più difficile da capire.
-      const rifiutata = stato.edges.find((e) => {
+      //
+      // Un capo su un nodo che non esiste più (arco orfano, vedi il difetto di `applica` nel
+      // lotto React) e un attacco che non accetta il nuovo fluido sono due guasti diversi:
+      // il primo si ripara eliminando la tubazione, il secondo scegliendo un altro stile.
+      // Confonderli in un solo messaggio manda l'utente a controllare gli attacchi quando il
+      // problema vero è altrove.
+      const orfana = stato.edges.find((e) => {
         if (!selezionati.has(e.id)) return false
         const partenza = stato.nodes.find((n) => n.id === e.source)
         const arrivo = stato.nodes.find((n) => n.id === e.target)
-        if (!partenza || !arrivo) return true
+        return !partenza || !arrivo
+      })
+
+      if (orfana) {
+        toast.error(
+          'Questa tubazione ha un capo su un’apparecchiatura che non esiste più: eliminala, non serve cambiarne lo stile.'
+        )
+        return
+      }
+
+      const rifiutata = stato.edges.find((e) => {
+        if (!selezionati.has(e.id)) return false
+        const partenza = stato.nodes.find((n) => n.id === e.source)!
+        const arrivo = stato.nodes.find((n) => n.id === e.target)!
         const nodoDa = (partenza.data as SchemaNodeData).nodo
         const nodoA = (arrivo.data as SchemaNodeData).nodo
         return !(
