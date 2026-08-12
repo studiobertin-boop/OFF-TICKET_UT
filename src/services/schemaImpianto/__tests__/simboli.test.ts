@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { chiaveSimbolo } from '../types'
-import { REGISTRO_SIMBOLI, definizioneDi, ancoraDi } from '../symbols'
+import { REGISTRO_SIMBOLI, definizioneDi, ancoraDi, simboloDi } from '../symbols'
+import { capoValido } from '../agganci'
 
 describe('chiaveSimbolo', () => {
   it('distingue le due varianti del serbatoio', () => {
@@ -50,5 +51,43 @@ describe('registro dei simboli', () => {
   it('definizioneDi risolve la variante del nodo', () => {
     expect(definizioneDi({ tipo: 'serbatoio', orientamento: 'ORIZZONTALE' }).dimensioni.larghezza).toBe(150)
     expect(definizioneDi({ tipo: 'tanica' }).dimensioni.larghezza).toBe(80)
+  })
+})
+
+describe('simbolo «Alle utenze»', () => {
+  const utenze = {
+    id: 'UTENZE',
+    tipo: 'utenze' as const,
+    etichetta: 'Utenze aria',
+    gruppo: 'LINEA_DISTRIBUZIONE' as const,
+    valvoleSicurezza: [],
+    origine: 'scheda' as const,
+  }
+
+  it('disegna la scritta che il nodo porta, non una cablata nel codice', () => {
+    expect(simboloDi(utenze)).toContain('>Utenze aria</text>')
+    expect(simboloDi({ ...utenze, etichetta: 'Utenze azoto' })).toContain('>Utenze azoto</text>')
+  })
+
+  it('disegna il codolo tratteggiato e la punta di freccia piena', () => {
+    const svg = simboloDi(utenze)
+    // Tratteggio come le altre linee di servizio del disegno.
+    expect(svg).toContain('stroke-dasharray="10 7"')
+    // La punta è un triangolo pieno, non un marker: nell'editor il simbolo vive in un <svg>
+    // suo, dove i <defs> di renderSvg non esistono e un marker-end non verrebbe disegnato.
+    expect(svg).toContain('fill="#000"')
+    expect(svg).not.toContain('marker-end')
+  })
+
+  it('dichiara una sola ancora, in basso al codolo, che accetta aria', () => {
+    const def = definizioneDi(utenze)
+    expect(def.ancore).toEqual([{ id: 'in', x: 12, y: 120, accetta: ['aria'] }])
+    expect(def.dimensioni).toEqual({ larghezza: 190, altezza: 120 })
+  })
+
+  it('l’ancora accetta l’aria e rifiuta la condensa', () => {
+    expect(capoValido(utenze, 'in', 'standard')).toBe(true)
+    expect(capoValido(utenze, 'in', 'flessibile')).toBe(true)
+    expect(capoValido(utenze, 'in', 'condensa')).toBe(false)
   })
 })

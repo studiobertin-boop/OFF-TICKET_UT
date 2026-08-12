@@ -28,6 +28,7 @@ const DIMENSIONI: Record<SchemaNodoTipo, { larghezza: number; altezza: number }>
   separatore: { larghezza: 110, altezza: 110 },
   tanica: { larghezza: 80, altezza: 70 },
   pacco_bombole: { larghezza: 120, altezza: 100 },
+  utenze: { larghezza: 190, altezza: 120 },
 }
 
 /** Testo: `x`/`y` sono il centro, o il capo iniziale/finale se `ancora` lo dice. */
@@ -301,6 +302,27 @@ export function simboloPaccoBombole(nodo: SchemaNodo): string {
   ].join('')
 }
 
+/**
+ * Terminale «Alle utenze»: codolo tratteggiato che sale dall'ancora, punta di freccia e la
+ * scritta accanto. Riproduce la forma del disegno di riferimento del committente
+ * (`DOCUMENTAZIONE/relazione/schema.png`), dove il tratteggio è corto e il tratto prima è
+ * tubazione vera.
+ *
+ * La punta è un triangolo pieno e non un `marker-end`: nell'editor `SchemaNodeSymbol` monta il
+ * simbolo in un `<svg>` suo, senza i `<defs>` che `renderSvg` dichiara, e un marker non
+ * verrebbe disegnato affatto.
+ */
+export function simboloUtenze(nodo: SchemaNodo): string {
+  const { altezza } = DIMENSIONI.utenze
+  const x = 12
+  const yPunta = 14
+  return [
+    `<path d="M ${x} ${altezza} L ${x} ${yPunta + 12}" fill="none" stroke="#000" stroke-width="${TRATTO}" stroke-dasharray="10 7" />`,
+    `<path d="M ${x - 6} ${yPunta + 13} L ${x} ${yPunta} L ${x + 6} ${yPunta + 13} Z" fill="#000" />`,
+    testo(x + 18, yPunta + 6, nodo.etichetta, 18, 'start'),
+  ].join('')
+}
+
 export interface DefinizioneSimbolo {
   dimensioni: { larghezza: number; altezza: number }
   ancore: SchemaAncora[]
@@ -378,6 +400,13 @@ export const REGISTRO_SIMBOLI: Record<ChiaveSimbolo, DefinizioneSimbolo> = {
     ancore: [{ id: 'dx', x: 114, y: 60, accetta: ['aria'] }],
     disegna: simboloPaccoBombole,
   },
+  utenze: {
+    dimensioni: DIMENSIONI.utenze,
+    // Una sola: la linea aria ci arriva e finisce lì. Sta in fondo al codolo, dove il
+    // tratteggio comincia, così la tubazione entrante e il codolo formano un tratto continuo.
+    ancore: [{ id: 'in', x: 12, y: 120, accetta: ['aria'] }],
+    disegna: simboloUtenze,
+  },
 }
 
 export function definizioneDi(nodo: { tipo: SchemaNodoTipo; orientamento?: 'VERTICALE' | 'ORIZZONTALE' }): DefinizioneSimbolo {
@@ -400,6 +429,7 @@ export const DIMENSIONI_NODO: Record<SchemaNodoTipo, { larghezza: number; altezz
   separatore: REGISTRO_SIMBOLI.separatore.dimensioni,
   tanica: REGISTRO_SIMBOLI.tanica.dimensioni,
   pacco_bombole: REGISTRO_SIMBOLI.pacco_bombole.dimensioni,
+  utenze: REGISTRO_SIMBOLI.utenze.dimensioni,
 }
 
 /** Frammento SVG del nodo in coordinate locali (senza traslazione). */

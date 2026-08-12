@@ -25,6 +25,13 @@ export type SchemaNodoTipo =
   | 'separatore'
   | 'tanica'
   | 'pacco_bombole'
+  /**
+   * Terminale della linea aria: non è un'apparecchiatura di scheda, non ha codice e non entra
+   * nella lista. Porta la scritta modificabile («Utenze aria», «Utenze azoto», …) e l'ancora
+   * su cui si innesta la tubazione finale, che prima del 12-08-2026 era una freccia disegnata
+   * d'ufficio da `renderUscitaUtenze` e quindi non toccabile nell'editor.
+   */
+  | 'utenze'
 
 export type SchemaGruppo = 'SALA_COMPRESSORI' | 'LINEA_DISTRIBUZIONE' | 'ALTRO'
 
