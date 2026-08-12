@@ -169,9 +169,12 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
   // La tela di react-flow resta un'approssimazione: mostra nodi e archi — terminale utenze
   // compreso, che dal 12-08-2026 è un nodo come gli altri e si ritocca qui — ma non muro, nota
   // e tabella. Da questo task instrada le linee come il render statico (`polilineaConGomiti`
-  // condivisa, vedi SchemaEdgeTubazione.tsx): non è più un percorso a parte. L'anteprima qui
-  // accanto resta comunque il giudice dell'aspetto — la stessa funzione che produce il PNG del
-  // .docx — perché è lei a disegnare anche ciò che la tela non mostra affatto.
+  // condivisa, vedi SchemaEdgeTubazione.tsx) SOLO per gli archi con gomiti imposti a mano:
+  // senza gomiti — il caso di default — il render statico continua a usare le proprie rotte
+  // native (collettore, spezzata, corsia condense), non replicate qui, quindi la tela resta
+  // un'approssimazione visibile anche per quegli archi. L'anteprima qui accanto resta comunque
+  // il giudice dell'aspetto — la stessa funzione che produce il PNG del .docx — perché è lei a
+  // disegnare anche ciò che la tela non mostra affatto.
   const anteprima = useMemo(() => {
     if (!anteprimaAperta) return null
     const svg = renderSvg(flowALayout(stato.nodes, stato.edges), { noteTubazioni })

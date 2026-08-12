@@ -5,7 +5,7 @@
  * sposta un intero tratto già esistente fra due punti (ancore o gomiti che siano).
  */
 import { useCallback, useMemo, useRef } from 'react'
-import { useReactFlow, type Edge, type Node } from '@xyflow/react'
+import type { Edge, Node } from '@xyflow/react'
 import { trascinaTratto, type Punto } from '@/services/schemaImpianto/tratti'
 import type { SchemaEdgeData } from './SchemaEdgeTubazione'
 
@@ -46,8 +46,6 @@ export function useTrascinamentoTratto<T extends StatoConNodiEdArchi>(
   applica: Aggiorna<T>,
   aggiornaSenzaCronologia: Aggiorna<T>
 ) {
-  const { screenToFlowPosition } = useReactFlow()
-
   // Stesso principio di useGomiti.ts: il PRIMO evento del gesto entra in cronologia.
   const trascinamentoAvviato = useRef(false)
   // Punto di riferimento dell'ultimo evento, per calcolare il delta incrementale del prossimo.
@@ -89,5 +87,5 @@ export function useTrascinamentoTratto<T extends StatoConNodiEdArchi>(
     [stato.edges, trascinaSegmento]
   )
 
-  return { edgesConTrascinamento, screenToFlowPosition }
+  return { edgesConTrascinamento }
 }

@@ -17,7 +17,7 @@ import {
   valvolaScarico,
   TRATTO,
 } from './symbols'
-import { ondula, percorso, raccordoOrtogonale, polilineaConGomiti, puntoSuTratto, type Punto } from './tratti'
+import { ondula, percorso, polilineaConGomiti, puntoSuTratto, type Punto } from './tratti'
 import type { SchemaLayout, SchemaNodoPosizionato, SchemaNodoTipo } from './types'
 
 export type { Punto }
