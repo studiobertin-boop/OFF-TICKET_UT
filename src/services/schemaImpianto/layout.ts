@@ -86,7 +86,7 @@ export function calcolaMuro(nodi: SchemaNodoPosizionato[]): SchemaMuroSeparazion
   // un'apparecchiatura da separare con un muro, è un raccordo (stesso motivo per cui
   // `ordinaCatenaTrattamento` e `pozzoCondense` lo ignorano, e per cui il Task 6 lo esclude da
   // `righeLista`). Un impianto con un solo compressore e un solo serbatoio in sala, senza altro
-  // in linea, non ha muro nel disegno di riferimento del committente pur avendo la freccia
+  // in linea, non ha muro nel disegno di riferimento del committente pur avendo il terminale
   // «Utenze aria»: contarlo qui produrrebbe un muro che quel riferimento smentisce.
   const inSala = nodi.filter((n) => n.gruppo === 'SALA_COMPRESSORI' && n.tipo !== 'utenze')
   const inLinea = nodi.filter((n) => n.gruppo === 'LINEA_DISTRIBUZIONE' && n.tipo !== 'utenze')

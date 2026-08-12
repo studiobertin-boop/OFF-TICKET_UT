@@ -11,7 +11,7 @@ import {
 } from '@/services/relazione/__tests__/fixtures'
 import { buildSchemaModel } from '../buildSchemaModel'
 import { layoutSchema } from '../layout'
-import { renderSvg, righeLista, raccordoOrtogonale } from '../renderSvg'
+import { renderSvg, righeLista, raccordoOrtogonale, posizioneAncora } from '../renderSvg'
 
 function svgMinimo(noteTubazioni?: string[]) {
   const scheda = makeScheda({
@@ -108,7 +108,7 @@ describe('renderSvg', () => {
     expect(righeLista(layout).map((r) => r.codice)).not.toContain('UTENZE')
   })
 
-  it('la tubazione che arriva al terminale non porta una seconda punta di freccia', () => {
+  it('la tubazione che arriva al terminale non porta una seconda punta di freccia, le altre sì', () => {
     const scheda = makeScheda({
       compressori: [makeCompressore({ ha_disoleatore: false })],
       disoleatori: [],
@@ -122,12 +122,26 @@ describe('renderSvg', () => {
       buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
     )
     const svg = renderSvg(layout)
+    const indice = new Map(layout.nodi.map((n) => [n.id, n]))
 
-    // Gli archi con marker sono tutti tranne quello verso il terminale, che ha già la sua
-    // punta disegnata dentro il simbolo: due frecce a 120 unità l'una dall'altra sulla stessa
-    // linea si leggerebbero come due terminali.
-    const conFreccia = svg.match(/marker-end="url\(#freccia\)"/g) ?? []
-    expect(conFreccia).toHaveLength(layout.archi.length - 1)
+    // Un conteggio totale non basta a discriminare: una condizione invertita toglierebbe la
+    // punta all'arco sbagliato e la lascerebbe su quello verso il terminale, ricreando il
+    // difetto (doppia punta) con lo stesso totale di marker. Si guarda quindi, arco per arco,
+    // il path che vi arriva — individuato dal punto dove finisce, non dalla posizione
+    // nell'array — e si verifica che sia proprio e solo quello verso il terminale a mancarne.
+    for (const arco of layout.archi) {
+      const nodoA = indice.get(arco.a.nodo)!
+      const fine = posizioneAncora(nodoA, arco.a.ancora)
+      const path = svg
+        .match(/<path d="[^"]*"[^>]*\/>/g)
+        ?.find((p) => p.includes(`L ${fine.x} ${fine.y}"`))
+      expect(path, `nessun path trovato per l'arco verso ${arco.a.nodo}`).toBeDefined()
+      if (nodoA.tipo === 'utenze') {
+        expect(path).not.toContain('marker-end')
+      } else {
+        expect(path).toContain('marker-end')
+      }
+    }
   })
 
   // La scritta sporgeva oltre il bordo destro: nel PNG finiva tagliata a metà.
