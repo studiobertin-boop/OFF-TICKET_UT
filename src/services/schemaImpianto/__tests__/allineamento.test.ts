@@ -101,8 +101,12 @@ describe('guideDiAllineamento', () => {
 
   it('non ripete la stessa quota per più vicini', () => {
     const guide = guideDiAllineamento(nodo('A', 100, 0), [nodo('B', 100, 300), nodo('C', 100, 600)])
-    const verticali = guide.filter((g) => g.orientamento === 'verticale' && g.quota === 100)
-    expect(verticali).toHaveLength(1)
+    // Bordo sinistro (100), centro (155) e bordo destro (210) di A sono tutti e tre in riga
+    // sia con B sia con C: tre quote distinte attese, non una sola. Filtrare a monte su
+    // `quota === 100` (come faceva questo test) lascerebbe passare anche
+    // un'implementazione che restituisse sempre un solo elemento in assoluto.
+    const verticali = guide.filter((g) => g.orientamento === 'verticale')
+    expect(verticali.map((g) => g.quota).sort((a, b) => a - b)).toEqual([100, 155, 210])
   })
 
   // Fissano il valore esatto della tolleranza (5px): senza questi due, un'implementazione
