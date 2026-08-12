@@ -9,8 +9,9 @@
  */
 import { useCallback, useRef } from 'react'
 import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, useReactFlow, type EdgeProps } from '@xyflow/react'
-import { ondula } from '@/services/schemaImpianto/tratti'
-import type { SchemaArcoStile, SchemaSegnoTubo } from '@/services/schemaImpianto/types'
+import { riduttorePressione, valvolaIntercettazione } from '@/services/schemaImpianto/symbols'
+import { ondula, puntoSuTratto, tSuTratto, type Punto } from '@/services/schemaImpianto/tratti'
+import type { SchemaArcoStile, SchemaSegnoTubo, SchemaSegnoTuboTipo } from '@/services/schemaImpianto/types'
 
 export interface SchemaEdgeData extends Record<string, unknown> {
   stile: SchemaArcoStile
@@ -24,6 +25,12 @@ export interface SchemaEdgeData extends Record<string, unknown> {
    */
   onSpostaGomito?: (indice: number, posizione: { x: number; y: number }, concluso: boolean) => void
   onRimuoviGomito?: (indice: number) => void
+  /**
+   * Legate a questo arco specifico da `useSegniTubo` (vedi `edgesConSegni` lì dentro): il
+   * componente dell'arco non conosce la cronologia, sa solo chiedere di aggiornarla.
+   */
+  onSpostaSegno?: (indice: number, t: number, concluso: boolean) => void
+  onRimuoviSegno?: (indice: number) => void
 }
 
 /**
@@ -126,6 +133,98 @@ function SchemaGomito({ indice, punto, onSposta, onRimuovi }: SchemaGomitoProps)
   )
 }
 
+interface SchemaSegnoProps {
+  indice: number
+  punto: { x: number; y: number }
+  tipo: SchemaSegnoTuboTipo
+  polilinea: Punto[]
+  onSposta?: (indice: number, t: number, concluso: boolean) => void
+  onRimuovi?: (indice: number) => void
+}
+
+/**
+ * Maniglia di un segno (valvola o riduttore): trascinarla cambia `t`, non la posizione
+ * assoluta — proietta il punto del puntatore sulla polilinea con `tSuTratto`, così il segno
+ * resta sempre SUL tubo anche se lo si trascina un po' fuori.
+ *
+ * `EdgeLabelRenderer` monta i suoi figli in un layer HTML separato, non dentro il `<svg>`
+ * della tela: un `<g>` con `dangerouslySetInnerHTML` di un frammento SVG non funzionerebbe
+ * qui dentro. Il contenitore è quindi un `<div>` posizionato con `transform` (come
+ * `SchemaGomito`), con dentro un `<svg>` piccolo che ospita il simbolo: il simbolo è
+ * parametrico su `x`/`y`, quindi si chiama con `(0, 0)` e si trasla il contenitore, non il
+ * simbolo.
+ */
+function SchemaSegno({ indice, punto, tipo, polilinea, onSposta, onRimuovi }: SchemaSegnoProps) {
+  const { screenToFlowPosition } = useReactFlow()
+  const mossoRef = useRef(false)
+
+  const suPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation()
+    mossoRef.current = false
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }, [])
+
+  const suPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
+      e.stopPropagation()
+      mossoRef.current = true
+      const libero = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+      onSposta?.(indice, tSuTratto(polilinea, libero), false)
+    },
+    [indice, onSposta, polilinea, screenToFlowPosition]
+  )
+
+  const suPointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
+      e.stopPropagation()
+      e.currentTarget.releasePointerCapture(e.pointerId)
+      if (mossoRef.current) {
+        const libero = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+        onSposta?.(indice, tSuTratto(polilinea, libero), true)
+      }
+    },
+    [indice, onSposta, polilinea, screenToFlowPosition]
+  )
+
+  const suDoppioClic = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      e.stopPropagation()
+      onRimuovi?.(indice)
+    },
+    [indice, onRimuovi]
+  )
+
+  const disegna = tipo === 'riduttore_pressione' ? riduttorePressione : valvolaIntercettazione
+
+  return (
+    <div
+      className="nopan"
+      onPointerDown={suPointerDown}
+      onPointerMove={suPointerMove}
+      onPointerUp={suPointerUp}
+      onDoubleClick={suDoppioClic}
+      style={{
+        position: 'absolute',
+        transform: `translate(-50%, -50%) translate(${punto.x}px, ${punto.y}px)`,
+        width: 40,
+        height: 40,
+        cursor: 'move',
+        pointerEvents: 'all',
+      }}
+    >
+      <svg
+        width={40}
+        height={40}
+        viewBox="-20 -20 40 40"
+        style={{ overflow: 'visible' }}
+        dangerouslySetInnerHTML={{ __html: disegna(0, 0) }}
+      />
+    </div>
+  )
+}
+
 export function SchemaEdgeTubazione({
   id,
   sourceX,
@@ -201,6 +300,20 @@ export function SchemaEdgeTubazione({
             onRimuovi={edgeData?.onRimuoviGomito}
           />
         ))}
+        {(edgeData?.segni ?? []).map((segno, indice) => {
+          const { punto } = puntoSuTratto(polilinea, segno.t)
+          return (
+            <SchemaSegno
+              key={`${id}-segno-${indice}`}
+              indice={indice}
+              punto={punto}
+              tipo={segno.tipo}
+              polilinea={polilinea}
+              onSposta={edgeData?.onSpostaSegno}
+              onRimuovi={edgeData?.onRimuoviSegno}
+            />
+          )
+        })}
       </EdgeLabelRenderer>
     </>
   )

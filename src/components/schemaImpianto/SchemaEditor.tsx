@@ -64,6 +64,7 @@ import { useAllineamentoSelezione } from './useAllineamentoSelezione'
 import { useGomiti } from './useGomiti'
 import { useGuideAllineamento } from './useGuideAllineamento'
 import { useSchemaHistory } from './useSchemaHistory'
+import { useSegniTubo } from './useSegniTubo'
 
 const tipiNodo = { [TIPO_NODO_FLOW]: SchemaNodeSymbol }
 const tipiArco = { [TIPO_ARCO_FLOW]: SchemaEdgeTubazione }
@@ -212,7 +213,24 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
 
   // Creare, spostare e togliere un gomito: logica isolata in un hook suo (vedi
   // useGomiti.ts) per non far crescere ulteriormente questo file.
-  const { creaGomito, edgesConGomiti } = useGomiti(stato, applica, aggiornaSenzaCronologia)
+  const { creaGomito, edgesConGomiti: edgesConGomitiBase } = useGomiti(stato, applica, aggiornaSenzaCronologia)
+
+  // Aggiungere, spostare e togliere un segno (valvola/riduttore) sulla tubazione: logica
+  // isolata in un hook suo (vedi useSegniTubo.ts), stesso motivo di useGomiti.ts qui sopra.
+  const { aggiungiSegno, edgesConSegni } = useSegniTubo(stato, applica, aggiornaSenzaCronologia)
+
+  // `edgesConGomitiBase` e `edgesConSegni` derivano ENTRAMBI da `stato.edges` con dati
+  // aggiuntivi diversi (l'uno `onSpostaGomito`/`onRimuoviGomito`, l'altro
+  // `onSpostaSegno`/`onRimuoviSegno`): vanno fusi, non passati entrambi a
+  // `<ReactFlow edges={...}>`, o il secondo sovrascriverebbe il primo.
+  const edgesConGomiti = useMemo(
+    () =>
+      edgesConGomitiBase.map((e, i) => ({
+        ...e,
+        data: { ...e.data, ...edgesConSegni[i]?.data } as SchemaEdgeData,
+      })),
+    [edgesConGomitiBase, edgesConSegni]
+  )
 
   // Guide di allineamento durante il trascinamento: stato locale, non cronologia (vedi
   // useGuideAllineamento.ts), azzerate a fine gesto in onNodeDragStop qui sotto.
@@ -509,6 +527,26 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
             </ToggleButton>
           ))}
         </ToggleButtonGroup>
+
+        <Divider orientation="vertical" flexItem />
+
+        <Typography variant="caption" color="text.secondary">
+          Segni:
+        </Typography>
+        <Button
+          size="small"
+          onClick={() => selezione.edges[0] && aggiungiSegno(selezione.edges[0].id, 'valvola_intercettazione')}
+          disabled={selezione.edges.length !== 1}
+        >
+          + Valvola
+        </Button>
+        <Button
+          size="small"
+          onClick={() => selezione.edges[0] && aggiungiSegno(selezione.edges[0].id, 'riduttore_pressione')}
+          disabled={selezione.edges.length !== 1}
+        >
+          + Riduttore
+        </Button>
 
         <Divider orientation="vertical" flexItem />
 
