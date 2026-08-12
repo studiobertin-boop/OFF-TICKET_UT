@@ -245,6 +245,7 @@ export function SchemaEdgeTubazione({
   markerEnd,
 }: EdgeProps) {
   const { screenToFlowPosition } = useReactFlow()
+  const mossoTrattoRef = useRef(false)
   const edgeData = data as SchemaEdgeData | undefined
   const stile = (edgeData?.stile ?? 'standard') as SchemaArcoStile
   const pDa: Punto = { x: sourceX, y: sourceY }
@@ -273,9 +274,11 @@ export function SchemaEdgeTubazione({
       {/*
        * Area di trascinamento del tratto: un tracciato invisibile ma largo (16px), sovrapposto
        * alla polilinea vera, che intercetta il gesto di afferrare-e-scorrere un tratto dritto
-       * (`trascinaTratto`, tratti.ts). Un gomito o un segno sopra fermano la propagazione per
-       * conto proprio (i loro `stopPropagation`), quindi il pointerdown arriva qui solo quando
-       * cade sul tubo nudo.
+       * (`trascinaTratto`, tratti.ts). Un gomito o un segno sopra vincono comunque il gesto
+       * anche senza `stopPropagation`: vivono nel layer HTML portale di `EdgeLabelRenderer`,
+       * dipinto SOPRA il layer SVG di questo tratto, e il browser sceglie l'elemento in cima
+       * allo stack per posizione, prima ancora che React entri in gioco — `stopPropagation`
+       * agisce solo dopo che il target è già stato scelto, qui non è la ragione.
        *
        * Disattivata sul flessibile (`pointerEvents: 'none'`): la sua linea VISIBILE è l'onda
        * (`ondula(polilinea)`), non la polilinea dritta — un'area di hit-test sagomata sulla
@@ -292,11 +295,13 @@ export function SchemaEdgeTubazione({
         style={{ cursor: 'move', pointerEvents: stile === 'flessibile' ? 'none' : 'all' }}
         onPointerDown={(e) => {
           e.stopPropagation()
+          mossoTrattoRef.current = false
           ;(e.currentTarget as SVGPathElement).setPointerCapture(e.pointerId)
         }}
         onPointerMove={(e) => {
           if (!(e.currentTarget as SVGPathElement).hasPointerCapture(e.pointerId)) return
           e.stopPropagation()
+          mossoTrattoRef.current = true
           const libero = screenToFlowPosition({ x: e.clientX, y: e.clientY })
           const indice = indiceTrattoPiuVicino(polilinea, libero)
           edgeData?.onTrascinaTratto?.(pDa, pA, indice, libero, false)
@@ -305,9 +310,11 @@ export function SchemaEdgeTubazione({
           if (!(e.currentTarget as SVGPathElement).hasPointerCapture(e.pointerId)) return
           e.stopPropagation()
           ;(e.currentTarget as SVGPathElement).releasePointerCapture(e.pointerId)
-          const libero = screenToFlowPosition({ x: e.clientX, y: e.clientY })
-          const indice = indiceTrattoPiuVicino(polilinea, libero)
-          edgeData?.onTrascinaTratto?.(pDa, pA, indice, libero, true)
+          if (mossoTrattoRef.current) {
+            const libero = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+            const indice = indiceTrattoPiuVicino(polilinea, libero)
+            edgeData?.onTrascinaTratto?.(pDa, pA, indice, libero, true)
+          }
         }}
       />
       <EdgeLabelRenderer>
