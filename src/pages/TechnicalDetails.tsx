@@ -506,6 +506,13 @@ export const TechnicalDetails = () => {
             }}
             initialAdditionalInfo={technicalData.additional_info as AdditionalInfo | undefined}
             fileName={nomeFileRelazione(codicePratica, customerName)}
+            onAdditionalInfoSaved={(info) =>
+              // Il dialog si chiude da solo al salvataggio: senza questo aggiornamento,
+              // riaprirlo subito dopo rilegge un `initialAdditionalInfo` di prima del
+              // salvataggio (il `useState` qui sotto è popolato una volta sola al mount) e lo
+              // schema d'impianto ritoccato sembrerebbe perso finché non si ricarica la pagina.
+              setTechnicalData((prev) => (prev ? { ...prev, additional_info: info } : prev))
+            }
           />
         )}
 

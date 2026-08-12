@@ -46,7 +46,21 @@ function identitaArco(arco: SchemaArco): string {
   return `${arco.da.nodo}#${arco.da.ancora}->${arco.a.nodo}#${arco.a.ancora}:${arco.stile}`
 }
 
-export function riconcilia(salvato: LayoutSalvato, modello: SchemaModel): EsitoRiconciliazione {
+/**
+ * Da cosa parte l'editor all'apertura: il layout salvato se è ancora leggibile, altrimenti la
+ * proposta automatica. Il controllo di versione sta qui e non nel componente React che chiama
+ * questa funzione, così la strada che il dialog percorre davvero è la stessa che i test coprono.
+ */
+export function layoutIniziale(
+  salvato: LayoutSalvato | null | undefined,
+  modello: SchemaModel
+): EsitoRiconciliazione {
+  const ripristinato = deserializzaLayout(salvato)
+  if (!ripristinato) return { layout: layoutSchema(modello), aggiunti: [], rimossi: [] }
+  return riconcilia(ripristinato, modello)
+}
+
+export function riconcilia(salvato: Pick<SchemaLayout, 'nodi' | 'archi'>, modello: SchemaModel): EsitoRiconciliazione {
   const inScheda = new Set(modello.nodi.map((n) => n.id))
   const salvatiPerId = new Map(salvato.nodi.map((n) => [n.id, n]))
 

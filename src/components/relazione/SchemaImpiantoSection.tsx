@@ -32,7 +32,7 @@ import { layoutSchema } from '@/services/schemaImpianto/layout'
 import { renderSvg } from '@/services/schemaImpianto/renderSvg'
 import { rasterizzaSvg } from '@/services/schemaImpianto/rasterize'
 import type { LayoutSalvato } from '@/services/schemaImpianto/persistenza'
-import { riconcilia } from '@/services/schemaImpianto/persistenza'
+import { layoutIniziale } from '@/services/schemaImpianto/persistenza'
 import type { SchemaLayout } from '@/services/schemaImpianto/types'
 import { SchemaEditor } from '@/components/schemaImpianto/SchemaEditor'
 import { FORMATI_SCHEMA, leggiSchemaImpianto } from './schemaImpiantoFile'
@@ -45,8 +45,16 @@ export interface SchemaImpiantoSectionProps {
   collegamentiCompressoriSerbatoi: Record<string, string[]>
   schema: SchemaImpianto | null
   onSchemaChange: (schema: SchemaImpianto | null) => void
-  /** Layout ritoccato salvato in una sessione precedente, da riconciliare alla prima generazione. */
-  layoutSalvato?: LayoutSalvato
+  /**
+   * Layout ritoccato salvato in una sessione precedente, da riconciliare alla prima
+   * generazione. Tre stati distinti, non due:
+   * - `undefined` — il genitore non ha ancora letto `additional_info`: non si genera e non si
+   *   alza la guardia `generazioneTentata`, altrimenti alla lettura effettiva il valore vero
+   *   arriverebbe a guardia già alzata e verrebbe ignorato.
+   * - `null` — letto, non c'è nessun layout salvato: si genera da zero.
+   * - `LayoutSalvato` — letto, c'è: si riconcilia.
+   */
+  layoutSalvato: LayoutSalvato | null | undefined
   /** Chiamata a ogni `disegna`, così il dialog ha sempre il layout corrente da persistere. */
   onLayoutChange: (layout: SchemaLayout | null) => void
   disabled?: boolean
@@ -119,20 +127,23 @@ export function SchemaImpiantoSection({
   // posizioni ritoccate a mano non vanno perse solo perché il dialog è stato riaperto.
   const generazioneTentata = useRef(false)
   useEffect(() => {
+    // Il genitore non ha ancora letto `additional_info`: aspetta il valore vero prima di
+    // decidere fra auto-layout e riconciliazione, e soprattutto prima di alzare la guardia.
+    // Senza questo controllo, con `RelazioneDataDialog` che resta montato fra un'apertura e
+    // l'altra, questo effetto girerebbe alla nuova apertura con `layoutSalvato` ancora quello
+    // di prima (il genitore lo sincronizza in un effetto suo, che parte dopo) e la guardia si
+    // alzerebbe sul layout vecchio.
+    if (layoutSalvato === undefined) return
     if (generazioneTentata.current || !puoGenerare || schema) return
     generazioneTentata.current = true
     const modello = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi })
-    if (layoutSalvato) {
-      const esito = riconcilia(layoutSalvato, modello)
-      setEsitoRiconciliazione(
-        esito.aggiunti.length > 0 || esito.rimossi.length > 0
-          ? { aggiunti: esito.aggiunti, rimossi: esito.rimossi }
-          : null
-      )
-      void disegna(esito.layout)
-    } else {
-      void disegna(layoutSchema(modello))
-    }
+    const esito = layoutIniziale(layoutSalvato, modello)
+    setEsitoRiconciliazione(
+      esito.aggiunti.length > 0 || esito.rimossi.length > 0
+        ? { aggiunti: esito.aggiunti, rimossi: esito.rimossi }
+        : null
+    )
+    void disegna(esito.layout)
   }, [collegamentiCompressoriSerbatoi, disegna, layoutSalvato, puoGenerare, scheda, schema])
 
   const rigenera = useCallback(() => {

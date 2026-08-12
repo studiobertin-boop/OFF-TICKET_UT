@@ -4,7 +4,7 @@
  *
  * ⚠️ Da verificare nell'app in esecuzione (UI non coperta dai test unitari).
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Dialog,
   DialogTitle,
@@ -72,6 +72,11 @@ interface RelazioneDataDialogProps {
   pratica: PraticaInfo
   initialAdditionalInfo?: AdditionalInfo
   fileName?: string
+  /**
+   * Chiamata appena `additional_info` è scritto: il genitore tiene una copia in stato e senza
+   * questo avviso riaprirebbe il dialog sui dati di prima del salvataggio.
+   */
+  onAdditionalInfoSaved?: (info: AdditionalInfo) => void
 }
 
 export default function RelazioneDataDialog({
@@ -83,6 +88,7 @@ export default function RelazioneDataDialog({
   pratica,
   initialAdditionalInfo,
   fileName,
+  onAdditionalInfoSaved,
 }: RelazioneDataDialogProps) {
   const compressoriCodes = useMemo(
     () => (scheda.compressori ?? []).map((c) => c.codice),
@@ -131,16 +137,36 @@ export default function RelazioneDataDialog({
   const [collegamenti, setCollegamenti] = useState<Record<string, string[]>>({})
   const [schema, setSchema] = useState<SchemaImpianto | null>(null)
   // Layout salvato letto all'apertura, passato a SchemaImpiantoSection perché lo riconcili con
-  // la scheda. Layout corrente aggiornato a ogni `disegna`: è quello che finisce in
-  // additional_info al salvataggio, non quello letto all'apertura.
-  const [layoutSalvato, setLayoutSalvato] = useState<LayoutSalvato | undefined>(undefined)
+  // la scheda. A tre stati (vedi SchemaImpiantoSectionProps.layoutSalvato): `undefined` finché
+  // questo effetto non ha ancora sincronizzato, `null` se ha letto e non c'era nulla di salvato.
+  // Layout corrente aggiornato a ogni `disegna`: è quello che finisce in additional_info al
+  // salvataggio, non quello letto all'apertura.
+  const [layoutSalvato, setLayoutSalvato] = useState<LayoutSalvato | null | undefined>(undefined)
   const [layout, setLayout] = useState<SchemaLayout | null>(null)
   const [saving, setSaving] = useState(false)
   const [droppedRefs, setDroppedRefs] = useState<string[]>([])
 
-  // Sincronizza lo stato all'apertura del dialog
+  // Segna se l'apertura corrente del dialog è già stata sincronizzata. Senza questa guardia
+  // l'effetto sotto ripartirebbe ogni volta che `initialAdditionalInfo` cambia identità mentre
+  // il dialog resta aperto — succede dopo il salvataggio, via `onAdditionalInfoSaved` — e
+  // azzererebbe i campi sotto le mani dell'utente nel bel mezzo della generazione.
+  const sincronizzatoRef = useRef(false)
+
+  // Sincronizza lo stato al passaggio chiuso → aperto del dialog, non a ogni cambiamento dei
+  // valori che legge: la guardia sopra decide quando l'effetto agisce davvero, le dipendenze
+  // restano quelle che l'effetto legge.
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      sincronizzatoRef.current = false
+      // Il dialog resta montato fra un'apertura e l'altra (lo monta TechnicalDetails, non il
+      // Dialog MUI): senza riportarlo a `undefined`, alla riapertura SchemaImpiantoSection lo
+      // troverebbe ancora valorizzato col layout della sessione precedente, per lo spazio fra
+      // il remount e il momento in cui questo stesso effetto lo sincronizza di nuovo.
+      setLayoutSalvato(undefined)
+      return
+    }
+    if (sincronizzatoRef.current) return
+    sincronizzatoRef.current = true
     // Scarta i riferimenti ad apparecchiature non più presenti: la scheda può essere cambiata
     // dopo che questi dati sono stati redatti.
     const { info, dropped } = pruneAdditionalInfo(initialAdditionalInfo, schedaCodes)
@@ -159,9 +185,11 @@ export default function RelazioneDataDialog({
     setDroppedRefs(dropped)
     // Il PNG non è persistito: si rigenera sempre da capo. Il layout invece sopravvive in
     // additional_info; SchemaImpiantoSection lo riconcilia con la scheda appena rigenera.
+    // `null` (non `undefined`) segnala alla sezione che la lettura è avvenuta e non c'è nulla
+    // da riconciliare: `undefined` in quella prop significa "non ancora letto".
     setSchema(null)
     setLayout(null)
-    setLayoutSalvato(info.schemaLayout)
+    setLayoutSalvato(info.schemaLayout ?? null)
   }, [open, initialAdditionalInfo, customer, schedaCodes])
 
   const setGiroFor = (code: string, value: TipoGiri) =>
@@ -230,6 +258,10 @@ export default function RelazioneDataDialog({
     setSaving(true)
     try {
       await technicalDataApi.updateAdditionalInfo(requestId, parsed.data)
+      // Subito dopo la scrittura riuscita, non alla chiusura: se il download del .docx fallisce
+      // più sotto, la riga in banca dati è comunque cambiata e la copia in memoria del genitore
+      // deve saperlo, altrimenti la prossima apertura del dialog rilegge dati vecchi.
+      onAdditionalInfoSaved?.(parsed.data)
       // Il documento è ciò che il tecnico sta aspettando: la scrittura a catalogo dei giri fa
       // una manciata di query per compressore e non deve tenere fermo lo scaricamento, che non ha
       // un timeout lato client. Va quindi dopo, non prima.

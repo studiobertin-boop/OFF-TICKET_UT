@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { makeCompressore, makeDatiImpianto, makeScheda, makeSerbatoio } from '@/services/relazione/__tests__/fixtures'
 import { buildSchemaModel } from '../buildSchemaModel'
 import { layoutSchema } from '../layout'
-import { serializzaLayout, deserializzaLayout, riconcilia } from '../persistenza'
+import { serializzaLayout, deserializzaLayout, riconcilia, layoutIniziale } from '../persistenza'
 
 function modelloDiProva(codiciCompressore: string[]) {
   const scheda = makeScheda({
@@ -118,5 +118,54 @@ describe('riconciliazione con la scheda', () => {
     expect(esito.aggiunti.sort()).toEqual(modello.nodi.map((n) => n.id).sort())
     expect(esito.rimossi).toEqual([])
     expect(esito.layout.nodi).toHaveLength(modello.nodi.length)
+  })
+})
+
+describe('layoutIniziale', () => {
+  it('scarta un salvato di versione sconosciuta e riparte dall’auto-layout, non dalla posizione salvata', () => {
+    // Il punto di questo test è discriminare fra "il controllo di versione c'è" e "non c'è":
+    // una posizione lontanissima da qualsiasi output plausibile di layoutSchema (4000,4000) non
+    // deve sopravvivere quando la versione è sconosciuta.
+    const modello = modelloDiProva(['C1'])
+    const salvato = {
+      versione: 99 as unknown as 1,
+      nodi: [{ ...layoutSchema(modello).nodi[0], x: 4000, y: 4000 }],
+      archi: [],
+    }
+
+    const esito = layoutIniziale(salvato, modello)
+    const automatico = layoutSchema(modello)
+
+    expect(esito.layout.nodi.find((n) => n.id === 'C1')!.x).toBe(
+      automatico.nodi.find((n) => n.id === 'C1')!.x
+    )
+    expect(esito.layout.nodi.find((n) => n.id === 'C1')!.y).toBe(
+      automatico.nodi.find((n) => n.id === 'C1')!.y
+    )
+    expect(esito.aggiunti).toEqual([])
+    expect(esito.rimossi).toEqual([])
+  })
+
+  it('senza layout salvato riparte dall’auto-layout', () => {
+    const modello = modelloDiProva(['C1', 'C2'])
+
+    for (const assente of [null, undefined] as const) {
+      const esito = layoutIniziale(assente, modello)
+      expect(esito.layout.nodi.map((n) => n.id).sort()).toEqual(
+        modello.nodi.map((n) => n.id).sort()
+      )
+      expect(esito.aggiunti).toEqual([])
+      expect(esito.rimossi).toEqual([])
+    }
+  })
+
+  it('con un layout salvato valido, l’esito è quello della riconciliazione', () => {
+    const salvato = serializzaLayout(layoutSchema(modelloDiProva(['C1'])))
+    const modello = modelloDiProva(['C1', 'C2'])
+
+    const esito = layoutIniziale(salvato, modello)
+    const atteso = riconcilia(salvato, modello)
+
+    expect(esito).toEqual(atteso)
   })
 })

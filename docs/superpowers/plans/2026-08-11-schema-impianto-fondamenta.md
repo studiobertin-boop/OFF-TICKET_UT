@@ -950,10 +950,20 @@ git commit -m "feat(schema-impianto): serializzazione e riconciliazione del layo
 - Modify: `src/services/relazione/types.ts` (`AdditionalInfo.schemaLayout`)
 - Modify: `src/components/relazione/RelazioneDataDialog.tsx:152` (non azzerare più)
 - Modify: `src/components/relazione/SchemaImpiantoSection.tsx`
+- Modify: `src/services/schemaImpianto/persistenza.ts` (nuova `layoutIniziale`, che fa il
+  controllo di versione fuori dai componenti React; `riconcilia` allarga il parametro `salvato`
+  da `LayoutSalvato` a `Pick<SchemaLayout, 'nodi' | 'archi'>` per poterci passare l'esito già
+  validato di `deserializzaLayout`)
+- Modify: `src/pages/TechnicalDetails.tsx` — tiene `technicalData` in uno `useState` popolato
+  una volta al mount: senza un avviso dopo il salvataggio, riaprire il dialog subito dopo
+  rilegge dati di prima del salvataggio e il layout ritoccato sembra perso finché non si
+  ricarica la pagina.
 - Test: `src/services/relazione/__tests__/schemaLayoutPersistito.test.ts` (create)
+- Test: `src/services/schemaImpianto/__tests__/persistenza.test.ts` (Task 8, casi su
+  `layoutIniziale` aggiunti qui)
 
 **Interfaces:**
-- Consumes: `serializzaLayout`, `deserializzaLayout`, `riconcilia` (Task 8)
+- Consumes: `serializzaLayout`, `deserializzaLayout`, `riconcilia`, `layoutIniziale` (Task 8)
 
 - [ ] **Step 1: Scrivere il test che fallisce**
 
@@ -1003,10 +1013,24 @@ In `services/relazione/types.ts`, aggiungere a `AdditionalInfo`:
 In `RelazioneDataDialog.tsx`, sostituire `setSchema(null)` con il ripristino del layout salvato, e passarlo a `SchemaImpiantoSection` come `layoutSalvato={info.schemaLayout}`. Al salvataggio, includere `schemaLayout: layout ? serializzaLayout(layout) : undefined` nell'`additionalInfo` inviato.
 
 In `SchemaImpiantoSection.tsx`:
-- accettare `layoutSalvato?: LayoutSalvato` e `onLayoutChange: (layout: SchemaLayout | null) => void`
-- alla prima generazione: se c'è un layout salvato, `riconcilia(layoutSalvato, modello)` invece di `layoutSchema(modello)`
+- accettare `layoutSalvato: LayoutSalvato | null | undefined` (tre stati, non due: `undefined` —
+  il genitore non ha ancora letto `additional_info`, non si genera e non si alza la guardia
+  `generazioneTentata`; `null` — letto, niente di salvato, si genera da zero; `LayoutSalvato` —
+  letto, c'è, si riconcilia) e `onLayoutChange: (layout: SchemaLayout | null) => void`
+- alla prima generazione: `layoutIniziale(layoutSalvato, modello)` — non `riconcilia` chiamata
+  direttamente dal componente, perché il controllo di versione (che vive dentro
+  `deserializzaLayout`) deve restare in una funzione pura testabile, non in un componente React
 - mostrare l'esito della riconciliazione in un `Alert severity="info"` sopra l'anteprima quando `aggiunti` o `rimossi` non sono vuoti, con il testo: `Aggiunte dalla scheda: C2. Rimosse perché non più in scheda: C3.`
 - chiamare `onLayoutChange` a ogni `disegna`, così il dialog ha sempre il layout corrente da salvare
+
+In `TechnicalDetails.tsx`: passare a `RelazioneDataDialog` una prop `onAdditionalInfoSaved` che
+aggiorna `technicalData` in stato (`setTechnicalData((prev) => prev ? { ...prev, additional_info: info } : prev)`),
+chiamata da `RelazioneDataDialog.handleGenera` subito dopo che `updateAdditionalInfo` scrive con
+successo — non alla chiusura del dialog, perché se il download del .docx fallisce la riga in
+banca dati è comunque cambiata. Nel dialog, l'effetto di sincronizzazione all'apertura va
+protetto con un `useRef` che segna l'apertura già sincronizzata (e si riazzera alla chiusura):
+senza, l'oggetto `additional_info` che cambia identità mentre il dialog resta aperto
+rimanderebbe l'effetto e azzererebbe i campi sotto le mani dell'utente durante la generazione.
 
 - [ ] **Step 4: Eseguire i test e verificare che passino**
 
