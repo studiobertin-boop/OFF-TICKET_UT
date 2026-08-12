@@ -179,10 +179,33 @@ export function riconcilia(salvato: Pick<SchemaLayout, 'nodi' | 'archi'>, modell
   // puntava a un nodo appena rimosso, o un arco nuovo verso un nodo che poi risulta scartato.
   const archiSalvati = salvato.archi
   const identitaSalvate = new Set(archiSalvati.map(identitaArco))
+  const idTerminale = nodi.find((n) => n.tipo === 'utenze')?.id
   const archiNuovi = modello.archi.filter(
-    (a) => !identitaSalvate.has(identitaArco(a)) && (aggiunti.includes(a.da.nodo) || aggiunti.includes(a.a.nodo))
+    (a) =>
+      !identitaSalvate.has(identitaArco(a)) &&
+      (aggiunti.includes(a.da.nodo) || aggiunti.includes(a.a.nodo)) &&
+      // La tubazione del terminale non passa da qui: la governa la regola qui sotto. Per la
+      // strada generica basta che uno dei capi sia fra gli `aggiunti`, e aggiungendo uno stadio
+      // alla catena di uno schema già salvato quel criterio ne creava una seconda (E1→UTENZE)
+      // accanto a quella salvata (S1→UTENZE), entrambe convergenti sul codolo.
+      a.a.nodo !== idTerminale
   )
   const archi = [...archiSalvati, ...archiNuovi].filter((a) => idNodi.has(a.da.nodo) && idNodi.has(a.a.nodo))
+
+  // Invariante del terminale: ha sempre esattamente una tubazione entrante; se dopo la
+  // riconciliazione non ne ha nessuna, si prende quella del modello. Il controllo va qui, DOPO
+  // il filtro sui capi assenti, o conterebbe archi che stanno per essere scartati — è proprio
+  // il caso che ripara: togliendo l'ultimo stadio della catena, l'arco salvato E1→UTENZE cade
+  // insieme a E1 e il terminale resterebbe a mezz'aria, simbolo senza tubo.
+  //
+  // Non «scartare sempre l'arco salvato e riprendere quello del modello»: l'utente PUÒ tracciare
+  // a mano la tubazione al terminale — è uno dei motivi per cui il terminale è diventato un
+  // elemento — e buttare via il suo tracciato a ogni riapertura contraddirebbe il principio che
+  // il layout salvato è autorevole su *dove* passano le cose.
+  if (idTerminale && !archi.some((a) => a.a.nodo === idTerminale)) {
+    const dalModello = modello.archi.find((a) => a.a.nodo === idTerminale && idNodi.has(a.da.nodo))
+    if (dalModello) archi.push(dalModello)
+  }
 
   return { layout: { nodi, archi, muro: calcolaMuro(nodi) }, aggiunti, rimossi }
 }

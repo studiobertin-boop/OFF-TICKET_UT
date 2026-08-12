@@ -127,9 +127,18 @@ ma va detto perché è visibile.
 *sotto* il disegno esistente (`piede + 320`), che per questo elemento sarebbe sbagliato: lo
 manderebbe in fondo alla tela. Caso dedicato in `riconcilia`: quando manca l'elemento `utenze`,
 lo colloca applicando **alle posizioni salvate** la stessa regola geometrica che la freccia
-automatica usava — a destra del nodo più a destra escluso il pozzo condense, in alto. L'arco
-verso di lui entra già dalla strada normale, perché `archiNuovi` prende gli archi che toccano un
-nodo appena aggiunto.
+automatica usava — a destra del nodo più a destra escluso il pozzo condense, in alto.
+
+La sua tubazione **non** entra dalla strada generica degli `archiNuovi` (basta che un capo sia
+fra gli `aggiunti`): quel criterio va in stallo appena cambia la coda della catena su uno schema
+già salvato. Aggiungendo un essiccatore, l'arco salvato `S1→UTENZE` sopravvive e se ne aggiunge
+un secondo `E1→UTENZE`; togliendo l'ultimo stadio, l'arco salvato cade insieme al nodo e nessun
+`aggiunto` fa entrare quello nuovo, lasciando il terminale scollegato. Vale invece la regola
+dedicata: **il terminale ha sempre esattamente una tubazione entrante; se dopo la riconciliazione
+non ne ha nessuna, si prende quella del modello.** Il controllo si fa dopo il filtro «nessun capo
+su un nodo assente», altrimenti conterebbe archi che stanno per essere scartati. Non si scarta
+mai l'arco salvato per riprendere quello del modello: l'utente può tracciare a mano quella
+tubazione, ed è uno dei motivi per cui il terminale è diventato un elemento.
 
 Se l'utente lo cancella, alla riapertura torna: è un nodo di origine `scheda` e la scheda resta
 autorevole su cosa esiste. È la conseguenza accettata della scelta fatta col committente.

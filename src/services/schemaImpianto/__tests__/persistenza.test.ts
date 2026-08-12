@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { makeCompressore, makeDatiImpianto, makeScheda, makeSeparatore, makeSerbatoio, makeValvola } from '@/services/relazione/__tests__/fixtures'
+import { makeCompressore, makeDatiImpianto, makeEssiccatore, makeScheda, makeSeparatore, makeSerbatoio, makeValvola } from '@/services/relazione/__tests__/fixtures'
 import { buildSchemaModel } from '../buildSchemaModel'
 import { layoutSchema, DIMENSIONI_NODO } from '../layout'
 import { serializzaLayout, deserializzaLayout, riconcilia, layoutIniziale, layoutDaPersistere } from '../persistenza'
@@ -388,5 +388,69 @@ describe('terminale utenze nei layout salvati prima che esistesse', () => {
 
     const esito = riconcilia(salvato, modello)
     expect(esito.layout.nodi.find((n) => n.tipo === 'utenze')!.etichetta).toBe('Utenze azoto')
+  })
+})
+
+/**
+ * Finché la freccia verso le utenze si ridisegnava a ogni render dal nodo più a destra, era
+ * autocorrettiva. Ora è un arco salvato, e correggere la scheda dopo aver già salvato il
+ * disegno — un gesto del tutto normale — la mandava in stallo in due modi opposti.
+ */
+describe('la tubazione del terminale quando cambia la coda della catena', () => {
+  function modelloConCatena(conEssiccatore: boolean) {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ codice: 'C1', ha_disoleatore: false })],
+      disoleatori: [], scambiatori: [], filtri: [],
+      essiccatori: conEssiccatore ? [makeEssiccatore({ ha_scambiatore: false })] : [],
+      serbatoi: [makeSerbatoio()],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    return buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+  }
+
+  /** Le tubazioni che arrivano sul codolo del terminale: dev'essere sempre esattamente una. */
+  function entrantiAlTerminale(esito: ReturnType<typeof riconcilia>) {
+    return esito.layout.archi.filter((a) => a.a.nodo === 'UTENZE')
+  }
+
+  it('non ne nasce una seconda quando si aggiunge uno stadio alla catena', () => {
+    // Salvato con S1 → UTENZE; poi in scheda compare un essiccatore, e il modello propone
+    // E1 → UTENZE. L'arco salvato sopravvive (entrambi i capi esistono ancora): senza la
+    // regola dedicata si aggiungeva anche quello nuovo, perché E1 è fra gli `aggiunti`, e
+    // due tubazioni convergevano sul codolo.
+    const salvato = layoutSchema(modelloConCatena(false))
+    const esito = riconcilia(salvato, modelloConCatena(true))
+
+    expect(entrantiAlTerminale(esito)).toHaveLength(1)
+    expect(esito.layout.nodi.some((n) => n.id === 'E1')).toBe(true)
+  })
+
+  it('il terminale non resta scollegato quando si toglie l’ultimo stadio', () => {
+    // Salvato con E1 → UTENZE; poi l'essiccatore sparisce dalla scheda. L'arco salvato cade
+    // insieme al nodo, e quello nuovo (S1 → UTENZE) non entrava fra gli `archiNuovi` perché
+    // nessun capo era fra gli `aggiunti` — non c'era nessun aggiunto: il terminale restava a
+    // mezz'aria, simbolo senza tubo.
+    const salvato = layoutSchema(modelloConCatena(true))
+    const esito = riconcilia(salvato, modelloConCatena(false))
+
+    const entranti = entrantiAlTerminale(esito)
+    expect(entranti).toHaveLength(1)
+    expect(entranti[0].da.nodo).toBe('S1')
+  })
+
+  it('non ridisegna la tubazione che l’utente ha già tracciato al terminale', () => {
+    // Il terminale è diventato un elemento anche per poterne tracciare a mano il tubo:
+    // scartare l'arco salvato per riprendere quello del modello a ogni riapertura
+    // contraddirebbe il principio che il layout salvato è autorevole su *dove* passano le
+    // cose. La regola ripara il caso «scollegato», non sostituisce il lavoro manuale.
+    const salvato = layoutSchema(modelloConCatena(false))
+    const suoArco = salvato.archi.find((a) => a.a.nodo === 'UTENZE')!
+    suoArco.punti = [{ x: 777, y: 333 }]
+
+    const esito = riconcilia(salvato, modelloConCatena(false))
+    const entranti = entrantiAlTerminale(esito)
+
+    expect(entranti).toHaveLength(1)
+    expect(entranti[0].punti).toEqual([{ x: 777, y: 333 }])
   })
 })
