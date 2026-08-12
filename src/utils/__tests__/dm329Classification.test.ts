@@ -6,6 +6,8 @@ import {
   comportaAdempimento,
   frequenzeRiqualificazione,
   esitoToTipoPratica,
+  calcolaEsitiPerCodice,
+  codiciConAdempimento,
 } from '../dm329Classification'
 import { determineTipoPratica } from '../civaFiltering'
 
@@ -18,28 +20,36 @@ describe('classificaRecipiente', () => {
     expect(classificaRecipiente(-10, 11)).toBeNull()
   })
 
-  it('esclude i recipienti sotto i 25 litri (art. 2 comma i)', () => {
+  it('esclude i recipienti fino a 25 litri compresi, a prescindere dalla pressione (art. 2 comma i)', () => {
     expect(classificaRecipiente(24, 16)).toBe('ESCLUSO_VOLUME')
     expect(classificaRecipiente(20, 11)).toBe('ESCLUSO_VOLUME')
+    // Confine esatto: V=25, incluso nell'esclusione anche con pressione alta
+    expect(classificaRecipiente(25, 16)).toBe('ESCLUSO_VOLUME')
   })
 
-  it('colloca sotto soglia 25 ≤ V < 50 con PS < 12', () => {
-    expect(classificaRecipiente(25, 11)).toBe('SOTTO_SOGLIA')
+  it('colloca sotto soglia 25 < V ≤ 50 con PS ≤ 12 (art. 2 comma i)', () => {
+    expect(classificaRecipiente(26, 11)).toBe('SOTTO_SOGLIA')
     expect(classificaRecipiente(49, 11.9)).toBe('SOTTO_SOGLIA')
+    // Confini esatti: V=50 e PS=12 sono entrambi compresi nell'esclusione
+    expect(classificaRecipiente(50, 11)).toBe('SOTTO_SOGLIA')
+    expect(classificaRecipiente(30, 12)).toBe('SOTTO_SOGLIA')
+    expect(classificaRecipiente(50, 12)).toBe('SOTTO_SOGLIA')
   })
 
-  it('richiede dichiarazione per V ≥ 50, PS ≤ 12, PS×V ≤ 8000', () => {
+  it('richiede dichiarazione per V > 50, PS ≤ 12, PS×V < 8000', () => {
     // Esempio della guida Baglioni: V=500, PS=11 → PS×V=5500
     expect(classificaRecipiente(500, 11)).toBe('DICHIARAZIONE')
-    // Confine esatto: PS×V = 8000
-    expect(classificaRecipiente(800, 10)).toBe('DICHIARAZIONE')
+    // Appena sotto il confine: PS×V = 7999
+    expect(classificaRecipiente(799.9, 10)).toBe('DICHIARAZIONE')
   })
 
-  it('richiede verifica per PS×V > 8000', () => {
+  it('richiede verifica per PS×V ≥ 8000 (art. 5 comma 1 lettera c: esenzione solo per prodotto minore)', () => {
     // Relazione 555: V=3000, PS=11,5 → 34500
     expect(classificaRecipiente(3000, 11.5)).toBe('VERIFICA')
     // Relazione 541: V=2000, PS=11,5 → 23000
     expect(classificaRecipiente(2000, 11.5)).toBe('VERIFICA')
+    // Confine esatto: PS×V = 8000, non è "minore di 8000" quindi verifica
+    expect(classificaRecipiente(800, 10)).toBe('VERIFICA')
     // Appena oltre il confine
     expect(classificaRecipiente(801, 10)).toBe('VERIFICA')
   })
@@ -50,26 +60,25 @@ describe('classificaRecipiente', () => {
     expect(classificaRecipiente(30, 16)).toBe('VERIFICA')
     // Relazione 541: scambiatore 28 litri a 14 bar
     expect(classificaRecipiente(28, 14)).toBe('VERIFICA')
-  })
-
-  it('tratta come sotto soglia il residuo 25 ≤ V < 50 con PS ≥ 12', () => {
-    expect(classificaRecipiente(30, 12)).toBe('SOTTO_SOGLIA')
-    expect(classificaRecipiente(25, 15)).toBe('SOTTO_SOGLIA')
+    // V > 50 con PS > 12 rientra nello stesso ramo
+    expect(classificaRecipiente(65, 13)).toBe('VERIFICA')
   })
 })
 
-describe('determineTipoPratica — comportamento invariato dopo il refactor', () => {
+describe('determineTipoPratica — adattatore su classificaRecipiente', () => {
   const casi: Array<[number | undefined, number | undefined, string]> = [
     [undefined, 11, 'NESSUNA'],
     [500, undefined, 'NESSUNA'],
     [0, 11, 'NESSUNA'],
     [24, 16, 'NESSUNA'],
     [25, 11, 'NESSUNA'],
+    [25, 16, 'NESSUNA'],
     [49, 11.9, 'NESSUNA'],
     [30, 12, 'NESSUNA'],
+    [50, 12, 'NESSUNA'],
     [25, 15, 'NESSUNA'],
     [500, 11, 'DICHIARAZIONE'],
-    [800, 10, 'DICHIARAZIONE'],
+    [800, 10, 'VERIFICA'],
     [801, 10, 'VERIFICA'],
     [3000, 11.5, 'VERIFICA'],
     [65, 16, 'VERIFICA'],
@@ -138,5 +147,53 @@ describe('esitoToTipoPratica', () => {
     expect(esitoToTipoPratica('ESCLUSO_COMPRESSORE')).toBe('NESSUNA')
     expect(esitoToTipoPratica('ESCLUSO_TUBAZIONE')).toBe('NESSUNA')
     expect(esitoToTipoPratica(null)).toBe('NESSUNA')
+  })
+})
+
+describe('calcolaEsitiPerCodice', () => {
+  it('classifica un serbatoio, un disoleatore, uno scambiatore e un recipiente filtro', () => {
+    const righe = calcolaEsitiPerCodice({
+      serbatoi: [{ codice: 'S1', volume: 100, ps_pressione_max: 15 } as any],
+      disoleatori: [{ codice: 'C1.1', volume: 10, ps_pressione_max: 10 } as any],
+      scambiatori: [{ codice: 'E1.1', volume: 200, ps_pressione_max: 15 } as any],
+      recipienti_filtro: [{ codice: 'F1.1', volume: 5, ps_pressione_max: 5 } as any],
+    })
+
+    expect(righe).toEqual([
+      { codice: 'S1', esito: 'VERIFICA', giaDenunciato: false },
+      { codice: 'C1.1', esito: 'ESCLUSO_VOLUME', giaDenunciato: false },
+      { codice: 'E1.1', esito: 'VERIFICA', giaDenunciato: false },
+      { codice: 'F1.1', esito: 'ESCLUSO_VOLUME', giaDenunciato: false },
+    ])
+  })
+
+  it('riporta gia_denunciato quando marcato sulla riga', () => {
+    const righe = calcolaEsitiPerCodice({
+      serbatoi: [{ codice: 'S1', volume: 100, ps_pressione_max: 15, gia_denunciato: true } as any],
+    })
+    expect(righe).toEqual([{ codice: 'S1', esito: 'VERIFICA', giaDenunciato: true }])
+  })
+
+  it('array assenti o vuoti non producono righe', () => {
+    expect(calcolaEsitiPerCodice({})).toEqual([])
+  })
+})
+
+describe('codiciConAdempimento', () => {
+  it('esclude gli esiti che non comportano adempimento', () => {
+    const codici = codiciConAdempimento([
+      { codice: 'S1', esito: 'VERIFICA', giaDenunciato: false },
+      { codice: 'S2', esito: 'SOTTO_SOGLIA', giaDenunciato: false },
+      { codice: 'S3', esito: 'DICHIARAZIONE', giaDenunciato: false },
+    ])
+    expect(codici).toEqual(['S1', 'S3'])
+  })
+
+  it('esclude i codici già marcati come denunciati, anche se comportano adempimento', () => {
+    const codici = codiciConAdempimento([
+      { codice: 'S1', esito: 'VERIFICA', giaDenunciato: true },
+      { codice: 'S2', esito: 'VERIFICA', giaDenunciato: false },
+    ])
+    expect(codici).toEqual(['S2'])
   })
 })

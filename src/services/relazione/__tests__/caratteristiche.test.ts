@@ -8,6 +8,7 @@ import {
   makeScambiatore,
   makeEssiccatore,
   makeValvola,
+  makeFiltro,
 } from './fixtures'
 
 const soloCompressore = () =>
@@ -168,5 +169,41 @@ describe('buildCaratteristiche — categoria della valvola di sicurezza', () => 
       })
     )
     expect(rows.find((r) => r.pos === 'S1.1')?.categoria).toBe('IV')
+  })
+})
+
+describe('buildCaratteristiche — PS e TS sul filtro', () => {
+  test('il filtro riporta PS e TS quando compilati, come gli altri recipienti', () => {
+    const rows = buildCaratteristiche(
+      makeScheda({
+        compressori: [],
+        disoleatori: [],
+        serbatoi: [],
+        essiccatori: [],
+        scambiatori: [],
+        filtri: [makeFiltro({ codice: 'F1', ps_pressione_max: 11, ts: '150' })],
+      })
+    )
+    const f = rows.find((r) => r.pos === 'F1')!
+    expect(f.pressione).toBe('11')
+    expect(f.temperatura).toBe('-10÷+150')
+    expect(f.capacita).toBe('')
+    expect(f.categoria).toBe('')
+  })
+
+  test('senza PS/TS compilati la riga resta vuota', () => {
+    const rows = buildCaratteristiche(
+      makeScheda({
+        compressori: [],
+        disoleatori: [],
+        serbatoi: [],
+        essiccatori: [],
+        scambiatori: [],
+        filtri: [makeFiltro({ codice: 'F1' })],
+      })
+    )
+    const f = rows.find((r) => r.pos === 'F1')!
+    expect(f.pressione).toBe('')
+    expect(f.temperatura).toBe('')
   })
 })

@@ -38,6 +38,7 @@ import { customersApi } from '@/services/api/customers'
 import { scegliVarianteSalvata } from '@/utils/equipmentVarianti'
 import { additionalInfoSchema } from '@/services/relazione/schema'
 import { generateAndDownloadRelazione } from '@/services/relazione/generateRelazione'
+import { relazioneDocumentiApi } from '@/services/api/relazioneDocumenti'
 import { buildRelazioneModel } from '@/services/relazione/buildRelazioneModel'
 import { validateRelazione, haErrori } from '@/services/relazione/preflight'
 import type { AdditionalInfo, PraticaInfo, SchemaImpianto, TipoGiri } from '@/services/relazione/types'
@@ -46,18 +47,7 @@ import { layoutDaPersistere } from '@/services/schemaImpianto/persistenza'
 import type { SchemaLayout } from '@/services/schemaImpianto/types'
 import { SchemaImpiantoSection } from './SchemaImpiantoSection'
 import { collectCodes, pruneAdditionalInfo } from '@/utils/equipmentCodes'
-
-/**
- * Data odierna in forma ISO, come la vuole il campo data.
- *
- * Composta dai componenti locali e non da `toISOString`, che riporta l'istante in UTC: a
- * fuso avanti, generare una relazione dopo cena la daterebbe al giorno prima.
- */
-function oggiISO(): string {
-  const d = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
+import { oggiISO } from '@/services/relazione/helpers'
 
 interface RelazioneDataDialogProps {
   open: boolean
@@ -282,7 +272,7 @@ export default function RelazioneDataDialog({
       // Il documento è ciò che il tecnico sta aspettando: la scrittura a catalogo dei giri fa
       // una manciata di query per compressore e non deve tenere fermo lo scaricamento, che non ha
       // un timeout lato client. Va quindi dopo, non prima.
-      await generateAndDownloadRelazione({
+      const blob = await generateAndDownloadRelazione({
         scheda,
         additionalInfo: parsed.data,
         customer,
@@ -290,6 +280,17 @@ export default function RelazioneDataDialog({
         schemaImpianto: schema ?? undefined,
         fileName,
       })
+      // Non bloccante, come riportaDescrizioneInAnagrafica/riportaGiriACatalogo qui sotto: la
+      // relazione è già stata scaricata con successo, un errore di salvataggio non deve far
+      // sembrare fallita l'intera generazione.
+      try {
+        await relazioneDocumentiApi.salvaFinale(
+          requestId,
+          new File([blob], fileName ?? 'Relazione_DM329.docx', { type: blob.type })
+        )
+      } catch (err) {
+        console.warn('[relazione] non salvata nell\'app, resta solo scaricata', err)
+      }
       await riportaDescrizioneInAnagrafica(parsed.data.descrizioneAttivita)
       const { nonACatalogo, ambigui } = await riportaGiriACatalogo(parsed.data.compressoriGiri)
       mostraEsitoGenerazione(nonACatalogo, ambigui)
@@ -449,7 +450,7 @@ export default function RelazioneDataDialog({
             onChange={(e) => setDataEmissione(e.target.value)}
             slotProps={{ inputLabel: { shrink: true } }}
             sx={{ maxWidth: 240 }}
-            helperText="Finisce nella colonna DATA della tabella delle revisioni, in copertina."
+            helperText="Finisce nella colonna DATA della tabella delle revisioni, in copertina. Condivisa con il campo data del form Dichiarazioni."
           />
 
           {eRevisione && (

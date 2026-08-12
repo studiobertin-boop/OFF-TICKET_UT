@@ -23,7 +23,7 @@ interface RigaDaAgganciare {
   capacita: number | null
 }
 
-/** Tipi con dati tecnici da agganciare: filtri e separatori non ne hanno (`specsMap` vuota). */
+/** Tipi con dati tecnici da agganciare: i separatori non ne hanno (`specsMap` vuota). */
 const KIND_DA_AGGANCIARE = (Object.keys(EQUIPMENT_DEFS) as EquipmentKind[]).filter(
   (k) => k !== 'valvola' && Object.keys(EQUIPMENT_DEFS[k].specsMap).length > 0
 )

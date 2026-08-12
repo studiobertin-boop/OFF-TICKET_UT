@@ -24,6 +24,21 @@ export interface Installer {
   comune: string
   provincia: string
 
+  /** Persona fisica che firma la dichiarazione sostitutiva dell'atto di notorietà. */
+  legale_rappresentante?: string | null
+  /** Dati anagrafici del legale rappresentante, per il paragrafo introduttivo della dichiarazione. */
+  legale_rappresentante_nascita_luogo?: string | null
+  legale_rappresentante_nascita_data?: string | null
+  legale_rappresentante_residenza_via?: string | null
+  legale_rappresentante_residenza_comune?: string | null
+  legale_rappresentante_residenza_provincia?: string | null
+  /** Dati della ditta installatrice, citati nello stesso paragrafo. */
+  posizione_inail?: string | null
+  telefono?: string | null
+  pec?: string | null
+  /** Vero per l'installatore i cui asset statici (template + doc. identità) sono il default. */
+  predefinito?: boolean
+
   // Metadata
   is_active: boolean
   usage_count: number

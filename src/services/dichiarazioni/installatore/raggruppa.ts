@@ -1,0 +1,83 @@
+/**
+ * Raggruppamento delle apparecchiature per la dichiarazione dell'installatore.
+ *
+ * Riusa lo stesso predicato di `civaFiltering.ts` (`comportaAdempimento` su
+ * `classificaRecipiente`) per decidere chi è "oggetto di denuncia o verifica INAIL", ma a
+ * differenza di `filterCIVAEquipment` — che produce una lista piatta di soli dipendenti —
+ * qui il dipendente soggetto va abbinato alla sua unità madre (compressore, essiccatore,
+ * filtro), perché è così che la dichiarazione dell'installatore descrive l'impianto: un
+ * compressore compare sempre come intestazione del suo gruppo anche se di per sé escluso
+ * dal DM329, il dipendente no se non è soggetto.
+ */
+import type { Compressore, Essiccatore, Filtro, SchedaDatiCompleta } from '@/types/technicalSheet'
+import { classificaRecipiente, comportaAdempimento } from '@/utils/dm329Classification'
+import { naturalSortComparator } from '@/utils/naturalSort'
+
+export interface ApparecchiaturaRiga {
+  tipo: string
+  marca?: string
+  modello?: string
+  n_fabbrica?: string
+}
+
+export interface RigaTabella {
+  principale: ApparecchiaturaRiga | null
+  dipendente: ApparecchiaturaRiga
+  /** Codice del dipendente (o del recipiente standalone), per l'ordinamento naturale. */
+  codiceOrdinamento: string
+}
+
+const soggetto = (volume: number | undefined | null, ps: number | undefined | null): boolean =>
+  comportaAdempimento(classificaRecipiente(volume, ps))
+
+const principaleDi = (
+  apparecchio: Compressore | Essiccatore | Filtro | undefined,
+  tipo: string
+): ApparecchiaturaRiga | null =>
+  apparecchio ? { tipo, marca: apparecchio.marca, modello: apparecchio.modello, n_fabbrica: apparecchio.n_fabbrica } : null
+
+export function raggruppaApparecchiatureInstallatore(scheda: SchedaDatiCompleta): RigaTabella[] {
+  const righe: RigaTabella[] = []
+
+  for (const d of scheda.disoleatori ?? []) {
+    if (!soggetto(d.volume, d.ps_pressione_max)) continue
+    const compressore = scheda.compressori?.find((c) => c.codice === d.compressore_associato)
+    righe.push({
+      principale: principaleDi(compressore, 'Compressore'),
+      dipendente: { tipo: 'Serbatoio disoleatore', marca: d.marca, modello: d.modello, n_fabbrica: d.n_fabbrica },
+      codiceOrdinamento: d.codice,
+    })
+  }
+
+  for (const s of scheda.scambiatori ?? []) {
+    if (!soggetto(s.volume, s.ps_pressione_max)) continue
+    const essiccatore = scheda.essiccatori?.find((e) => e.codice === s.essiccatore_associato)
+    righe.push({
+      principale: principaleDi(essiccatore, 'Essiccatore frigorifero'),
+      dipendente: { tipo: 'Scambiatore di calore', marca: s.marca, modello: s.modello, n_fabbrica: s.n_fabbrica },
+      codiceOrdinamento: s.codice,
+    })
+  }
+
+  for (const r of scheda.recipienti_filtro ?? []) {
+    if (!soggetto(r.volume, r.ps_pressione_max)) continue
+    const filtro = scheda.filtri?.find((f) => f.codice === r.filtro_associato)
+    righe.push({
+      principale: principaleDi(filtro, 'Filtro'),
+      dipendente: { tipo: 'Recipiente filtro', marca: r.marca, modello: r.modello, n_fabbrica: r.n_fabbrica },
+      codiceOrdinamento: r.codice,
+    })
+  }
+
+  for (const s of scheda.serbatoi ?? []) {
+    if (!soggetto(s.volume, s.ps_pressione_max)) continue
+    const tipo = s.orientamento === 'ORIZZONTALE' ? 'Serbatoio aria orizzontale' : 'Serbatoio aria verticale'
+    righe.push({
+      principale: null,
+      dipendente: { tipo, marca: s.marca, modello: s.modello, n_fabbrica: s.n_fabbrica },
+      codiceOrdinamento: s.codice,
+    })
+  }
+
+  return righe.sort((a, b) => naturalSortComparator(a.codiceOrdinamento, b.codiceOrdinamento))
+}

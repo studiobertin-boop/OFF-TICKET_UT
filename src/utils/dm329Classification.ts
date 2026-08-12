@@ -9,19 +9,19 @@
  * `determineTipoPratica` (CIVA) è un adattatore su questa logica: il comportamento
  * osservabile per i chiamanti CIVA è invariato.
  */
-import type { CategoriaPED } from '@/types/technicalSheet'
+import type { CategoriaPED, Disoleatore, RecipienteFiltro, Scambiatore, Serbatoio } from '@/types/technicalSheet'
 import type { TipoPraticaCIVA } from '@/types/civa'
 
 export type EsitoDM329 =
-  /** V < 25 l — escluso ex art. 2 comma i */
+  /** V ≤ 25 l — escluso ex art. 2 comma i, a prescindere dalla pressione */
   | 'ESCLUSO_VOLUME'
   /** Compressore privo di recipienti in pressione (tipicamente a pistoni) — art. 2 comma i */
   | 'ESCLUSO_NO_RECIPIENTE'
-  /** 25 ≤ V < 50 l con PS < 12 bar — nessun adempimento */
+  /** 25 < V ≤ 50 l con PS ≤ 12 bar — nessun adempimento (art. 2 comma i) */
   | 'SOTTO_SOGLIA'
-  /** V ≥ 50 l, PS ≤ 12 bar, PS×V ≤ 8000 — art. 5 comma 1 lettera c */
+  /** V > 50 l, PS ≤ 12 bar, PS×V < 8000 — art. 5 comma 1 lettera c */
   | 'DICHIARAZIONE'
-  /** PS×V > 8000, oppure V > 25 l con PS > 12 bar — artt. 4 e 5 */
+  /** PS×V ≥ 8000, oppure V > 25 l con PS > 12 bar — artt. 4 e 5 */
   | 'VERIFICA'
   /** Compressore in quanto tale — art. 1 comma 3 lettera L D.lgs. 93/2000 */
   | 'ESCLUSO_COMPRESSORE'
@@ -31,12 +31,18 @@ export type EsitoDM329 =
 /** Diametro nominale oltre il quale le tubazioni rientrano nel campo di applicazione. */
 export const DN_SOGLIA_ESCLUSIONE = 80
 
-/** Prodotto PS×V oltre il quale scatta la verifica di messa in servizio. */
+/** Prodotto PS×V pari o oltre il quale scatta la verifica di messa in servizio (art. 5 comma 1 lettera c: esenzione solo per prodotto minore). */
 export const PSV_SOGLIA_VERIFICA = 8000
 
 /**
  * Classifica un recipiente in pressione a partire da volume e pressione massima
  * ammissibile.
+ *
+ * Le soglie sono tutte comprensive dell'estremo (≤, non <): l'art. 2 comma i del
+ * DM 329/2004 esclude i recipienti "aventi capacità minore o uguale a 25 litri e, se
+ * con pressione minore o uguale a 12 bar, aventi capacità minore o uguale a 50 litri".
+ * L'art. 5 comma 1 lettera c, al contrario, richiede un prodotto PS×V "minore di 8000
+ * bar·l" (estremo escluso) per l'esenzione dalla verifica di messa in servizio.
  *
  * Restituisce `null` quando i dati non bastano a decidere: chi consuma il risultato
  * deve distinguere "non classificabile" da "escluso", altrimenti un recipiente con
@@ -49,20 +55,17 @@ export function classificaRecipiente(
   if (!volume || !ps || volume <= 0 || ps <= 0) {
     return null
   }
-  if (volume < 25) {
+  if (volume <= 25) {
     return 'ESCLUSO_VOLUME'
   }
-  if (volume < 50 && ps < 12) {
+  if (volume <= 50 && ps <= 12) {
     return 'SOTTO_SOGLIA'
   }
-  if (volume >= 50 && ps <= 12) {
-    return ps * volume <= PSV_SOGLIA_VERIFICA ? 'DICHIARAZIONE' : 'VERIFICA'
+  if (volume > 50 && ps <= 12) {
+    return ps * volume < PSV_SOGLIA_VERIFICA ? 'DICHIARAZIONE' : 'VERIFICA'
   }
-  if (volume > 25 && ps > 12) {
-    return 'VERIFICA'
-  }
-  // Residuo: 25 ≤ V < 50 con PS ≥ 12 (es. V=30, PS=12). Nessun adempimento previsto.
-  return 'SOTTO_SOGLIA'
+  // Residuo: V > 25 con PS > 12 (comprende sia 25 < V ≤ 50 sia V > 50).
+  return 'VERIFICA'
 }
 
 /**
@@ -113,4 +116,47 @@ export function esitoToTipoPratica(esito: EsitoDM329 | null): TipoPraticaCIVA {
   if (esito === 'DICHIARAZIONE') return 'DICHIARAZIONE'
   if (esito === 'VERIFICA') return 'VERIFICA'
   return 'NESSUNA'
+}
+
+export interface RigaConEsito {
+  codice: string
+  esito: EsitoDM329 | null
+  giaDenunciato: boolean
+}
+
+/**
+ * Esito DM329 per ogni codice apparecchiatura della scheda, senza passare per tutto
+ * l'apparato di formattazione della relazione (celle, gruppi, etichette italiane).
+ *
+ * Solo i quattro tipi che possono essere recipienti in pressione: compressori, essiccatori
+ * e filtri non hanno mai un esito che comporti adempimento in quanto tali (vedi
+ * `classificaCompressore`, sempre esclusa, e i tipi senza recipiente associato in
+ * `esiti.ts`), quindi non serve includerli qui.
+ */
+export function calcolaEsitiPerCodice(scheda: {
+  serbatoi?: Pick<Serbatoio, 'codice' | 'volume' | 'ps_pressione_max' | 'gia_denunciato'>[]
+  disoleatori?: Pick<Disoleatore, 'codice' | 'volume' | 'ps_pressione_max' | 'gia_denunciato'>[]
+  scambiatori?: Pick<Scambiatore, 'codice' | 'volume' | 'ps_pressione_max' | 'gia_denunciato'>[]
+  recipienti_filtro?: Pick<RecipienteFiltro, 'codice' | 'volume' | 'ps_pressione_max' | 'gia_denunciato'>[]
+}): RigaConEsito[] {
+  const righe: RigaConEsito[] = []
+  const aggiungi = (elementi: { codice: string; volume?: number; ps_pressione_max?: number; gia_denunciato?: boolean }[] | undefined) => {
+    for (const el of elementi ?? []) {
+      righe.push({
+        codice: el.codice,
+        esito: classificaRecipiente(el.volume, el.ps_pressione_max),
+        giaDenunciato: !!el.gia_denunciato,
+      })
+    }
+  }
+  aggiungi(scheda.serbatoi)
+  aggiungi(scheda.disoleatori)
+  aggiungi(scheda.scambiatori)
+  aggiungi(scheda.recipienti_filtro)
+  return righe
+}
+
+/** Codici che richiedono un fascicolo INAIL: comportano adempimento e non sono già denunciati. */
+export function codiciConAdempimento(righe: RigaConEsito[]): string[] {
+  return righe.filter((r) => comportaAdempimento(r.esito) && !r.giaDenunciato).map((r) => r.codice)
 }

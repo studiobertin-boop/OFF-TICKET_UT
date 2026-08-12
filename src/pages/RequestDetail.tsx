@@ -55,7 +55,7 @@ import { useActiveBlock } from '@/hooks/useRequestBlocks'
 import { isDM329Family } from '@/utils/workflow'
 import { FieldValue, SectionLabel } from '@/components/common'
 import { DM329StatusStepper } from '@/components/requests/DM329StatusStepper'
-import { SchedaStatoToggle } from '@/components/requests/SchedaStatoToggle'
+import { SchedaDatiStatoGroup } from '@/components/requests/SchedaDatiStatoGroup'
 import { CAMPO_STATO_SCHEDA, compilazioneDiPratica, type StatoScheda } from '@/utils/schedaStato'
 import { useRequestTypes } from '@/hooks/useRequestTypes'
 import { hasIncompleteCustomerData } from '@/utils/customerValidation'
@@ -554,7 +554,21 @@ export const RequestDetail = () => {
           onBack={() => navigate('/requests')}
           primaryActions={
             <>
-              {canAccessTechnicalDetails && (
+              {/* Lo stato che l'elenco pratiche mostra per questa scheda, e il comando per
+                  imporlo: sta accanto alla scheda cui si riferisce, non fra le azioni
+                  secondarie. Scrivere in `custom_fields` è concesso ad admin e userdm329,
+                  come per l'urgenza. */}
+              {canAccessTechnicalDetails && canToggleUrgent && (
+                <SchedaDatiStatoGroup
+                  onApri={() => navigate(`/requests/${id}/technical-details`)}
+                  toggle={{
+                    compilazione: compilazioneDiPratica(request),
+                    onScegli: handleStatoScheda,
+                    disabled: salvandoStatoScheda,
+                  }}
+                />
+              )}
+              {canAccessTechnicalDetails && !canToggleUrgent && (
                 <Button
                   variant="contained"
                   color="primary"
@@ -564,17 +578,6 @@ export const RequestDetail = () => {
                 >
                   Scheda dati
                 </Button>
-              )}
-              {/* Lo stato che l'elenco pratiche mostra per questa scheda, e il comando per
-                  imporlo: sta accanto alla scheda cui si riferisce, non fra le azioni
-                  secondarie. Scrivere in `custom_fields` è concesso ad admin e userdm329,
-                  come per l'urgenza. */}
-              {canAccessTechnicalDetails && canToggleUrgent && (
-                <SchedaStatoToggle
-                  compilazione={compilazioneDiPratica(request)}
-                  onScegli={handleStatoScheda}
-                  disabled={salvandoStatoScheda}
-                />
               )}
               {/* Sbloccare è ciò che rimette in moto la pratica: fuori dal menu,
                   a differenza delle altre azioni secondarie. */}

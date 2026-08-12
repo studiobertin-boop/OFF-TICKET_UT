@@ -266,6 +266,9 @@ export interface Filtro {
   tipo?: TipoFiltro // Default LINEA
   n_fabbrica?: string // OCR
   anno?: number // intero (min 1980, max 2100)
+  ps_pressione_max?: number // PS (bar) - opzionale: non conta ai fini della completezza
+  ts_temperatura?: number // TS (°C) legacy - opzionale
+  ts?: string // TS libero (valore singolo o intervallo), precompilato da catalogo - opzionale
   note?: string
   ha_recipiente?: boolean // Flag per relazione con recipiente filtro
   foto_targhetta?: string

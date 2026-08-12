@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { saveAs } from 'file-saver'
 import {
   Box,
   CircularProgress,
@@ -9,18 +10,24 @@ import {
 } from '@mui/material'
 import { Layout } from '@/components/common/Layout'
 import { TechnicalSheetHeader } from '@/components/technicalSheet/TechnicalSheetHeader'
-import { codiceForRequest, nomeFileRelazione } from '@/utils/practiceCode'
+import { codiceForRequest, nomeFileDichiarazioni, nomeFileRelazione } from '@/utils/practiceCode'
 import { useRequest, useClientDm329Overview } from '@/hooks/useRequests'
 import { useAuth } from '@/hooks/useAuth'
 import { useCustomers } from '@/hooks/useCustomers'
 import { technicalDataApi } from '@/services/api/technicalData'
 import { requestsApi } from '@/services/api/requests'
 import { customersApi } from '@/services/api/customers'
+import { relazioneDocumentiApi } from '@/services/api/relazioneDocumenti'
+import { dichiarazioniDocumentiApi } from '@/services/api/dichiarazioniDocumenti'
+import { fascicoloDocumentiApi } from '@/services/api/fascicoloDocumenti'
+import { calcolaEsitiPerCodice, codiciConAdempimento } from '@/utils/dm329Classification'
 import { supabase } from '@/services/supabase'
 import { TechnicalSheetForm, type TechnicalSheetFormRef } from '@/components/technicalSheet/TechnicalSheetForm'
 import { OCRReviewDialog } from '@/components/technicalSheet/OCRReviewDialog'
 import { ShareDialog } from '@/components/technicalSheet/ShareDialog'
 import RelazioneDataDialog from '@/components/relazione/RelazioneDataDialog'
+import DichiarazioniDialog from '@/components/dichiarazioni/DichiarazioniDialog'
+import { risolviSitoProduttivo } from '@/services/dichiarazioni/sitoProduttivo'
 import type { AdditionalInfo } from '@/services/relazione/types'
 import { EquipmentCatalogProvider } from '@/components/technicalSheet/EquipmentCatalogContext'
 import type { DM329TechnicalData, SchedaDatiCompleta, OCRExtractedData, FuzzyMatch, OCRReviewData } from '@/types'
@@ -58,6 +65,7 @@ export const TechnicalDetails = () => {
   const [ocrReviewData, setOcrReviewData] = useState<OCRReviewData | null>(null)
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const [relazioneDialogOpen, setRelazioneDialogOpen] = useState(false)
+  const [dichiarazioniDialogOpen, setDichiarazioniDialogOpen] = useState(false)
   const formRef = useRef<TechnicalSheetFormRef>(null)
 
   // Carica scheda dati tecnici
@@ -148,6 +156,24 @@ export const TechnicalDetails = () => {
   const segnalaListeDaAggiornare = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['requests'] })
   }, [queryClient])
+
+  /**
+   * Il dialog "Genera relazione" e il dialog "Dichiarazioni" leggono e scrivono lo stesso
+   * campo (`additional_info.dataEmissione`): senza rileggerlo alla chiusura di uno dei due,
+   * l'altro — che smonta e riparte da questo stato ogni volta che si apre — continuerebbe a
+   * proporre la data con cui la pagina si era caricata, non quella appena salvata dall'altro
+   * form. Solo `additional_info`: `equipment_data` e il resto dello stato del form non
+   * c'entrano, e un ricaricamento completo rischierebbe di scavalcare modifiche in corso.
+   */
+  const riaggiornaAdditionalInfo = useCallback(async () => {
+    if (!id) return
+    try {
+      const data = await technicalDataApi.getByRequestId(id)
+      if (data) setTechnicalData((prev) => (prev ? { ...prev, additional_info: data.additional_info } : prev))
+    } catch (err) {
+      console.warn('[additional_info] rilettura non riuscita', err)
+    }
+  }, [id])
 
   // Autosave function (senza alert/snackbar)
   const handleAutoSave = useCallback(async (data: SchedaDatiCompleta) => {
@@ -330,6 +356,88 @@ export const TechnicalDetails = () => {
     enabled: Boolean(id) && puoLeggereStoriaPratica(user?.role),
   })
 
+  /**
+   * Dati CIVA e relazione: questione di ruolo, non di stato della scheda.
+   *
+   * Erano legati a `is_completed`, che si accendeva solo dal pulsante «Completa scheda» in
+   * testata. Tolto quello, restare agganciati a quel flag li avrebbe resi irraggiungibili —
+   * la pagina CIVA non ha altri punti d'ingresso in tutta l'app. Del resto la relazione si
+   * genera anche su una scheda ancora in lavorazione: è il suo preflight a dire cosa manca,
+   * e lo dice meglio di un flag binario acceso a mano.
+   *
+   * Calcolato qui — prima dei return anticipati — perché serve alle due query sotto: dipende
+   * solo da `user`, già disponibile da `useAuth()`, quindi anticiparlo non introduce nessuna
+   * dipendenza sui dati della richiesta che gli early return sotto potrebbero non avere ancora.
+   */
+  const canGenerateDocs = user?.role === 'admin' || user?.role === 'userdm329'
+
+  // Relazione e dichiarazioni già salvate per questa pratica: se esistono, l'azione in testata
+  // diventa verde e scarica invece di riaprire il dialog di generazione. Anche queste prima dei
+  // return anticipati, per lo stesso motivo della query sopra.
+  const { data: relazioneSalvata } = useQuery({
+    queryKey: ['relazione-documento', id],
+    queryFn: () => relazioneDocumentiApi.ultimoFinale(id!),
+    enabled: !!id && canGenerateDocs,
+  })
+  const { data: dichiarazioniSalvate } = useQuery({
+    queryKey: ['dichiarazioni-finale', id],
+    queryFn: () => dichiarazioniDocumentiApi.ultimoFinale(id!),
+    enabled: !!id && canGenerateDocs,
+  })
+
+  const handleScaricaRelazione = async () => {
+    if (!relazioneSalvata) return
+    try {
+      const blob = await relazioneDocumentiApi.scarica(relazioneSalvata.filePath)
+      saveAs(blob, relazioneSalvata.nome)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Scaricamento non riuscito')
+    }
+  }
+  const handleScaricaDichiarazioni = async () => {
+    if (!dichiarazioniSalvate) return
+    try {
+      const blob = await dichiarazioniDocumentiApi.scarica(dichiarazioniSalvate.filePath)
+      saveAs(blob, dichiarazioniSalvate.nome)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Scaricamento non riuscito')
+    }
+  }
+
+  // Relazione + dichiarazioni + un fascicolo per ogni apparecchiatura con adempimento, in
+  // un solo clic. I codici si calcolano sull'istantanea più fresca della scheda — presa da
+  // `formRef` al momento del clic, non da uno stato osservato prima — perché nel frattempo
+  // l'utente può aver aggiunto o tolto apparecchiature rispetto a quando la pagina si è
+  // caricata.
+  const handleScaricaCompleta = async () => {
+    try {
+      if (relazioneSalvata) {
+        const blob = await relazioneDocumentiApi.scarica(relazioneSalvata.filePath)
+        saveAs(blob, relazioneSalvata.nome)
+      }
+      if (dichiarazioniSalvate) {
+        const blob = await dichiarazioniDocumentiApi.scarica(dichiarazioniSalvate.filePath)
+        saveAs(blob, dichiarazioniSalvate.nome)
+      }
+      // Un file per codice: il browser mette in coda i download consecutivi, non serve uno zip
+      // lato client per un pugno di file — la scelta è deliberatamente la più semplice che
+      // funzioni (vedi documento di design, sezione «Fuori scope»).
+      const codici = codiciConAdempimento(calcolaEsitiPerCodice(formRef.current?.getFormData() ?? {}))
+      for (const codice of codici) {
+        const documenti = await fascicoloDocumentiApi.elenca(id!, codice)
+        const fascicolo = documenti.find((d) => d.tipo === 'fascicolo')
+        if (!fascicolo) {
+          console.warn('[handleScaricaCompleta] Nessun fascicolo trovato per il codice', codice)
+          continue
+        }
+        const blob = await fascicoloDocumentiApi.scarica(fascicolo.filePath)
+        saveAs(blob, fascicolo.nome)
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Scaricamento non riuscito')
+    }
+  }
+
   // IMPORTANT: Calculate sedeLegale BEFORE early returns to avoid React Hook ordering issues
   // Get sede legale from customer data using formatFullAddress
   // Priority: request.customer > customerByName > custom_fields.sede_legale
@@ -397,17 +505,6 @@ export const TechnicalDetails = () => {
   // queryKey del dettaglio, quindi TanStack la serve dalla cache.
   const codicePratica = codiceForRequest(request, clientSalaCount)
 
-  /**
-   * Dati CIVA e relazione: questione di ruolo, non di stato della scheda.
-   *
-   * Erano legati a `is_completed`, che si accendeva solo dal pulsante «Completa scheda» in
-   * testata. Tolto quello, restare agganciati a quel flag li avrebbe resi irraggiungibili —
-   * la pagina CIVA non ha altri punti d'ingresso in tutta l'app. Del resto la relazione si
-   * genera anche su una scheda ancora in lavorazione: è il suo preflight a dire cosa manca,
-   * e lo dice meglio di un flag binario acceso a mano.
-   */
-  const canGenerateDocs = user?.role === 'admin' || user?.role === 'userdm329'
-
   // Determina se l'utente può gestire la condivisione
   const canManageSharing =
     user?.role === 'admin' ||
@@ -466,7 +563,14 @@ export const TechnicalDetails = () => {
                 onShare={() => setShareDialogOpen(true)}
                 onCivaSummary={() => navigate(`/requests/${id}/civa-summary`)}
                 onRelazione={() => setRelazioneDialogOpen(true)}
+                onDichiarazioni={() => setDichiarazioniDialogOpen(true)}
                 onSaveDraft={handleSaveDraft}
+                relazionePronta={!!relazioneSalvata}
+                dichiarazioniPronte={!!dichiarazioniSalvate}
+                onScaricaRelazione={handleScaricaRelazione}
+                onScaricaDichiarazioni={handleScaricaDichiarazioni}
+                requestId={id!}
+                onScaricaCompleta={handleScaricaCompleta}
               />
             )}
           />
@@ -491,12 +595,19 @@ export const TechnicalDetails = () => {
         )}
 
         {/* Dialog "Dati relazione" + generazione .docx */}
+        {/* `scheda` preferisce `formData`: `technicalData.equipment_data` è la foto scattata al
+            caricamento della pagina e non si aggiorna al salvataggio, quindi generare la relazione
+            dopo una modifica non ancora ricaricata avrebbe riletto i valori di prima. */}
         {technicalData && id && (
           <RelazioneDataDialog
             open={relazioneDialogOpen}
-            onClose={() => setRelazioneDialogOpen(false)}
+            onClose={() => {
+              setRelazioneDialogOpen(false)
+              riaggiornaAdditionalInfo()
+              queryClient.invalidateQueries({ queryKey: ['relazione-documento', id] })
+            }}
             requestId={id}
-            scheda={technicalData.equipment_data as SchedaDatiCompleta}
+            scheda={(formData ?? technicalData.equipment_data) as SchedaDatiCompleta}
             customer={request?.customer ?? customerByName ?? null}
             pratica={{
               progressivo: request?.progressivo,
@@ -513,6 +624,37 @@ export const TechnicalDetails = () => {
               // schema d'impianto ritoccato sembrerebbe perso finché non si ricarica la pagina.
               setTechnicalData((prev) => (prev ? { ...prev, additional_info: info } : prev))
             }
+          />
+        )}
+
+        {/* Dialog "Dichiarazioni" + composizione del PDF a 5 parti */}
+        {technicalData && (
+          <DichiarazioniDialog
+            open={dichiarazioniDialogOpen}
+            onClose={() => {
+              setDichiarazioniDialogOpen(false)
+              riaggiornaAdditionalInfo()
+            }}
+            requestId={request.id}
+            scheda={(formData ?? technicalData.equipment_data) as SchedaDatiCompleta}
+            customerName={customerName}
+            sitoProduttivo={risolviSitoProduttivo({
+              impiantoUgualeSedeLegale: request?.impianto_uguale_sede_legale,
+              indirizzoImpianto: request?.indirizzo_impianto,
+              customer: request?.customer ?? customerByName ?? null,
+            })}
+            initialAdditionalInfo={technicalData.additional_info as AdditionalInfo | undefined}
+            movimenti={
+              storiaLetta
+                ? {
+                    stato: request.status,
+                    ultimoCambioStato: ultimoCambioStato ?? null,
+                    aggiornataIl: request.updated_at,
+                    creataIl: request.created_at,
+                  }
+                : undefined
+            }
+            nomeFile={nomeFileDichiarazioni(codicePratica, customerName)}
           />
         )}
 

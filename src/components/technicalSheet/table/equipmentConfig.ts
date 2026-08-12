@@ -66,6 +66,12 @@ export interface EquipmentTypeDef {
   mandatoryValvola?: boolean // valvola di sicurezza sempre presente (serbatoio, disoleatore)
   adv?: AdvKey[] // colonne nascoste a tecnicoDM329
   roleHidden?: boolean // intera riga nascosta a tecnicoDM329 (recipiente filtro)
+  /**
+   * PS e TS sono colonne mostrate e compilabili ma non contano ai fini della completezza
+   * della riga (`schedaCompleteness.ts`) — usato dal Filtro, dove a differenza degli altri
+   * recipienti non sono dati obbligatori.
+   */
+  pressioneTsOpzionali?: boolean
 }
 
 export const FINITURA_OPTIONS = ['VERNICIATO', 'ZINCATO', 'VITROFLEX', 'ALTRO'] as const
@@ -153,13 +159,15 @@ export const EQUIPMENT_DEFS: Record<EquipmentKind, EquipmentTypeDef> = {
   },
   filtro: {
     kind: 'filtro', label: 'Filtro', prefix: 'F', catalogType: 'Filtri',
-    ts: false, cat: false, autoPed: false,
+    pressioneField: 'ps_pressione_max', ts: true, cat: false, autoPed: false,
     extra: [
       { name: 'tipo', label: 'Tipo', kind: 'select', options: TIPO_FILTRO_OPTIONS, display: TIPO_FILTRO_LABELS, labels: TIPO_FILTRO_LABELS, emptyLabel: 'Filtro di linea' },
       NOTE_EXTRA,
     ],
-    specsMap: {},
+    specsMap: { ps: 'ps_pressione_max', ts: 'ts' },
     childKind: 'recipiente',
+    adv: ['pressione', 'ts'],
+    pressioneTsOpzionali: true,
   },
   recipiente: {
     kind: 'recipiente', label: 'Recipiente filtro', prefix: 'F', catalogType: 'Recipienti filtro',

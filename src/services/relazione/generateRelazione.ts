@@ -25,7 +25,7 @@ export interface GenerateRelazioneParams {
 
 export async function generateAndDownloadRelazione(
   params: GenerateRelazioneParams
-): Promise<void> {
+): Promise<Blob> {
   const { scheda, additionalInfo, customer, pratica, schemaImpianto, fileName } = params
 
   const res = await fetch(TEMPLATE_URL)
@@ -44,4 +44,5 @@ export async function generateAndDownloadRelazione(
     type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   })
   saveAs(blob, fileName ?? 'Relazione_DM329.docx')
+  return blob
 }
