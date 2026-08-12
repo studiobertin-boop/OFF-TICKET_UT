@@ -42,6 +42,29 @@ export function deserializzaLayout(salvato: LayoutSalvato | null | undefined): S
   return { nodi: salvato.nodi, archi: salvato.archi, muro: calcolaMuro(salvato.nodi) }
 }
 
+/**
+ * Cosa scrivere in `additional_info.schemaLayout` al salvataggio: il layout in memoria se
+ * c'è; altrimenti, solo se questa sessione del dialog non ha *mai* deliberatamente ricalcolato
+ * il layout, il layout già persistito, come ripiego.
+ *
+ * `layoutRicalcolato` distingue «nessun layout» da «layout non ancora ricalcolato»: `false`
+ * copre generazione automatica non ancora partita (`puoGenerare` falso), fallita
+ * (`rasterizzaSvg` ha lanciato) o non ancora finita (salvataggio durante il calcolo
+ * asincrono) — in tutti questi casi il layout in memoria è `null` per un incidente, non per
+ * scelta, e senza ripiego un salvataggio in quel momento cancellerebbe la disposizione già
+ * persistita. `true` con layout `null` è invece una scelta esplicita dell'utente (disegno
+ * AutoCAD caricato, o «Rimuovi»): lì non si ripiega, si scrive «nessun layout» per davvero.
+ */
+export function layoutDaPersistere(
+  layoutCorrente: SchemaLayout | null,
+  layoutRicalcolato: boolean,
+  layoutSalvato: LayoutSalvato | null | undefined
+): LayoutSalvato | undefined {
+  if (layoutCorrente) return serializzaLayout(layoutCorrente)
+  if (layoutRicalcolato) return undefined
+  return layoutSalvato ?? undefined
+}
+
 export interface EsitoRiconciliazione {
   layout: SchemaLayout
   aggiunti: string[]

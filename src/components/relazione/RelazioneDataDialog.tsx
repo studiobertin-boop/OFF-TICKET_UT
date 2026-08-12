@@ -42,7 +42,7 @@ import { buildRelazioneModel } from '@/services/relazione/buildRelazioneModel'
 import { validateRelazione, haErrori } from '@/services/relazione/preflight'
 import type { AdditionalInfo, PraticaInfo, SchemaImpianto, TipoGiri } from '@/services/relazione/types'
 import type { LayoutSalvato } from '@/services/schemaImpianto/persistenza'
-import { serializzaLayout } from '@/services/schemaImpianto/persistenza'
+import { layoutDaPersistere } from '@/services/schemaImpianto/persistenza'
 import type { SchemaLayout } from '@/services/schemaImpianto/types'
 import { SchemaImpiantoSection } from './SchemaImpiantoSection'
 import { collectCodes, pruneAdditionalInfo } from '@/utils/equipmentCodes'
@@ -143,6 +143,11 @@ export default function RelazioneDataDialog({
   // salvataggio, non quello letto all'apertura.
   const [layoutSalvato, setLayoutSalvato] = useState<LayoutSalvato | null | undefined>(undefined)
   const [layout, setLayout] = useState<SchemaLayout | null>(null)
+  // Vero non appena `SchemaImpiantoSection` ha ricalcolato il layout almeno una volta in
+  // questa apertura del dialog (successo o scelta deliberata di azzerarlo — non importa
+  // quale): distingue «nessun layout» da «layout non ancora ricalcolato» in
+  // `layoutDaPersistere` qui sotto. Vedi quella funzione per il perché.
+  const [layoutRicalcolato, setLayoutRicalcolato] = useState(false)
   const [saving, setSaving] = useState(false)
   const [droppedRefs, setDroppedRefs] = useState<string[]>([])
 
@@ -189,6 +194,7 @@ export default function RelazioneDataDialog({
     // da riconciliare: `undefined` in quella prop significa "non ancora letto".
     setSchema(null)
     setLayout(null)
+    setLayoutRicalcolato(false)
     setLayoutSalvato(info.schemaLayout ?? null)
   }, [open, initialAdditionalInfo, customer, schedaCodes])
 
@@ -208,9 +214,20 @@ export default function RelazioneDataDialog({
       compressoriGiri: giri,
       spessimetrica,
       collegamentiCompressoriSerbatoi: collegamenti,
-      schemaLayout: layout ? serializzaLayout(layout) : undefined,
+      schemaLayout: layoutDaPersistere(layout, layoutRicalcolato, layoutSalvato),
     }),
-    [descrizioneAttivita, dataEmissione, motivoRevisione, eRevisione, giri, spessimetrica, collegamenti, layout]
+    [
+      descrizioneAttivita,
+      dataEmissione,
+      motivoRevisione,
+      eRevisione,
+      giri,
+      spessimetrica,
+      collegamenti,
+      layout,
+      layoutRicalcolato,
+      layoutSalvato,
+    ]
   )
 
   /**
@@ -560,7 +577,10 @@ export default function RelazioneDataDialog({
             schema={schema}
             onSchemaChange={setSchema}
             layoutSalvato={layoutSalvato}
-            onLayoutChange={setLayout}
+            onLayoutChange={(nuovo) => {
+              setLayout(nuovo)
+              setLayoutRicalcolato(true)
+            }}
             disabled={saving}
           />
 

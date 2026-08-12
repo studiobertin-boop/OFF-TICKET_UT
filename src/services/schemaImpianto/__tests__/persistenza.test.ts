@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { makeCompressore, makeDatiImpianto, makeScheda, makeSerbatoio, makeValvola } from '@/services/relazione/__tests__/fixtures'
 import { buildSchemaModel } from '../buildSchemaModel'
 import { layoutSchema } from '../layout'
-import { serializzaLayout, deserializzaLayout, riconcilia, layoutIniziale } from '../persistenza'
+import { serializzaLayout, deserializzaLayout, riconcilia, layoutIniziale, layoutDaPersistere } from '../persistenza'
 
 function modelloDiProva(codiciCompressore: string[]) {
   const scheda = makeScheda({
@@ -237,5 +237,28 @@ describe('layoutIniziale', () => {
     const atteso = riconcilia(salvato, modello)
 
     expect(esito).toEqual(atteso)
+  })
+})
+
+describe('layoutDaPersistere', () => {
+  const salvato = serializzaLayout(layoutSchema(modelloDiProva(['C1'])))
+
+  it('con un layout in memoria, persiste quello: è il caso normale', () => {
+    const layout = layoutSchema(modelloDiProva(['C1', 'C2']))
+    expect(layoutDaPersistere(layout, false, salvato)).toEqual(serializzaLayout(layout))
+    expect(layoutDaPersistere(layout, true, salvato)).toEqual(serializzaLayout(layout))
+  })
+
+  it('senza layout in memoria ma senza che questa sessione l’abbia mai ricalcolato, ripiega sul salvato: il rendering può essere fallito, non ancora partito, o non ancora finito', () => {
+    expect(layoutDaPersistere(null, false, salvato)).toEqual(salvato)
+  })
+
+  it('senza layout in memoria e con questa sessione che lo ha ricalcolato a `null`, non ripiega: è una scelta deliberata (disegno caricato, o «Rimuovi»)', () => {
+    expect(layoutDaPersistere(null, true, salvato)).toBeUndefined()
+  })
+
+  it('senza un salvato da cui ripiegare, resta undefined', () => {
+    expect(layoutDaPersistere(null, false, null)).toBeUndefined()
+    expect(layoutDaPersistere(null, false, undefined)).toBeUndefined()
   })
 })
