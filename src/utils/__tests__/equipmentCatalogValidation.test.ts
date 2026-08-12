@@ -113,7 +113,12 @@ describe('schema dei dati tecnici generato dal tipo', () => {
   })
 
   it('i tipi senza dati tecnici non impongono nulla', () => {
+    expect(specsSchemaFor('Separatori').safeParse({}).success).toBe(true)
+  })
+
+  it('per i filtri PS e TS sono opzionali', () => {
     expect(specsSchemaFor('Filtri').safeParse({}).success).toBe(true)
+    expect(specsSchemaFor('Filtri').safeParse({ ps: 11, ts: '-10 ÷ +50' }).success).toBe(true)
   })
 
   it('lo schema valida ciò che è memorizzato, definizioni interne comprese', () => {
