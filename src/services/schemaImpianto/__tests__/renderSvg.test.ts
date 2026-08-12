@@ -12,6 +12,7 @@ import {
 import { buildSchemaModel } from '../buildSchemaModel'
 import { layoutSchema } from '../layout'
 import { renderSvg, righeLista, righeLegenda, raccordoOrtogonale, posizioneAncora } from '../renderSvg'
+import { dimensioniDi } from '../symbols'
 
 function svgMinimo(noteTubazioni?: string[]) {
   const scheda = makeScheda({
@@ -152,13 +153,39 @@ describe('renderSvg', () => {
   })
 
   // La scritta sporgeva oltre il bordo destro: nel PNG finiva tagliata a metà.
-  it('allarga la viewBox fino a contenere la scritta delle utenze', () => {
-    const svg = svgMinimo()
-    const larghezza = Number(svg.match(/viewBox="0 0 (\d+(?:\.\d+)?)/)?.[1])
-    const xScritta = Number(svg.match(/<text x="(\d+(?:\.\d+)?)"[^>]*>Utenze aria/)?.[1])
+  //
+  // Non si può leggere la `x` dal `<text>`: da quando la scritta la disegna `simboloUtenze`
+  // dentro un `<g transform="translate(…)">`, quella coordinata è LOCALE e vale sempre 30 —
+  // l'asserzione diventerebbe «larghezza > 130», vera per costruzione perché la larghezza minima
+  // è quella della tabella (830). Si confronta invece il bordo destro del riquadro del
+  // terminale, che è ciò che deve stare dentro la tela.
+  //
+  // La scritta è lunga apposta: con «Utenze aria» il riquadro finisce a 740, dentro gli 830
+  // della tabella, e il confronto passerebbe anche se `dimensioniLayout` ignorasse del tutto il
+  // terminale. Qui il bordo destro supera la tabella, quindi solo un calcolo corretto lo copre.
+  it('allarga la viewBox fino a contenere la scritta delle utenze, anche lunga', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ ha_disoleatore: false })],
+      disoleatori: [],
+      serbatoi: [makeSerbatoio({ orientamento: 'ORIZZONTALE' })],
+      essiccatori: [],
+      scambiatori: [],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const layout = layoutSchema(
+      buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    )
+    const utenze = layout.nodi.find((n) => n.tipo === 'utenze')!
+    utenze.etichetta = 'Utenze aria compressa reparto 2'
 
-    expect(xScritta).toBeGreaterThan(0)
-    expect(larghezza).toBeGreaterThan(xScritta + 100)
+    const svg = renderSvg(layout)
+    const larghezza = Number(svg.match(/viewBox="0 0 (\d+(?:\.\d+)?)/)?.[1])
+    const bordoDestro = utenze.x + dimensioniDi(utenze).larghezza
+
+    // Il fixture dev'essere quello che discrimina: il terminale deve sporgere oltre la tabella.
+    expect(bordoDestro).toBeGreaterThan(830)
+    expect(larghezza).toBeGreaterThanOrEqual(bordoDestro)
   })
 
   it('non lascia entità XML non valide nelle etichette con &', () => {

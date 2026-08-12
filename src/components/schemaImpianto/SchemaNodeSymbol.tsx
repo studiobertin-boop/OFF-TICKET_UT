@@ -3,7 +3,7 @@
  * vede mentre si corregge è ciò che finirà in relazione.
  */
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { definizioneDi, simboloDi } from '@/services/schemaImpianto/symbols'
+import { definizioneDi, dimensioniDi, simboloDi } from '@/services/schemaImpianto/symbols'
 import type { SchemaAncora, SchemaNodo } from '@/services/schemaImpianto/types'
 
 export interface SchemaNodeData extends Record<string, unknown> {
@@ -36,7 +36,10 @@ function latoDi(ancora: SchemaAncora, dim: { larghezza: number; altezza: number 
 export function SchemaNodeSymbol({ data, selected }: NodeProps) {
   const { nodo } = data as SchemaNodeData
   const def = definizioneDi(nodo)
-  const { larghezza, altezza } = def.dimensioni
+  // Ingombro effettivo, non quello del registro: la scritta del terminale utenze è libera, e con
+  // la larghezza fissa il `<svg>` qui sotto la taglierebbe appena supera i 17-18 caratteri.
+  const dimensioni = dimensioniDi(nodo)
+  const { larghezza, altezza } = dimensioni
 
   return (
     <div style={{ position: 'relative', width: larghezza, height: altezza }}>
@@ -45,7 +48,7 @@ export function SchemaNodeSymbol({ data, selected }: NodeProps) {
         // partire o arrivare dallo stesso punto. Chi decide se il collegamento è legale
         // non è l'handle ma `isValidConnection` in SchemaEditor, via `capoValido`.
         const stile = { ...ANCORA, left: ancora.x, top: ancora.y, transform: 'translate(-50%, -50%)' }
-        const lato = latoDi(ancora, def.dimensioni)
+        const lato = latoDi(ancora, dimensioni)
         // L'ordine qui non è indifferente: due handle sovrapposti senza z-index si
         // contendono il mousedown, e vince l'ultimo nel DOM. In connectionMode Strict
         // (il default, non sovrascritto) il trascinamento parte quindi dall'handle

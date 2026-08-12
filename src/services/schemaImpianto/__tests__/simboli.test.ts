@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { chiaveSimbolo } from '../types'
-import { REGISTRO_SIMBOLI, definizioneDi, ancoraDi, simboloDi } from '../symbols'
+import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, simboloDi } from '../symbols'
 import { capoValido } from '../agganci'
 
 describe('chiaveSimbolo', () => {
@@ -86,6 +86,40 @@ describe('simbolo «Alle utenze»', () => {
     const def = definizioneDi(utenze)
     expect(def.ancore).toEqual([{ id: 'in', x: 12, y: 120, accetta: ['aria'] }])
     expect(def.dimensioni).toEqual({ larghezza: 190, altezza: 120 })
+  })
+
+  // La spec promette «ingombro largo abbastanza da contenere la scritta, così `dimensioniLayout`
+  // allarga da sé la tela». Con la larghezza fissa a 190 restavano ~17-18 caratteri: oltre, la
+  // scritta usciva dal riquadro — tagliata subito nell'editor, tagliata nel PNG appena superava
+  // il margine. E il campo di rinomina invita a scrivere («Utenze aria», «Utenze azoto»).
+  it('l’ingombro del terminale cresce con la lunghezza della scritta', () => {
+    const corta = dimensioniDi({ ...utenze, etichetta: 'Utenze aria' })
+    const lunga = dimensioniDi({ ...utenze, etichetta: 'Utenze aria compressa reparto 2' })
+    const piuLunga = dimensioniDi({ ...utenze, etichetta: 'Utenze aria compressa reparto 2 e 3' })
+
+    // Una scritta breve non stringe il riquadro sotto il minimo del registro.
+    expect(corta.larghezza).toBe(190)
+    // Una lunga lo allarga, e la scritta ci sta dentro per intero.
+    expect(lunga.larghezza).toBeGreaterThan(190)
+    expect(simboloDi({ ...utenze, etichetta: 'Utenze aria compressa reparto 2' })).toContain(
+      '>Utenze aria compressa reparto 2</text>'
+    )
+    // Cresce con la lunghezza, non a scatti fissi: quattro caratteri in più allargano ancora.
+    expect(piuLunga.larghezza).toBeGreaterThan(lunga.larghezza)
+    // L'altezza non c'entra: la scritta sta su una riga sola.
+    expect(lunga.altezza).toBe(corta.altezza)
+  })
+
+  it('gli altri tipi conservano l’ingombro del registro', () => {
+    // `dimensioniDi` non deve diventare una seconda fonte di verità sugli ingombri: per tutto
+    // ciò che non è il terminale è il registro a decidere, com'è sempre stato.
+    for (const chiave of Object.keys(REGISTRO_SIMBOLI)) {
+      const def = REGISTRO_SIMBOLI[chiave]
+      const [tipo, orientamento] = chiave.split(':')
+      if (tipo === 'utenze') continue
+      const nodo = { ...utenze, tipo: tipo as typeof utenze.tipo, orientamento: orientamento as never }
+      expect(dimensioniDi(nodo), chiave).toEqual(def.dimensioni)
+    }
   })
 
   it('l’ancora accetta l’aria e rifiuta la condensa', () => {

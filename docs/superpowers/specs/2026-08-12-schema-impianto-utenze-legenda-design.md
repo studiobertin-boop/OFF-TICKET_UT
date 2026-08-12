@@ -95,7 +95,13 @@ Nuovo tipo di nodo `utenze`, con una voce propria nel registro dei simboli:
 - **Ancora**: una sola, in basso, `accetta: ['aria']`. La tubazione arriva da sotto.
 - **Etichetta**: `"Utenze aria"` alla nascita, modificabile.
 - **Ingombro**: largo abbastanza da contenere la scritta, così `dimensioniLayout` allarga da sé
-  la tela — è il compito che oggi svolge `SPAZIO_UTENZE`, che sparisce.
+  la tela — è il compito che oggi svolge `SPAZIO_UTENZE`, che sparisce. Siccome la scritta è
+  libera, la larghezza **si calcola dalla lunghezza dell'etichetta** (stima a carattere: per
+  Arial, 0,5 × la dimensione del font basta a decidere quanto allargare la tela, e misurare i
+  glifi richiederebbe un DOM che queste funzioni non hanno), con i 190 del registro come minimo.
+  Una larghezza fissa lasciava una diciassettina di caratteri, oltre i quali la scritta usciva
+  dal riquadro: tagliata subito nell'editor, tagliata nel PNG appena superava il margine.
+  `DIMENSIONI_NODO` resta statico per tipo; chi ha in mano il nodo legge `dimensioniDi(nodo)`.
 - **Id riservato `UTENZE`**, che nessun codice di scheda può produrre. L'elemento è uno solo.
 - **Gruppo** `LINEA_DISTRIBUZIONE`, come gli altri nodi a valle del muro.
 

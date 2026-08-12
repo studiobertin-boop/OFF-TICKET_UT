@@ -323,6 +323,27 @@ export function simboloPaccoBombole(nodo: SchemaNodo): string {
 }
 
 /**
+ * Geometria del terminale utenze, condivisa fra chi lo disegna (`simboloUtenze`) e chi ne calcola
+ * l'ingombro (`dimensioniDi`): sono la stessa cosa vista da due parti, e tenerle separate è
+ * esattamente ciò che faceva uscire la scritta dal riquadro.
+ */
+const UTENZE = {
+  /** Ascissa del codolo, la stessa dell'ancora `in` nel registro. */
+  x: 12,
+  /** Rientro della scritta rispetto al codolo. */
+  rientroScritta: 18,
+  dimensioneScritta: 18,
+  /** Aria fra la fine della scritta e il bordo destro del riquadro. */
+  margineDestro: 12,
+  /**
+   * Larghezza media di un carattere, in frazione della dimensione del font. Per Arial 0,5 è una
+   * buona approssimazione: serve a decidere quanto allargare la tela, non a comporre
+   * tipograficamente, e misurare i glifi richiederebbe un DOM che queste funzioni non hanno.
+   */
+  larghezzaCarattere: 0.5,
+}
+
+/**
  * Terminale «Alle utenze»: codolo tratteggiato che sale dall'ancora, punta di freccia e la
  * scritta accanto. Riproduce la forma del disegno di riferimento del committente
  * (`DOCUMENTAZIONE/relazione/schema.png`), dove il tratteggio è corto e il tratto prima è
@@ -334,12 +355,12 @@ export function simboloPaccoBombole(nodo: SchemaNodo): string {
  */
 export function simboloUtenze(nodo: SchemaNodo): string {
   const { altezza } = DIMENSIONI.utenze
-  const x = 12
+  const x = UTENZE.x
   const yPunta = 14
   return [
     `<path d="M ${x} ${altezza} L ${x} ${yPunta + 12}" fill="none" stroke="#000" stroke-width="${TRATTO}" stroke-dasharray="10 7" />`,
     `<path d="M ${x - 6} ${yPunta + 13} L ${x} ${yPunta} L ${x + 6} ${yPunta + 13} Z" fill="#000" />`,
-    testo(x + 18, yPunta + 6, nodo.etichetta, 18, 'start'),
+    testo(x + UTENZE.rientroScritta, yPunta + 6, nodo.etichetta, UTENZE.dimensioneScritta, 'start'),
   ].join('')
 }
 
@@ -438,6 +459,29 @@ export function ancoraDi(
   id: string
 ): SchemaAncora | undefined {
   return definizioneDi(nodo).ancore.find((a) => a.id === id)
+}
+
+/**
+ * Ingombro effettivo di un nodo. Coincide col riquadro dichiarato nel registro per tutti i tipi
+ * tranne il terminale utenze, la cui scritta è libera: l'utente la cambia dall'editor, e con la
+ * larghezza fissa di 190 le restavano una diciassettina di caratteri — oltre, la scritta usciva
+ * dal riquadro, tagliata subito nell'editor (`SchemaNodeSymbol` monta un `<svg>` largo quanto
+ * l'ingombro) e tagliata nel PNG appena superava il margine. La larghezza si ricava quindi dalla
+ * lunghezza dell'etichetta, con quella del registro come minimo, così `dimensioniLayout` allarga
+ * da sé la tela come la spec promette.
+ *
+ * `DIMENSIONI_NODO` resta un `Record` statico per tipo e non può portare questa informazione:
+ * chi ha in mano il nodo (e quindi la sua etichetta) passa di qui, gli altri continuano a leggere
+ * il registro. I due punti dove la larghezza del terminale conta davvero sono `dimensioniLayout`
+ * (la tela del PNG) e `SchemaNodeSymbol` (il riquadro sulla tela dell'editor).
+ */
+export function dimensioniDi(nodo: SchemaNodo): { larghezza: number; altezza: number } {
+  const dimensioni = definizioneDi(nodo).dimensioni
+  if (nodo.tipo !== 'utenze') return dimensioni
+
+  const scritta = nodo.etichetta.length * UTENZE.dimensioneScritta * UTENZE.larghezzaCarattere
+  const necessaria = UTENZE.x + UTENZE.rientroScritta + scritta + UTENZE.margineDestro
+  return { larghezza: Math.max(dimensioni.larghezza, Math.ceil(necessaria)), altezza: dimensioni.altezza }
 }
 
 /** Ingombri per tipo, ricavati dal registro. Conserva la forma che `layout.ts` già usa. */

@@ -7,7 +7,7 @@
  * destra. Funzione pura: nessun DOM, testabile in Node.
  */
 import { ordinaCatenaTrattamento } from './buildSchemaModel'
-import { DIMENSIONI_NODO } from './symbols'
+import { DIMENSIONI_NODO, dimensioniDi } from './symbols'
 import type {
   SchemaLayout,
   SchemaModel,
@@ -216,10 +216,15 @@ export function corpoNodo(nodo: SchemaNodoPosizionato): {
   return { x: nodo.x, y: nodo.y, larghezza: dim.larghezza, altezza: dim.altezza }
 }
 
-/** Riquadro complessivo del disegno, usato da `renderSvg` per la viewBox. */
+/**
+ * Riquadro complessivo del disegno, usato da `renderSvg` per la viewBox. Legge l'ingombro con
+ * `dimensioniDi` e non da `DIMENSIONI_NODO`: la scritta del terminale utenze è libera, e con la
+ * larghezza fissa del registro una scritta lunga sporgerebbe oltre il bordo destro della tela e
+ * finirebbe tagliata nel PNG.
+ */
 export function dimensioniLayout(layout: SchemaLayout): { larghezza: number; altezza: number } {
   if (layout.nodi.length === 0) return { larghezza: MARGINE * 2, altezza: MARGINE * 2 }
-  const maxX = Math.max(...layout.nodi.map((n) => n.x + DIMENSIONI_NODO[n.tipo].larghezza))
-  const maxY = Math.max(...layout.nodi.map((n) => n.y + DIMENSIONI_NODO[n.tipo].altezza))
+  const maxX = Math.max(...layout.nodi.map((n) => n.x + dimensioniDi(n).larghezza))
+  const maxY = Math.max(...layout.nodi.map((n) => n.y + dimensioniDi(n).altezza))
   return { larghezza: maxX + MARGINE, altezza: maxY + MARGINE }
 }
