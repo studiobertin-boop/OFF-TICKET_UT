@@ -75,4 +75,32 @@ describe('useSchemaHistory', () => {
     expect(result.current.stato).toEqual({ n: 99 })
     expect(result.current.puoAnnullare).toBe(false)
   })
+
+  it('due `applica` nello stesso lotto React si compongono, non si scartano a vicenda', () => {
+    // Riproduce il percorso reale di @xyflow: `deleteElements` chiama `triggerEdgeChanges` e
+    // subito dopo `triggerNodeChanges` nello stesso giro, ognuna finisce in `applica`. Se
+    // `applica` legge lo stato "precedente" da un ref aggiornato solo al render, la seconda
+    // chiamata calcola il suo aggiornamento sullo stesso stato di partenza della prima —
+    // invece che sul risultato della prima — e la seconda `setStato` sovrascrive la prima.
+    const { result } = renderHook(() =>
+      useSchemaHistory<{ nodes: number[]; edges: number[] }>({ nodes: [1, 2], edges: [10] })
+    )
+
+    act(() => {
+      result.current.applica((s) => ({ ...s, edges: s.edges.filter((e) => e !== 10) }))
+      result.current.applica((s) => ({ ...s, nodes: s.nodes.filter((n) => n !== 1) }))
+    })
+
+    // Entrambe le trasformazioni devono comporsi: la seconda applicata sul risultato della
+    // prima, non su un istantanea di partenza stantia che la seconda `setStato` sovrascrive.
+    expect(result.current.stato).toEqual({ nodes: [2], edges: [] })
+
+    // Le due chiamate restano due passi di cronologia distinti: si torna indietro un gesto
+    // alla volta, prima l'ultima applicata (i nodi), poi la prima (gli archi).
+    act(() => result.current.annulla())
+    expect(result.current.stato).toEqual({ nodes: [1, 2], edges: [] })
+
+    act(() => result.current.annulla())
+    expect(result.current.stato).toEqual({ nodes: [1, 2], edges: [10] })
+  })
 })
