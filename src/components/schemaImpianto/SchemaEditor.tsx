@@ -65,6 +65,7 @@ import { useGomiti } from './useGomiti'
 import { useGuideAllineamento } from './useGuideAllineamento'
 import { useSchemaHistory } from './useSchemaHistory'
 import { useSegniTubo } from './useSegniTubo'
+import { useTrascinamentoTratto } from './useTrascinamentoTratto'
 
 const tipiNodo = { [TIPO_NODO_FLOW]: SchemaNodeSymbol }
 const tipiArco = { [TIPO_ARCO_FLOW]: SchemaEdgeTubazione }
@@ -165,11 +166,12 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
   // sarebbe una modifica che si perde in silenzio.
   const [rinomina, setRinomina] = useState<{ id: string; valore: string } | null>(null)
 
-  // La tela di react-flow è un'approssimazione: mostra nodi e archi — terminale utenze compreso,
-  // che dal 12-08-2026 è un nodo come gli altri e si ritocca qui — ma non muro, nota e tabella,
-  // e instrada le linee a modo suo. L'anteprima qui accanto è invece il disegno vero — la stessa
-  // funzione che produce il PNG del .docx — così quello che si vede mentre si ritocca è quello
-  // che verrà consegnato.
+  // La tela di react-flow resta un'approssimazione: mostra nodi e archi — terminale utenze
+  // compreso, che dal 12-08-2026 è un nodo come gli altri e si ritocca qui — ma non muro, nota
+  // e tabella. Da questo task instrada le linee come il render statico (`polilineaConGomiti`
+  // condivisa, vedi SchemaEdgeTubazione.tsx): non è più un percorso a parte. L'anteprima qui
+  // accanto resta comunque il giudice dell'aspetto — la stessa funzione che produce il PNG del
+  // .docx — perché è lei a disegnare anche ciò che la tela non mostra affatto.
   const anteprima = useMemo(() => {
     if (!anteprimaAperta) return null
     const svg = renderSvg(flowALayout(stato.nodes, stato.edges), { noteTubazioni })
@@ -219,17 +221,21 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
   // isolata in un hook suo (vedi useSegniTubo.ts), stesso motivo di useGomiti.ts qui sopra.
   const { aggiungiSegno, edgesConSegni } = useSegniTubo(stato, applica, aggiornaSenzaCronologia)
 
-  // `edgesConGomitiBase` e `edgesConSegni` derivano ENTRAMBI da `stato.edges` con dati
-  // aggiuntivi diversi (l'uno `onSpostaGomito`/`onRimuoviGomito`, l'altro
-  // `onSpostaSegno`/`onRimuoviSegno`): vanno fusi, non passati entrambi a
-  // `<ReactFlow edges={...}>`, o il secondo sovrascriverebbe il primo.
+  // Trascinare in blocco un tratto dritto: logica isolata in un hook suo (vedi
+  // useTrascinamentoTratto.ts), stesso motivo di useGomiti.ts qui sopra.
+  const { edgesConTrascinamento } = useTrascinamentoTratto(stato, applica, aggiornaSenzaCronologia)
+
+  // `edgesConGomitiBase`, `edgesConSegni` ed `edgesConTrascinamento` derivano TUTTI e tre da
+  // `stato.edges` con dati aggiuntivi diversi (rispettivamente `onSpostaGomito`/
+  // `onRimuoviGomito`, `onSpostaSegno`/`onRimuoviSegno`, `onTrascinaTratto`): vanno fusi, non
+  // passati tutti a `<ReactFlow edges={...}>`, o l'ultimo sovrascriverebbe i precedenti.
   const edgesConGomiti = useMemo(
     () =>
       edgesConGomitiBase.map((e, i) => ({
         ...e,
-        data: { ...e.data, ...edgesConSegni[i]?.data } as SchemaEdgeData,
+        data: { ...e.data, ...edgesConSegni[i]?.data, ...edgesConTrascinamento[i]?.data } as SchemaEdgeData,
       })),
-    [edgesConGomitiBase, edgesConSegni]
+    [edgesConGomitiBase, edgesConSegni, edgesConTrascinamento]
   )
 
   // Guide di allineamento durante il trascinamento: stato locale, non cronologia (vedi

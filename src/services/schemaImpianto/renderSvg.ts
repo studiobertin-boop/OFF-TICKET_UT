@@ -17,7 +17,7 @@ import {
   valvolaScarico,
   TRATTO,
 } from './symbols'
-import { ondula, raccordoOrtogonale, polilineaConGomiti, puntoSuTratto, type Punto } from './tratti'
+import { ondula, percorso, raccordoOrtogonale, polilineaConGomiti, puntoSuTratto, type Punto } from './tratti'
 import type { SchemaLayout, SchemaNodoPosizionato, SchemaNodoTipo } from './types'
 
 export type { Punto }
@@ -42,10 +42,6 @@ export function posizioneAncora(nodo: SchemaNodoPosizionato, ancoraId: string): 
     return { x: corpo.x + corpo.larghezza / 2, y: corpo.y + corpo.altezza / 2 }
   }
   return { x: nodo.x + ancora.x, y: nodo.y + ancora.y }
-}
-
-function percorso(punti: Punto[]): string {
-  return punti.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
 }
 
 /**

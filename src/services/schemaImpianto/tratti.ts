@@ -39,6 +39,14 @@ export function polilineaConGomiti(inizio: Punto, gomiti: Punto[], fine: Punto):
   return punti
 }
 
+/** Tracciato SVG (comandi M/L) di una polilinea già risolta: la stessa linea dritta che
+ *  disegna il render statico per gli stili non ondulati, e che l'editor usa anche come area
+ *  di trascinamento del tratto (`useTrascinamentoTratto.ts`). Condivisa fra `renderSvg.ts` e
+ *  `SchemaEdgeTubazione.tsx` perché la forma dev'essere letteralmente la stessa stringa. */
+export function percorso(punti: Punto[]): string {
+  return punti.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+}
+
 /**
  * Raccordo che preserva l'asse del tratto trascinato: il gomito nuovo (se serve) sta sulla
  * coordinata di `fisso` lungo l'asse perpendicolare al tratto e su quella di `daPreservare`

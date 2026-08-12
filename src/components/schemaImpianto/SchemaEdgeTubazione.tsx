@@ -2,16 +2,17 @@
  * Collegamento dell'editor. I tre stili corrispondono alle convenzioni del CAD: rigida
  * continua, flessibile ondulata, condense tratteggiata.
  *
- * Il flessibile rinuncia alla rotta `smoothstep` di react-flow perché l'onda richiede una
- * polilinea: sulla tela va quindi dritto da un capo all'altro, mentre il pannello di anteprima
- * mostra la rotta vera. È l'approssimazione già dichiarata per il resto della tela, non un
- * difetto.
+ * Tutti gli stili condividono `polilineaConGomiti` (tratti.ts) con il render statico
+ * (`renderSvg.ts`): non c'è più una rotta `smoothstep` di react-flow disegnata sulla tela e
+ * un'altra, vera, disegnata solo nell'anteprima. È questa condivisione a rendere possibile
+ * trascinare un tratto con la certezza che sia lo stesso tratto che il .docx disegnerà.
  */
 import { useCallback, useRef } from 'react'
-import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, useReactFlow, type EdgeProps } from '@xyflow/react'
+import { BaseEdge, EdgeLabelRenderer, useReactFlow, type EdgeProps } from '@xyflow/react'
 import { riduttorePressione, valvolaIntercettazione } from '@/services/schemaImpianto/symbols'
-import { ondula, puntoSuTratto, tSuTratto, type Punto } from '@/services/schemaImpianto/tratti'
+import { ondula, percorso, polilineaConGomiti, puntoSuTratto, tSuTratto, type Punto } from '@/services/schemaImpianto/tratti'
 import type { SchemaArcoStile, SchemaSegnoTubo, SchemaSegnoTuboTipo } from '@/services/schemaImpianto/types'
+import { indiceTrattoPiuVicino } from './useTrascinamentoTratto'
 
 export interface SchemaEdgeData extends Record<string, unknown> {
   stile: SchemaArcoStile
@@ -31,6 +32,13 @@ export interface SchemaEdgeData extends Record<string, unknown> {
    */
   onSpostaSegno?: (indice: number, t: number, concluso: boolean) => void
   onRimuoviSegno?: (indice: number) => void
+  /**
+   * Legata a questo arco specifico da `useTrascinamentoTratto` (vedi `edgesConTrascinamento`
+   * lì dentro): il componente dell'arco non conosce la cronologia, sa solo chiedere di
+   * aggiornarla. `indiceTratto` è quello nella polilinea RESA (`polilineaConGomiti`), non
+   * nell'elenco dei soli gomiti a mano.
+   */
+  onTrascinaTratto?: (pDa: Punto, pA: Punto, indiceTratto: number, puntoLibero: Punto, concluso: boolean) => void
 }
 
 /**
@@ -232,36 +240,23 @@ export function SchemaEdgeTubazione({
   sourceY,
   targetX,
   targetY,
-  sourcePosition,
-  targetPosition,
   data,
   selected,
   markerEnd,
 }: EdgeProps) {
+  const { screenToFlowPosition } = useReactFlow()
   const edgeData = data as SchemaEdgeData | undefined
   const stile = (edgeData?.stile ?? 'standard') as SchemaArcoStile
-  const [pathAutomatico, labelX, labelY] = getSmoothStepPath({
-    sourceX,
-    sourceY,
-    targetX,
-    targetY,
-    sourcePosition,
-    targetPosition,
-  })
-  // Quando ci sono gomiti imposti a mano, il percorso è la polilinea che passa per loro:
-  // getSmoothStepPath serve solo a piazzare l'etichetta, non più a disegnare la linea.
+  const pDa: Punto = { x: sourceX, y: sourceY }
+  const pA: Punto = { x: targetX, y: targetY }
   const punti = edgeData?.punti ?? []
-  const polilinea = [{ x: sourceX, y: sourceY }, ...punti, { x: targetX, y: targetY }]
-  // Il flessibile si riconosce dall'onda, come nel disegno finale e nel campione di legenda:
-  // per averla serve una polilinea, quindi qui si rinuncia alla rotta `smoothstep` e si va
-  // dritti da un capo all'altro. È una delle approssimazioni dichiarate della tela — il
-  // giudice dell'aspetto resta il pannello di anteprima, che disegna la rotta vera.
-  const path =
-    stile === 'flessibile'
-      ? ondula(polilinea)
-      : punti.length
-        ? [`M ${sourceX} ${sourceY}`, ...punti.map((p) => `L ${p.x} ${p.y}`), `L ${targetX} ${targetY}`].join(' ')
-        : pathAutomatico
+  // Stessa geometria del render statico (renderSvg.ts): editor e disegno finale concordano
+  // sulla forma della linea, angoli netti compresi — non più un'approssimazione a parte.
+  const polilinea = polilineaConGomiti(pDa, punti, pA)
+  const path = stile === 'flessibile' ? ondula(polilinea) : percorso(polilinea)
+  const { punto: puntoEtichetta } = puntoSuTratto(polilinea, 0.5)
+  const labelX = puntoEtichetta.x
+  const labelY = puntoEtichetta.y
 
   return (
     <>
@@ -273,6 +268,46 @@ export function SchemaEdgeTubazione({
           stroke: selected ? '#1976d2' : '#000',
           strokeWidth: selected ? 3 : 2,
           strokeDasharray: stile === 'condensa' ? '8 6' : undefined,
+        }}
+      />
+      {/*
+       * Area di trascinamento del tratto: un tracciato invisibile ma largo (16px), sovrapposto
+       * alla polilinea vera, che intercetta il gesto di afferrare-e-scorrere un tratto dritto
+       * (`trascinaTratto`, tratti.ts). Un gomito o un segno sopra fermano la propagazione per
+       * conto proprio (i loro `stopPropagation`), quindi il pointerdown arriva qui solo quando
+       * cade sul tubo nudo.
+       *
+       * Disattivata sul flessibile (`pointerEvents: 'none'`): la sua linea VISIBILE è l'onda
+       * (`ondula(polilinea)`), non la polilinea dritta — un'area di hit-test sagomata sulla
+       * dritta, sovrapposta a un disegno ondulato, sposterebbe il tubo in un punto diverso da
+       * dove l'utente lo vede, ed è peggio di non offrire il gesto lì. Il flessibile resta
+       * trascinabile nei suoi gomiti (il gesto già esistente), non nel tratto: la spec del
+       * blocco parla di «tratto dritto», e l'onda non lo è.
+       */}
+      <path
+        d={percorso(polilinea)}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={16}
+        style={{ cursor: 'move', pointerEvents: stile === 'flessibile' ? 'none' : 'all' }}
+        onPointerDown={(e) => {
+          e.stopPropagation()
+          ;(e.currentTarget as SVGPathElement).setPointerCapture(e.pointerId)
+        }}
+        onPointerMove={(e) => {
+          if (!(e.currentTarget as SVGPathElement).hasPointerCapture(e.pointerId)) return
+          e.stopPropagation()
+          const libero = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+          const indice = indiceTrattoPiuVicino(polilinea, libero)
+          edgeData?.onTrascinaTratto?.(pDa, pA, indice, libero, false)
+        }}
+        onPointerUp={(e) => {
+          if (!(e.currentTarget as SVGPathElement).hasPointerCapture(e.pointerId)) return
+          e.stopPropagation()
+          ;(e.currentTarget as SVGPathElement).releasePointerCapture(e.pointerId)
+          const libero = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+          const indice = indiceTrattoPiuVicino(polilinea, libero)
+          edgeData?.onTrascinaTratto?.(pDa, pA, indice, libero, true)
         }}
       />
       <EdgeLabelRenderer>
