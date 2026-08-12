@@ -19,7 +19,7 @@ const SPAZIO_UTENZE = 190
 /** Rientro del montante rispetto al fianco del recipiente: evita che corra sul contorno. */
 const AVVICINAMENTO = 34
 
-interface Punto {
+export interface Punto {
   x: number
   y: number
 }
@@ -46,7 +46,7 @@ function percorso(punti: Punto[]): string {
  * Raccorda due punti con due tratti ortogonali. Il verso lo decide la distanza maggiore:
  * si esce nella direzione in cui c'è più strada, che è il modo in cui si instrada a mano.
  */
-function raccordoOrtogonale(da: Punto, a: Punto): Punto[] {
+export function raccordoOrtogonale(da: Punto, a: Punto): Punto[] {
   if (da.x === a.x || da.y === a.y) return [a]
   return Math.abs(a.x - da.x) >= Math.abs(a.y - da.y)
     ? [{ x: a.x, y: da.y }, a]

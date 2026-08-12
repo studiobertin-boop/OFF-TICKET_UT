@@ -11,7 +11,7 @@ import {
 } from '@/services/relazione/__tests__/fixtures'
 import { buildSchemaModel } from '../buildSchemaModel'
 import { layoutSchema } from '../layout'
-import { renderSvg, righeLista } from '../renderSvg'
+import { renderSvg, righeLista, raccordoOrtogonale } from '../renderSvg'
 
 function svgMinimo(noteTubazioni?: string[]) {
   const scheda = makeScheda({
@@ -230,6 +230,17 @@ describe('punti di passaggio', () => {
 
     layout.archi[0].punti = []
     expect(renderSvg(layout)).toBe(automatico)
+  })
+})
+
+describe('raccordoOrtogonale', () => {
+  it('due punti già allineati non introducono un gomito superfluo', () => {
+    expect(raccordoOrtogonale({ x: 10, y: 10 }, { x: 10, y: 90 })).toEqual([{ x: 10, y: 90 }])
+    expect(raccordoOrtogonale({ x: 10, y: 10 }, { x: 90, y: 10 })).toEqual([{ x: 90, y: 10 }])
+  })
+
+  it('due gomiti coincidenti non producono un segmento a lunghezza zero duplicato', () => {
+    expect(raccordoOrtogonale({ x: 10, y: 10 }, { x: 10, y: 10 })).toEqual([{ x: 10, y: 10 }])
   })
 })
 
