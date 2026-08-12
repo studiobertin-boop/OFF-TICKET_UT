@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { makeCompressore, makeDatiImpianto, makeScheda, makeSerbatoio } from '@/services/relazione/__tests__/fixtures'
+import { makeCompressore, makeDatiImpianto, makeScheda, makeSerbatoio, makeValvola } from '@/services/relazione/__tests__/fixtures'
 import { buildSchemaModel } from '../buildSchemaModel'
 import { layoutSchema } from '../layout'
 import { serializzaLayout, deserializzaLayout, riconcilia, layoutIniziale } from '../persistenza'
@@ -12,6 +12,18 @@ function modelloDiProva(codiciCompressore: string[]) {
     dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
   })
   return buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { [codiciCompressore[0]]: ['S1'] } })
+}
+
+/** Come `modelloDiProva`, ma lascia scegliere marca/modello di C1 e la valvola di S1: serve a
+ *  simulare una modifica in scheda fra un salvataggio e il successivo. */
+function modelloConDatiVariabili(overridesCompressore: Partial<ReturnType<typeof makeCompressore>> = {}, overridesValvola: Partial<ReturnType<typeof makeValvola>> = {}) {
+  const scheda = makeScheda({
+    compressori: [makeCompressore({ codice: 'C1', ha_disoleatore: false, ...overridesCompressore })],
+    disoleatori: [], essiccatori: [], scambiatori: [], filtri: [],
+    serbatoi: [makeSerbatoio({ valvola_sicurezza: makeValvola(overridesValvola) })],
+    dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+  })
+  return buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
 }
 
 describe('serializzazione', () => {
@@ -108,6 +120,34 @@ describe('riconciliazione con la scheda', () => {
 
     expect(esito.aggiunti).toContain('C2')
     expect(arcoNuovo).toBeDefined()
+  })
+
+  it('aggiorna marca/modello di un nodo di origine scheda già salvato, conservandone la posizione', () => {
+    const salvato = serializzaLayout(layoutSchema(modelloConDatiVariabili({ marca: 'KAESER', modello: 'CSD 105 SFC' })))
+    const posizioneSalvata = salvato.nodi.find((n) => n.id === 'C1')!
+
+    const modelloAggiornato = modelloConDatiVariabili({ marca: 'ATLAS COPCO', modello: 'GA 90' })
+    const esito = riconcilia(salvato, modelloAggiornato)
+    const nodoRiconciliato = esito.layout.nodi.find((n) => n.id === 'C1')!
+
+    expect(nodoRiconciliato.etichetta).toBe('Compressore ATLAS COPCO Mod. GA 90')
+    expect(nodoRiconciliato.x).toBe(posizioneSalvata.x)
+    expect(nodoRiconciliato.y).toBe(posizioneSalvata.y)
+  })
+
+  it('aggiorna le valvole di sicurezza di un nodo già salvato: cambia il disegno, non solo la tabella', () => {
+    const salvato = serializzaLayout(layoutSchema(modelloConDatiVariabili({}, { modello: 'TA21', n_fabbrica: '484725/7' })))
+    const posizioneSalvata = salvato.nodi.find((n) => n.id === 'S1')!
+
+    const modelloAggiornato = modelloConDatiVariabili({}, { modello: 'TW3', n_fabbrica: '999999' })
+    const esito = riconcilia(salvato, modelloAggiornato)
+    const nodoRiconciliato = esito.layout.nodi.find((n) => n.id === 'S1')!
+
+    expect(nodoRiconciliato.valvoleSicurezza.map((v) => v.etichetta)).toEqual(
+      modelloAggiornato.nodi.find((n) => n.id === 'S1')!.valvoleSicurezza.map((v) => v.etichetta)
+    )
+    expect(nodoRiconciliato.x).toBe(posizioneSalvata.x)
+    expect(nodoRiconciliato.y).toBe(posizioneSalvata.y)
   })
 
   it('riparte da zero quando il layout salvato è vuoto: tutti i nodi della scheda sono aggiunti', () => {

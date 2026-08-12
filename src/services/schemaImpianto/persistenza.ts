@@ -63,10 +63,24 @@ export function layoutIniziale(
 export function riconcilia(salvato: Pick<SchemaLayout, 'nodi' | 'archi'>, modello: SchemaModel): EsitoRiconciliazione {
   const inScheda = new Set(modello.nodi.map((n) => n.id))
   const salvatiPerId = new Map(salvato.nodi.map((n) => [n.id, n]))
+  const modelloPerId = new Map(modello.nodi.map((n) => [n.id, n]))
 
-  // Un nodo salvato sopravvive se la scheda lo conosce ancora, o se l'ha messo l'utente.
-  const superstiti = salvato.nodi.filter((n) => n.origine === 'manuale' || inScheda.has(n.id))
-  const rimossi = salvato.nodi.filter((n) => !superstiti.includes(n)).map((n) => n.id)
+  // Un nodo salvato sopravvive se la scheda lo conosce ancora, o se l'ha messo l'utente. Per
+  // quelli di origine scheda, il nodo appena ricostruito da buildSchemaModel sovrascrive il
+  // salvato: la scheda resta autorevole su *cosa* è il nodo (etichetta, valvole, accessorio,
+  // orientamento...), il layout salvato solo su *dove* sta (x/y). Senza questo passaggio,
+  // correggere marca/modello o aggiungere una valvola dopo il primo salvataggio non arriva
+  // mai più in relazione (vedi revisione finale, rilievo Critical).
+  const superstiti = salvato.nodi
+    .filter((n) => n.origine === 'manuale' || inScheda.has(n.id))
+    .map((n) => {
+      if (n.origine === 'manuale') return n
+      const daScheda = modelloPerId.get(n.id)
+      return daScheda ? { ...daScheda, x: n.x, y: n.y } : n
+    })
+  const rimossi = salvato.nodi
+    .filter((n) => n.origine !== 'manuale' && !inScheda.has(n.id))
+    .map((n) => n.id)
 
   // Le apparecchiature nuove entrano nelle posizioni che l'auto-layout darebbe loro oggi,
   // traslate sotto il disegno esistente: in mezzo coprirebbero quello che c'è già.
