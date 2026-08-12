@@ -1857,7 +1857,9 @@ export function percorso(punti: Punto[]): string {
 
 (in `renderSvg.ts`, togli la definizione locale di `percorso`, riga 46-48, e importala da `./tratti`.)
 
-Dopo `<BaseEdge>`, aggiungi l'area di trascinamento invisibile — un `<path>` largo e trasparente sovrapposto alla polilinea, che intercetta il gesto SOLO quando non cade su un gomito o un segno (quelli fermano la propagazione per conto proprio, come già fanno):
+Dopo `<BaseEdge>`, aggiungi l'area di trascinamento invisibile — un `<path>` largo e trasparente sovrapposto alla polilinea. Non intercetta MAI il gesto quando cade su un gomito o un segno: quelli vivono nel layer HTML di `EdgeLabelRenderer`, dipinto sopra il layer SVG delle tubazioni, quindi il browser sceglie l'elemento in cima allo stack (hit-testing per posizione, non `stopPropagation`: quello agisce solo dopo che il target è già stato scelto, non lo sposta) — un clic su un gomito arriva SEMPRE al gomito, mai a questo path sottostante.
+
+Serve però una guardia sul MOVIMENTO, come già hanno `SchemaGomito`/`SchemaSegno` (`mossoRef`): senza, un semplice clic sul tubo — senza trascinamento, cioè `pointerdown` seguito subito da `pointerup` — chiamerebbe comunque `onTrascinaTratto(..., concluso: true)` con `delta` nullo, e `applica` di `useSchemaHistory` spinge SEMPRE lo stato in cronologia, gesto o no: un clic che non sposta nulla consumerebbe comunque uno degli slot della cronologia (`PROFONDITA_CRONOLOGIA`), facendo sembrare «Annulla» inefficace o buttando fuori una modifica vera prima del previsto.
 
 ```tsx
       <path
@@ -1868,11 +1870,13 @@ Dopo `<BaseEdge>`, aggiungi l'area di trascinamento invisibile — un `<path>` l
         style={{ cursor: 'move', pointerEvents: stile === 'flessibile' ? 'none' : 'all' }}
         onPointerDown={(e) => {
           e.stopPropagation()
+          mossoTrattoRef.current = false
           ;(e.currentTarget as SVGPathElement).setPointerCapture(e.pointerId)
         }}
         onPointerMove={(e) => {
           if (!(e.currentTarget as SVGPathElement).hasPointerCapture(e.pointerId)) return
           e.stopPropagation()
+          mossoTrattoRef.current = true
           const libero = screenToFlowPosition({ x: e.clientX, y: e.clientY })
           const indice = indiceTrattoPiuVicino(polilinea, libero)
           edgeData?.onTrascinaTratto?.(pDa, pA, indice, libero, false)
@@ -1881,12 +1885,18 @@ Dopo `<BaseEdge>`, aggiungi l'area di trascinamento invisibile — un `<path>` l
           if (!(e.currentTarget as SVGPathElement).hasPointerCapture(e.pointerId)) return
           e.stopPropagation()
           ;(e.currentTarget as SVGPathElement).releasePointerCapture(e.pointerId)
-          const libero = screenToFlowPosition({ x: e.clientX, y: e.clientY })
-          const indice = indiceTrattoPiuVicino(polilinea, libero)
-          edgeData?.onTrascinaTratto?.(pDa, pA, indice, libero, true)
+          // Nessun movimento: niente da spostare, e soprattutto niente da scrivere in
+          // cronologia per un gesto che non ha cambiato nulla (vedi la nota sopra).
+          if (mossoTrattoRef.current) {
+            const libero = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+            const indice = indiceTrattoPiuVicino(polilinea, libero)
+            edgeData?.onTrascinaTratto?.(pDa, pA, indice, libero, true)
+          }
         }}
       />
 ```
+
+Serve un `const mossoTrattoRef = useRef(false)` dentro il componente `SchemaEdgeTubazione`, stesso pattern del `mossoRef` già usato in `SchemaGomito`/`SchemaSegno` (`useRef` è già importato in cima al file).
 
 **Decisione presa mentre implementi**: sul flessibile l'area di trascinamento è disattivata (`pointerEvents: 'none'`) perché la sua polilinea visibile è l'onda (`ondula(polilinea)`), non `polilinea` stessa — un'area di hit-test sagomata sulla polilinea DRITTA, sovrapposta a un disegno ONDULATO, sposterebbe il tratto in un punto diverso da dove l'utente vede il tubo, ed è peggio di non offrire il gesto lì. **Segnala questa scelta di perimetro nel report**: il flessibile resta trascinabile SOLO nei suoi gomiti (il gesto esistente), non nel tratto. Se il committente lo trova limitante in verifica, si riapre — non è nel piano perché la spec del blocco parla di «tratto dritto», e l'onda non lo è.
 
