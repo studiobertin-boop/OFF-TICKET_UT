@@ -16,6 +16,89 @@ export const PASSO_ONDA = 5
 export const AMPIEZZA_ONDA = 5
 
 /**
+ * Raccorda due punti con due tratti ortogonali. Il verso lo decide la distanza maggiore:
+ * si esce nella direzione in cui c'è più strada, che è il modo in cui si instrada a mano.
+ * Spostata qui da `renderSvg.ts` perché la usa anche l'editor (routing unificato, vedi
+ * `trascinaTratto` più sotto), non solo il render statico.
+ */
+export function raccordoOrtogonale(da: Punto, a: Punto): Punto[] {
+  if (da.x === a.x || da.y === a.y) return [a]
+  return Math.abs(a.x - da.x) >= Math.abs(a.y - da.y)
+    ? [{ x: a.x, y: da.y }, a]
+    : [{ x: da.x, y: a.y }, a]
+}
+
+/** Polilinea che parte dall'ancora, tocca i gomiti imposti e arriva all'altra ancora. */
+export function polilineaConGomiti(inizio: Punto, gomiti: Punto[], fine: Punto): Punto[] {
+  const punti: Punto[] = [inizio]
+  let corrente = inizio
+  for (const g of [...gomiti, fine]) {
+    punti.push(...raccordoOrtogonale(corrente, g))
+    corrente = g
+  }
+  return punti
+}
+
+/**
+ * Raccordo che preserva l'asse del tratto trascinato: il gomito nuovo (se serve) sta sulla
+ * coordinata di `fisso` lungo l'asse perpendicolare al tratto e su quella di `daPreservare`
+ * lungo l'asse del tratto — così il tratto appena spostato resta esattamente dov'è stato
+ * messo, e solo il moncone che lo ricongiunge al capo fisso si allunga o si accorcia. È
+ * diverso da `raccordoOrtogonale`, che sceglie il verso in base alla distanza maggiore: qui
+ * il verso è dettato dall'orientamento del tratto trascinato, non da un'euristica.
+ */
+function raccordaPreservando(fisso: Punto, daPreservare: Punto, orizzontale: boolean): Punto[] {
+  const allineato = orizzontale ? fisso.y === daPreservare.y : fisso.x === daPreservare.x
+  if (allineato) return [daPreservare]
+  const gomito = orizzontale ? { x: fisso.x, y: daPreservare.y } : { x: daPreservare.x, y: fisso.y }
+  return [gomito, daPreservare]
+}
+
+/**
+ * Nuovi gomiti dopo aver trascinato in blocco il tratto dritto fra `full[indiceTratto]` e
+ * `full[indiceTratto+1]`, numerazione della polilinea COMPLETA (`polilineaConGomiti`: ancore
+ * e gomiti auto-inseriti compresi) di `delta`. Il tratto resta ortogonale per costruzione
+ * (`raccordoOrtogonale` lo garantisce a monte): si sposta la sola coordinata condivisa dai
+ * due capi (y se il tratto è orizzontale, x se verticale) e si ricongiungono i vicini — è il
+ * modo in cui «i gomiti ai capi si aggiustano da soli»: se un capo tocca un'ancora, ne nasce
+ * uno nuovo lì vicino (l'ancora non si sposta mai); se tocca già un gomito, quel gomito
+ * trasla e basta, perché `raccordaPreservando` lo trova già allineato.
+ */
+export function trascinaTratto(
+  pDa: Punto,
+  gomiti: Punto[],
+  pA: Punto,
+  indiceTratto: number,
+  delta: Punto
+): Punto[] {
+  const full = polilineaConGomiti(pDa, gomiti, pA)
+  const a = full[indiceTratto]
+  const b = full[indiceTratto + 1]
+  if (!a || !b) return gomiti
+
+  const orizzontale = a.y === b.y
+  const sposta = (p: Punto): Punto => (orizzontale ? { x: p.x, y: p.y + delta.y } : { x: p.x + delta.x, y: p.y })
+  const nuovoA = sposta(a)
+  const nuovoB = sposta(b)
+
+  const precedente = full[indiceTratto - 1] ?? pDa
+  const successivo = full[indiceTratto + 2] ?? pA
+
+  const nuovaPolilinea: Punto[] = [
+    pDa,
+    ...full.slice(1, indiceTratto),
+    ...raccordaPreservando(precedente, nuovoA, orizzontale),
+    nuovoB,
+    ...raccordaPreservando(successivo, nuovoB, orizzontale),
+    ...full.slice(indiceTratto + 3),
+  ]
+
+  return nuovaPolilinea
+    .filter((p, i, arr) => i === 0 || p.x !== arr[i - 1].x || p.y !== arr[i - 1].y)
+    .slice(1, -1)
+}
+
+/**
  * Tracciato ondulato che segue una polilinea: convenzione CAD della tubazione flessibile.
  *
  * L'onda è perpendicolare alla direzione di ogni tratto e **riparte a ogni vertice**, così gli

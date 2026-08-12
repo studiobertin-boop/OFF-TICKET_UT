@@ -11,7 +11,8 @@ import {
 } from '@/services/relazione/__tests__/fixtures'
 import { buildSchemaModel } from '../buildSchemaModel'
 import { layoutSchema } from '../layout'
-import { renderSvg, righeLista, righeLegenda, raccordoOrtogonale, posizioneAncora } from '../renderSvg'
+import { renderSvg, righeLista, righeLegenda, posizioneAncora } from '../renderSvg'
+import { raccordoOrtogonale } from '../tratti'
 import { dimensioniDi } from '../symbols'
 import type { SchemaSegnoTubo } from '../types'
 

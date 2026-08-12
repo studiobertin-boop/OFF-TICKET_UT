@@ -17,7 +17,7 @@ import {
   valvolaScarico,
   TRATTO,
 } from './symbols'
-import { ondula, puntoSuTratto, type Punto } from './tratti'
+import { ondula, raccordoOrtogonale, polilineaConGomiti, puntoSuTratto, type Punto } from './tratti'
 import type { SchemaLayout, SchemaNodoPosizionato, SchemaNodoTipo } from './types'
 
 export type { Punto }
@@ -46,28 +46,6 @@ export function posizioneAncora(nodo: SchemaNodoPosizionato, ancoraId: string): 
 
 function percorso(punti: Punto[]): string {
   return punti.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
-}
-
-/**
- * Raccorda due punti con due tratti ortogonali. Il verso lo decide la distanza maggiore:
- * si esce nella direzione in cui c'è più strada, che è il modo in cui si instrada a mano.
- */
-export function raccordoOrtogonale(da: Punto, a: Punto): Punto[] {
-  if (da.x === a.x || da.y === a.y) return [a]
-  return Math.abs(a.x - da.x) >= Math.abs(a.y - da.y)
-    ? [{ x: a.x, y: da.y }, a]
-    : [{ x: da.x, y: a.y }, a]
-}
-
-/** Polilinea che parte dall'ancora, tocca i gomiti imposti e arriva all'altra ancora. */
-function polilineaConGomiti(inizio: Punto, gomiti: Punto[], fine: Punto): Punto[] {
-  const punti: Punto[] = [inizio]
-  let corrente = inizio
-  for (const g of [...gomiti, fine]) {
-    punti.push(...raccordoOrtogonale(corrente, g))
-    corrente = g
-  }
-  return punti
 }
 
 /**

@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { ondula, AMPIEZZA_ONDA, PASSO_ONDA, puntoSuTratto, tSuTratto } from '../tratti'
+import {
+  ondula,
+  AMPIEZZA_ONDA,
+  PASSO_ONDA,
+  puntoSuTratto,
+  tSuTratto,
+  polilineaConGomiti,
+  trascinaTratto,
+} from '../tratti'
 
 /** Coppie (x,y) di tutti i punti d'arrivo dei comandi Q, nell'ordine. */
 function arriviQ(d: string): [number, number][] {
@@ -222,5 +230,53 @@ describe('tSuTratto', () => {
     // quel tratto, contro 25 dal tratto orizzontale. Lunghezza percorsa fino a lì: 100 (primo
     // tratto) + 25 (metà del secondo, lungo 50) = 125 su 150 totali → t = 125/150 = 5/6.
     expect(tSuTratto(conAngolo, { x: 100, y: 25 })).toBeCloseTo(5 / 6, 2)
+  })
+})
+
+describe('trascinaTratto', () => {
+  it('un tratto orizzontale fra due gomiti trasla entrambi sulla y, la x non cambia', () => {
+    const pDa = { x: 0, y: 0 }
+    const pA = { x: 300, y: 300 }
+    const gomiti = [
+      { x: 100, y: 100 },
+      { x: 200, y: 100 },
+    ]
+    // La polilinea risolta è: pDa(0,0) -> raccordo(0,100)? verifichiamolo indirettamente:
+    // il tratto orizzontale fra i due gomiti è quello all'indice corretto una volta risolta
+    // la polilinea completa — usa polilineaConGomiti per trovarlo, non un indice a occhio.
+    const full = polilineaConGomiti(pDa, gomiti, pA)
+    const indiceTratto = full.findIndex(
+      (p, i) => full[i + 1] && p.y === full[i + 1].y && p.x === 100 && full[i + 1].x === 200
+    )
+    expect(indiceTratto).toBeGreaterThanOrEqual(0)
+
+    const nuovi = trascinaTratto(pDa, gomiti, pA, indiceTratto, { x: 0, y: 50 })
+    // I due gomiti che delimitavano il tratto ora stanno a y=150, x invariate.
+    expect(nuovi).toContainEqual({ x: 100, y: 150 })
+    expect(nuovi).toContainEqual({ x: 200, y: 150 })
+  })
+
+  it('trascinare il tratto che tocca l’ancora Da fa nascere un gomito nuovo, l’ancora non si sposta', () => {
+    const pDa = { x: 0, y: 0 }
+    const pA = { x: 200, y: 0 }
+    // Nessun gomito: full = [pDa, pA] (un solo tratto orizzontale, indice 0).
+    const nuovi = trascinaTratto(pDa, [], pA, 0, { x: 0, y: 40 })
+    // Un gomito nuovo vicino a pDa (stessa x, nuova y) e uno vicino a pA (stessa x di pA,
+    // nuova y): il tratto centrale è quello che si è davvero spostato.
+    expect(nuovi.length).toBeGreaterThanOrEqual(1)
+    const full = polilineaConGomiti(pDa, nuovi, pA)
+    expect(full[0]).toEqual(pDa)
+    expect(full[full.length - 1]).toEqual(pA)
+    // Nessun punto della nuova polilinea è alla y originale in mezzo al tracciato: il tratto
+    // dritto centrale è salito di 40.
+    const centrali = full.slice(1, -1)
+    expect(centrali.some((p) => p.y === 40)).toBe(true)
+  })
+
+  it('un indice fuori range non tocca i gomiti', () => {
+    const pDa = { x: 0, y: 0 }
+    const pA = { x: 100, y: 100 }
+    const gomiti = [{ x: 50, y: 50 }]
+    expect(trascinaTratto(pDa, gomiti, pA, 99, { x: 10, y: 10 })).toEqual(gomiti)
   })
 })
