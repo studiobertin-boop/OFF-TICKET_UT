@@ -382,8 +382,9 @@ describe('tSuTratto', () => {
   })
 
   it('un punto fuori dalla polilinea si proietta sul tratto più vicino, non sul più lontano', () => {
-    // (100, 25) è a distanza 0 dal tratto verticale (x=100, da y=0 a y=50): t atteso ~2/3.
-    expect(tSuTratto(conAngolo, { x: 100, y: 25 })).toBeCloseTo(2 / 3, 2)
+    // (100, 25) è a distanza 0 dal tratto verticale, a metà della sua lunghezza (25 su 50):
+    // lunghezza percorsa = 100 (primo tratto) + 25 = 125, su un totale di 150 -> t = 5/6.
+    expect(tSuTratto(conAngolo, { x: 100, y: 25 })).toBeCloseTo(5 / 6, 2)
   })
 })
 ```
