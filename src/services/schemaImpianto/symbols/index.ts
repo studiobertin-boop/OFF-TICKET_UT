@@ -13,7 +13,8 @@
  * disegna i simboli, quindi il registro (`REGISTRO_SIMBOLI`) è la fonte unica e `layout.ts`
  * si limita a riesportare `DIMENSIONI_NODO` per i consumatori esistenti.
  */
-import type { SchemaNodoTipo, SchemaNodo, SchemaAncora, ChiaveSimbolo } from '../types'
+import { ondula } from '../tratti'
+import type { SchemaArcoStile, SchemaNodoTipo, SchemaNodo, SchemaAncora, ChiaveSimbolo } from '../types'
 import { chiaveSimbolo } from '../types'
 
 export const TRATTO = 2
@@ -99,6 +100,25 @@ export function valvolaScarico(x: number, y: number): string {
     ),
     traccia(`M ${x} ${y + h} L ${x} ${y + h + 8}`),
   ].join('')
+}
+
+/**
+ * Campione di tubazione per la legenda: un tratto orizzontale centrato sull'origine, reso con
+ * lo stesso stile che `renderSvg` dà alla tubazione vera. Riusare qui la funzione che disegna
+ * (`ondula`) invece di ridisegnare un'onda a mano è ciò che tiene campione e disegno d'accordo
+ * per costruzione: un'onda «di legenda» diversa da quella dei tubi sarebbe una didascalia falsa.
+ */
+export function campioneTubazione(stile: SchemaArcoStile): string {
+  const meta = 30
+  const capi = [
+    { x: -meta, y: 0 },
+    { x: meta, y: 0 },
+  ]
+  if (stile === 'flessibile') {
+    return `<path d="${ondula(capi)}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
+  }
+  const tratteggio = stile === 'condensa' ? ' stroke-dasharray="10 7"' : ''
+  return `<path d="M ${-meta} 0 L ${meta} 0" fill="none" stroke="#000" stroke-width="${TRATTO}"${tratteggio} />`
 }
 
 /**

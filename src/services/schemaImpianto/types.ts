@@ -10,9 +10,11 @@
  *   parte del simbolo del nodo genitore (compressore/essiccatore/filtro), con la propria
  *   etichetta e le proprie valvole di sicurezza — un solo "accessorio dipendente" per nodo,
  *   perché la scheda dati non ne prevede più di uno per apparecchiatura.
- * - La valvola di scarico è una decorazione fissa del simbolo (sempre presente su
- *   serbatoio/essiccatore/filtro/separatore/disoleatore), non un dato: non ha un codice
- *   proprio e non entra nel modello.
+ * - La valvola di scarico è una decorazione fissa del simbolo, non un dato: non ha un codice
+ *   proprio e non entra nel modello. La disegnano **serbatoio, essiccatore e filtro**; il
+ *   separatore no (`simboloSeparatore` passa `conScarico: false` — scarica da un codolo nudo,
+ *   così nel blocco di riferimento) e il compressore nemmeno. `righeLegenda` si regola su
+ *   questo elenco: sbagliarlo mette in legenda un simbolo che nel disegno non c'è.
  * - La valvola di sicurezza invece è un dato (marca/modello a catalogo) e compare nella
  *   tabella "Lista Apparecchiature": resta nel modello come `valvoleSicurezza`.
  */

@@ -6,9 +6,18 @@
  * diametri delle tubazioni, tabella "Lista Apparecchiature" in basso.
  */
 import { corpoNodo, dimensioniLayout, pozzoCondense } from './layout'
-import { ancoraDi, escapeXml, simboloDi, simboloMuro, valvolaIntercettazione, TRATTO } from './symbols'
+import {
+  ancoraDi,
+  campioneTubazione,
+  escapeXml,
+  simboloDi,
+  simboloMuro,
+  valvolaIntercettazione,
+  valvolaScarico,
+  TRATTO,
+} from './symbols'
 import { ondula, type Punto } from './tratti'
-import type { SchemaLayout, SchemaNodoPosizionato } from './types'
+import type { SchemaLayout, SchemaNodoPosizionato, SchemaNodoTipo } from './types'
 
 export type { Punto }
 
@@ -206,32 +215,82 @@ function renderArchi(
 }
 
 /**
+ * La colonna di sinistra della tabella porta due cose diverse: il codice di un'apparecchiatura,
+ * o il disegno di un simbolo che la legenda spiega. Un tipo che le distingue evita di dedurre
+ * dal contenuto quale delle due sia.
+ */
+export type CellaSinistra = { codice: string } | { simbolo: string }
+
+export interface RigaTabella {
+  sinistra: CellaSinistra
+  descrizione: string
+}
+
+/** Tipi di nodo il cui simbolo disegna la valvola di scarico. Il commento in testa a `types.ts`
+ *  elencava anche separatore e disoleatore: `simboloSeparatore` la esclude di proposito
+ *  (`conScarico: false`) e il compressore non la disegna affatto. */
+const CON_VALVOLA_SCARICO: SchemaNodoTipo[] = ['serbatoio', 'essiccatore', 'filtro']
+
+/**
  * Righe della tabella: apparecchiature e loro accessori/valvole. L'ordine è quello del flusso
  * dell'aria (compressori → serbatoi → trattamento → raccolta), lo stesso in cui il layout
  * dispone i nodi e in cui le legge chi confronta il disegno con la lista. L'ordine alfabetico
  * dei codici spezzerebbe quella corrispondenza (SEP prima di S, la raccolta in mezzo ai filtri).
  */
-export function righeLista(layout: SchemaLayout): { codice: string; descrizione: string }[] {
-  const righe: { codice: string; descrizione: string }[] = []
+export function righeLista(layout: SchemaLayout): RigaTabella[] {
+  const righe: RigaTabella[] = []
   for (const nodo of layout.nodi) {
     // Il terminale utenze è un raccordo, non un'apparecchiatura: non ha codice né marca, e in
     // tabella occuperebbe una riga che non dice nulla. La legenda spiegherà i simboli, non lui.
     if (nodo.tipo === 'utenze') continue
-    righe.push({ codice: nodo.id, descrizione: nodo.etichetta })
+    righe.push({ sinistra: { codice: nodo.id }, descrizione: nodo.etichetta })
     if (nodo.accessorio) {
-      righe.push({ codice: nodo.accessorio.codice, descrizione: nodo.accessorio.etichetta })
+      righe.push({ sinistra: { codice: nodo.accessorio.codice }, descrizione: nodo.accessorio.etichetta })
       for (const v of nodo.accessorio.valvoleSicurezza) {
-        righe.push({ codice: v.codice, descrizione: v.etichetta })
+        righe.push({ sinistra: { codice: v.codice }, descrizione: v.etichetta })
       }
     }
     for (const v of nodo.valvoleSicurezza) {
-      righe.push({ codice: v.codice, descrizione: v.etichetta })
+      righe.push({ sinistra: { codice: v.codice }, descrizione: v.etichetta })
     }
   }
   return righe
 }
 
-function renderTabella(righe: { codice: string; descrizione: string }[], larghezza: number, yTop: number): string {
+/**
+ * Legenda dei simboli, in coda alla lista apparecchiature come negli schemi del committente
+ * (`DOCUMENTAZIONE/relazione/schema.png`): il simbolo al posto del codice, il suo nome accanto.
+ *
+ * Compaiono solo i simboli che il disegno contiene davvero — una legenda che spiega ciò che non
+ * c'è fa cercare al lettore qualcosa che non troverà. La valvola di sicurezza resta fuori: ha
+ * già la sua riga con codice, marca e modello, e la legenda spiega solo ciò che nessuna riga
+ * codificata identifica.
+ */
+export function righeLegenda(layout: SchemaLayout): RigaTabella[] {
+  const stili = new Set(layout.archi.map((a) => a.stile))
+  const righe: RigaTabella[] = []
+
+  // La disegnano le mandate, rigide e flessibili: nessuna linea condense la porta.
+  if (stili.has('standard') || stili.has('flessibile')) {
+    righe.push({ sinistra: { simbolo: valvolaIntercettazione(0, 0) }, descrizione: 'Valvola di intercettazione' })
+  }
+  if (layout.nodi.some((n) => CON_VALVOLA_SCARICO.includes(n.tipo))) {
+    righe.push({ sinistra: { simbolo: valvolaScarico(0, -4) }, descrizione: 'Valvola di scarico' })
+  }
+  if (stili.has('standard')) {
+    righe.push({ sinistra: { simbolo: campioneTubazione('standard') }, descrizione: 'Tubazione rigida' })
+  }
+  if (stili.has('flessibile')) {
+    righe.push({ sinistra: { simbolo: campioneTubazione('flessibile') }, descrizione: 'Tubazione flessibile' })
+  }
+  if (stili.has('condensa')) {
+    righe.push({ sinistra: { simbolo: campioneTubazione('condensa') }, descrizione: 'Linea condense' })
+  }
+
+  return righe
+}
+
+function renderTabella(righe: RigaTabella[], larghezza: number, yTop: number): string {
   const x = MARGINE
   const w = larghezza - MARGINE * 2
   const parti: string[] = []
@@ -243,10 +302,18 @@ function renderTabella(righe: { codice: string; descrizione: string }[], larghez
 
   righe.forEach((riga, i) => {
     const y = yTop + RIGA_TABELLA * (i + 1)
+    // La cella di sinistra ospita il codice o il simbolo: il simbolo è disegnato in coordinate
+    // locali centrate sull'origine (vedi `campioneTubazione`), quindi basta traslarlo al centro
+    // della cella.
+    const sinistra =
+      'codice' in riga.sinistra
+        ? `<text x="${x + COLONNA_CODICE / 2}" y="${y + RIGA_TABELLA / 2}" font-family="${FONT}" font-size="16" text-anchor="middle" dominant-baseline="central" fill="#000">${escapeXml(riga.sinistra.codice)}</text>`
+        : `<g transform="translate(${x + COLONNA_CODICE / 2} ${y + RIGA_TABELLA / 2})">${riga.sinistra.simbolo}</g>`
+
     parti.push(
       `<rect x="${x}" y="${y}" width="${w}" height="${RIGA_TABELLA}" fill="none" stroke="#000" stroke-width="1" />`,
       `<line x1="${x + COLONNA_CODICE}" y1="${y}" x2="${x + COLONNA_CODICE}" y2="${y + RIGA_TABELLA}" stroke="#000" stroke-width="1" />`,
-      `<text x="${x + COLONNA_CODICE / 2}" y="${y + RIGA_TABELLA / 2}" font-family="${FONT}" font-size="16" text-anchor="middle" dominant-baseline="central" fill="#000">${escapeXml(riga.codice)}</text>`,
+      sinistra,
       `<text x="${x + COLONNA_CODICE + 12}" y="${y + RIGA_TABELLA / 2}" font-family="${FONT}" font-size="16" dominant-baseline="central" fill="#000">${escapeXml(riga.descrizione)}</text>`
     )
   })
@@ -285,7 +352,7 @@ function quotaCorsiaCondense(layout: SchemaLayout, altezzaDisegno: number): numb
 export function renderSvg(layout: SchemaLayout, options: RenderSvgOptions = {}): string {
   const note = options.noteTubazioni ?? []
   const dimensioniDisegno = dimensioniLayout(layout)
-  const righe = righeLista(layout)
+  const righe = [...righeLista(layout), ...righeLegenda(layout)]
 
   const yCollettore = quotaCollettore(layout)
   const yCorsiaCondense = quotaCorsiaCondense(layout, dimensioniDisegno.altezza)

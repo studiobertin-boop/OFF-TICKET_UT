@@ -1788,11 +1788,15 @@ describe('legenda dei simboli', () => {
 
 Aggiungi `righeLegenda` agli import da `../renderSvg`, e `makeValvola`/`makeEssiccatore` dalle fixture se mancano.
 
-Adegua inoltre i tre test esistenti che leggono `r.codice`: `righeLista(layout).map((r) => r.codice)` diventa
+Adegua inoltre i test esistenti che leggono `r.codice`: `righeLista(layout).map((r) => r.codice)` diventa
 
 ```ts
 righeLista(layout).map((r) => (r.sinistra as { codice: string }).codice)
 ```
+
+**Correzione (trovata in implementazione):** il piano qui dice «i tre test esistenti», ma le occorrenze sono quattro — ce n'è una anche nel test «il terminale utenze non compare fra le apparecchiature in lista» (`renderSvg > ...`), oltre alle tre nel blocco `describe('righeLista', ...)`.
+
+**Correzione (trovata in implementazione):** aggiungere `righeLegenda` all'altezza totale (Step 6) rompe anche un test che il piano non elenca: «tratteggia le linee condense e lascia continue le altre» conta le occorrenze di `stroke-dasharray` in tutto l'SVG, e quando l'impianto ha condensa la legenda aggiunge una riga «Linea condense» con un proprio campione tratteggiato, che fa scattare quel conteggio di uno in più. La correzione giusta non è alzare il numero atteso (indebolirebbe il test rendendolo insensibile a un doppio conteggio reale), ma restringere il match alla sola parte di disegno, escludendo la tabella: `svg.slice(0, svg.indexOf('LISTA APPARECCHIATURE'))` prima di contare.
 
 - [ ] **Step 2: Vedere i test fallire**
 

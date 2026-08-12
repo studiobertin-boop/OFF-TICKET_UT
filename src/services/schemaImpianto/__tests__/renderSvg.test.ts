@@ -11,7 +11,7 @@ import {
 } from '@/services/relazione/__tests__/fixtures'
 import { buildSchemaModel } from '../buildSchemaModel'
 import { layoutSchema } from '../layout'
-import { renderSvg, righeLista, raccordoOrtogonale, posizioneAncora } from '../renderSvg'
+import { renderSvg, righeLista, righeLegenda, raccordoOrtogonale, posizioneAncora } from '../renderSvg'
 
 function svgMinimo(noteTubazioni?: string[]) {
   const scheda = makeScheda({
@@ -58,7 +58,11 @@ describe('renderSvg', () => {
     )
 
     const svg = renderSvg(layout)
-    const tratteggiate = svg.match(/stroke-dasharray/g) ?? []
+    // Solo il disegno, non la tabella: da questo task in poi la legenda porta un proprio
+    // campione tratteggiato ("Linea condense"), che conterebbe come un'altra linea se non lo
+    // si escludesse — questo test riguarda gli archi disegnati, non i simboli di legenda.
+    const disegno = svg.slice(0, svg.indexOf('LISTA APPARECCHIATURE'))
+    const tratteggiate = disegno.match(/stroke-dasharray/g) ?? []
     const condense = layout.archi.filter((a) => a.stile === 'condensa')
 
     expect(condense.length).toBeGreaterThan(0)
@@ -105,7 +109,7 @@ describe('renderSvg', () => {
     )
 
     expect(layout.nodi.some((n) => n.tipo === 'utenze')).toBe(true)
-    expect(righeLista(layout).map((r) => r.codice)).not.toContain('UTENZE')
+    expect(righeLista(layout).map((r) => (r.sinistra as { codice: string }).codice)).not.toContain('UTENZE')
   })
 
   it('la tubazione che arriva al terminale non porta una seconda punta di freccia, le altre sì', () => {
@@ -385,7 +389,7 @@ describe('righeLista', () => {
       buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
     )
 
-    expect(righeLista(layout).map((r) => r.codice)).toEqual([
+    expect(righeLista(layout).map((r) => (r.sinistra as { codice: string }).codice)).toEqual([
       'C1',
       'C1.1',
       'C1.2',
@@ -411,7 +415,7 @@ describe('righeLista', () => {
       buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
     )
 
-    expect(righeLista(layout).map((r) => r.codice)).toEqual([
+    expect(righeLista(layout).map((r) => (r.sinistra as { codice: string }).codice)).toEqual([
       'C1',
       'C2',
       'C3',
@@ -439,7 +443,7 @@ describe('righeLista', () => {
       buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
     )
 
-    expect(righeLista(layout).map((r) => r.codice)).toEqual([
+    expect(righeLista(layout).map((r) => (r.sinistra as { codice: string }).codice)).toEqual([
       'C1',
       'S1',
       'S1.1',
@@ -447,5 +451,100 @@ describe('righeLista', () => {
       'E1',
       'SEP1',
     ])
+  })
+})
+
+describe('legenda dei simboli', () => {
+  function descrizioni(layout: Parameters<typeof righeLegenda>[0]) {
+    return righeLegenda(layout).map((r) => r.descrizione)
+  }
+
+  function layoutCon(opzioni: { condense: boolean; essiccatore: boolean }) {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ ha_disoleatore: false })],
+      disoleatori: [],
+      serbatoi: [makeSerbatoio()],
+      essiccatori: opzioni.essiccatore ? [makeEssiccatore()] : [],
+      scambiatori: [],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({
+        raccolta_condense: opzioni.condense ? 'tanica' : 'Nessuna',
+      }),
+    })
+    return layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } }))
+  }
+
+  it('elenca i simboli presenti, nell’ordine stabilito', () => {
+    expect(descrizioni(layoutCon({ condense: true, essiccatore: true }))).toEqual([
+      'Valvola di intercettazione',
+      'Valvola di scarico',
+      'Tubazione rigida',
+      'Tubazione flessibile',
+      'Linea condense',
+    ])
+  })
+
+  it('tace sulla linea condense quando l’impianto non ne ha', () => {
+    expect(descrizioni(layoutCon({ condense: false, essiccatore: true }))).not.toContain('Linea condense')
+  })
+
+  it('mette la valvola di scarico solo se un simbolo la disegna davvero', () => {
+    // La disegnano serbatoio, essiccatore e filtro. NON il separatore (`conScarico: false`,
+    // «scarica da un codolo nudo») e non il compressore: il commento in testa a types.ts
+    // diceva il contrario, ed è il commento a sbagliare.
+    const conSerbatoio = layoutCon({ condense: false, essiccatore: false })
+    expect(descrizioni(conSerbatoio)).toContain('Valvola di scarico')
+
+    const soloSeparatore: typeof conSerbatoio = {
+      ...conSerbatoio,
+      nodi: conSerbatoio.nodi.map((n) =>
+        n.tipo === 'serbatoio' ? { ...n, tipo: 'separatore' as const, orientamento: undefined } : n
+      ),
+    }
+    expect(descrizioni(soloSeparatore)).not.toContain('Valvola di scarico')
+  })
+
+  it('non ripete la valvola di sicurezza, che ha già la sua riga con codice', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ ha_disoleatore: false })],
+      disoleatori: [],
+      serbatoi: [makeSerbatoio({ valvola_sicurezza: makeValvola() })],
+      essiccatori: [],
+      scambiatori: [],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const layout = layoutSchema(
+      buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    )
+
+    expect(righeLista(layout).some((r) => r.descrizione.startsWith('Valvola di sicurezza'))).toBe(true)
+    expect(descrizioni(layout)).not.toContain('Valvola di sicurezza')
+  })
+
+  it('la cella di sinistra porta un simbolo, non un codice', () => {
+    const righe = righeLegenda(layoutCon({ condense: true, essiccatore: true }))
+    expect(righe.every((r) => 'simbolo' in r.sinistra)).toBe(true)
+    expect(righeLista(layoutCon({ condense: true, essiccatore: true })).every((r) => 'codice' in r.sinistra)).toBe(true)
+  })
+
+  it('il campione del flessibile è ondulato come il tubo che rappresenta', () => {
+    const riga = righeLegenda(layoutCon({ condense: true, essiccatore: true })).find(
+      (r) => r.descrizione === 'Tubazione flessibile'
+    )!
+    expect((riga.sinistra as { simbolo: string }).simbolo).toContain('Q ')
+  })
+
+  it('la tabella disegna la legenda sotto le apparecchiature e cresce di conseguenza', () => {
+    const layout = layoutCon({ condense: true, essiccatore: true })
+    const svg = renderSvg(layout)
+
+    expect(svg).toContain('Valvola di intercettazione')
+    expect(svg).toContain('Tubazione flessibile')
+    // L'altezza totale deve tenere conto anche delle righe di legenda: se non lo facesse, le
+    // ultime righe finirebbero fuori dalla viewBox e sparirebbero dal PNG.
+    const altezza = Number(svg.match(/height="(\d+(?:\.\d+)?)"/)![1])
+    const righeTotali = righeLista(layout).length + righeLegenda(layout).length
+    expect(altezza).toBeGreaterThan(34 * righeTotali)
   })
 })
