@@ -14,7 +14,7 @@ import {
   Save as SaveIcon,
   Share as ShareIcon,
 } from '@mui/icons-material'
-import { AzioneIcona } from '@/components/common'
+import { AzioneIcona, AzionePronta } from '@/components/common'
 import { eCompleta, percentuale, type Completezza } from '@/utils/schedaCompleteness'
 import { calcolaEsitiPerCodice, codiciConAdempimento } from '@/utils/dm329Classification'
 import { fascicoloDocumentiApi } from '@/services/api/fascicoloDocumenti'
@@ -237,20 +237,14 @@ export const TechnicalSheetHeader = ({
 
           {canGenerateDocs && (
             relazionePronta ? (
-              <>
-                <AzioneIcona
-                  icona={<DownloadIcon fontSize="small" />}
-                  testo="Relazione pronta — scarica"
-                  onClick={onScaricaRelazione}
-                  colore="success"
-                  pieno
-                />
-                <AzioneIcona
-                  icona={<RefreshIcon fontSize="small" />}
-                  testo="Rigenera relazione"
-                  onClick={onRelazione}
-                />
-              </>
+              <AzionePronta
+                icona={<DownloadIcon fontSize="small" />}
+                testo="Relazione pronta"
+                voci={[
+                  { icona: <DownloadIcon fontSize="small" />, testo: 'Scarica relazione', onClick: onScaricaRelazione },
+                  { icona: <RefreshIcon fontSize="small" />, testo: 'Rigenera relazione', onClick: onRelazione },
+                ]}
+              />
             ) : (
               <AzioneIcona icona={<DescriptionIcon fontSize="small" />} testo="Genera relazione" onClick={onRelazione} />
             )

@@ -595,6 +595,9 @@ export const TechnicalDetails = () => {
         )}
 
         {/* Dialog "Dati relazione" + generazione .docx */}
+        {/* `scheda` preferisce `formData`: `technicalData.equipment_data` è la foto scattata al
+            caricamento della pagina e non si aggiorna al salvataggio, quindi generare la relazione
+            dopo una modifica non ancora ricaricata avrebbe riletto i valori di prima. */}
         {technicalData && id && (
           <RelazioneDataDialog
             open={relazioneDialogOpen}
@@ -604,7 +607,7 @@ export const TechnicalDetails = () => {
               queryClient.invalidateQueries({ queryKey: ['relazione-documento', id] })
             }}
             requestId={id}
-            scheda={technicalData.equipment_data as SchedaDatiCompleta}
+            scheda={(formData ?? technicalData.equipment_data) as SchedaDatiCompleta}
             customer={request?.customer ?? customerByName ?? null}
             pratica={{
               progressivo: request?.progressivo,
@@ -626,7 +629,7 @@ export const TechnicalDetails = () => {
               riaggiornaAdditionalInfo()
             }}
             requestId={request.id}
-            scheda={technicalData.equipment_data as SchedaDatiCompleta}
+            scheda={(formData ?? technicalData.equipment_data) as SchedaDatiCompleta}
             customerName={customerName}
             sitoProduttivo={risolviSitoProduttivo({
               impiantoUgualeSedeLegale: request?.impianto_uguale_sede_legale,
