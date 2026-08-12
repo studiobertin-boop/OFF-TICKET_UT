@@ -87,6 +87,25 @@ describe('compareSpecs', () => {
   })
 
   it('non confronta i tipi senza dati tecnici', () => {
-    expect(compareSpecs({}, { codice: 'F1' } as any, 'Filtri').hasChanges).toBe(false)
+    expect(compareSpecs({}, { codice: 'F1' } as any, 'Separatori').hasChanges).toBe(false)
+  })
+
+  it('confronta PS e TS per i filtri, come per gli altri recipienti', () => {
+    const c = compareSpecs(
+      { ps: 11, ts: '-10 ÷ +100' },
+      { ps_pressione_max: 11, ts: '-10 ÷ +120' } as any,
+      'Filtri'
+    )
+    expect(c.modifiedFields.ts).toEqual({ oldValue: '-10 ÷ +100', newValue: '-10 ÷ +120' })
+  })
+
+  it('propone una nuova variante quando la PS del filtro non è quella a catalogo', () => {
+    const c = compareSpecs(
+      { ps: 11 },
+      { ps_pressione_max: 13 } as any,
+      'Filtri'
+    )
+    expect(c.suggestNewVariant).toBe(true)
+    expect(c.hasChanges).toBe(false)
   })
 })

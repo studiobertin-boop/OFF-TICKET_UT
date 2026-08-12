@@ -124,8 +124,8 @@ export function buildCaratteristiche(
     rows.push({
       ...base(f.codice, 'Filtro', f.marca, f.modello, f.anno, f.n_fabbrica),
       capacita: '',
-      pressione: '',
-      temperatura: '',
+      pressione: formatNumberIT(f.ps_pressione_max),
+      temperatura: formatTemperatura(TEMP_MIN_RECIPIENTE, f.ts, f.ts_temperatura),
       categoria: '',
     })
     const rec = (scheda.recipienti_filtro ?? []).find((r) => r.filtro_associato === f.codice)

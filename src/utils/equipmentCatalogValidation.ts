@@ -114,7 +114,7 @@ export function specsSchemaFor(tipo: EquipmentCatalogType) {
     } else if (def.kind === 'enum' && def.options?.length) {
       field = z.enum(def.options as [string, ...string[]])
     } else {
-      field = z.string().max(120)
+      field = z.preprocess(v => (typeof v === 'number' ? String(v) : v), z.string().max(120))
     }
 
     shape[def.key] = field.optional().nullable()
