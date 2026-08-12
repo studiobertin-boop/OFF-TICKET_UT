@@ -51,7 +51,11 @@ export interface SchemaAccessorioDipendente {
 }
 
 export interface SchemaNodo {
-  /** Coincide col codice apparecchiatura di scheda dati (C1, S1, E1, F1, SEP1, ...). */
+  /**
+   * Il codice apparecchiatura di scheda dati (C1, S1, E1, F1, SEP1, ...), oppure l'id riservato
+   * `UTENZE` del terminale, che nessun codice di scheda può produrre (vedi `SchemaNodoTipo` qui
+   * sopra) — o ancora un codice col prefisso `M-` per i nodi aggiunti a mano dalla palette.
+   */
   id: string
   tipo: SchemaNodoTipo
   etichetta: string

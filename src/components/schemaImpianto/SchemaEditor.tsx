@@ -163,10 +163,11 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
   // sarebbe una modifica che si perde in silenzio.
   const [rinomina, setRinomina] = useState<{ id: string; valore: string } | null>(null)
 
-  // La tela di react-flow è un'approssimazione: mostra nodi e archi, non muro, uscita verso
-  // le utenze, nota e tabella, e instrada le linee a modo suo. L'anteprima qui accanto è
-  // invece il disegno vero — la stessa funzione che produce il PNG del .docx — così quello
-  // che si vede mentre si ritocca è quello che verrà consegnato.
+  // La tela di react-flow è un'approssimazione: mostra nodi e archi — terminale utenze compreso,
+  // che dal 12-08-2026 è un nodo come gli altri e si ritocca qui — ma non muro, nota e tabella,
+  // e instrada le linee a modo suo. L'anteprima qui accanto è invece il disegno vero — la stessa
+  // funzione che produce il PNG del .docx — così quello che si vede mentre si ritocca è quello
+  // che verrà consegnato.
   const anteprima = useMemo(() => {
     if (!anteprimaAperta) return null
     const svg = renderSvg(flowALayout(stato.nodes, stato.edges), { noteTubazioni })

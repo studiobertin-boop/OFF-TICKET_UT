@@ -51,10 +51,13 @@ export { DIMENSIONI_NODO }
 
 const MARGINE = 40
 /**
- * Spazio sopra le apparecchiature: ci passano il collettore di mandata e la freccia verso
- * le utenze. Esportata perché è anche il margine, sopra e sotto, con cui `calcolaMuro`
- * allarga l'inviluppo verticale dei nodi: il test che fissa quella relazione la importa
- * invece di ripetere il numero.
+ * Spazio sopra le apparecchiature: ci passa il collettore di mandata, la quota su cui
+ * confluiscono i montanti dei compressori (vedi `quotaCollettore` in `renderSvg`). Non ci passa
+ * più nient'altro: il terminale utenze, che prima del 12-08-2026 era una freccia disegnata qui
+ * sopra, oggi è un nodo e sta nella fascia delle tubazioni di linea.
+ *
+ * Esportata perché è anche il margine, sopra e sotto, con cui `calcolaMuro` allarga l'inviluppo
+ * verticale dei nodi: il test che fissa quella relazione la importa invece di ripetere il numero.
  */
 export const MARGINE_SUPERIORE = 110
 const PASSO_ORIZZONTALE = 60
