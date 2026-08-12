@@ -5,7 +5,7 @@
  * Il disegno riproduce l'impaginazione delle relazioni storiche: schema in alto, nota sui
  * diametri delle tubazioni, tabella "Lista Apparecchiature" in basso.
  */
-import { DIMENSIONI_NODO, corpoNodo, dimensioniLayout, pozzoCondense } from './layout'
+import { corpoNodo, dimensioniLayout, pozzoCondense } from './layout'
 import { ancoraDi, escapeXml, simboloDi, simboloMuro, valvolaIntercettazione, TRATTO } from './symbols'
 import type { SchemaLayout, SchemaNodoPosizionato } from './types'
 
@@ -14,8 +14,6 @@ const MARGINE = 40
 const RIGA_TABELLA = 34
 const COLONNA_CODICE = 130
 const ALTEZZA_NOTA = 90
-/** Sbraccio della freccia verso le utenze, più lo spazio per la scritta che la accompagna. */
-const SPAZIO_UTENZE = 190
 /** Rientro del montante rispetto al fianco del recipiente: evita che corra sul contorno. */
 const AVVICINAMENTO = 34
 
@@ -84,12 +82,6 @@ export interface RenderSvgOptions {
   noteTubazioni?: string[]
 }
 
-/** Centro del corpo disegnato: è lì che si attaccano le tubazioni. */
-function centro(nodo: SchemaNodoPosizionato): { x: number; y: number } {
-  const corpo = corpoNodo(nodo)
-  return { x: corpo.x + corpo.larghezza / 2, y: corpo.y + corpo.altezza / 2 }
-}
-
 /** Tratto ondulato verticale: convenzione CAD per la tubazione flessibile. */
 function ondeVerticali(x: number, yPartenza: number, lunghezza = 40): string {
   const onde = Array.from({ length: Math.round(lunghezza / 10) }, (_, i) => {
@@ -142,7 +134,8 @@ function renderMandataLinea(
   ancoraDa: string,
   a: SchemaNodoPosizionato,
   ancoraA: string,
-  gomiti?: Punto[]
+  gomiti?: Punto[],
+  frecciaFinale = true
 ): { svg: string; punti: Punto[] } {
   const pDa = posizioneAncora(da, ancoraDa)
   const pA = posizioneAncora(a, ancoraA)
@@ -156,8 +149,9 @@ function renderMandataLinea(
           { x: xMedia, y: pA.y },
           { x: pA.x, y: pA.y },
         ]
+  const freccia = frecciaFinale ? ' marker-end="url(#freccia)"' : ''
   const svg =
-    `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" marker-end="url(#freccia)" />` +
+    `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}"${freccia} />` +
     valvolaIntercettazione(pA.x - 22, pA.y)
   return { svg, punti }
 }
@@ -199,6 +193,9 @@ function renderArchi(
   const parti: string[] = []
   const varchi: number[] = []
 
+  // La tubazione che finisce sul terminale utenze non porta la propria punta di freccia: quel
+  // simbolo ne disegna già una in cima al codolo, e due punte sulla stessa linea a poche decine
+  // di unità l'una dall'altra si leggono come due terminali distinti.
   for (const arco of layout.archi) {
     const da = indice.get(arco.da.nodo)
     const a = indice.get(arco.a.nodo)
@@ -209,34 +206,13 @@ function renderArchi(
         ? renderLineaCondense(da, arco.da.ancora, a, arco.a.ancora, yCorsiaCondense, arco.punti)
         : arco.stile === 'flessibile'
           ? renderMandataCompressore(da, arco.da.ancora, a, arco.a.ancora, yCollettore, arco.punti)
-          : renderMandataLinea(da, arco.da.ancora, a, arco.a.ancora, arco.punti)
+          : renderMandataLinea(da, arco.da.ancora, a, arco.a.ancora, arco.punti, a.tipo !== 'utenze')
 
     parti.push(reso.svg)
     if (layout.muro) varchi.push(...quoteAttraversamento(reso.punti, layout.muro.x))
   }
 
   return { svg: parti.join(''), varchi }
-}
-
-/**
- * Uscita verso lo stabilimento: freccia tratteggiata verso l'alto, come negli schemi reali.
- * Parte dall'ultimo stadio della linea aria — mai dal pozzo di raccolta condense, che è un
- * capolinea e non alimenta le utenze.
- */
-function renderUscitaUtenze(layout: SchemaLayout): { svg: string; xFine: number } {
-  const pozzo = pozzoCondense(layout.nodi, layout)
-  const inLinea = layout.nodi.filter((n) => n.tipo !== 'compressore' && n.id !== pozzo?.id)
-  if (inLinea.length === 0) return { svg: '', xFine: 0 }
-  const ultimo = inLinea.reduce((a, b) => (a.x > b.x ? a : b))
-  const c = centro(ultimo)
-  const x = ultimo.x + DIMENSIONI_NODO[ultimo.tipo].larghezza + 50
-  const yAlto = 14
-
-  const svg = [
-    `<path d="M ${ultimo.x + DIMENSIONI_NODO[ultimo.tipo].larghezza} ${c.y} L ${x} ${c.y} L ${x} ${yAlto}" fill="none" stroke="#000" stroke-width="${TRATTO}" stroke-dasharray="10 7" marker-end="url(#freccia)" />`,
-    `<text x="${x + 10}" y="${yAlto + 6}" font-family="${FONT}" font-size="18" dominant-baseline="central" fill="#000">Utenze aria</text>`,
-  ].join('')
-  return { svg, xFine: x + SPAZIO_UTENZE - 50 }
 }
 
 /**
@@ -248,6 +224,9 @@ function renderUscitaUtenze(layout: SchemaLayout): { svg: string; xFine: number 
 export function righeLista(layout: SchemaLayout): { codice: string; descrizione: string }[] {
   const righe: { codice: string; descrizione: string }[] = []
   for (const nodo of layout.nodi) {
+    // Il terminale utenze è un raccordo, non un'apparecchiatura: non ha codice né marca, e in
+    // tabella occuperebbe una riga che non dice nulla. La legenda spiegherà i simboli, non lui.
+    if (nodo.tipo === 'utenze') continue
     righe.push({ codice: nodo.id, descrizione: nodo.etichetta })
     if (nodo.accessorio) {
       righe.push({ codice: nodo.accessorio.codice, descrizione: nodo.accessorio.etichetta })
@@ -326,14 +305,9 @@ export function renderSvg(layout: SchemaLayout, options: RenderSvgOptions = {}):
   const altezzaTotale = yTabella + RIGA_TABELLA * (righe.length + 1) + MARGINE
 
   const archi = renderArchi(layout, yCorsiaCondense, yCollettore)
-  const uscita = renderUscitaUtenze(layout)
 
   const larghezzaTabella = COLONNA_CODICE + 620 + MARGINE * 2
-  const larghezzaTotale = Math.max(
-    dimensioniDisegno.larghezza,
-    uscita.xFine + MARGINE,
-    larghezzaTabella
-  )
+  const larghezzaTotale = Math.max(dimensioniDisegno.larghezza, larghezzaTabella)
 
   const nodi = layout.nodi
     .map((nodo) => `<g transform="translate(${nodo.x} ${nodo.y})">${simboloDi(nodo)}</g>`)
@@ -348,7 +322,6 @@ export function renderSvg(layout: SchemaLayout, options: RenderSvgOptions = {}):
     `<rect width="${larghezzaTotale}" height="${altezzaTotale}" fill="#fff" />`,
     muro,
     archi.svg,
-    uscita.svg,
     nodi,
     renderNota(note, larghezzaTotale, yNota),
     renderTabella(righe, larghezzaTotale, yTabella),

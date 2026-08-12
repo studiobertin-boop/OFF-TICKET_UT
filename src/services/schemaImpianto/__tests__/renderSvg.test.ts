@@ -62,12 +62,72 @@ describe('renderSvg', () => {
     const condense = layout.archi.filter((a) => a.stile === 'condensa')
 
     expect(condense.length).toBeGreaterThan(0)
-    // Una linea tratteggiata per ogni scarico condensa, più l'uscita verso le utenze.
+    // Una linea tratteggiata per ogni scarico condensa, più il codolo del terminale utenze.
     expect(tratteggiate).toHaveLength(condense.length + 1)
   })
 
-  it('disegna l’uscita verso le utenze aria', () => {
-    expect(svgMinimo()).toContain('Utenze aria')
+  it('disegna l’uscita verso le utenze come nodo, non più come freccia d’ufficio', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ ha_disoleatore: false })],
+      disoleatori: [],
+      serbatoi: [makeSerbatoio({ orientamento: 'ORIZZONTALE' })],
+      essiccatori: [],
+      scambiatori: [],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const layout = layoutSchema(
+      buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    )
+    const utenze = layout.nodi.find((n) => n.tipo === 'utenze')!
+    utenze.etichetta = 'Utenze azoto'
+
+    const svg = renderSvg(layout)
+    // La scritta viene dal nodo: cambiarla nel layout la cambia nel disegno.
+    expect(svg).toContain('>Utenze azoto</text>')
+    expect(svg).not.toContain('>Utenze aria</text>')
+    // Una sola uscita: se la freccia automatica sopravvivesse, di terminali se ne vedrebbero due.
+    expect(svg.match(/stroke-dasharray="10 7"/g) ?? []).toHaveLength(1)
+  })
+
+  it('il terminale utenze non compare fra le apparecchiature in lista', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ ha_disoleatore: false })],
+      disoleatori: [],
+      serbatoi: [makeSerbatoio()],
+      essiccatori: [],
+      scambiatori: [],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const layout = layoutSchema(
+      buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    )
+
+    expect(layout.nodi.some((n) => n.tipo === 'utenze')).toBe(true)
+    expect(righeLista(layout).map((r) => r.codice)).not.toContain('UTENZE')
+  })
+
+  it('la tubazione che arriva al terminale non porta una seconda punta di freccia', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ ha_disoleatore: false })],
+      disoleatori: [],
+      serbatoi: [makeSerbatoio()],
+      essiccatori: [makeEssiccatore()],
+      scambiatori: [],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const layout = layoutSchema(
+      buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    )
+    const svg = renderSvg(layout)
+
+    // Gli archi con marker sono tutti tranne quello verso il terminale, che ha già la sua
+    // punta disegnata dentro il simbolo: due frecce a 120 unità l'una dall'altra sulla stessa
+    // linea si leggerebbero come due terminali.
+    const conFreccia = svg.match(/marker-end="url\(#freccia\)"/g) ?? []
+    expect(conFreccia).toHaveLength(layout.archi.length - 1)
   })
 
   // La scritta sporgeva oltre il bordo destro: nel PNG finiva tagliata a metà.
