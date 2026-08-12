@@ -231,6 +231,29 @@ export function ordinaCatenaTrattamento(
     .map((v) => v.nodo)
 }
 
+/**
+ * Terminale della linea aria. Sempre presente quando c'è una linea da terminare: prima del
+ * 12-08-2026 lo disegnava `renderUscitaUtenze` scegliendo da sé il nodo più a destra, una
+ * regola che qui non si può nemmeno valutare — il modello si costruisce prima che le posizioni
+ * esistano. La regola diventa topologica: l'ultimo stadio di trattamento, o il serbatoio da cui
+ * la linea parte quando di stadi non ce ne sono.
+ */
+export const ID_UTENZE = 'UTENZE'
+
+function nodoUtenze(): SchemaNodo {
+  return {
+    id: ID_UTENZE,
+    tipo: 'utenze',
+    etichetta: 'Utenze aria',
+    gruppo: 'LINEA_DISTRIBUZIONE',
+    valvoleSicurezza: [],
+    // Origine 'scheda' e non 'manuale': fa parte della proposta automatica, quindi la
+    // riconciliazione lo rimette se manca. Cancellarlo nell'editor lo fa tornare alla
+    // riapertura, ed è la conseguenza accettata dal committente.
+    origine: 'scheda',
+  }
+}
+
 function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCondense: SchemaNodo | null): SchemaArco[] {
   const archi: SchemaArco[] = []
   let contatore = 0
@@ -264,6 +287,18 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
         stile: 'standard',
       })
     }
+  }
+
+  // Tubazione finale verso le utenze. Il nodo esiste solo se ha da chi partire, quindi qui si
+  // decide anche se `buildSchemaModel` deve aggiungerlo (vedi `sorgenteUtenze`).
+  const sorgente = catenaLinea.length > 0 ? catenaLinea[catenaLinea.length - 1].id : serbatoiChiave[0]
+  if (sorgente) {
+    archi.push({
+      id: prossimoId('ut'),
+      da: { nodo: sorgente, ancora: 'dx' },
+      a: { nodo: ID_UTENZE, ancora: 'in' },
+      stile: 'standard',
+    })
   }
 
   if (raccoltaCondense) {
@@ -304,7 +339,13 @@ export function buildSchemaModel(input: BuildSchemaModelInput): SchemaModel {
     nodi.push(raccoltaCondense)
   }
 
-  return { nodi, archi: buildArchi(nodi, input, raccoltaCondense) }
+  // Il terminale entra nei nodi solo se `buildArchi` ha davvero una sorgente da cui farlo
+  // partire: un arco verso un nodo assente, o un nodo senza tubazione, sarebbero entrambi
+  // incoerenti. Si decide guardando gli archi appena costruiti, unica fonte.
+  const archi = buildArchi(nodi, input, raccoltaCondense)
+  if (archi.some((a) => a.a.nodo === ID_UTENZE)) nodi.push(nodoUtenze())
+
+  return { nodi, archi }
 }
 
 /**

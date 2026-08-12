@@ -691,7 +691,7 @@ Run: `npx vitest run src/services/schemaImpianto/__tests__/buildSchemaModel.test
 Expected: **PASS**.
 
 Run: `npx vitest run`
-Expected: **alcuni test di `renderSvg.test.ts` e `layout.test.ts` possono fallire** perché il modello ha ora un nodo in più che nessuno posiziona. È atteso e i Task 5 e 6 lo chiudono. Annota quali falliscono nel report: se ne fallisce uno che non riguarda posizioni o conteggi di nodi, indagalo prima di proseguire.
+Expected: **alcuni test di `layout.test.ts` e `persistenza.test.ts` possono fallire** (non `renderSvg.test.ts`, che passa interamente). In `layout.test.ts` il nodo `utenze` che il modello produce non è ancora fra quelli posizionati. In `persistenza.test.ts` la causa è indiretta: `riconcilia` cerca il nodo nuovo in `layoutSchema(modello)` (`automatico.nodi.find((p) => p.id === n.id)!`) e legge `proposto.y` — finché `layoutSchema` non colloca il terminale, quella `find` torna `undefined` e la lettura esplode. In entrambi i file è la stessa lacuna, chiusa dal Task 5 quando colloca il nodo. Annota quali falliscono nel report: se ne fallisce uno che non riguarda posizioni o conteggi di nodi, indagalo prima di proseguire.
 
 Run: `npx tsc --noEmit` → nessun errore.
 

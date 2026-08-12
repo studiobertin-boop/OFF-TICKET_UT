@@ -99,11 +99,12 @@ Nuovo tipo di nodo `utenze`, con una voce propria nel registro dei simboli:
 - **Id riservato `UTENZE`**, che nessun codice di scheda può produrre. L'elemento è uno solo.
 - **Gruppo** `LINEA_DISTRIBUZIONE`, come gli altri nodi a valle del muro.
 
-`buildSchemaModel` lo crea sempre, insieme alla tubazione che vi arriva. «Ultimo stadio» diventa
-una regola **topologica** — l'ultimo della catena di trattamento, altrimenti l'ultimo serbatoio,
-e se non c'è né l'una né gli altri l'elemento non nasce — perché il modello si costruisce prima
-che le posizioni esistano. Oggi la regola è «il nodo più a destra», che dopo il layout dice
-quasi sempre la stessa cosa ma non può essere valutata a monte.
+`buildSchemaModel` lo crea sempre, insieme alla tubazione che vi arriva, seguendo una regola
+**topologica** e non geometrica: la sorgente è l'ultimo stadio della catena di trattamento oppure,
+se la catena è vuota, il serbatoio da cui la linea parte — lo stesso che alimenterebbe la catena.
+Se non c'è né l'una né l'altro, l'elemento non nasce affatto. È topologica e non geometrica perché
+il modello si costruisce prima che le posizioni esistano: oggi la regola è «il nodo più a destra»,
+che dopo il layout dice quasi sempre la stessa cosa ma non può essere valutata a monte.
 
 `ordinaCatenaTrattamento` e `pozzoCondense` devono ignorare il tipo `utenze`: non è uno stadio
 di trattamento né un pozzo. `righeLista` lo salta: non è un'apparecchiatura e non ha codice.

@@ -17,6 +17,7 @@ import {
   puoGenerareSchema,
 } from '../buildSchemaModel'
 import { capoValido } from '../agganci'
+import { pozzoCondense } from '../layout'
 
 describe('buildSchemaModel', () => {
   // Caso di riferimento: DOCUMENTAZIONE/relazione/schema.png — un compressore, un serbatoio
@@ -34,9 +35,11 @@ describe('buildSchemaModel', () => {
 
     const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
 
-    expect(model.nodi.map((n) => n.id)).toEqual(['C1', 'S1'])
+    // Senza catena di trattamento le utenze si attaccano direttamente al serbatoio: un nodo e
+    // un arco in più rispetto al minimo compressore → serbatoio.
+    expect(model.nodi.map((n) => n.id)).toEqual(['C1', 'S1', 'UTENZE'])
     expect(model.nodi.find((n) => n.id === 'S1')?.orientamento).toBe('ORIZZONTALE')
-    expect(model.archi).toHaveLength(1)
+    expect(model.archi).toHaveLength(2)
     expect(model.archi[0]).toMatchObject({
       da: { nodo: 'C1', ancora: 'alto-out' },
       a: { nodo: 'S1', ancora: 'sx' },
@@ -126,9 +129,10 @@ describe('buildSchemaModel', () => {
     expect(versoSeparatore.every((a) => a.stile === 'condensa')).toBe(true)
     // La mandata dell'aria passa per essiccatore e filtro, mai per il separatore.
     // F1 non è dichiarato prefiltro, quindi è filtro di linea: sta a valle dell'essiccatore.
+    // L'ultimo tratto (F1 → UTENZE) chiude la linea, sempre a valle dell'ultimo stadio.
     expect(
       model.archi.filter((a) => a.stile === 'standard').map((a) => `${a.da.nodo}->${a.a.nodo}`)
-    ).toEqual(['S1->E1', 'E1->F1'])
+    ).toEqual(['S1->E1', 'E1->F1', 'F1->UTENZE'])
   })
 
   it('mette in serie la catena di trattamento a valle del serbatoio, prefiltri per primi', () => {
@@ -145,9 +149,10 @@ describe('buildSchemaModel', () => {
     const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
 
     // Ordine degli schemi reali (es. 541_RELAZIONE_TECNICA): prefiltro, essiccatore, filtro di linea.
+    // Le utenze chiudono la linea a valle dell'ultimo stadio (F2, il filtro di linea).
     expect(
       model.archi.filter((a) => a.stile === 'standard').map((a) => `${a.da.nodo}->${a.a.nodo}`)
-    ).toEqual(['S1->F1', 'F1->E1', 'E1->F2'])
+    ).toEqual(['S1->F1', 'F1->E1', 'E1->F2', 'F2->UTENZE'])
   })
 
   it('genera un arco flessibile per ogni coppia dichiarata, anche in manifold N:1', () => {
@@ -321,5 +326,82 @@ describe('puoGenerareSchema', () => {
   it('è falso se mancano del tutto compressori o serbatoi', () => {
     const senzaSerbatoi = makeScheda({ serbatoi: [] })
     expect(puoGenerareSchema({ scheda: senzaSerbatoi, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })).toBe(false)
+  })
+})
+
+describe('terminale verso le utenze', () => {
+  it('nasce con la tubazione che parte dall’ultimo stadio della catena di trattamento', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ ha_disoleatore: false })],
+      disoleatori: [],
+      serbatoi: [makeSerbatoio()],
+      essiccatori: [makeEssiccatore()],
+      scambiatori: [],
+      filtri: [makeFiltro({ codice: 'F1', tipo: 'LINEA' })],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const modello = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+
+    const utenze = modello.nodi.find((n) => n.tipo === 'utenze')!
+    expect(utenze.id).toBe('UTENZE')
+    expect(utenze.etichetta).toBe('Utenze aria')
+    expect(utenze.origine).toBe('scheda')
+
+    // La catena è E1 → F1 (i filtri di linea stanno a valle dell'essiccatore): l'ultimo è F1.
+    const arco = modello.archi.find((a) => a.a.nodo === 'UTENZE')!
+    expect(arco.da).toEqual({ nodo: 'F1', ancora: 'dx' })
+    expect(arco.a).toEqual({ nodo: 'UTENZE', ancora: 'in' })
+    expect(arco.stile).toBe('standard')
+  })
+
+  it('senza catena di trattamento parte dal serbatoio che alimenta la linea', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ ha_disoleatore: false })],
+      disoleatori: [],
+      serbatoi: [makeSerbatoio()],
+      essiccatori: [],
+      scambiatori: [],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const modello = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+
+    expect(modello.archi.find((a) => a.a.nodo === 'UTENZE')!.da).toEqual({ nodo: 'S1', ancora: 'dx' })
+  })
+
+  it('non nasce affatto se non c’è né catena né serbatoio', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ ha_disoleatore: false })],
+      disoleatori: [],
+      serbatoi: [],
+      essiccatori: [],
+      scambiatori: [],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const modello = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: {} })
+
+    expect(modello.nodi.some((n) => n.tipo === 'utenze')).toBe(false)
+    expect(modello.archi.some((a) => a.a.nodo === 'UTENZE')).toBe(false)
+  })
+
+  it('resta fuori dalla catena di trattamento e dal pozzo di raccolta condense', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ ha_disoleatore: false })],
+      disoleatori: [],
+      serbatoi: [makeSerbatoio()],
+      essiccatori: [makeEssiccatore()],
+      scambiatori: [],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'tanica' }),
+    })
+    const modello = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    const utenze = modello.nodi.find((n) => n.tipo === 'utenze')!
+
+    expect(ordinaCatenaTrattamento(modello.nodi, null).map((n) => n.id)).not.toContain('UTENZE')
+    expect(pozzoCondense(modello.nodi, modello)?.id).not.toBe(utenze.id)
+    // E non riceve né emette condensa.
+    expect(modello.archi.some((a) => a.stile === 'condensa' && a.a.nodo === 'UTENZE')).toBe(false)
+    expect(modello.archi.some((a) => a.stile === 'condensa' && a.da.nodo === 'UTENZE')).toBe(false)
   })
 })
