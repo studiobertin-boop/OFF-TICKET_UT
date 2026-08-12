@@ -17,7 +17,7 @@ import {
   valvolaScarico,
   TRATTO,
 } from './symbols'
-import { ondula, type Punto } from './tratti'
+import { ondula, puntoSuTratto, type Punto } from './tratti'
 import type { SchemaLayout, SchemaNodoPosizionato, SchemaNodoTipo } from './types'
 
 export type { Punto }
@@ -122,9 +122,7 @@ function renderMandataCompressore(
   // Il flessibile è ondulato da un capo all'altro, come nei blocchi di riferimento: prima del
   // 12-08-2026 l'onda era un ricciolo di 40 unità sul solo montante, e la legenda — che ne
   // mostra un campione — rendeva la differenza evidente.
-  const linea = `<path d="${ondula(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" marker-end="url(#freccia)" />`
-  // La valvola sta sul montante: farfalla verticale, in linea col tubo.
-  const svg = linea + valvolaIntercettazione(pDa.x, pDa.y - 62, 'verticale')
+  const svg = `<path d="${ondula(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" marker-end="url(#freccia)" />`
   return { svg, punti }
 }
 
@@ -150,9 +148,7 @@ function renderMandataLinea(
           { x: pA.x, y: pA.y },
         ]
   const freccia = frecciaFinale ? ' marker-end="url(#freccia)"' : ''
-  const svg =
-    `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}"${freccia} />` +
-    valvolaIntercettazione(pA.x - 22, pA.y)
+  const svg = `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}"${freccia} />`
   return { svg, punti }
 }
 
@@ -183,7 +179,13 @@ function renderLineaCondense(
   return { svg, punti }
 }
 
-/** Disegno delle tubazioni, insieme alle quote a cui attraversano il muro (se c'è). */
+/**
+ * Disegno delle tubazioni, insieme alle quote a cui attraversano il muro (se c'è).
+ *
+ * I segni (valvola di intercettazione, riduttore di pressione) si disegnano qui e non dentro le
+ * funzioni `renderMandata*`: la loro posizione dipende dalla polilinea RESA (`reso.punti`, dopo
+ * i gomiti automatici), non da quella richiesta, e solo qui la si conosce già calcolata.
+ */
 function renderArchi(
   layout: SchemaLayout,
   yCorsiaCondense: number,
@@ -209,6 +211,11 @@ function renderArchi(
           : renderMandataLinea(da, arco.da.ancora, a, arco.a.ancora, arco.punti, a.tipo !== 'utenze')
 
     parti.push(reso.svg)
+    for (const segno of arco.segni ?? []) {
+      const { punto, orizzontale } = puntoSuTratto(reso.punti, segno.t)
+      const disegnaSegno = segno.tipo === 'riduttore_pressione' ? riduttorePressione : valvolaIntercettazione
+      parti.push(disegnaSegno(punto.x, punto.y, orizzontale ? 'orizzontale' : 'verticale'))
+    }
     if (layout.muro) varchi.push(...quoteAttraversamento(reso.punti, layout.muro.x))
   }
 

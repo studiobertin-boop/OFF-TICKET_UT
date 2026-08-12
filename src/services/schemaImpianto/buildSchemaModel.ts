@@ -21,6 +21,7 @@ import type {
   SchemaGruppo,
   SchemaModel,
   SchemaNodo,
+  SchemaSegnoTubo,
   SchemaValvolaSicurezza,
 } from './types'
 
@@ -258,6 +259,12 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
   const archi: SchemaArco[] = []
   let contatore = 0
   const prossimoId = (prefisso: string) => `${prefisso}-${++contatore}`
+  // Ogni arco flessibile o di linea nasce con una valvola di intercettazione a metà tratto:
+  // prima del 12-08-2026 la valvola la disegnava `renderSvg` d'ufficio a un punto fisso, ora è
+  // un segno vero seminato qui, spostabile nell'editor e letto dalla legenda (Task 3/4).
+  const segnoValvolaDiDefault = (): SchemaSegnoTubo[] => [
+    { id: prossimoId('segno'), tipo: 'valvola_intercettazione', t: 0.5 },
+  ]
 
   for (const [compressoreId, serbatoiIds] of Object.entries(input.collegamentiCompressoriSerbatoi)) {
     for (const serbatoioId of serbatoiIds) {
@@ -266,6 +273,7 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
         da: { nodo: compressoreId, ancora: 'alto-out' },
         a: { nodo: serbatoioId, ancora: 'sx' },
         stile: 'flessibile',
+        segni: segnoValvolaDiDefault(),
       })
     }
   }
@@ -278,6 +286,7 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
       da: { nodo: serbatoiChiave[0], ancora: 'dx' },
       a: { nodo: catenaLinea[0].id, ancora: 'sx' },
       stile: 'standard',
+      segni: segnoValvolaDiDefault(),
     })
     for (let i = 0; i < catenaLinea.length - 1; i++) {
       archi.push({
@@ -285,6 +294,7 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
         da: { nodo: catenaLinea[i].id, ancora: 'dx' },
         a: { nodo: catenaLinea[i + 1].id, ancora: 'sx' },
         stile: 'standard',
+        segni: segnoValvolaDiDefault(),
       })
     }
   }

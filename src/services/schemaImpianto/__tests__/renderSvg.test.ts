@@ -419,6 +419,31 @@ describe('punti di passaggio', () => {
   })
 })
 
+describe('segno sull’arco', () => {
+  it('disegna il segno di valvola nel punto che il suo `t` indica, non in un punto fisso', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ ha_disoleatore: false })],
+      disoleatori: [],
+      serbatoi: [makeSerbatoio({ orientamento: 'ORIZZONTALE' })],
+      essiccatori: [],
+      scambiatori: [],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const layout = layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } }))
+    const arco = layout.archi.find((a) => a.stile === 'flessibile')!
+    arco.segni = [{ id: 'v1', tipo: 'valvola_intercettazione', t: 0 }]
+    const conTAZero = renderSvg(layout)
+
+    arco.segni = [{ id: 'v1', tipo: 'valvola_intercettazione', t: 1 }]
+    const conTAUno = renderSvg(layout)
+
+    // Stesso simbolo (stesso `<path` di valvolaIntercettazione), ma non nello stesso punto:
+    // altrimenti `t` non conterebbe nulla.
+    expect(conTAZero).not.toBe(conTAUno)
+  })
+})
+
 describe('raccordoOrtogonale', () => {
   it('due punti già allineati non introducono un gomito superfluo', () => {
     expect(raccordoOrtogonale({ x: 10, y: 10 }, { x: 10, y: 90 })).toEqual([{ x: 10, y: 90 }])

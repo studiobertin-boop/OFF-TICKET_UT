@@ -12,6 +12,7 @@ import {
 } from '@/services/relazione/__tests__/fixtures'
 import {
   buildSchemaModel,
+  ID_UTENZE,
   notaTubazioni,
   ordinaCatenaTrattamento,
   puoGenerareSchema,
@@ -255,6 +256,41 @@ describe('buildSchemaModel', () => {
     const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
 
     expect(ordinaCatenaTrattamento(model.nodi, null).map((n) => n.id)).toEqual(['E1'])
+  })
+
+  it('ogni arco standard e flessibile nasce con un segno di valvola di intercettazione', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ ha_disoleatore: false })],
+      disoleatori: [],
+      serbatoi: [makeSerbatoio()],
+      essiccatori: [makeEssiccatore()],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+
+    // L'arco terminale verso ID_UTENZE resta escluso apposta (vedi buildArchi): il terminale ha
+    // già il proprio codolo e non porta valvola. Senza questa esclusione il filtro prenderebbe
+    // anche quell'arco — è 'standard' come gli altri — e la asserzione fallirebbe su un caso che
+    // il disegno esclude di proposito.
+    const rigideOFlessibili = model.archi.filter(
+      (a) => (a.stile === 'standard' || a.stile === 'flessibile') && a.a.nodo !== ID_UTENZE
+    )
+    expect(rigideOFlessibili.length).toBeGreaterThan(0)
+    for (const arco of rigideOFlessibili) {
+      expect(arco.segni).toHaveLength(1)
+      expect(arco.segni![0].tipo).toBe('valvola_intercettazione')
+      expect(arco.segni![0].t).toBeGreaterThan(0)
+      expect(arco.segni![0].t).toBeLessThan(1)
+    }
+  })
+
+  it('gli archi condensa non hanno segni: la valvola non serve sullo scarico', () => {
+    const scheda = makeScheda({ dati_impianto: makeDatiImpianto({ raccolta_condense: 'tanica' }) })
+    const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    const condensa = model.archi.filter((a) => a.stile === 'condensa')
+    expect(condensa.length).toBeGreaterThan(0)
+    for (const arco of condensa) expect(arco.segni ?? []).toHaveLength(0)
   })
 })
 
