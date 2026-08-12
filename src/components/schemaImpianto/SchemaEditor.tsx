@@ -649,8 +649,16 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
             value={rinomina?.valore ?? ''}
             onChange={(e) => setRinomina((r) => (r ? { ...r, valore: e.target.value } : r))}
             onKeyDown={(e) => {
-              // Il dialog vive dentro l'editor, che ascolta le frecce e Ctrl+Z sull'intera
-              // finestra: senza fermarli qui, scrivere nel campo sposterebbe il nodo selezionato.
+              // Esc chiude il campo senza cambiare nulla. Va gestito qui e non lasciato a MUI:
+              // lo stopPropagation qui sotto è indispensabile — l'editor ascolta frecce e Ctrl+Z
+              // sull'intera finestra, e senza di esso scrivere nel campo sposterebbe il nodo
+              // selezionato — ma ferma l'evento anche dentro l'albero React, quindi il Dialog
+              // non lo vedrebbe mai e resterebbe aperto.
+              if (e.key === 'Escape') {
+                e.stopPropagation()
+                setRinomina(null)
+                return
+              }
               e.stopPropagation()
               if (e.key === 'Enter') confermaRinomina()
             }}

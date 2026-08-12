@@ -2075,8 +2075,15 @@ Subito prima della `</Stack>` che chiude il componente (dopo lo `Stack` dei puls
             value={rinomina?.valore ?? ''}
             onChange={(e) => setRinomina((r) => (r ? { ...r, valore: e.target.value } : r))}
             onKeyDown={(e) => {
-              // Il dialog vive dentro l'editor, che ascolta le frecce e Ctrl+Z sull'intera
-              // finestra: senza fermarli qui, scrivere nel campo sposterebbe il nodo selezionato.
+              // Esc chiude il campo senza cambiare nulla: va gestito qui, perché lo
+              // stopPropagation qui sotto (indispensabile: l'editor ascolta frecce e Ctrl+Z
+              // sull'intera finestra) ferma l'evento anche dentro l'albero React, quindi
+              // lasciato a MUI il Dialog non lo vedrebbe mai e resterebbe aperto.
+              if (e.key === 'Escape') {
+                e.stopPropagation()
+                setRinomina(null)
+                return
+              }
               e.stopPropagation()
               if (e.key === 'Enter') confermaRinomina()
             }}
