@@ -313,11 +313,18 @@ const EqRow = ({
       >
         {guide.map((g, l) => (
           <Fragment key={l}>
-            <Box sx={{
-              position: 'absolute', left: `${BINARIO_X + l * RIENTRO_LIVELLO}px`,
-              top: 0, bottom: g.continua ? 0 : '50%', width: '1.5px',
-              bgcolor: alpha(g.color, 0.45),
-            }} />
+            {/* Il montante che si ferma a metà riga è la chiusura del ramo, e va disegnato
+                solo dove quel ramo si chiude davvero: sul proprio figlio diretto (il livello
+                che porta il baffo). Su una riga più profonda — la valvola di un disoleatore,
+                C1.2 — i montanti degli antenati si fermavano a metà anche loro, e accanto al
+                baffo si leggevano come un secondo gancio di collegamento. */}
+            {(g.continua || l === depth - 1) && (
+              <Box sx={{
+                position: 'absolute', left: `${BINARIO_X + l * RIENTRO_LIVELLO}px`,
+                top: 0, bottom: g.continua ? 0 : '50%', width: '1.5px',
+                bgcolor: alpha(g.color, 0.45),
+              }} />
+            )}
             {l === depth - 1 && (
               <Box sx={{
                 position: 'absolute', left: `${BINARIO_X + l * RIENTRO_LIVELLO}px`,
