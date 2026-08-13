@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { chiaveSimbolo } from '../types'
-import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, simboloDi, simboloGiunzione, valvolaIntercettazione, riduttorePressione } from '../symbols'
+import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, simboloDi, simboloGiunzione, valvolaIntercettazione, riduttorePressione, testoMultiRiga } from '../symbols'
 import { capoValido } from '../agganci'
 
 describe('chiaveSimbolo', () => {
@@ -169,6 +169,32 @@ describe('giunzione', () => {
     const { larghezza } = REGISTRO_SIMBOLI.giunzione.dimensioni
     const raggio = Number(/r="([\d.]+)"/.exec(simboloGiunzione(nodo))![1])
     expect(raggio).toBe(larghezza / 2)
+  })
+})
+
+describe('testoMultiRiga', () => {
+  it('mette una riga per ogni capoverso, incolonnate sulla stessa ascissa', () => {
+    const svg = testoMultiRiga(10, 20, 'Utenze aria\nreparto 2', 18, 'start')
+    const tspan = [...svg.matchAll(/<tspan x="([\d.]+)" y="([\d.]+)">([^<]*)<\/tspan>/g)]
+    expect(tspan).toHaveLength(2)
+    expect(tspan.map((m) => m[3])).toEqual(['Utenze aria', 'reparto 2'])
+    expect(tspan.map((m) => m[1])).toEqual(['10', '10'])
+  })
+
+  it('distanzia le righe di un’interlinea proporzionale al corpo', () => {
+    const svg = testoMultiRiga(0, 100, 'a\nb\nc', 20)
+    const y = [...svg.matchAll(/y="([\d.]+)"/g)].map((m) => Number(m[1]))
+    expect(y).toEqual([100, 125, 150])
+  })
+
+  it('una riga sola resta una riga sola, senza spaziature inventate', () => {
+    const svg = testoMultiRiga(5, 5, 'Utenze aria', 18, 'start')
+    expect([...svg.matchAll(/<tspan/g)]).toHaveLength(1)
+  })
+
+  it('protegge i caratteri speciali come il testo a riga singola', () => {
+    expect(testoMultiRiga(0, 0, 'a & b\n<c>')).toContain('a &amp; b')
+    expect(testoMultiRiga(0, 0, 'a & b\n<c>')).toContain('&lt;c&gt;')
   })
 })
 

@@ -44,6 +44,39 @@ function testo(
   return `<text x="${x}" y="${y}" font-family="${FONT}" font-size="${dimensione}" text-anchor="${ancora}" dominant-baseline="central" fill="#000">${escapeXml(contenuto)}</text>`
 }
 
+/**
+ * Interlinea, in multipli del corpo del carattere. Sotto 1,2 le righe si toccano nei glifi
+ * discendenti; molto sopra, il blocco di testo si sfilaccia e non si legge più come un'unità.
+ */
+export const INTERLINEA_TESTO = 1.25
+
+/**
+ * Testo che va a capo sugli `\n`. Un `<text>` SVG non manda a capo da sé — un `\n` dentro il
+ * contenuto verrebbe reso come uno spazio — quindi ogni riga è un `<tspan>` con la propria
+ * ascissa e ordinata, incolonnate sulla stessa `x`.
+ *
+ * `x`/`y` sono il primo capo della PRIMA riga (o il suo centro, secondo `ancora`): le righe
+ * successive scendono. Chi calcola l'ingombro di un testo deve quindi tenere conto che il
+ * blocco cresce verso il basso.
+ *
+ * Non ha ancora consumatori in questo repo: il terminale utenze e i testi liberi che la
+ * useranno arrivano nei task successivi del Blocco C2 (`testo()` resta il disegno di tutto
+ * ciò che oggi è a riga singola: codici, etichette, tabella).
+ */
+export function testoMultiRiga(
+  x: number,
+  y: number,
+  contenuto: string,
+  dimensione = 20,
+  ancora: 'middle' | 'start' | 'end' = 'middle'
+): string {
+  const righe = contenuto.split('\n')
+  const tspan = righe
+    .map((riga, i) => `<tspan x="${x}" y="${y + i * dimensione * INTERLINEA_TESTO}">${escapeXml(riga)}</tspan>`)
+    .join('')
+  return `<text font-family="${FONT}" font-size="${dimensione}" text-anchor="${ancora}" dominant-baseline="central" fill="#000">${tspan}</text>`
+}
+
 export function escapeXml(valore: string): string {
   return valore
     .replace(/&/g, '&amp;')
