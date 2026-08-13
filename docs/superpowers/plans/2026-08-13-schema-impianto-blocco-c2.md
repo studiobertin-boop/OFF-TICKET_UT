@@ -170,8 +170,9 @@ e nel registro:
   giunzione: {
     dimensioni: DIMENSIONI.giunzione,
     // Quattro attacchi sempre disponibili, uno per lato: non c'è un «davanti», quindi non
-    // c'è nulla da ruotare. Gli identificativi sx/dx/basso sono quelli del Blocco B, così i
-    // TEE già salvati nelle pratiche restano collegati; `alto` è nuovo.
+    // c'è nulla da ruotare. Gli identificativi sx/dx/basso sono quelli del Blocco B: finiscono
+    // negli archi salvati, e cambiarli senza motivo introdurrebbe un'incompatibilità gratuita
+    // il giorno in cui esisteranno disegni veri da rileggere. `alto` è nuovo.
     ancore: [
       { id: 'sx', x: 0, y: 8, accetta: ['aria'] },
       { id: 'dx', x: 16, y: 8, accetta: ['aria'] },

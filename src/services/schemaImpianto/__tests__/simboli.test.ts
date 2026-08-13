@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { chiaveSimbolo } from '../types'
-import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, simboloDi, valvolaIntercettazione, riduttorePressione } from '../symbols'
+import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, simboloDi, simboloGiunzione, valvolaIntercettazione, riduttorePressione } from '../symbols'
 import { capoValido } from '../agganci'
 
 describe('chiaveSimbolo', () => {
@@ -129,31 +129,39 @@ describe('simbolo «Alle utenze»', () => {
   })
 })
 
-describe('simboloGiunzione', () => {
-  it('disegna tre monconi di tubo che confluiscono in un punto pieno, senza testo', () => {
-    const svg = REGISTRO_SIMBOLI.giunzione.disegna({
-      id: 'M-G1',
-      tipo: 'giunzione',
-      etichetta: 'Giunzione',
-      gruppo: 'LINEA_DISTRIBUZIONE',
-      valvoleSicurezza: [],
-      origine: 'manuale',
-    })
-    expect(svg).not.toContain('<text')
-    expect((svg.match(/<path/g) ?? []).length).toBe(3)
+describe('giunzione', () => {
+  const nodo = { id: 'M-G1', tipo: 'giunzione' as const, etichetta: 'Giunzione', gruppo: 'LINEA_DISTRIBUZIONE' as const, valvoleSicurezza: [], origine: 'manuale' as const }
+
+  it('è un punto pieno senza monconi: la forma a T la disegnano le tubazioni', () => {
+    const svg = simboloGiunzione(nodo)
     expect(svg).toContain('<circle')
+    // Nessun tratto disegnato: prima del Blocco C2 il simbolo aveva tre monconi che
+    // restavano visibili anche senza tubazioni collegate.
+    expect(svg).not.toContain('<path')
   })
 
-  it('ha tre ancore che accettano aria, dentro l\'ingombro dichiarato', () => {
-    const def = REGISTRO_SIMBOLI.giunzione
-    expect(def.ancore.map((a) => a.id).sort()).toEqual(['basso', 'dx', 'sx'])
-    for (const ancora of def.ancore) {
-      expect(ancora.accetta).toEqual(['aria'])
-      expect(ancora.x).toBeGreaterThanOrEqual(0)
-      expect(ancora.x).toBeLessThanOrEqual(def.dimensioni.larghezza)
-      expect(ancora.y).toBeGreaterThanOrEqual(0)
-      expect(ancora.y).toBeLessThanOrEqual(def.dimensioni.altezza)
-    }
+  it('ha quattro attacchi, uno per lato, tutti sull’aria', () => {
+    const ancore = REGISTRO_SIMBOLI.giunzione.ancore
+    expect(ancore.map((a) => a.id).sort()).toEqual(['alto', 'basso', 'dx', 'sx'])
+    expect(ancore.every((a) => a.accetta.length === 1 && a.accetta[0] === 'aria')).toBe(true)
+  })
+
+  it('gli attacchi stanno sui bordi del riquadro, il pallino al centro', () => {
+    const { larghezza, altezza } = REGISTRO_SIMBOLI.giunzione.dimensioni
+    const per = (id: string) => REGISTRO_SIMBOLI.giunzione.ancore.find((a) => a.id === id)!
+    expect(per('sx')).toMatchObject({ x: 0, y: altezza / 2 })
+    expect(per('dx')).toMatchObject({ x: larghezza, y: altezza / 2 })
+    expect(per('alto')).toMatchObject({ x: larghezza / 2, y: 0 })
+    expect(per('basso')).toMatchObject({ x: larghezza / 2, y: altezza })
+  })
+
+  it('il pallino copre quasi tutto il riquadro: fra tubo e giunzione non resta un buco visibile', () => {
+    // Con l'ingombro grande del Blocco B (50x50) fra la fine del tubo e il pallino restavano
+    // 25 unità di vuoto per lato. Il vuoto massimo tollerato è di poche unità, invisibile a
+    // spessore di tratto 2.
+    const { larghezza } = REGISTRO_SIMBOLI.giunzione.dimensioni
+    const raggio = Number(/r="([\d.]+)"/.exec(simboloGiunzione(nodo))![1])
+    expect(larghezza / 2 - raggio).toBeLessThanOrEqual(3)
   })
 })
 

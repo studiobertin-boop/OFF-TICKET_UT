@@ -30,7 +30,7 @@ const DIMENSIONI: Record<SchemaNodoTipo, { larghezza: number; altezza: number }>
   tanica: { larghezza: 80, altezza: 70 },
   pacco_bombole: { larghezza: 120, altezza: 100 },
   utenze: { larghezza: 190, altezza: 120 },
-  giunzione: { larghezza: 50, altezza: 50 },
+  giunzione: { larghezza: 16, altezza: 16 },
 }
 
 /** Testo: `x`/`y` sono il centro, o il capo iniziale/finale se `ancora` lo dice. */
@@ -344,19 +344,19 @@ export function simboloPaccoBombole(nodo: SchemaNodo): string {
 }
 
 /**
- * Giunzione a tre attacchi (TEE): simbolo segnaposto, non un blocco CAD di riferimento — tre
- * monconi che confluiscono in un punto pieno. Nessun testo: il nodo non ha una riga in
- * `righeLista` che ne spieghi un codice, e disegnarlo comunque confonderebbe.
+ * Giunzione (TEE): un punto pieno, senza monconi. Fino al Blocco B disegnava tre tratti verso
+ * sinistra, destra e basso, che restavano visibili anche quando nessuna tubazione ci arrivava
+ * e fissavano il ramo di diramazione verso il basso; il committente ha chiesto un attacco
+ * libero da qualunque lato, e la forma a T (o a croce, o a gomito) la disegnano ora le
+ * tubazioni che ci arrivano davvero.
+ *
+ * Il pallino riempie quasi tutto il riquadro apposta: le ancore stanno sui bordi, e un
+ * disco piccolo al centro di un riquadro grande lascerebbe un buco visibile fra la fine di
+ * ogni tubo e la giunzione.
  */
 export function simboloGiunzione(_nodo: SchemaNodo): string {
-  const cx = 25
-  const cy = 25
-  return [
-    traccia(`M 0 ${cy} L ${cx} ${cy}`),
-    traccia(`M ${2 * cx} ${cy} L ${cx} ${cy}`),
-    traccia(`M ${cx} ${2 * cy} L ${cx} ${cy}`),
-    `<circle cx="${cx}" cy="${cy}" r="4" fill="#000" />`,
-  ].join('')
+  const { larghezza, altezza } = DIMENSIONI.giunzione
+  return `<circle cx="${larghezza / 2}" cy="${altezza / 2}" r="5" fill="#000" />`
 }
 
 /**
@@ -480,10 +480,15 @@ export const REGISTRO_SIMBOLI: Record<ChiaveSimbolo, DefinizioneSimbolo> = {
   },
   giunzione: {
     dimensioni: DIMENSIONI.giunzione,
+    // Quattro attacchi sempre disponibili, uno per lato: non c'è un «davanti», quindi non
+    // c'è nulla da ruotare. Gli identificativi sx/dx/basso sono quelli del Blocco B: finiscono
+    // negli archi salvati, e cambiarli senza motivo introdurrebbe un'incompatibilità gratuita
+    // il giorno in cui esisteranno disegni veri da rileggere. `alto` è nuovo.
     ancore: [
-      { id: 'sx', x: 0, y: 25, accetta: ['aria'] },
-      { id: 'dx', x: 50, y: 25, accetta: ['aria'] },
-      { id: 'basso', x: 25, y: 50, accetta: ['aria'] },
+      { id: 'sx', x: 0, y: 8, accetta: ['aria'] },
+      { id: 'dx', x: 16, y: 8, accetta: ['aria'] },
+      { id: 'alto', x: 8, y: 0, accetta: ['aria'] },
+      { id: 'basso', x: 8, y: 16, accetta: ['aria'] },
     ],
     disegna: simboloGiunzione,
   },
