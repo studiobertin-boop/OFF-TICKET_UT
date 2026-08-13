@@ -751,10 +751,11 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
             return
           }
           e.stopPropagation()
-          // Invio conferma solo dal campo di testo. Sui pulsanti l'Invio è già un click: farlo
-          // valere anche qui applicherebbe la rinomina pure a chi ha il fuoco su «Lascia com'è».
-          const daCampoDiTesto = (e.target as HTMLElement).tagName === 'INPUT'
-          if (e.key === 'Enter' && daCampoDiTesto && scrittaValida) confermaRinomina()
+          // Invio va a capo: il campo è multi-riga dal Blocco C2, e confermare su Invio
+          // renderebbe impossibile comporre la seconda riga. Resta la scorciatoia da
+          // tastiera, con il modificatore — la stessa convenzione dei campi di commento —
+          // mentre la strada principale è il pulsante.
+          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && scrittaValida) confermaRinomina()
         }}
       >
         <DialogTitle>Scritta del terminale</DialogTitle>
@@ -762,9 +763,12 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
           <TextField
             autoFocus
             fullWidth
+            multiline
+            minRows={2}
+            maxRows={8}
             margin="dense"
             label="Testo"
-            helperText="Per esempio «Utenze aria», «Utenze azoto»."
+            helperText="Per esempio «Utenze aria», «Utenze azoto». Invio va a capo, Ctrl+Invio conferma (oppure usa il pulsante qui sotto)."
             value={rinomina?.valore ?? ''}
             onChange={(e) => setRinomina((r) => (r ? { ...r, valore: e.target.value } : r))}
           />
