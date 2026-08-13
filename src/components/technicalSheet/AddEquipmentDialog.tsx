@@ -22,7 +22,7 @@ import {
   specsSchemaFor,
   type CreateEquipmentInput,
 } from '@/utils/equipmentCatalogValidation'
-import { canonicalFromForm, formatSpecLabel, variantSpecKey } from '@/services/equipmentAudit'
+import { canonicalFromForm, formatSpecLabel, variantKeyFields, variantSpecKey } from '@/services/equipmentAudit'
 import { calculateCategoriaPED, getCategoriaPEDDescription } from '@/utils/categoriaPedCalculator'
 import type { EquipmentCatalogType } from '@/types'
 
@@ -127,6 +127,8 @@ export const AddEquipmentDialog = ({
     : ''
 
   const chiaveVariante = variantSpecKey(tipo)
+  /** Tutte le parti della chiave: sulle valvole la taratura non basta, conta anche il diametro. */
+  const chiaviVariante = variantKeyFields(tipo)
 
   const handleClose = () => {
     setError(null)
@@ -155,8 +157,9 @@ export const AddEquipmentDialog = ({
 
         {chiaveVariante && (
           <Alert severity="info" sx={{ mb: 2 }}>
-            Per questo tipo lo stesso modello può esistere a più pressioni: «
-            {formatSpecLabel(tipo, chiaveVariante)}» distingue una variante dall'altra.
+            Per questo tipo lo stesso modello può esistere in più varianti:{' '}
+            {chiaviVariante.map((k) => `«${formatSpecLabel(tipo, k)}»`).join(' e ')}{' '}
+            {chiaviVariante.length > 1 ? 'distinguono' : 'distingue'} una variante dall'altra.
           </Alert>
         )}
 

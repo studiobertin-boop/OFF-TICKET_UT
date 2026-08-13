@@ -6,7 +6,10 @@ import {
   parseNumeric,
   readSpec,
   readSheetPressure,
+  normalizeDiametroValvola,
+  readVariantKey,
   readVariantValue,
+  variantKeyFields,
   sheetPressureKey,
   variantSpecKey,
   variantSpecKeys,
@@ -169,6 +172,28 @@ describe('chiave di variante', () => {
     expect(variantSpecKeys('Serbatoi')).toEqual(['ps'])
   })
 
+  it('sulle valvole la chiave si compone di taratura e diametro', () => {
+    expect(variantKeyFields('Valvole di sicurezza')).toEqual(['ptar', 'diametro'])
+    expect(variantKeyFields('Compressori')).toEqual(['pressione_esercizio'])
+    expect(variantKeyFields('Separatori')).toEqual([])
+  })
+
+  it('legge la chiave di variante come stringa composta', () => {
+    expect(readVariantKey('Valvole di sicurezza', { ptar: 11, diametro: '3/8"' })).toBe('11|3/8"')
+    expect(readVariantKey('Compressori', { pressione_esercizio: 7.5, pressione_max: 11 })).toBe('7.5')
+  })
+
+  it('tratta il diametro assente come parte vuota, senza perdere la riga', () => {
+    // 70 valvole su 76 a produzione non lo dichiarano: devono restare una variante valida.
+    expect(readVariantKey('Valvole di sicurezza', { ptar: 11 })).toBe('11|')
+  })
+
+  it('non produce chiave se manca la parte primaria o il tipo non ha varianti', () => {
+    expect(readVariantKey('Valvole di sicurezza', { diametro: '3/8"' })).toBeNull()
+    expect(readVariantKey('Separatori', { ps: 11 })).toBeNull()
+    expect(readVariantKey('Valvole di sicurezza', null)).toBeNull()
+  })
+
   it('preferisce la pressione di esercizio a quella di targa', () => {
     expect(readVariantValue('Compressori', { pressione_esercizio: 7.5, pressione_max: 8 })).toBe(7.5)
   })
@@ -188,6 +213,24 @@ describe('chiave di variante', () => {
     expect(readVariantValue('Separatori', { ps: 11 })).toBeNull()
     expect(readVariantValue('Compressori', { fad: 2000 })).toBeNull()
     expect(readVariantValue('Compressori', null)).toBeNull()
+  })
+})
+
+describe('diametro delle valvole', () => {
+  it('riconduce alla scala le grafie che l OCR restituisce', () => {
+    // «1/2" 13bar» è la forma tipica del campo `diametro_pressione` letto dalla targhetta.
+    expect(normalizeDiametroValvola('1/2" 13bar')).toBe('1/2"')
+    expect(normalizeDiametroValvola("3/8''")).toBe('3/8"')
+    expect(normalizeDiametroValvola('3/8')).toBe('3/8"')
+    expect(normalizeDiametroValvola('G 3/4')).toBe('3/4"')
+    expect(normalizeDiametroValvola('1" 1/4')).toBe('1"1/4')
+    expect(normalizeDiametroValvola('1"')).toBe('1"')
+  })
+
+  it('lascia intatto ciò che non è riconducibile alla scala', () => {
+    expect(normalizeDiametroValvola('DN 15')).toBe('DN 15')
+    expect(normalizeDiametroValvola('')).toBeNull()
+    expect(normalizeDiametroValvola(null)).toBeNull()
   })
 })
 

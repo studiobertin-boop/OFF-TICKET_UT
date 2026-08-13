@@ -6,7 +6,10 @@ import {
   normalizeKey,
   readNumericSpec,
   readSheetPressure,
+  readSpec,
+  readVariantKey,
   readVariantValue,
+  variantKeyFields,
 } from '@/services/equipmentAudit'
 
 /**
@@ -21,8 +24,13 @@ import {
 export interface VarianteCatalogo {
   /** Pressione che la scheda dichiara nella colonna PS/Ptar: la massima di targa. */
   value: number
-  /** Valore che distingue la riga dalle sue sorelle — la chiave dell'indice unico. */
+  /** Pressione che distingue la riga dalle sue sorelle: la parte primaria della chiave. */
   variante: number
+  /**
+   * Chiave completa dell'indice unico, in forma di stringa: la pressione, e sulle valvole
+   * anche il diametro. È quella su cui le righe si raggruppano.
+   */
+  chiave: string
   item: EquipmentCatalogItem
 }
 
@@ -30,7 +38,8 @@ export interface VarianteCatalogo {
  * Raggruppa le righe di un modello in varianti, ordinate per pressione crescente.
  *
  * Il raggruppamento avviene sulla chiave di variante — `COALESCE(pressione_esercizio,
- * pressione_max)` sui compressori — la stessa dell'indice unico a database. Indicizzare
+ * pressione_max)` sui compressori, taratura e diametro sulle valvole — la stessa dell'indice
+ * unico a database. Indicizzare
  * per la sola pressione di targa era più grossolano dell'indice: su KAESER SK 19, dove la
  * variante da 7,5 bar e quella da 10 dichiarano entrambe 11 di massima, una delle due
  * spariva e chi scriveva 11 nella colonna PS si prendeva 1855 o 1680 l/min a seconda
@@ -45,24 +54,57 @@ export function raggruppaVarianti(
   tipo: EquipmentCatalogType,
   rows: EquipmentCatalogItem[]
 ): VarianteCatalogo[] {
-  const perVariante = new Map<number, VarianteCatalogo>()
+  const perVariante = new Map<string, VarianteCatalogo>()
 
   for (const item of rows) {
+    const chiave = readVariantKey(tipo, item.specs)
     const variante = readVariantValue(tipo, item.specs)
     const value = readSheetPressure(tipo, item.specs)
-    if (variante === null || value === null) continue
+    if (chiave === null || variante === null || value === null) continue
 
-    const presente = perVariante.get(variante)
+    const presente = perVariante.get(chiave)
     if (
       !presente ||
       missingCanonicalSpecs(tipo, item.specs).length <
         missingCanonicalSpecs(tipo, presente.item.specs).length
     ) {
-      perVariante.set(variante, { value, variante, item })
+      perVariante.set(chiave, { value, variante, chiave, item })
     }
   }
 
-  return [...perVariante.values()].sort((a, b) => a.value - b.value || a.variante - b.variante)
+  return [...perVariante.values()].sort(
+    (a, b) => a.value - b.value || a.variante - b.variante || confrontaSecondarie(tipo, a, b)
+  )
+}
+
+/**
+ * Ordina le varianti che la pressione non distingue, sulle parti secondarie della chiave.
+ *
+ * I diametri seguono la scala commerciale dichiarata nel contratto, non l'alfabeto: per
+ * stringa 3/4" verrebbe prima di 3/8", che a chi scorre il menu si legge come un elenco in
+ * disordine.
+ */
+function confrontaSecondarie(
+  tipo: EquipmentCatalogType,
+  a: VarianteCatalogo,
+  b: VarianteCatalogo
+): number {
+  for (const key of variantKeyFields(tipo).slice(1)) {
+    const def = (CANONICAL_SPECS[tipo] ?? []).find(d => d.key === key)
+    const va = String(readSpec(tipo, a.item.specs, key) ?? '')
+    const vb = String(readSpec(tipo, b.item.specs, key) ?? '')
+    if (va === vb) continue
+
+    const scala = def?.options
+    if (scala) {
+      // I valori fuori scala — grafie vecchie non ancora normalizzate — vanno in fondo.
+      const ia = scala.indexOf(va)
+      const ib = scala.indexOf(vb)
+      return (ia === -1 ? scala.length : ia) - (ib === -1 ? scala.length : ib) || va.localeCompare(vb)
+    }
+    return va.localeCompare(vb)
+  }
+  return 0
 }
 
 /** Dati di una riga di scheda già salvata, per quel poco che serve a ritrovarne l'origine. */
@@ -71,6 +113,8 @@ export interface RigaSalvata {
   pressione: number | null
   /** Capacità della riga — portata per i compressori, volume per i recipienti. */
   capacita: number | null
+  /** Diametro della valvola: sui tipi che non ce l'hanno resta assente. */
+  diametro?: string | null
 }
 
 /**
@@ -101,6 +145,13 @@ export function scegliVarianteSalvata(
   let rimaste = candidate
   if (riga.pressione !== null) {
     rimaste = rimaste.filter(c => stessoNumero(readSheetPressure(tipo, c.specs), riga.pressione))
+  }
+  if (rimaste.length === 1) return rimaste[0]
+
+  // Sulle valvole il diametro fa parte della chiave: viene prima della capacità, che da lui
+  // dipende — a parità di taratura è l'attacco a dire quanta aria la valvola scarica.
+  if (riga.diametro != null && riga.diametro !== '') {
+    rimaste = rimaste.filter(c => String(readSpec(tipo, c.specs, 'diametro') ?? '') === riga.diametro)
   }
   if (rimaste.length === 1) return rimaste[0]
 
@@ -145,20 +196,30 @@ export function stessaVoceCatalogo(
 }
 
 /**
- * Come la variante si presenta nel menu della colonna PS: pressione e capacità.
+ * Come la variante si presenta nel menu della colonna PS: pressione, diametro e capacità.
  *
  * La capacità non è decorazione: è ciò che distingue due varianti che dichiarano la stessa
- * pressione, e senza di essa il menu di SK 19 mostrerebbe due voci identiche.
+ * pressione, e senza di essa il menu di SK 19 mostrerebbe due voci identiche. Sulle valvole
+ * a distinguerle è prima ancora il diametro, che della portata scaricata è la causa.
  */
 export function etichettaVariante(tipo: EquipmentCatalogType, v: VarianteCatalogo): string {
-  const pressione = `${numeroIT(v.value)} bar`
+  const parti = [`${numeroIT(v.value)} bar`]
+
+  // Le parti secondarie della chiave (il diametro delle valvole) stanno fra pressione e
+  // capacità: sono ciò che distingue due varianti che la pressione non distingue.
+  for (const key of variantKeyFields(tipo).slice(1)) {
+    const v2 = readSpec(tipo, v.item.specs, key)
+    if (v2 !== null && v2 !== '') parti.push(String(v2))
+  }
 
   const chiave = capacityKey(tipo)
   const capacita = readNumericSpec(tipo, v.item.specs, chiave)
-  if (capacita === null) return pressione
+  if (capacita !== null) {
+    const unita = (CANONICAL_SPECS[tipo] ?? []).find(d => d.key === chiave)?.unit
+    parti.push(`${numeroIT(capacita)}${unita ? ` ${unita}` : ''}`)
+  }
 
-  const unita = (CANONICAL_SPECS[tipo] ?? []).find(d => d.key === chiave)?.unit
-  return `${pressione} · ${numeroIT(capacita)}${unita ? ` ${unita}` : ''}`
+  return parti.join(' · ')
 }
 
 export interface AvvisoVariante {

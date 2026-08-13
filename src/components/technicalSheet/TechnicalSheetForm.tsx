@@ -20,6 +20,7 @@ import {
   eCompleta, righeComplete, somma, type Completezza,
 } from '@/utils/schedaCompleteness'
 import { useHydrateCatalogOrigini } from '@/hooks/useHydrateCatalogOrigini'
+import { normalizeDiametroValvola } from '@/services/equipmentAudit'
 import { type MovimentoPratica } from '@/services/fascicolo/scadenza'
 import type { SchedaDatiCompleta } from '@/types'
 import type { BatchOCRResult, BatchOCRItem } from '@/types/ocr'
@@ -364,7 +365,13 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
         setValue(`${basePath}.marca` as any, marca)
         setValue(`${basePath}.modello` as any, modello)
         if (data.n_fabbrica) setValue(`${basePath}.n_fabbrica` as any, data.n_fabbrica)
-        if (data.diametro_pressione) setValue(`${basePath}.diametro_pressione` as any, data.diametro_pressione)
+        // Il campo della valvola è `diametro` — `diametro_pressione` è il nome che ha in
+        // risposta all'OCR, e scriverlo tale e quale lasciava il dato in un campo che la
+        // scheda non legge. Il valore va ricondotto alla scala canonica: fa parte della
+        // chiave con cui il catalogo distingue le varianti della valvola.
+        if (data.diametro_pressione) {
+          setValue(`${basePath}.diametro` as any, normalizeDiametroValvola(data.diametro_pressione))
+        }
 
         console.log(`✅ Valvola popolata: ${marca} ${modello}`)
         return

@@ -1,6 +1,6 @@
 import type { EquipmentCatalogType } from '@/types'
 import {
-  FORM_TO_CANONICAL, readSheetPressure, readSpec, variantSpecKey, variantSpecKeys,
+  FORM_TO_CANONICAL, readSheetPressure, readSpec, variantKeyFields, variantSpecKey, variantSpecKeys,
 } from '@/services/equipmentAudit'
 import { TIPO_COMPRESSORE_LABELS, TIPO_GIRI_LABELS } from '@/types/technicalSheet'
 import type {
@@ -173,14 +173,36 @@ export function compareSpecs(
     }
   }
 
+  /**
+   * Le parti secondarie della chiave — il diametro delle valvole — identificano la riga
+   * quanto la pressione: un diametro diverso da quello a catalogo non è un dato da
+   * correggere sulla riga, è un'altra variante dello stesso modello.
+   *
+   * Diverso il caso della riga che il diametro non lo dichiara affatto, che a catalogo è la
+   * regola: lì il dato manca e va aggiunto, come qualsiasi altro campo vuoto.
+   */
+  const chiaviSecondarie = variantKeyFields(equipmentType).slice(1)
+  const chiaviIdentita = new Set([...chiaviVariante, ...chiaviSecondarie])
+  for (const key of chiaviSecondarie) {
+    const formValore = readForm(key)
+    const catalogValore = readCatalog(key)
+    if (isEmpty(formValore) || isEmpty(catalogValore)) continue
+    if (!areValuesEqual(formValore, catalogValore)) {
+      result.suggestNewVariant = true
+      return result
+    }
+  }
+
   // Confronta ogni campo mappato, una volta per chiave canonica
   const daConfrontare = [...new Set(Object.entries(fieldMap)
     .filter(([formField]) => !INSTANCE_SPECIFIC_FIELDS.includes(formField))
     .map(([, specsField]) => specsField))]
 
   for (const specsField of daConfrontare) {
-    // La chiave di variante è l'identità della riga, non un dato da aggiornare
-    if (chiaviVariante.includes(specsField)) continue
+    // La chiave di variante è l'identità della riga, non un dato da aggiornare. Il diametro
+    // fa eccezione finché a catalogo manca: là sopra si è già deciso che è un dato da
+    // aggiungere, e toglierlo di mezzo qui lo lascerebbe per sempre non censito.
+    if (chiaviIdentita.has(specsField) && !(chiaviSecondarie.includes(specsField) && isEmpty(readCatalog(specsField)))) continue
 
     const formValue = readForm(specsField)
     const catalogValue = readCatalog(specsField)

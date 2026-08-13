@@ -1,5 +1,5 @@
 import { normalizeKey } from '../modelName'
-import { CANONICAL_SPECS, isEmptySpec } from '../specsNormalization'
+import { CANONICAL_SPECS, isEmptySpec, readSpec, variantKeyFields } from '../specsNormalization'
 import type { CatalogRow, Finding, Rule } from '../types'
 import { baseModello, entityOf, fmt, groupBy, makeFinding, ratedPressure } from './shared'
 
@@ -8,8 +8,8 @@ import { baseModello, entityOf, fmt, groupBy, makeFinding, ratedPressure } from 
  *
  * Il confronto ignora maiuscole e punteggiatura e usa il nome BASE del modello,
  * altrimenti `GA 18 (@10bar)` e `GA 18` risulterebbero estranei. Ma tiene conto
- * della chiave di variante — pressione per i compressori, taratura per le
- * valvole — perché due righe con lo stesso nome e pressioni diverse sono
+ * della chiave di variante — pressione per i compressori, taratura e diametro
+ * per le valvole — perché due righe con lo stesso nome e chiave diversa sono
  * varianti legittime dello stesso modello, non un duplicato.
  */
 
@@ -18,7 +18,15 @@ function variantValue(row: CatalogRow): string {
   if (!defs.some(d => d.isVariantKey)) return ''
 
   const p = ratedPressure(row)
-  return p === null ? '' : fmt(p)
+  if (p === null) return ''
+
+  // Alla pressione si aggiungono le parti secondarie della chiave: due valvole dello stesso
+  // modello, stessa taratura e diametri diversi sono varianti, non una riga doppia.
+  const secondarie = variantKeyFields(row.tipoApparecchiatura)
+    .slice(1)
+    .map(key => String(readSpec(row.tipoApparecchiatura, row.specs, key) ?? ''))
+
+  return [fmt(p), ...secondarie].join('|')
 }
 
 /** Unione dei dati tecnici: il primo valore non vuoto vince, in ordine di utilizzo. */

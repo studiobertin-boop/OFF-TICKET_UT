@@ -17,7 +17,7 @@ import { nomeFileFascicolo } from '@/utils/practiceCode'
 import { codiciValvoleDisoleatore, codiciValvoleSerbatoio } from '@/utils/valvoleImpianto'
 import { SingleOCRButton } from '../SingleOCRButton'
 import { useTecnicoDM329Visibility } from '@/hooks/useTecnicoDM329Visibility'
-import { readSpec } from '@/services/equipmentAudit'
+import { normalizeDiametroValvola, readSpec } from '@/services/equipmentAudit'
 import { rowKeyOf, useEquipmentCatalogContext } from '../EquipmentCatalogContext'
 import { VALVOLE_ROW_PREFIX } from '@/hooks/useHydrateCatalogOrigini'
 import { useCampoExit } from './useCampoExit'
@@ -133,13 +133,19 @@ const applyOcr = (def: EquipmentTypeDef, base: string, data: OCRExtractedData, s
   if (def.capacitaField && data.volume != null) setValue(`${base}.${def.capacitaField}`, data.volume)
   if (def.pressioneField && data.pressione_max != null) setValue(`${base}.${def.pressioneField}`, data.pressione_max)
   if (data.materiale_n && def.extra.some((e) => e.name === 'materiale_n')) setValue(`${base}.materiale_n`, data.materiale_n)
-  if (def.kind === 'valvola' && (data as any).diametro_pressione) setValue(`${base}.diametro`, (data as any).diametro_pressione)
+  // Il diametro fa parte della chiave di variante: quel che la targhetta dice va ricondotto
+  // alla scala canonica, altrimenti la lettura reintroduce le grafie che non distinguono.
+  if (def.kind === 'valvola' && (data as any).diametro_pressione) {
+    setValue(`${base}.diametro`, normalizeDiametroValvola((data as any).diametro_pressione))
+  }
   if (def.mandatoryValvola && data.valvola_sicurezza) {
     const v = data.valvola_sicurezza
     if (v.marca) setValue(`${base}.valvola_sicurezza.marca`, v.marca)
     if (v.modello) setValue(`${base}.valvola_sicurezza.modello`, v.modello)
     if (v.n_fabbrica) setValue(`${base}.valvola_sicurezza.n_fabbrica`, v.n_fabbrica)
-    if ((v as any).diametro_pressione) setValue(`${base}.valvola_sicurezza.diametro`, (v as any).diametro_pressione)
+    if ((v as any).diametro_pressione) {
+      setValue(`${base}.valvola_sicurezza.diametro`, normalizeDiametroValvola((v as any).diametro_pressione))
+    }
   }
   if (def.kind === 'serbatoio' && data.manometro) {
     if (data.manometro.fondo_scala) setValue(`${base}.manometro.fondo_scala`, data.manometro.fondo_scala)

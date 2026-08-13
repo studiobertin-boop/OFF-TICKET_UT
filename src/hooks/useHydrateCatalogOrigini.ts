@@ -21,6 +21,8 @@ interface RigaDaAgganciare {
   pressione: number | null
   /** Capacità compilata: è ciò che distingue due varianti che dichiarano la stessa pressione. */
   capacita: number | null
+  /** Diametro della valvola: sulle valvole distingue le varianti prima della capacità. */
+  diametro: string | null
 }
 
 /** Tipi con dati tecnici da agganciare: i separatori non ne hanno (`specsMap` vuota). */
@@ -48,6 +50,7 @@ function righeDaAgganciare(scheda: SchedaDatiCompleta | null | undefined): RigaD
       modello: row.modello,
       pressione: variantSpecKey(tipo) && def.pressioneField ? numero(row[def.pressioneField]) : null,
       capacita: def.capacitaField ? numero(row[def.capacitaField]) : null,
+      diametro: typeof row.diametro === 'string' && row.diametro !== '' ? row.diametro : null,
     })
   }
 
