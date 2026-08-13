@@ -142,7 +142,9 @@ e in coda al file:
 ```ts
 /**
  * Rientro del montante rispetto al fianco del recipiente: evita che corra sul contorno.
- * Spostata qui da `renderSvg.ts` (dove era `AVVICINAMENTO`, privata) perché è geometria del
+ * Duplicata da `renderSvg.ts` (che dichiara ancora la propria `AVVICINAMENTO = 34` privata,
+ * fino al Task 3 che la farà sparire in favore di questa): finché le due copie coesistono,
+ * niente le tiene sincronizzate. Vive qui, e non in `renderSvg.ts`, perché è geometria del
  * tratto, non della resa grafica, e serve a chi instrada da entrambe le parti.
  */
 export const AVVICINAMENTO = 34
