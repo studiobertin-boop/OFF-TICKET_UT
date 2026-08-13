@@ -31,6 +31,7 @@
 - Il layer HTML portale (`EdgeLabelRenderer`, `ViewportPortal`) è dipinto **sopra** il layer SVG dei tubi e vince sempre il clic, per ordine nel DOM.
 - react-flow passa all'arco il **bordo esterno** dell'handle, non il centro dell'ancora: per questo dal Blocco C1 i capi degli archi si calcolano con `posizioneAncora` e viaggiano nei dati dell'arco (`capiDegliArchi`). Non tornare a `sourceX/sourceY`.
 - Un gesto del mouse che «non fa nulla» può essere finito sul pane di react-flow, che panna la tela senza cambiare il disegno: controllare `document.elementFromPoint` prima di concludere.
+- **Nessuno schema reale è ancora salvato**: il committente ha dichiarato il 13-08-2026 di non usare ancora l'editor per i propri disegni. Non c'è quindi dato da preservare, e nessuna scelta di questo blocco va motivata con la retrocompatibilità — se una motivazione del genere compare in un commento, è falsa. Resta invece vero che gli identificativi delle ancore finiscono negli archi salvati, e che cambiarli senza motivo prepara un'incompatibilità per il giorno in cui i disegni veri esisteranno.
 
 ## Decisioni di progetto
 
@@ -38,7 +39,7 @@
 
 Il committente ha scelto fra tre strade (pallino neutro / nodo ruotabile a mano / segno orientato lungo il tubo) e ha preso la prima: **il simbolo perde i tre monconi e diventa un punto pieno, con quattro ancore sempre disponibili** — sinistra, destra, alto, basso. Non c'è rotazione da modellare perché tutte le direzioni esistono contemporaneamente, e la forma a T la disegnano le tubazioni che ci arrivano.
 
-Gli identificativi delle tre ancore esistenti (`sx`, `dx`, `basso`) **non cambiano**: i TEE già salvati nelle pratiche continuano a funzionare senza migrazione dati. Si aggiunge `alto`.
+Gli identificativi delle tre ancore esistenti (`sx`, `dx`, `basso`) **non cambiano** e si aggiunge `alto`. Non è per retrocompatibilità — il committente ha dichiarato il 13-08-2026 che non usa ancora l'editor per i suoi schemi, quindi non c'è alcun layout salvato da preservare — ma perché quegli identificativi finiscono negli archi salvati e cambiarli senza motivo introdurrebbe un'incompatibilità gratuita il giorno in cui i disegni veri cominceranno a esistere.
 
 L'ingombro scende da 50×50 a **16×16** con il pallino di raggio 5 al centro: con l'ingombro grande, le ancore stanno sul bordo del riquadro e fra la fine del tubo e il pallino resterebbero 25 unità di vuoto per lato — quattro buchi visibili. A 16×16 il vuoto massimo è 3 unità, invisibile a spessore di tratto 2. È un cambiamento **visibile sui TEE già disegnati**: il simbolo si rimpicciolisce e i tubi collegati si riattaccano più vicino al centro. È voluto, e va mostrato al committente in verifica.
 
@@ -671,7 +672,7 @@ e in `SchemaLayout`, dopo `archi`:
 
 In `persistenza.ts`: aggiungi `testi?: SchemaTestoLibero[]` a `LayoutSalvato`; in `serializzaLayout` clona anche i testi (`structuredClone(layout.testi ?? [])`); in `deserializzaLayout` restituisci `testi: salvato.testi ?? []`; in `riconcilia` accetta `Pick<SchemaLayout, 'nodi' | 'archi' | 'testi'>` e riporta `testi: salvato.testi ?? []` nel layout risultante, con un commento che dice perché passano intatti (sono manuali per definizione: la scheda dati non li produce e non può contraddirli).
 
-**Non alzare `VERSIONE`**: un campo nuovo e opzionale non rende illeggibile un salvataggio vecchio, e alzarla farebbe scartare in blocco tutti i layout già salvati dai clienti, buttando via la disposizione che hanno sistemato a mano.
+**Non alzare `VERSIONE`**: un campo nuovo e opzionale non rende illeggibile un salvataggio vecchio, quindi alzarla farebbe scartare layout perfettamente leggibili senza guadagnare nulla. (Il committente ha dichiarato il 13-08-2026 di non usare ancora l'editor per i suoi schemi: oggi non ci sono disegni veri da perdere, ma la regola vale comunque perché la versione serve a segnalare i formati **incompatibili**, e questo non lo è.)
 
 - [ ] **Step 4: Esegui i test e verifica che passino**
 
@@ -1069,7 +1070,7 @@ npx tsc --noEmit > finale-tsc.txt 2>&1
 
 Dev server sulla 5176, pratica `c6f56ca5-d57b-408c-a4e5-69a207812b0d` → «Genera relazione» → «Rifinisci schema». Da provare, con `page.mouse` via `browser_run_code_unsafe`:
 
-1. **TEE**: aggiungerne uno dalla palette, collegarvi tubazioni da **tutti e quattro** i lati (serve `alto`, l'ancora nuova), verificare che il simbolo sia un punto e che fra tubo e giunzione non resti un buco. Controllare anche un TEE **già salvato** in un layout precedente, se c'è: i suoi attacchi devono reggere.
+1. **TEE**: aggiungerne uno dalla palette, collegarvi tubazioni da **tutti e quattro** i lati (serve `alto`, l'ancora nuova), verificare che il simbolo sia un punto e che fra tubo e giunzione non resti un buco.
 2. **Terminale multi-riga**: doppio clic sul terminale, scrivere due righe con Invio, confermare, e verificare che il disegno e l'anteprima concordino e che la tubazione resti attaccata alla base del codolo.
 3. **Testo libero**: crearne uno, scriverlo su due righe, trascinarlo, riaprirlo e modificarlo, cancellarlo. Verificare che compaia nell'anteprima e che **non** compaia nella tabella delle apparecchiature né in legenda.
 4. **Persistenza**: nessuna scrittura in banca dati (chiudere con «Annulla modifiche» + «Annulla»; **mai** «Genera comunque .docx»). Se serve provare il salvataggio, farlo su una pratica di prova, non su questa.
