@@ -24,8 +24,10 @@ export interface ExtraFieldDef {
   /**
    * `multi` = selezione multipla con opzioni calcolate dai valori correnti del form
    * (vedi `optionsFrom`): le valvole censite non sono una lista statica.
+   * `diametro-valvola` = scelta della variante di catalogo, come la colonna Ptar: le opzioni
+   * vengono dal catalogo e sceglierne una autocompila i dati che ne dipendono.
    */
-  kind: 'text' | 'number' | 'select' | 'check' | 'multi'
+  kind: 'text' | 'number' | 'select' | 'check' | 'multi' | 'diametro-valvola'
   options?: readonly string[]
   /** Resa compatta del valore selezionato (es. finitura ZINCATO → «Z»). */
   display?: Record<string, string>
@@ -186,9 +188,10 @@ export const EQUIPMENT_DEFS: Record<EquipmentKind, EquipmentTypeDef> = {
     kind: 'valvola', label: 'Valvola di sicurezza', prefix: '', catalogType: 'Valvole di sicurezza',
     capacitaField: 'volume_aria_scaricato', pressioneField: 'pressione_taratura', ts: true, cat: 'IV', autoPed: false,
     // Il diametro è opzionale: sulle targhette spesso non c'è, e pretenderlo terrebbe ogni
-    // valvola sotto il 100%. Resta però un dato pieno a catalogo, dove distingue fra loro le
-    // varianti della stessa valvola.
-    extra: [{ name: 'diametro', label: 'Diametro', kind: 'text', opzionale: true }],
+    // valvola sotto il 100%. Resta però un dato pieno a catalogo, dove — insieme alla Ptar —
+    // distingue fra loro le varianti della stessa valvola: per questo si sceglie da elenco e
+    // non si scrive, e la scelta autocompila i dati della variante.
+    extra: [{ name: 'diametro', label: 'Diametro', kind: 'diametro-valvola', opzionale: true }],
     specsMap: { ptar: 'pressione_taratura', ts: 'ts', qmax: 'volume_aria_scaricato', diametro: 'diametro' },
     adv: ['capacita', 'ts', 'cat'],
   },

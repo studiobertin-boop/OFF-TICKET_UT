@@ -22,7 +22,10 @@ export type EquipmentType =
 // ============================================================================
 
 export interface OCRAnalysisRequest {
-  image_base64: string
+  /** Contenuto del file in base64: una foto di targhetta o un PDF (certificato, manuale). */
+  file_base64: string
+  /** MIME del file — `image/png`, `image/jpeg`, `application/pdf`… */
+  media_type: string
   equipment_type: EquipmentType
   equipment_code?: string // Es: "S1", "C2", etc.
 }

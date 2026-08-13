@@ -8,6 +8,18 @@ import {
 const CATEGORIA_PED_OPTIONS: readonly CategoriaPED[] = ['I', 'II', 'III', 'IV']
 
 /**
+ * Diametri d'attacco delle valvole di sicurezza, nella grafia canonica.
+ *
+ * Sono filettature in pollici: la scala commerciale è questa e non cambia con la marca.
+ * L'elenco è chiuso perché il diametro distingue le varianti di un modello a catalogo, e una
+ * chiave scritta a mano libera smette di distinguere — le stesse righe di produzione portavano
+ * «3/8», «3/8''» e avrebbero dovuto essere la stessa variante.
+ */
+export const DIAMETRO_VALVOLA_OPTIONS = [
+  '1/8"', '1/4"', '3/8"', '1/2"', '3/4"', '1"', '1"1/4', '1"1/2', '2"', '2"1/2', '3"',
+] as const
+
+/**
  * Contratto dei dati tecnici (`specs`) del catalogo apparecchiature.
  *
  * Nel catalogo convivono due generazioni di chiavi. L'import massivo ha scritto
@@ -37,7 +49,14 @@ export interface CanonicalSpecDef {
   max?: number
   /** Concorre alla completezza della riga: se manca, la voce è «incompleta». */
   required?: boolean
-  /** Fa parte della chiave che distingue le varianti dello stesso modello. */
+  /**
+   * Fa parte della chiave che distingue le varianti dello stesso modello.
+   *
+   * La prima def così marcata è la parte primaria — la pressione, sempre numerica: è quella
+   * che `variantSpecKey` restituisce e su cui si ordinano le varianti. Le successive la
+   * raffinano (il diametro delle valvole) e possono essere vuote; l'insieme lo legge
+   * `variantKeyFields`, e va tenuto allineato all'indice unico a database.
+   */
   isVariantKey?: boolean
   /**
    * È la pressione che la scheda dati porta nella colonna PS/Ptar.
@@ -151,7 +170,16 @@ export const CANONICAL_SPECS: Record<EquipmentCatalogType, readonly CanonicalSpe
     { key: 'ptar', label: 'Ptar — pressione di taratura', unit: 'bar', kind: 'number', min: 0, max: 100, required: true, isVariantKey: true, isSheetPressure: true },
     { key: 'qmax', label: 'Qmax — aria scaricata', unit: 'l/min', kind: 'number', min: 0, max: 1000000, required: true },
     TS,
-    { key: 'diametro', label: 'Diametro', unit: null, kind: 'text' },
+    /**
+     * Seconda parte della chiave di variante: lo stesso modello di valvola esiste in più
+     * diametri, e a parità di taratura è il diametro a dire quale — con la portata scaricata
+     * che ne dipende. Elenco chiuso perché la chiave non regge le grafie libere: a catalogo
+     * convivevano «3/8» e «3/8''», che sono lo stesso attacco scritto in due modi.
+     */
+    {
+      key: 'diametro', label: 'Diametro', unit: null, kind: 'enum',
+      options: DIAMETRO_VALVOLA_OPTIONS, isVariantKey: true,
+    },
     CATEGORIA_PED,
   ],
   Filtri: [PS_OPZIONALE, TS],
@@ -477,6 +505,82 @@ export function readVariantValue(
     if (v !== null) return v
   }
   return null
+}
+
+/**
+ * Riconduce alla scala canonica un diametro scritto in qualunque modo.
+ *
+ * Serve a chi il diametro non lo sceglie da un elenco ma lo legge: l'OCR delle targhette
+ * restituisce stringhe come «1/2" 13bar» o «G 3/8», e scriverle tali e quali nel campo — che
+ * ora fa parte della chiave di variante — significherebbe reintrodurre proprio le grafie
+ * multiple che la migration ha appena eliminato.
+ *
+ * Quel che non è riconducibile alla scala torna ripulito ma intatto: il campo accetta valori
+ * fuori elenco, e un attacco insolito letto davvero su una targhetta è un dato, non un errore.
+ */
+export function normalizeDiametroValvola(valore: unknown): string | null {
+  if (typeof valore !== 'string') return null
+  const testo = valore.trim()
+  if (testo === '') return null
+
+  // Pollici interi con frazione («1" 1/4», «1 1/4"»), poi frazione semplice, poi intero.
+  const composto = testo.match(/(\d+)\s*["″']*\s*(\d+)\s*\/\s*(\d+)/)
+  if (composto) {
+    const candidato = `${composto[1]}"${composto[2]}/${composto[3]}`
+    if ((DIAMETRO_VALVOLA_OPTIONS as readonly string[]).includes(candidato)) return candidato
+  }
+
+  const frazione = testo.match(/(\d+)\s*\/\s*(\d+)/)
+  if (frazione) {
+    const candidato = `${frazione[1]}/${frazione[2]}"`
+    if ((DIAMETRO_VALVOLA_OPTIONS as readonly string[]).includes(candidato)) return candidato
+  }
+
+  const intero = testo.match(/(?:^|[^\d/])(\d+)\s*["″']/)
+  if (intero) {
+    const candidato = `${intero[1]}"`
+    if ((DIAMETRO_VALVOLA_OPTIONS as readonly string[]).includes(candidato)) return candidato
+  }
+
+  return testo
+}
+
+/**
+ * Tutte le parti che compongono la chiave di variante, nell'ordine del contratto.
+ *
+ * Quasi ovunque è una sola — la pressione — ma le valvole di sicurezza si distinguono anche
+ * per diametro: lo stesso modello, alla stessa taratura, esiste con attacchi diversi e portate
+ * scaricate diverse. Deve restare allineata alle colonne dell'indice unico a database.
+ */
+export function variantKeyFields(tipo: EquipmentCatalogType | null | undefined): string[] {
+  if (!tipo) return []
+  return (CANONICAL_SPECS[tipo] ?? []).filter(d => d.isVariantKey).map(d => d.key)
+}
+
+/**
+ * Chiave che identifica la variante di una riga, come stringa unica.
+ *
+ * Le parti si uniscono con `|`, nell'ordine del contratto, e le parti successive alla prima
+ * possono essere vuote: la stragrande maggioranza delle valvole a catalogo non dichiara il
+ * diametro, e trattarle come «senza variante» le farebbe sparire dall'elenco del modello.
+ * Manca invece la chiave intera se manca la parte primaria, che è quella che identifica la riga.
+ */
+export function readVariantKey(
+  tipo: EquipmentCatalogType | null | undefined,
+  specs: Record<string, unknown> | null | undefined
+): string | null {
+  const parti = variantKeyFields(tipo)
+  if (parti.length === 0) return null
+
+  const primaria = readVariantValue(tipo, specs)
+  if (primaria === null) return null
+
+  const secondarie = parti.slice(1).map(key => {
+    const v = readSpec(tipo, specs, key)
+    return v === null ? '' : String(v)
+  })
+
+  return [String(primaria), ...secondarie].join('|')
 }
 
 /**

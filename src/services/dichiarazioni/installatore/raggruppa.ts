@@ -8,6 +8,9 @@
  * filtro), perché è così che la dichiarazione dell'installatore descrive l'impianto: un
  * compressore compare sempre come intestazione del suo gruppo anche se di per sé escluso
  * dal DM329, il dipendente no se non è soggetto.
+ *
+ * Alla soglia DM329 si aggiunge un secondo filtro, che `filterCIVAEquipment` non ha: le
+ * apparecchiature marcate «già denunciato» restano fuori — vedi `daDichiarare`.
  */
 import type { Compressore, Essiccatore, Filtro, SchedaDatiCompleta } from '@/types/technicalSheet'
 import { classificaRecipiente, comportaAdempimento } from '@/utils/dm329Classification'
@@ -27,8 +30,19 @@ export interface RigaTabella {
   codiceOrdinamento: string
 }
 
-const soggetto = (volume: number | undefined | null, ps: number | undefined | null): boolean =>
-  comportaAdempimento(classificaRecipiente(volume, ps))
+/**
+ * Va dichiarato? Deve comportare adempimento **e** non essere già a matricola INAIL.
+ *
+ * La dichiarazione accompagna la denuncia di messa in servizio: riguarda quindi le sole
+ * apparecchiature che si stanno denunciando adesso. Un recipiente marcato «già denunciato»
+ * INAIL lo ha già a matricola, e ripeterlo qui lo farebbe risultare in denuncia due volte.
+ */
+const daDichiarare = (riga: {
+  volume?: number
+  ps_pressione_max?: number
+  gia_denunciato?: boolean
+}): boolean =>
+  !riga.gia_denunciato && comportaAdempimento(classificaRecipiente(riga.volume, riga.ps_pressione_max))
 
 const principaleDi = (
   apparecchio: Compressore | Essiccatore | Filtro | undefined,
@@ -40,7 +54,7 @@ export function raggruppaApparecchiatureInstallatore(scheda: SchedaDatiCompleta)
   const righe: RigaTabella[] = []
 
   for (const d of scheda.disoleatori ?? []) {
-    if (!soggetto(d.volume, d.ps_pressione_max)) continue
+    if (!daDichiarare(d)) continue
     const compressore = scheda.compressori?.find((c) => c.codice === d.compressore_associato)
     righe.push({
       principale: principaleDi(compressore, 'Compressore'),
@@ -50,7 +64,7 @@ export function raggruppaApparecchiatureInstallatore(scheda: SchedaDatiCompleta)
   }
 
   for (const s of scheda.scambiatori ?? []) {
-    if (!soggetto(s.volume, s.ps_pressione_max)) continue
+    if (!daDichiarare(s)) continue
     const essiccatore = scheda.essiccatori?.find((e) => e.codice === s.essiccatore_associato)
     righe.push({
       principale: principaleDi(essiccatore, 'Essiccatore frigorifero'),
@@ -60,7 +74,7 @@ export function raggruppaApparecchiatureInstallatore(scheda: SchedaDatiCompleta)
   }
 
   for (const r of scheda.recipienti_filtro ?? []) {
-    if (!soggetto(r.volume, r.ps_pressione_max)) continue
+    if (!daDichiarare(r)) continue
     const filtro = scheda.filtri?.find((f) => f.codice === r.filtro_associato)
     righe.push({
       principale: principaleDi(filtro, 'Filtro'),
@@ -70,7 +84,7 @@ export function raggruppaApparecchiatureInstallatore(scheda: SchedaDatiCompleta)
   }
 
   for (const s of scheda.serbatoi ?? []) {
-    if (!soggetto(s.volume, s.ps_pressione_max)) continue
+    if (!daDichiarare(s)) continue
     const tipo = s.orientamento === 'ORIZZONTALE' ? 'Serbatoio aria orizzontale' : 'Serbatoio aria verticale'
     righe.push({
       principale: null,

@@ -26,6 +26,16 @@ const riga = (specs: Record<string, unknown>): EquipmentCatalogItem =>
     updated_at: '',
   }) as EquipmentCatalogItem
 
+/** Valvola di catalogo: stesso modello, varianti per taratura e diametro. */
+const valvola = (specs: Record<string, unknown>): EquipmentCatalogItem =>
+  ({
+    ...riga(specs),
+    tipo: 'Valvole di sicurezza',
+    tipo_apparecchiatura: 'Valvole di sicurezza',
+    marca: 'PADOVAN VALERIO snc',
+    modello: 'TW3',
+  }) as EquipmentCatalogItem
+
 describe('raggruppaVarianti', () => {
   it('indicizza per la pressione dichiarata alla scheda', () => {
     const v = raggruppaVarianti('Compressori', [
@@ -67,6 +77,30 @@ describe('raggruppaVarianti', () => {
     const v = raggruppaVarianti('Serbatoi', [serbatoio])
     expect(v.map(x => x.value)).toEqual([11])
   })
+
+  it('tiene distinte le valvole che condividono la taratura ma non il diametro', () => {
+    const v = raggruppaVarianti('Valvole di sicurezza', [
+      valvola({ ptar: 11, diametro: '3/8"', qmax: 8415 }),
+      valvola({ ptar: 11, diametro: '3/4"', qmax: 16982 }),
+    ])
+    expect(v).toHaveLength(2)
+    expect(v.map(x => x.item.specs?.qmax)).toEqual([8415, 16982])
+  })
+
+  it('collassa due righe con stessa taratura e stesso diametro', () => {
+    const v = raggruppaVarianti('Valvole di sicurezza', [
+      valvola({ ptar: 11, diametro: '3/8"' }),
+      valvola({ ptar: 11, diametro: '3/8"', qmax: 8415 }),
+    ])
+    expect(v).toHaveLength(1)
+    expect(v[0].item.specs?.qmax).toBe(8415)
+  })
+
+  it('non perde la valvola che il diametro non lo dichiara', () => {
+    const v = raggruppaVarianti('Valvole di sicurezza', [valvola({ ptar: 11, qmax: 4000 })])
+    expect(v).toHaveLength(1)
+    expect(v[0].value).toBe(11)
+  })
 })
 
 describe('etichettaVariante', () => {
@@ -91,6 +125,13 @@ describe('etichettaVariante', () => {
   it('resta la sola pressione quando la capacita manca', () => {
     const [a] = raggruppaVarianti('Compressori', [riga({ pressione_max: 11 })])
     expect(etichettaVariante('Compressori', a)).toBe('11 bar')
+  })
+
+  it('sulle valvole antepone il diametro alla portata scaricata', () => {
+    const [a] = raggruppaVarianti('Valvole di sicurezza', [
+      valvola({ ptar: 10.8, diametro: '3/8"', qmax: 8274 }),
+    ])
+    expect(etichettaVariante('Valvole di sicurezza', a)).toBe('10,8 bar · 3/8" · 8274 l/min')
   })
 
   it('usa l unita del tipo — litri sui serbatoi', () => {
@@ -232,6 +273,24 @@ describe('scegliVarianteSalvata', () => {
     ]
     expect(scegliVarianteSalvata('Valvole di sicurezza', valvole, { pressione: 11, capacita: 4000 }))
       .toBe(valvole[1])
+  })
+
+  it('sulle valvole il diametro distingue prima della portata', () => {
+    const tw3 = [
+      valvola({ ptar: 11, diametro: '3/8"', qmax: 8415 }),
+      valvola({ ptar: 11, diametro: '3/4"', qmax: 16982 }),
+    ]
+    expect(scegliVarianteSalvata('Valvole di sicurezza', tw3, { pressione: 11, capacita: null, diametro: '3/4"' }))
+      .toBe(tw3[1])
+  })
+
+  it('un diametro che non e di nessuna candidata non fa ripiegare sulla prima', () => {
+    const tw3 = [
+      valvola({ ptar: 11, diametro: '3/8"', qmax: 8415 }),
+      valvola({ ptar: 11, diametro: '3/4"', qmax: 16982 }),
+    ]
+    expect(scegliVarianteSalvata('Valvole di sicurezza', tw3, { pressione: 11, capacita: null, diametro: '1/2"' }))
+      .toBeNull()
   })
 })
 
