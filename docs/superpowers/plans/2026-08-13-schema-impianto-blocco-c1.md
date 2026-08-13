@@ -934,6 +934,54 @@ Chiudere con «Annulla modifiche» + «Annulla». **Mai premere «Genera comunqu
 
 Diff dell'intero blocco (`db8f07d..HEAD`) a un revisore fresco, come nei blocchi precedenti. I rilievi codificabili a basso rischio si correggono subito; quelli che cambiano il documento generato diventano domande per il committente, non decisioni del revisore.
 
+---
+
+### Task 8: i capi degli archi vengono dalle ancore, non dagli handle
+
+**Aggiunto dal controller il 13-08-2026, dopo la verifica in pagina dello Step 2 del Task 7**, che ha trovato un difetto reale: la spina dorsale del blocco — «tela e documento disegnano la stessa polilinea» — è falsa in produzione per uno scarto sistematico di 5 unità.
+
+**Il difetto, misurato.** Gli handle di react-flow sono 10×10 px e react-flow passa all'arco (`sourceX`/`sourceY`, `targetX`/`targetY`) il **bordo esterno** dell'handle secondo `data-handlepos`, non il suo centro. `posizioneAncora`, che il documento usa, dà il centro. Sulla pratica `c6f56ca5`: l'ancora `dx` di `S1` (nodo a 560,110 + ancora 117,150) sta a **(677, 260)**; l'anteprima disegna da 677, la tela da **682**. Lo scarto non resta ai capi — si propaga ai vertici intermedi, perché `xMedia` di `rottaLinea` dipende dai capi:
+
+| arco | tela | documento |
+|---|---|---|
+| `std-3` | `M 682 260 L 726.5 260 L 726.5 234 L 771 234` | `M 677 260 L 726.5 260 L 726.5 234 L 776 234` |
+| `ut-9` | `M 1049 234 L 1080.5 234 L 1080.5 245 L 1112 245` | `M 1044 234 L 1078 234 L 1078 240 L 1112 240` |
+| `cond-5` | `M 120 375 L 120 405 L 1111 405 L 1111 484` | `M 120 370 L 120 405 L 1116 405 L 1116 484` |
+
+Sul flessibile cambia perfino il numero di semiperiodi dell'onda, perché dipende dalla lunghezza dei tratti. **Zero archi su nove combaciano alla lettera.**
+
+Questo è esattamente il limite che il Task 4 aveva dichiarato «verificato leggendo `SchemaNodeSymbol.tsx`, non da un test» e che due revisioni avevano classificato come rischio residuo accettabile. La misura lo ha smentito. Il test dell'accordo non lo cattura perché ricostruisce i capi con posizione-nodo + ancora — cioè assumendo vera proprio l'ipotesi da verificare.
+
+**Files:**
+- Modify: `src/components/schemaImpianto/SchemaEditor.tsx` (calcolo dei capi accanto a quello delle quote)
+- Modify: `src/components/schemaImpianto/conversioneFlow.ts` (`fondiDatiArchi` porta i capi; `polilineaDellArco` li usa)
+- Modify: `src/components/schemaImpianto/SchemaEdgeTubazione.tsx` (`SchemaEdgeData` porta i capi; il componente smette di fidarsi di `sourceX/sourceY`)
+- Test: `src/components/schemaImpianto/__tests__/instradamentoCondiviso.test.ts`
+
+**Interfaces:**
+- Consumes: `posizioneAncora` da `@/services/schemaImpianto/renderSvg`, `ancoraDi` da `@/services/schemaImpianto/symbols`, `flowALayout`/`fondiDatiArchi`/`polilineaDellArco` già esistenti.
+- Produces: `SchemaEdgeData.capi?: { da: Punto; a: Punto }` — i due capi in coordinate del disegno, calcolati dall'editor dalle ancore dei nodi correnti.
+
+**Direzione (la stessa già scelta per le quote).** L'editor ha i nodi: calcola i capi con la stessa funzione che usa il documento e li passa nei dati dell'arco, dove il componente li trova già pronti. Il ripiego su `sourceX/sourceY` resta come rete di sicurezza per il tipo, mai come caso previsto — esattamente il trattamento riservato a `quote`.
+
+- [ ] **Step 1: Scrivi il test che fallisce**
+
+Nel test dell'accordo, i capi lato tela vanno presi da **quello che l'editor produce** invece che ricostruiti a mano: è la differenza fra provare l'ipotesi e provare la realtà. Il test deve inoltre verificare l'invariante, sul modello di quello delle quote: ogni arco fuso porta `capi`, e quei capi coincidono con `posizioneAncora` del nodo e dell'ancora corrispondenti.
+
+- [ ] **Step 2: Vedi il rosso vero**
+
+Il rosso «funzione non definita» non basta: fai fallire il test con la fonte sbagliata, cioè con i capi presi come li dà react-flow (centro dell'ancora spostato di metà handle, 5 unità nella direzione del lato). Prova su file.
+
+- [ ] **Step 3: Implementa**
+
+- [ ] **Step 4: Verifica**
+
+`npx vitest run src/components/schemaImpianto` e `npx vitest run src/services/schemaImpianto` verdi, `npx tsc --noEmit` pulito, `npx eslint src/components/schemaImpianto` senza errori.
+
+- [ ] **Step 5: Commit**
+
+**Criterio di accettazione, verificato in pagina dal controller:** sulla pratica `c6f56ca5`, tutti e nove i tracciati della tela devono combaciare **alla lettera** con i corrispondenti dell'anteprima — confronto di stringhe, non a occhio.
+
 - [ ] **Step 4: Aggiorna il ledger**
 
 `.superpowers/sdd/2026-08-13-schema-impianto-blocco-c1/progress.md`: cause vere dei difetti trovati, decisioni prese, debito rimandato. La storia git non racconta i perché.
