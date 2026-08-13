@@ -25,7 +25,7 @@ import {
   type Punto,
   type QuoteInstradamento,
 } from './tratti'
-import type { SchemaLayout, SchemaNodoPosizionato, SchemaNodoTipo } from './types'
+import type { SchemaArcoStile, SchemaLayout, SchemaNodoPosizionato, SchemaNodoTipo } from './types'
 
 export type { Punto }
 
@@ -71,20 +71,22 @@ export interface RenderSvgOptions {
 
 /**
  * Mandata compressore → serbatoio, resa ondulata come i flessibili dei blocchi di riferimento.
- * La FORMA la decide `instrada` (tratti.ts), pensata per essere condivisa con l'editor (non
- * ancora cablato su di lei): qui resta solo la resa grafica — l'onda e la punta di freccia.
+ * La FORMA la decide `instrada` (tratti.ts), condivisa con la tela dell'editor — che la chiama
+ * tramite `polilineaDellArco` (`conversioneFlow.ts`, cablata in `SchemaEdgeTubazione.tsx`): qui
+ * resta solo la resa grafica — l'onda e la punta di freccia.
  */
 function renderMandataCompressore(
   da: SchemaNodoPosizionato,
   ancoraDa: string,
   a: SchemaNodoPosizionato,
   ancoraA: string,
+  stile: SchemaArcoStile,
   quote: QuoteInstradamento,
   gomiti?: Punto[]
 ): { svg: string; punti: Punto[] } {
   const pDa = posizioneAncora(da, ancoraDa)
   const pA = posizioneAncora(a, ancoraA)
-  const punti = instrada('flessibile', pDa, pA, gomiti, quote)
+  const punti = instrada(stile, pDa, pA, gomiti, quote)
   const svg = `<path d="${ondula(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" marker-end="url(#freccia)" />`
   return { svg, punti }
 }
@@ -95,13 +97,14 @@ function renderMandataLinea(
   ancoraDa: string,
   a: SchemaNodoPosizionato,
   ancoraA: string,
+  stile: SchemaArcoStile,
   quote: QuoteInstradamento,
   gomiti?: Punto[],
   frecciaFinale = true
 ): { svg: string; punti: Punto[] } {
   const pDa = posizioneAncora(da, ancoraDa)
   const pA = posizioneAncora(a, ancoraA)
-  const punti = instrada('standard', pDa, pA, gomiti, quote)
+  const punti = instrada(stile, pDa, pA, gomiti, quote)
   const freccia = frecciaFinale ? ' marker-end="url(#freccia)"' : ''
   const svg = `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}"${freccia} />`
   return { svg, punti }
@@ -113,12 +116,13 @@ function renderLineaCondense(
   ancoraDa: string,
   a: SchemaNodoPosizionato,
   ancoraA: string,
+  stile: SchemaArcoStile,
   quote: QuoteInstradamento,
   gomiti?: Punto[]
 ): { svg: string; punti: Punto[] } {
   const pDa = posizioneAncora(da, ancoraDa)
   const pA = posizioneAncora(a, ancoraA)
-  const punti = instrada('condensa', pDa, pA, gomiti, quote)
+  const punti = instrada(stile, pDa, pA, gomiti, quote)
   const svg = `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" stroke-dasharray="10 7" marker-end="url(#freccia)" />`
   return { svg, punti }
 }
@@ -148,10 +152,10 @@ function renderArchi(
 
     const reso =
       arco.stile === 'condensa'
-        ? renderLineaCondense(da, arco.da.ancora, a, arco.a.ancora, quote, arco.punti)
+        ? renderLineaCondense(da, arco.da.ancora, a, arco.a.ancora, arco.stile, quote, arco.punti)
         : arco.stile === 'flessibile'
-          ? renderMandataCompressore(da, arco.da.ancora, a, arco.a.ancora, quote, arco.punti)
-          : renderMandataLinea(da, arco.da.ancora, a, arco.a.ancora, quote, arco.punti, a.tipo !== 'utenze')
+          ? renderMandataCompressore(da, arco.da.ancora, a, arco.a.ancora, arco.stile, quote, arco.punti)
+          : renderMandataLinea(da, arco.da.ancora, a, arco.a.ancora, arco.stile, quote, arco.punti, a.tipo !== 'utenze')
 
     parti.push(reso.svg)
     for (const segno of arco.segni ?? []) {

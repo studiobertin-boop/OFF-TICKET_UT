@@ -290,16 +290,17 @@ describe('trascinaTratto', () => {
       0,
       { x: 0, y: 40 }
     )
-    // Un gomito nuovo vicino a pDa (stessa x, nuova y) e uno vicino al gomito successivo della
-    // rotta nativa: il tratto centrale è quello che si è davvero spostato.
-    expect(nuovi.length).toBeGreaterThanOrEqual(1)
-    const full = polilineaConGomiti(pDa, nuovi, pA)
-    expect(full[0]).toEqual(pDa)
-    expect(full[full.length - 1]).toEqual(pA)
-    // Nessun punto della nuova polilinea è alla y originale in mezzo al tracciato: il tratto
-    // dritto centrale è salito di 40.
-    const centrali = full.slice(1, -1)
-    expect(centrali.some((p) => p.y === 40)).toBe(true)
+    // Elenco esatto dei gomiti attesi, non solo capi e "un punto qualsiasi a y=40": la rotta
+    // nativa 'standard' è [pDa, (150,0), (150,300), pA] (xMedia=150), il tratto 0 tocca pDa e
+    // sale a y=40 — nasce un gomito nuovo (0,40) accanto a pDa, il gomito (150,0) trasla a
+    // (150,40), il terzo (150,300) resta. Asserzioni sciolte come "un punto qualsiasi a y=40"
+    // restano verdi anche sull'implementazione difettosa che ricostruiva con
+    // `polilineaConGomiti(pDa, gomiti ?? [], pA)` invece che con `instrada`.
+    expect(nuovi).toEqual([
+      { x: 0, y: 40 },
+      { x: 150, y: 40 },
+      { x: 150, y: 300 },
+    ])
   })
 
   it('un gomito a valle del tratto trascinato, non toccato dal gesto, sopravvive', () => {
@@ -415,11 +416,14 @@ describe('rotte native', () => {
   })
 
   it('la linea condense scende sulla corsia comune e poi nel pozzo', () => {
-    expect(rottaCondensa({ x: 50, y: 100 }, { x: 300, y: 400 }, 450)).toEqual([
+    // pA.y (500) sta SOTTO yCorsia (450), com'è nella realtà (il pozzo di raccolta sta sotto la
+    // corsia comune, non sopra): un esempio con pA.y=400, pur risolvendo la stessa matematica,
+    // ritrarrebbe una configurazione impossibile e insegnerebbe il contrario del docblock.
+    expect(rottaCondensa({ x: 50, y: 100 }, { x: 300, y: 500 }, 450)).toEqual([
       { x: 50, y: 100 },
       { x: 50, y: 450 },
       { x: 300, y: 450 },
-      { x: 300, y: 400 },
+      { x: 300, y: 500 },
     ])
   })
 })
@@ -446,9 +450,14 @@ describe('instrada', () => {
 
   it('la rotta nativa non è mai il semplice angolo singolo che l’editor disegnava', () => {
     // Il difetto del committente in forma di test: la tela faceva due tratti, il documento
-    // quattro. Se questa asserzione diventa verde, l'unificazione è tornata indietro.
+    // quattro. Se questa asserzione diventa verde, l'unificazione è tornata indietro. Vale per
+    // i tre stili, non solo per il flessibile: `standard` e `condensa` sono anch'essi rotte a
+    // più tratti (rispettivamente `rottaLinea` e `rottaCondensa`), mai il raccordo a un angolo
+    // solo che produrrebbe `polilineaConGomiti(pDa, [], pA)`.
     const pDa = { x: 100, y: 500 }
     const pA = { x: 400, y: 300 }
-    expect(instrada('flessibile', pDa, pA, [], quote)).not.toEqual(polilineaConGomiti(pDa, [], pA))
+    for (const stile of ['flessibile', 'standard', 'condensa'] as const) {
+      expect(instrada(stile, pDa, pA, [], quote)).not.toEqual(polilineaConGomiti(pDa, [], pA))
+    }
   })
 })

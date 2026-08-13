@@ -9,8 +9,8 @@ import {
 } from '@/services/relazione/__tests__/fixtures'
 import { buildSchemaModel } from '@/services/schemaImpianto/buildSchemaModel'
 import { layoutSchema, quoteInstradamento } from '@/services/schemaImpianto/layout'
-import { posizioneAncora } from '@/services/schemaImpianto/renderSvg'
-import { instrada, type Punto } from '@/services/schemaImpianto/tratti'
+import { posizioneAncora, renderSvg } from '@/services/schemaImpianto/renderSvg'
+import { instrada, percorso, polilineaConGomiti, type Punto } from '@/services/schemaImpianto/tratti'
 import { ancoraDi, dimensioniDi } from '@/services/schemaImpianto/symbols'
 import type { SchemaLayout } from '@/services/schemaImpianto/types'
 import {
@@ -101,6 +101,16 @@ function dalDocumento(layout: SchemaLayout, arcoId: string): Punto[] {
   )
 }
 
+/**
+ * `d` di ogni `<path>` composto solo da comandi M/L nell'SVG reso — le tubazioni non ondulate
+ * (`renderMandataLinea`, `renderLineaCondense`), che disegnano con `percorso`. I flessibili
+ * escono da `ondula` con comandi Q e non compaiono qui: non serve distinguerli, la ricerca
+ * successiva li esclude a monte scegliendo un arco non ondulato.
+ */
+function tracciatiLineari(svg: string): string[] {
+  return [...svg.matchAll(/d="(M [\d.-]+ [\d.-]+(?: L [\d.-]+ [\d.-]+)+)"/g)].map((m) => m[1])
+}
+
 describe('accordo fra la tela dell’editor e il documento', () => {
   it('per ogni arco, tela e documento producono la STESSA polilinea', () => {
     const layout = layoutCompleto()
@@ -134,6 +144,26 @@ describe('accordo fra la tela dell’editor e il documento', () => {
     })
 
     expect(combacianti.map((e) => e.id)).toEqual([])
+  })
+
+  /**
+   * Il primo test di questo describe confronta la tela con `dalDocumento`, un MODELLO del
+   * documento che richiama `instrada`+`posizioneAncora` direttamente: se `renderMandataLinea`
+   * (o `renderLineaCondense`) smettesse di chiamare `instrada` e ricostruisse la polilinea a modo
+   * suo, quel modello non se ne accorgerebbe e il test resterebbe verde. Qui si confronta invece
+   * con l'SVG VERO, prodotto da `renderSvg`, su un arco non ondulato (uno `standard` o uno
+   * `condensa`: i flessibili escono da `ondula`, che non emette M/L puri).
+   */
+  it('per un arco non ondulato, la polilinea della tela combacia col tracciato VERO reso da renderSvg', () => {
+    const layout = layoutCompleto()
+    const { nodes, edges } = archiComeInEditor(layout)
+    const tracciati = tracciatiLineari(renderSvg(layout))
+
+    const edge = edges.find((e) => (e.data as SchemaEdgeData).stile !== 'flessibile')!
+    const data = edge.data as SchemaEdgeData
+    const dallaTela = polilineaDellArco(capiDellArco(data, capiComeReactFlow(nodes, edge)), data)
+
+    expect(tracciati, `arco ${edge.id} (${data.stile})`).toContain(percorso(dallaTela))
   })
 
   it('i capi di un arco sono le ancore dei suoi due nodi, non i bordi degli handle', () => {
@@ -173,6 +203,9 @@ describe('accordo fra la tela dell’editor e il documento', () => {
     const edge = edges.find((e) => e.id === flessibile.id)!
 
     const polilinea = polilineaDellArco({ da: { x: 0, y: 0 }, a: { x: 200, y: 200 } }, edge.data as SchemaEdgeData)
-    expect(polilinea).toContainEqual({ x: 42, y: 42 })
+    // Uguaglianza piena, non solo "il gomito compare da qualche parte": `toContainEqual`
+    // resterebbe verde anche se il gomito finisse al posto giusto ma il resto della polilinea
+    // (capi, verso) fosse sbagliato.
+    expect(polilinea).toEqual(polilineaConGomiti({ x: 0, y: 0 }, [{ x: 42, y: 42 }], { x: 200, y: 200 }))
   })
 })

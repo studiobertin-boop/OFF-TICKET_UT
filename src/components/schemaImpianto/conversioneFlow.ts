@@ -121,9 +121,9 @@ export function capiDellArco(data: SchemaEdgeData | undefined, ripiego: CapiArco
  * Senza `quote` non c'è modo di ricostruire le rotte native, e si ripiega sul raccordo
  * semplice: è una rete di sicurezza per il tipo, non un caso previsto nella tela reale — se
  * scattasse lì, il difetto originale (rotte diverse fra editor e documento) tornerebbe in
- * silenzio. Copre solo la produzione difensiva verso chiamanti che non passano da
- * `fondiDatiArchi` (il test dell'accordo, per esempio, costruisce `data` a mano in alcuni
- * casi).
+ * silenzio. Nessun chiamante del repo, di produzione o di test, ci passa oggi: è deliberato,
+ * non un buco di copertura — il ramo resta per intercettare in silenzio, non per rimanere,
+ * un futuro chiamante che dimentichi `fondiDatiArchi`.
  */
 export function polilineaDellArco(capi: CapiArco, data: SchemaEdgeData | undefined): Punto[] {
   const stile = (data?.stile ?? 'standard') as SchemaArcoStile
