@@ -35,6 +35,7 @@ import type { LayoutSalvato } from '@/services/schemaImpianto/persistenza'
 import { layoutIniziale } from '@/services/schemaImpianto/persistenza'
 import type { SchemaLayout } from '@/services/schemaImpianto/types'
 import { SchemaEditor } from '@/components/schemaImpianto/SchemaEditor'
+import { leggiPreferenze, scriviPreferenze, type PreferenzeEditor } from '@/components/schemaImpianto/preferenzeEditor'
 import { FORMATI_SCHEMA, leggiSchemaImpianto } from './schemaImpiantoFile'
 
 /** Da dove viene lo schema attualmente in uso: cambia solo ciò che si racconta all'utente. */
@@ -73,6 +74,17 @@ export function SchemaImpiantoSection({
   const [origine, setOrigine] = useState<Origine | null>(null)
   const [inCorso, setInCorso] = useState(false)
   const [editorAperto, setEditorAperto] = useState(false)
+  // Le regolazioni della finestra stanno qui, non nell'editor, perché servono a due consumatori:
+  // il Dialog per le proprie dimensioni (dal prossimo task) e l'editor per il divisorio. Una
+  // copia per parte significherebbe finestra e divisorio che si contraddicono.
+  const [preferenze, setPreferenze] = useState<PreferenzeEditor>(leggiPreferenze)
+  const cambiaPreferenze = useCallback((parziale: Partial<PreferenzeEditor>) => {
+    setPreferenze((precedenti) => {
+      const aggiornate = { ...precedenti, ...parziale }
+      scriviPreferenze(aggiornate)
+      return aggiornate
+    })
+  }, [])
   const [anteprimaUrl, setAnteprimaUrl] = useState<string | null>(null)
   const [ingrandita, setIngrandita] = useState(false)
   const [sopra, setSopra] = useState(false)
@@ -371,6 +383,8 @@ export function SchemaImpiantoSection({
             <SchemaEditor
               layout={layout}
               noteTubazioni={note}
+              preferenze={preferenze}
+              onCambiaPreferenze={cambiaPreferenze}
               onAnnulla={() => setEditorAperto(false)}
               onConferma={(modificato) => {
                 setEditorAperto(false)

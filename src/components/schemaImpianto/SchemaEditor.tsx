@@ -63,6 +63,8 @@ import type {
   SchemaNodoTipo,
   SchemaTestoLibero,
 } from '@/services/schemaImpianto/types'
+import { DivisorioAnteprima } from './DivisorioAnteprima'
+import type { PreferenzeEditor } from './preferenzeEditor'
 import { SchemaEdgeTubazione, type SchemaEdgeData } from './SchemaEdgeTubazione'
 import { SchemaNodeSymbol, type SchemaNodeData } from './SchemaNodeSymbol'
 import { TIPO_ARCO_FLOW, TIPO_NODO_FLOW, capiDegliArchi, flowALayout, fondiDatiArchi, layoutAFlow } from './conversioneFlow'
@@ -142,6 +144,14 @@ export interface SchemaEditorProps {
   noteTubazioni?: string[]
   onConferma: (layout: SchemaLayout) => void
   onAnnulla: () => void
+  /**
+   * Le regolazioni della finestra. Le possiede chi monta il dialog (SchemaImpiantoSection),
+   * perché il dialog e l'editor devono leggere gli stessi numeri: tenerne una copia qui
+   * significherebbe due stati scollegati, con la finestra larga secondo l'uno e il divisorio
+   * secondo l'altro.
+   */
+  preferenze: PreferenzeEditor
+  onCambiaPreferenze: (parziale: Partial<PreferenzeEditor>) => void
 }
 
 /**
@@ -178,7 +188,7 @@ export function codiceLibero(prefisso: string, nodes: Node[]): string {
   }
 }
 
-function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: SchemaEditorProps) {
+function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, preferenze, onCambiaPreferenze }: SchemaEditorProps) {
   const iniziale = useMemo(() => layoutAFlow(layout), [layout])
   const storia = useSchemaHistory<StatoEditor>(iniziale)
   const { stato, applica, aggiornaSenzaCronologia, annulla, puoAnnullare } = storia
@@ -766,7 +776,9 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
           fitView
           // Senza questo, `fitView` non inquadra affatto tutto il disegno: il minimo di
           // default di react-flow è 0.5, ma uno schema tipico (~1250 unità di larghezza) in
-          // un riquadro da ~530px — metà dialog, l'altra metà è l'anteprima — richiede circa
+          // un riquadro da ~530px — quanto resta accanto all'anteprima, la cui larghezza il
+          // committente decide col divisorio, quindi la tela può essere anche più stretta —
+          // richiede circa
           // 0.36. Lo zoom resta bloccato a 0.5, la tela mostra solo la fascia centrale e le
           // prime ~95 unità a sinistra diventano irraggiungibili: nessuna panoramica le
           // riporta dentro, perché è «Fit View» stesso a ricentrare lì.
@@ -813,10 +825,12 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
         </ReactFlow>
       </Box>
 
+      {anteprima && <DivisorioAnteprima onCambia={(anteprima) => onCambiaPreferenze({ anteprima })} />}
+
       {anteprima && (
         <Stack
           sx={{
-            width: '38%',
+            width: `${preferenze.anteprima}%`,
             minWidth: 280,
             borderTop: 1,
             borderRight: 1,
