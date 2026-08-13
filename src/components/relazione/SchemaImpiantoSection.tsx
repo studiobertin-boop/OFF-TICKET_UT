@@ -74,17 +74,21 @@ export function SchemaImpiantoSection({
   const [origine, setOrigine] = useState<Origine | null>(null)
   const [inCorso, setInCorso] = useState(false)
   const [editorAperto, setEditorAperto] = useState(false)
-  // Le regolazioni della finestra stanno qui, non nell'editor, perché servono a due consumatori:
-  // il Dialog per le proprie dimensioni (dal prossimo task) e l'editor per il divisorio. Una
-  // copia per parte significherebbe finestra e divisorio che si contraddicono.
+  // Le regolazioni della finestra stanno qui, non nell'editor, perché servono a più consumatori:
+  // il Dialog per le proprie dimensioni, l'editor per il divisorio e per la maniglia di
+  // ridimensionamento. Una copia per parte significherebbe finestra e gesti che si contraddicono.
   const [preferenze, setPreferenze] = useState<PreferenzeEditor>(leggiPreferenze)
   const cambiaPreferenze = useCallback((parziale: Partial<PreferenzeEditor>) => {
-    setPreferenze((precedenti) => {
-      const aggiornate = { ...precedenti, ...parziale }
-      scriviPreferenze(aggiornate)
-      return aggiornate
-    })
+    setPreferenze((precedenti) => ({ ...precedenti, ...parziale }))
   }, [])
+  // La persistenza sta in un effetto e non dentro l'updater di setPreferenze: quell'updater deve
+  // restare puro (React può invocarlo più volte per lo stesso aggiornamento, come fa in
+  // StrictMode), e scriverci dentro su localStorage — un effetto collaterale sincrono — lo
+  // violerebbe. Gira anche al primo montaggio, riscrivendo gli stessi valori appena letti da
+  // leggiPreferenze: ridondante ma innocuo, perché idempotente.
+  useEffect(() => {
+    scriviPreferenze(preferenze)
+  }, [preferenze])
   const [anteprimaUrl, setAnteprimaUrl] = useState<string | null>(null)
   const [ingrandita, setIngrandita] = useState(false)
   const [sopra, setSopra] = useState(false)
@@ -376,9 +380,28 @@ export function SchemaImpiantoSection({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={editorAperto} onClose={() => setEditorAperto(false)} fullWidth maxWidth="xl">
+      {/* La finestra non ha più una taglia fissa: le dimensioni arrivano dalle preferenze, e il
+          DialogContent si limita a riempire ciò che resta fra titolo e bordo. Il Paper di MUI è
+          già una colonna flex, quindi `flex: 1` più `minHeight: 0` bastano a farlo cedere
+          l'altezza all'editor invece di gonfiarsi oltre la finestra. */}
+      <Dialog
+        open={editorAperto}
+        onClose={() => setEditorAperto(false)}
+        fullScreen={preferenze.schermoIntero}
+        maxWidth={false}
+        PaperProps={{
+          sx: preferenze.schermoIntero
+            ? undefined
+            : {
+                width: `${preferenze.larghezza}vw`,
+                height: `${preferenze.altezza}vh`,
+                maxWidth: 'none',
+                maxHeight: 'none',
+              },
+        }}
+      >
         <DialogTitle>Rifinisci lo schema d’impianto</DialogTitle>
-        <DialogContent dividers sx={{ height: '75vh', p: 0 }}>
+        <DialogContent dividers sx={{ p: 0, flex: 1, minHeight: 0, overflow: 'hidden' }}>
           {layout && (
             <SchemaEditor
               layout={layout}

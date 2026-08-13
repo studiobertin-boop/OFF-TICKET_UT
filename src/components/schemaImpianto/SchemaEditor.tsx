@@ -50,6 +50,8 @@ import {
   AlignVerticalTop as AllineaAltoIcon,
   AlignVerticalCenter as AllineaCentroYIcon,
   AlignVerticalBottom as AllineaBassoIcon,
+  Fullscreen as SchermoInteroIcon,
+  FullscreenExit as SchermoInteroEsciIcon,
 } from '@mui/icons-material'
 import toast from 'react-hot-toast'
 import { capoValido, connessioneAmmessa, stileIniziale } from '@/services/schemaImpianto/agganci'
@@ -64,6 +66,7 @@ import type {
   SchemaTestoLibero,
 } from '@/services/schemaImpianto/types'
 import { DivisorioAnteprima } from './DivisorioAnteprima'
+import { ManigliaRidimensiona } from './ManigliaRidimensiona'
 import type { PreferenzeEditor } from './preferenzeEditor'
 import { SchemaEdgeTubazione, type SchemaEdgeData } from './SchemaEdgeTubazione'
 import { SchemaNodeSymbol, type SchemaNodeData } from './SchemaNodeSymbol'
@@ -737,6 +740,12 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
         >
           Anteprima
         </Button>
+
+        <Tooltip title={preferenze.schermoIntero ? 'Riporta la finestra alle sue dimensioni' : 'Porta la finestra a tutto schermo'}>
+          <IconButton size="small" onClick={() => onCambiaPreferenze({ schermoIntero: !preferenze.schermoIntero })}>
+            {preferenze.schermoIntero ? <SchermoInteroEsciIcon fontSize="small" /> : <SchermoInteroIcon fontSize="small" />}
+          </IconButton>
+        </Tooltip>
       </Stack>
 
       <Stack direction="row" sx={{ flex: 1, minHeight: 360 }}>
@@ -850,11 +859,16 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
       )}
       </Stack>
 
-      <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ p: 1 }}>
+      <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center" sx={{ p: 1 }}>
         <Button onClick={onAnnulla}>Annulla modifiche</Button>
         <Button variant="contained" onClick={conferma}>
           Conferma schema
         </Button>
+        {/* A tutto schermo non c'è nulla da ridimensionare, e una maniglia che non fa niente
+            fa credere che il gesto sia rotto. */}
+        {!preferenze.schermoIntero && (
+          <ManigliaRidimensiona onCambia={(dimensione) => onCambiaPreferenze(dimensione)} />
+        )}
       </Stack>
 
       {/* Un dialog solo per due bersagli (la scritta del terminale e le annotazioni libere):
