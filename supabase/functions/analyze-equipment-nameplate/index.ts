@@ -9,15 +9,31 @@ const corsHeaders = {
 /**
  * Edge Function: analyze-equipment-nameplate
  *
- * Analizza foto di targhette apparecchiature usando Claude (Anthropic) Vision
- * Estrae dati strutturati e suggerisce match dal catalogo
+ * Legge i dati di targhetta di un'apparecchiatura da una foto o da un PDF (certificato,
+ * dichiarazione di conformità, manuale) e li restituisce già strutturati.
+ *
+ * Il formato della risposta è vincolato dallo schema (`output_config.format`), non chiesto a
+ * parole: la versione precedente domandava «restituisci solo JSON» in un prompt e faceva il
+ * parse del testo libero, e su un documento — dove c'è molto più testo di una targhetta — la
+ * risposta non era JSON e la lettura falliva con «Failed to parse Claude response as JSON».
  */
 
 /** Lettura di targhette fisiche: serve un modello preciso su testo minuto e foto imperfette. */
 const MODELLO = 'claude-sonnet-5'
 
+/**
+ * Un documento porta molto più testo di una targhetta: il tetto dev'essere largo abbastanza
+ * da non troncare la risposta a metà, che è ciò che rende illeggibile un JSON altrimenti valido.
+ */
+const MAX_TOKENS = 8000
+
 interface OCRRequest {
-  image_base64: string
+  /** Contenuto del file in base64 — immagine o PDF. */
+  file_base64?: string
+  /** @deprecated resta per le versioni dell'app che inviano solo immagini. */
+  image_base64?: string
+  /** MIME del file: se assente si deduce dai primi byte del base64. */
+  media_type?: string
   equipment_type: string
   equipment_code?: string
 }
@@ -37,14 +53,15 @@ serve(async (req) => {
   }
 
   try {
-    // Parse request
-    const { image_base64, equipment_type, equipment_code }: OCRRequest = await req.json()
+    const body: OCRRequest = await req.json()
+    const fileBase64 = body.file_base64 ?? body.image_base64
+    const { equipment_type, equipment_code } = body
 
-    if (!image_base64 || !equipment_type) {
+    if (!fileBase64 || !equipment_type) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'Missing required fields: image_base64, equipment_type'
+          error: 'Campi obbligatori mancanti: file_base64, equipment_type'
         }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -64,25 +81,18 @@ serve(async (req) => {
       throw new Error('ANTHROPIC_API_KEY not configured')
     }
 
-    // Prepare prompt based on equipment type
-    const prompt = generatePromptForEquipmentType(equipment_type)
+    const mediaType = body.media_type ?? rilevaMediaType(fileBase64)
+    console.log(`Analisi ${equipment_type}${equipment_code ? ` (${equipment_code})` : ''}, formato: ${mediaType}`)
 
-    // Detect image format from base64 header (first few bytes)
-    // PNG starts with iVBOR, JPEG with /9j/
-    let imageFormat = 'jpeg' // default
-    if (image_base64.startsWith('iVBOR')) {
-      imageFormat = 'png'
-    } else if (image_base64.startsWith('/9j/')) {
-      imageFormat = 'jpeg'
-    } else if (image_base64.startsWith('R0lG')) {
-      imageFormat = 'gif'
-    } else if (image_base64.startsWith('UklG')) {
-      imageFormat = 'webp'
-    }
+    /**
+     * Il PDF si manda com'è, non convertito in immagine: il modello legge il testo del
+     * documento invece di rileggerlo da un rendering, e vede tutte le pagine — la targhetta
+     * può stare sulla seconda del certificato.
+     */
+    const contenutoFile = mediaType === 'application/pdf'
+      ? { type: 'document', source: { type: 'base64', media_type: mediaType, data: fileBase64 } }
+      : { type: 'image', source: { type: 'base64', media_type: mediaType, data: fileBase64 } }
 
-    console.log(`Detected image format: ${imageFormat}`)
-
-    // Call Claude Vision API
     const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -92,23 +102,19 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: MODELLO,
-        max_tokens: 1500,
-        system: prompt,
+        max_tokens: MAX_TOKENS,
+        system: promptPerTipo(equipment_type),
+        output_config: { format: { type: 'json_schema', schema: schemaPerTipo(equipment_type) } },
         messages: [
           {
             role: 'user',
             content: [
-              {
-                type: 'image',
-                source: {
-                  type: 'base64',
-                  media_type: `image/${imageFormat}`,
-                  data: image_base64
-                }
-              },
+              contenutoFile,
               {
                 type: 'text',
-                text: 'Analizza questa targhetta ed estrai i dati come richiesto.'
+                text: mediaType === 'application/pdf'
+                  ? 'Estrai i dati dell’apparecchiatura da questo documento, come richiesto.'
+                  : 'Analizza questa targhetta ed estrai i dati come richiesto.'
               }
             ]
           }
@@ -122,30 +128,38 @@ serve(async (req) => {
     }
 
     const claudeData = await claudeResponse.json()
+    console.log(`Risposta ricevuta: stop_reason=${claudeData.stop_reason}`)
 
     if (claudeData.stop_reason === 'refusal') {
-      throw new Error('La lettura della targhetta è stata rifiutata dal modello')
+      throw new Error('La lettura del documento è stata rifiutata dal modello')
+    }
+
+    if (claudeData.stop_reason === 'max_tokens') {
+      throw new Error(
+        'Il documento è troppo ricco di testo e la lettura si è interrotta prima della fine. ' +
+        'Carica solo le pagine con i dati di targa.'
+      )
     }
 
     const extractedText = claudeData.content?.find((b: { type: string }) => b.type === 'text')?.text
 
     if (!extractedText) {
-      throw new Error('No response from Claude Vision')
+      throw new Error('Il modello non ha restituito alcun dato')
     }
 
-    // Parse JSON response
+    /**
+     * Lo schema garantisce la forma della risposta, quindi il parse non dovrebbe fallire. Se
+     * fallisce lo stesso, l'errore riporta l'inizio di ciò che è arrivato: senza, resta solo
+     * «parse fallito» e non c'è modo di capire cosa il modello abbia risposto davvero.
+     */
     let extractedData
     try {
-      // Claude should return JSON, parse it
       extractedData = JSON.parse(extractedText)
     } catch (e) {
-      // Fallback: try to extract JSON from markdown code block
-      const jsonMatch = extractedText.match(/```json\n([\s\S]*?)\n```/)
-      if (jsonMatch) {
-        extractedData = JSON.parse(jsonMatch[1])
-      } else {
-        throw new Error('Failed to parse Claude response as JSON')
-      }
+      throw new Error(
+        `Risposta del modello non leggibile come JSON (${(e as Error).message}). ` +
+        `Inizio della risposta: ${extractedText.slice(0, 200)}`
+      )
     }
 
     // Calculate confidence score (0-100)
@@ -192,71 +206,148 @@ serve(async (req) => {
 })
 
 /**
- * Genera prompt specifico per tipo apparecchiatura
+ * MIME del file dai primi caratteri del base64, per le versioni dell'app che non lo dichiarano.
+ * PNG inizia per iVBOR, JPEG per /9j/, PDF per JVBERi0 («%PDF-»).
  */
-function generatePromptForEquipmentType(equipmentType: string): string {
-  const basePrompt = `Analyze this equipment nameplate image and extract ALL visible information.
-Return ONLY a JSON object (no markdown, no explanations) with the following structure:`
-
-  const commonFields = `{
-  "marca": "manufacturer brand (string or null)",
-  "modello": "model number (string or null)",
-  "n_fabbrica": "serial/factory number (string or null)",
-  "anno": "manufacturing year (integer or null)",`
-
-  const equipmentSpecificFields: Record<string, string> = {
-    serbatoio: `
-  "volume": "tank volume in liters (integer or null)",
-  "pressione_max": "maximum pressure in bar (number or null)",
-  "finitura_interna": "internal finish type (string or null)",
-  "valvola_sicurezza": {
-    "marca": "safety valve brand (string or null)",
-    "modello": "safety valve model (string or null)",
-    "n_fabbrica": "safety valve serial (string or null)",
-    "diametro_pressione": "diameter and pressure (string or null)"
-  },
-  "manometro": {
-    "fondo_scala": "gauge max scale in bar (number or null)",
-    "segno_rosso": "red mark pressure in bar (number or null)"
-  }`,
-    compressore: `
-  "materiale_n": "material number (string or null)",
-  "pressione_max": "maximum pressure in bar (number or null)"`,
-    disoleatore: `
-  "volume": "volume in liters (integer or null)",
-  "pressione_max": "maximum pressure in bar (number or null)",
-  "valvola_sicurezza": {
-    "marca": "safety valve brand (string or null)",
-    "modello": "safety valve model (string or null)",
-    "n_fabbrica": "safety valve serial (string or null)",
-    "diametro_pressione": "diameter and pressure (string or null)"
-  }`,
-    essiccatore: `
-  "pressione_max": "maximum pressure in bar (number or null)"`,
-    scambiatore: `
-  "pressione_max": "maximum pressure in bar (number or null)",
-  "volume": "volume in liters (integer or null)"`,
-    filtro: ``,
-    separatore: ``,
-    valvola: `
-  "diametro_pressione": "diameter and pressure rating (string or null, e.g. '1/2\" 13bar')"`
-  }
-
-  const specificFields = equipmentSpecificFields[equipmentType] || ''
-
-  const closingInstructions = `
-  "raw_text": "all visible text on the nameplate (string)"
+function rilevaMediaType(base64: string): string {
+  if (base64.startsWith('JVBERi0')) return 'application/pdf'
+  if (base64.startsWith('iVBOR')) return 'image/png'
+  if (base64.startsWith('R0lG')) return 'image/gif'
+  if (base64.startsWith('UklG')) return 'image/webp'
+  return 'image/jpeg'
 }
 
-IMPORTANT RULES:
-- Return ONLY valid JSON, no markdown code blocks
-- Use null for any field that cannot be clearly read
-- Extract numbers without units (e.g., "13" not "13 bar")
-- Be precise with brand and model names
-- Include raw_text with ALL visible text for debugging
-- If text is unclear or ambiguous, use null rather than guessing`
+/** Campo nullable nella forma che lo schema accetta: niente `type: [...]`, si usa `anyOf`. */
+const opzionale = (tipo: 'string' | 'integer' | 'number', descrizione: string) => ({
+  anyOf: [{ type: tipo }, { type: 'null' }],
+  description: descrizione,
+})
 
-  return `${basePrompt}${commonFields}${specificFields}${closingInstructions}`
+const VALVOLA_SCHEMA = {
+  anyOf: [
+    {
+      type: 'object',
+      properties: {
+        marca: opzionale('string', 'marca della valvola di sicurezza'),
+        modello: opzionale('string', 'modello della valvola di sicurezza'),
+        n_fabbrica: opzionale('string', 'numero di fabbrica della valvola'),
+        diametro_pressione: opzionale('string', 'diametro e pressione, es. «1/2" 13 bar»'),
+      },
+      required: ['marca', 'modello', 'n_fabbrica', 'diametro_pressione'],
+      additionalProperties: false,
+    },
+    { type: 'null' },
+  ],
+  description: 'dati della valvola di sicurezza, se leggibili',
+}
+
+const MANOMETRO_SCHEMA = {
+  anyOf: [
+    {
+      type: 'object',
+      properties: {
+        fondo_scala: opzionale('number', 'fondo scala in bar'),
+        segno_rosso: opzionale('number', 'pressione del segno rosso in bar'),
+      },
+      required: ['fondo_scala', 'segno_rosso'],
+      additionalProperties: false,
+    },
+    { type: 'null' },
+  ],
+  description: 'dati del manometro, se leggibili',
+}
+
+/**
+ * Campi propri del tipo di apparecchiatura, che si aggiungono a quelli comuni.
+ */
+function campiSpecifici(equipmentType: string): Record<string, unknown> {
+  switch (equipmentType) {
+    case 'serbatoio':
+      return {
+        volume: opzionale('integer', 'volume in litri'),
+        pressione_max: opzionale('number', 'pressione massima PS in bar'),
+        finitura_interna: opzionale('string', 'finitura interna'),
+        valvola_sicurezza: VALVOLA_SCHEMA,
+        manometro: MANOMETRO_SCHEMA,
+      }
+    case 'compressore':
+      return {
+        materiale_n: opzionale('string', 'numero di materiale'),
+        pressione_max: opzionale('number', 'pressione massima in bar'),
+      }
+    case 'disoleatore':
+      return {
+        volume: opzionale('integer', 'volume in litri'),
+        pressione_max: opzionale('number', 'pressione massima PS in bar'),
+        valvola_sicurezza: VALVOLA_SCHEMA,
+      }
+    case 'essiccatore':
+      return { pressione_max: opzionale('number', 'pressione massima in bar') }
+    case 'scambiatore':
+      return {
+        volume: opzionale('integer', 'volume in litri'),
+        pressione_max: opzionale('number', 'pressione massima PS in bar'),
+      }
+    case 'valvola':
+      return {
+        diametro_pressione: opzionale('string', 'diametro e pressione di taratura, es. «1/2" 13 bar»'),
+      }
+    default:
+      return {}
+  }
+}
+
+/**
+ * Schema della risposta: è ciò che garantisce che arrivi un JSON e non un discorso.
+ *
+ * Ogni campo è dichiarato obbligatorio e annullabile insieme — è la forma che gli output
+ * strutturati richiedono: `required` copre tutte le proprietà, e ciò che non si legge sulla
+ * targhetta vale `null`.
+ */
+function schemaPerTipo(equipmentType: string) {
+  const properties: Record<string, unknown> = {
+    marca: opzionale('string', 'marca del costruttore'),
+    modello: opzionale('string', 'modello'),
+    n_fabbrica: opzionale('string', 'numero di fabbrica o di serie'),
+    anno: opzionale('integer', 'anno di costruzione'),
+    ...campiSpecifici(equipmentType),
+    raw_text: opzionale('string', 'testo della targhetta, per verifica — al massimo 600 caratteri'),
+  }
+
+  return {
+    type: 'object',
+    properties,
+    required: Object.keys(properties),
+    additionalProperties: false,
+  }
+}
+
+/**
+ * Istruzioni di lettura. La forma della risposta non è più affare del prompt — la fissa lo
+ * schema — quindi qui resta solo ciò che riguarda *come* leggere: quale apparecchiatura
+ * cercare in un documento che ne cita più d'una, e cosa fare di ciò che non si legge.
+ */
+function promptPerTipo(equipmentType: string): string {
+  const nome: Record<string, string> = {
+    serbatoio: 'un serbatoio d’aria compressa',
+    compressore: 'un compressore',
+    disoleatore: 'un serbatoio disoleatore',
+    essiccatore: 'un essiccatore',
+    scambiatore: 'uno scambiatore di calore',
+    filtro: 'un filtro',
+    separatore: 'un separatore',
+    valvola: 'una valvola di sicurezza',
+  }
+
+  return `Leggi i dati di targa di ${nome[equipmentType] ?? 'un’apparecchiatura'} da questa immagine o da questo documento.
+
+REGOLE
+- Il file può essere la foto di una targhetta oppure un documento (certificato, dichiarazione di conformità, manuale) di più pagine: cerca i dati di targa ovunque compaiano.
+- Se il documento descrive più apparecchiature, riporta quella del tipo richiesto; se ce n'è più d'una dello stesso tipo, riporta la prima.
+- Usa null per ogni dato che non riesci a leggere con certezza: meglio un campo vuoto di un valore indovinato.
+- Riporta i numeri senza unità di misura ("13", non "13 bar") e usa il punto come separatore decimale.
+- Trascrivi marca e modello esattamente come sono scritti.
+- In raw_text riporta solo il testo della targa o del riquadro dei dati tecnici, non l'intero documento, e comunque non più di 600 caratteri.`
 }
 
 /**
