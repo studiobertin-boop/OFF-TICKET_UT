@@ -45,7 +45,20 @@ describe('testiConContenuto', () => {
 })
 
 describe('testiSenza', () => {
-  it('toglie solo il testo indicato', () => {
-    expect(testiSenza(due, 'T1')).toEqual([due[1]])
+  it('toglie solo il testo indicato, non quello di posizione 0', () => {
+    // 'T2' non è il primo elemento: un'implementazione che togliesse per indice (0) invece
+    // che per id toglierebbe 'T1' e lascerebbe questo test verde per il motivo sbagliato.
+    expect(testiSenza(due, 'T2')).toEqual([due[0]])
+  })
+})
+
+describe('purezza', () => {
+  it('nessuna delle quattro funzioni muta l’elenco o i testi ricevuti in ingresso', () => {
+    const originale = due.map((t) => ({ ...t }))
+    testoAggiunto(due, { x: 1, y: 1 })
+    testiConSpostamento(due, 'T1', { x: 9, y: 9 })
+    testiConContenuto(due, 'T1', 'modificato')
+    testiSenza(due, 'T1')
+    expect(due).toEqual(originale)
   })
 })

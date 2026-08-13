@@ -993,13 +993,31 @@ describe('testiConContenuto', () => {
 })
 
 describe('testiSenza', () => {
-  it('toglie solo il testo indicato', () => {
-    expect(testiSenza(due, 'T1')).toEqual([due[1]])
+  it('toglie solo il testo indicato, non quello di posizione 0', () => {
+    // 'T2' non è il primo elemento: un'implementazione che togliesse per indice (0) invece
+    // che per id toglierebbe 'T1' e lascerebbe questo test verde per il motivo sbagliato.
+    expect(testiSenza(due, 'T2')).toEqual([due[0]])
+  })
+})
+
+describe('purezza', () => {
+  it('nessuna delle quattro funzioni muta l’elenco o i testi ricevuti in ingresso', () => {
+    const originale = due.map((t) => ({ ...t }))
+    testoAggiunto(due, { x: 1, y: 1 })
+    testiConSpostamento(due, 'T1', { x: 9, y: 9 })
+    testiConContenuto(due, 'T1', 'modificato')
+    testiSenza(due, 'T1')
+    expect(due).toEqual(originale)
   })
 })
 ```
 
-Ogni asserzione confronta valori veri: un test che verifica solo «non lancia» non discrimina.
+Ogni asserzione confronta valori veri: un test che verifica solo «non lancia» non discrimina. Il
+test originale di `testiSenza` (giro di riparazione 1) toglieva `'T1'`, cioè il primo elemento
+della fixture: un'implementazione che togliesse per indice 0 invece che per id restava verde. Il
+fix rimuove `'T2'` e il blocco `purezza` protegge dal difetto ricorrente di questo modulo — una
+mutazione in place che si propaga in una cronologia salvata (vedi il giro di riparazione 1 del
+Blocco A).
 
 - [ ] **Step 2: Esegui i test e verifica che falliscano**
 
