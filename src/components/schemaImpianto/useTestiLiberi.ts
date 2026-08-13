@@ -5,9 +5,8 @@
  * componenti React nei test (CLAUDE.md, «no UI test»): tutto quel che va provato sta nelle
  * quattro funzioni pure sotto, non nell'hook.
  *
- * A fine di questo task le operazioni esistono ma nessuno le chiama: la tela non disegna
- * ancora i testi né offre pulsanti per crearli/trascinarli (arriva col Task 10). L'hook è
- * pronto per essere cablato lì, sullo stesso modello di useGomiti/useSegniTubo.
+ * Il cablaggio è fatto: `SchemaEditor` chiama queste operazioni dal pulsante «Testo» della
+ * palette e dal dialog di scrittura, e `TestiLiberi.tsx` rende le annotazioni sulla tela.
  */
 import { useCallback, useRef } from 'react'
 import type { SchemaTestoLibero } from '@/services/schemaImpianto/types'
@@ -29,8 +28,10 @@ function idLibero(testi: SchemaTestoLibero[]): string {
   }
 }
 
-/** Testo nuovo, vuoto, nella posizione data: l'utente lo scrive subito dopo (il dialog si apre
- *  sull'id restituito da `aggiungiTesto`, non da qui — questa è la funzione pura). */
+/** Testo nuovo nella posizione data. Il contenuto arriva già scritto: l'editor apre il dialog
+ *  PRIMA di creare l'annotazione, così un'annotazione vuota — invisibile sulla tela, e quindi
+ *  né afferrabile né eliminabile — non esiste mai, nemmeno per il tempo di una rinuncia. Il
+ *  valore di ripiego resta per chi volesse il comportamento inverso (creare e scrivere dopo). */
 export function testoAggiunto(
   testi: SchemaTestoLibero[],
   posizione: { x: number; y: number },
@@ -55,27 +56,28 @@ export function testiSenza(testi: SchemaTestoLibero[], id: string): SchemaTestoL
   return testi.filter((t) => t.id !== id)
 }
 
+/**
+ * Nessun `stato` fra i parametri, a differenza di useGomiti/useSegniTubo/useTrascinamentoTratto:
+ * quelli devono derivare dagli archi correnti gli `edges` arricchiti che passano a react-flow,
+ * qui non c'è nulla da derivare — l'editor rende `stato.testi` per conto suo (TestiLiberi.tsx) e
+ * queste quattro operazioni leggono sempre lo stato che il reducer passa all'updater, mai
+ * un'istantanea catturata nella chiusura. Un parametro tenuto «per uniformità» sarebbe solo
+ * peso morto, e per giunta un invito a leggerlo proprio dove non si deve.
+ */
 export function useTestiLiberi<T extends StatoConTesti>(
-  stato: T,
   applica: Aggiorna<T>,
   aggiornaSenzaCronologia: Aggiorna<T>
 ) {
-  // Un gesto solo (clic sulla tela per piazzare il testo): sempre in cronologia, come creare
-  // un gomito o un segno. L'id restituito va letto dallo stato passato all'updater di
-  // `applica`, non da `stato.testi` catturato nella chiusura: quest'ultimo può essere
-  // l'istantanea di un render precedente a quella su cui il reducer sta per applicare
-  // l'aggiunta (stesso rischio di lettura-stantia descritto in useSchemaHistory.ts, a
-  // proposito di più `dispatch` nello stesso lotto), e produrrebbe un id diverso da quello
-  // realmente inserito.
+  // Un gesto solo (il pulsante «Testo» della palette, confermato nel dialog): sempre in
+  // cronologia, come creare un gomito o un segno — e una voce sola, non due, perché il
+  // contenuto arriva insieme alla posizione. L'id nasce dentro l'updater di `applica`, da
+  // `s.testi`: `idLibero` su un elenco catturato nella chiusura potrebbe leggere l'istantanea
+  // di un render precedente a quello su cui il reducer sta per applicare l'aggiunta (stesso
+  // rischio di lettura-stantia descritto in useSchemaHistory.ts, a proposito di più `dispatch`
+  // nello stesso lotto) e riusare un id già assegnato.
   const aggiungiTesto = useCallback(
-    (posizione: { x: number; y: number }) => {
-      let idCreato = ''
-      applica((s) => {
-        const testi = testoAggiunto(s.testi, posizione)
-        idCreato = testi[testi.length - 1].id
-        return { ...s, testi }
-      })
-      return idCreato
+    (posizione: { x: number; y: number }, contenuto = '') => {
+      applica((s) => ({ ...s, testi: testoAggiunto(s.testi, posizione, contenuto) }))
     },
     [applica]
   )

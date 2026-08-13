@@ -75,10 +75,10 @@ export function flowALayout(
     // I testi non sono nodi di react-flow: non stanno in `nodes`/`edges`, quindi viaggiano come
     // terzo parametro esplicito, per copia di riferimento e senza trasformazioni — il ponte
     // esiste solo perché lo stato dell'editor e il layout hanno forme diverse, non perché le
-    // annotazioni vadano convertite. Chi non lo passa (default `[]`) non se le inventa: oggi il
-    // solo chiamante che deve portarle davvero è `SchemaEditor` (`layoutCorrente`, dallo stato
-    // `testi` che sopravvive a cronologia e undo); l'editor non le rende ancora sulla tela e non
-    // permette di crearne — quello arriva con `SchemaTestoLiberoNode` nel Task 10.
+    // annotazioni vadano convertite. Chi non lo passa (default `[]`) non se le inventa: il solo
+    // chiamante che deve portarle davvero è `SchemaEditor` (`layoutCorrente`, dallo stato
+    // `testi` che sopravvive a cronologia e undo), dove ora si creano dal pulsante «Testo» della
+    // palette e si trascinano sulla tela (TestiLiberi.tsx).
     testi,
   }
 }

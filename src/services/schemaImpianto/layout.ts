@@ -183,7 +183,7 @@ export function layoutSchema(model: SchemaModel): SchemaLayout {
   // convenzione tenuta da questa funzione: `tsc` segnala chiunque costruisca un `SchemaLayout`
   // senza — è così che si è scoperto che `flowALayout` (`conversioneFlow.ts`) lo dimenticava,
   // un percorso di produzione (la conferma nell'editor) che avrebbe perso in silenzio le
-  // annotazioni di un disegno riaperto, dal Task 10 in poi.
+  // annotazioni di un disegno riaperto ora che l'editor permette di posarne.
   return { nodi, archi: model.archi, muro: calcolaMuro(nodi), testi: [] }
 }
 
@@ -240,8 +240,12 @@ export function corpoNodo(nodo: SchemaNodoPosizionato): {
  * `0.5` scritti a mano in due file diversi potrebbero divergere in silenzio se uno dei due
  * venisse ritoccato senza l'altro. Non è tipografia vera — misurare i glifi richiederebbe un DOM
  * che queste funzioni non hanno — serve solo a decidere quanto allargare la tela.
+ *
+ * Esportata perché la usa anche l'editor: un'annotazione nuova nasce sotto tutto il disegno
+ * (`piedeDelDisegno` in SchemaEditor.tsx), e «sotto» comprende le annotazioni già posate, o due
+ * scritte create di seguito finirebbero esattamente l'una sull'altra.
  */
-function ingombroTesto(testo: SchemaTestoLibero): { destra: number; basso: number } {
+export function ingombroTesto(testo: SchemaTestoLibero): { destra: number; basso: number } {
   const righe = testo.contenuto.split('\n')
   const piuLunga = Math.max(...righe.map((r) => r.length))
   return {

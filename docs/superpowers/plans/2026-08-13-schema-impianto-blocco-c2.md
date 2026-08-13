@@ -1117,6 +1117,14 @@ Il testo nasce nella stessa fascia dove nascono i nodi nuovi (sotto il disegno e
 
 Il dialog del Task 5 serve ora due casi: la scritta del terminale e il testo libero. Estendi lo stato che lo governa perché sappia su cosa sta scrivendo, e cambia il titolo di conseguenza («Scritta del terminale» / «Testo sul disegno»). La validazione «non vuoto» vale per entrambi: per il terminale perché resterebbe senza dicitura, per il testo libero perché resterebbe invisibile.
 
+**Correzioni fatte durante il Task 10.**
+
+1. **L'annotazione nasce alla conferma, non prima.** Lo Step 3 chiedeva di creare subito un testo vuoto, aprire il dialog e rimuoverlo se l'utente annulla. Ordine invertito: il pulsante «Testo» apre il dialog e basta; l'annotazione entra nello stato solo alla conferma, con posizione e contenuto insieme. Il motivo è la cronologia: creare e poi scrivere sono due `applica`, cioè **due** voci per un gesto solo, e un Ctrl+Z dopo aver scritto riportava allo stato intermedio — un'annotazione vuota, invisibile sulla tela, che nessuno poteva più né selezionare né togliere. Esattamente ciò che lo Step 3 voleva impedire, per una strada che l'annullamento del dialog non copre. Così invece la creazione è una voce sola (Ctrl+Z toglie l'annotazione per intero), e nessun percorso — Annulla, Esc, clic fuori, chiusura della pagina a metà scrittura — può lasciare un'annotazione vuota, perché non ne esiste mai una.
+2. **`useTestiLiberi` cambia firma** di conseguenza (Task 9): `aggiungiTesto(posizione, contenuto = '')` — il contenuto era già previsto dalla funzione pura `testoAggiunto` — e non restituisce più l'id creato, che serviva solo ad aprire il dialog *dopo* la creazione. Sparisce anche il parametro `stato`, che l'hook non usava: a differenza di `useGomiti`/`useSegniTubo`/`useTrascinamentoTratto`, che dallo stato derivano gli `edges` arricchiti da passare a react-flow, qui non c'è nulla da derivare — le annotazioni si rendono da `stato.testi` in `SchemaEditor`.
+3. **Come si elimina un'annotazione**, che il piano non diceva pur essendo fra le richieste del committente: pulsante «Elimina» dentro il dialog di scrittura, visibile solo su un'annotazione esistente. Il pulsante «Elimina» della barra non può servire, perché lavora sulla selezione di react-flow e le annotazioni non sono nodi.
+4. **`piedeDelDisegno` guarda anche le annotazioni**, non i soli nodi: due scritte create di seguito sarebbero nate esattamente l'una sull'altra. Per non riscrivere la stima d'ingombro una seconda volta, `ingombroTesto` (layout.ts) diventa esportata; per lo stesso motivo lo diventa `FONT` (symbols/index.ts), che la tela deve condividere col documento.
+5. Lo **Step 1 era già fatto**: `StatoEditor.testi`, lo stato iniziale da `layoutAFlow` e `layoutCorrente` verso `flowALayout` erano stati cablati nel Task 8.
+
 - [ ] **Step 5: Verifica**
 
 ```bash

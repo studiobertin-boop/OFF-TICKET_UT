@@ -1,8 +1,9 @@
 /**
  * Editor dello schema d'impianto: corregge la proposta generata automaticamente prima che
  * finisca in relazione. Copre ciò che i dati della scheda non sanno — dove stanno bypass e
- * valvole aggiuntive, quali tratti sono flessibili o linee condense, e la sistemazione fine
- * del layout. Per i casi fuori portata resta l'upload del disegno AutoCAD.
+ * valvole aggiuntive, quali tratti sono flessibili o linee condense, le annotazioni da posare
+ * sul disegno e la sistemazione fine del layout. Per i casi fuori portata resta l'upload del
+ * disegno AutoCAD.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -53,7 +54,7 @@ import {
 import toast from 'react-hot-toast'
 import { capoValido, connessioneAmmessa, stileIniziale } from '@/services/schemaImpianto/agganci'
 import type { Asse, Bordo } from '@/services/schemaImpianto/allineamento'
-import { DIMENSIONI_NODO, quoteInstradamento } from '@/services/schemaImpianto/layout'
+import { DIMENSIONI_NODO, ingombroTesto, quoteInstradamento } from '@/services/schemaImpianto/layout'
 import { renderSvg } from '@/services/schemaImpianto/renderSvg'
 import type {
   SchemaArcoStile,
@@ -65,11 +66,13 @@ import { SchemaEdgeTubazione, type SchemaEdgeData } from './SchemaEdgeTubazione'
 import { SchemaNodeSymbol, type SchemaNodeData } from './SchemaNodeSymbol'
 import { TIPO_ARCO_FLOW, TIPO_NODO_FLOW, capiDegliArchi, flowALayout, fondiDatiArchi, layoutAFlow } from './conversioneFlow'
 import { GuideAllineamento } from './GuideAllineamento'
+import { TestiLiberi } from './TestiLiberi'
 import { useAllineamentoSelezione } from './useAllineamentoSelezione'
 import { useGomiti } from './useGomiti'
 import { useGuideAllineamento } from './useGuideAllineamento'
 import { useSchemaHistory } from './useSchemaHistory'
 import { useSegniTubo } from './useSegniTubo'
+import { useTestiLiberi } from './useTestiLiberi'
 import { useTrascinamentoTratto } from './useTrascinamentoTratto'
 
 const tipiNodo = { [TIPO_NODO_FLOW]: SchemaNodeSymbol }
@@ -125,9 +128,10 @@ const PASSI: Record<string, [number, number]> = {
 interface StatoEditor {
   nodes: Node[]
   edges: Edge[]
-  // Non ancora leggibili né creabili dalla tela (arriva col Task 10): sopravvivono qui a
-  // cronologia e undo solo perché lo stato li porta fin da `layoutAFlow`, così la conferma non
-  // li perde in silenzio anche se oggi nessuna interazione dell'editor li tocca.
+  // Le annotazioni libere non sono nodi di react-flow (nessuna ancora, nessuna tubazione può
+  // attaccarcisi): vivono qui accanto a `nodes`/`edges`, si rendono nel portale della viewport
+  // (TestiLiberi.tsx) e si maneggiano con `useTestiLiberi`. Stando nello stesso stato, la
+  // cronologia le copre gratis, perché lavora sull'intero stato.
   testi: SchemaTestoLibero[]
 }
 
@@ -139,12 +143,18 @@ export interface SchemaEditorProps {
   onAnnulla: () => void
 }
 
-/** Quota più bassa occupata dal disegno: sotto di essa c'è spazio libero. */
-function piedeDelDisegno(nodes: Node[]): number {
-  if (nodes.length === 0) return 0
-  return Math.max(
-    ...nodes.map((n) => n.position.y + DIMENSIONI_NODO[(n.data as SchemaNodeData).nodo.tipo].altezza)
-  )
+/**
+ * Quota più bassa occupata dal disegno: sotto di essa c'è spazio libero, ed è lì che nascono
+ * apparecchiature e annotazioni nuove. Comprende le annotazioni già posate, non solo i nodi:
+ * altrimenti due scritte create di seguito finirebbero esattamente l'una sull'altra, illeggibili
+ * entrambe e con quella sopra a rubare il trascinamento all'altra.
+ */
+function piedeDelDisegno(nodes: Node[], testi: SchemaTestoLibero[]): number {
+  const quote = [
+    ...nodes.map((n) => n.position.y + DIMENSIONI_NODO[(n.data as SchemaNodeData).nodo.tipo].altezza),
+    ...testi.map((t) => ingombroTesto(t).basso),
+  ]
+  return quote.length === 0 ? 0 : Math.max(...quote)
 }
 
 // I codici di scheda non hanno mai questo prefisso (S1, C1, SEP1, ...): senza, un nodo
@@ -169,11 +179,20 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
   const [selezione, setSelezione] = useState<{ nodes: Node[]; edges: Edge[] }>({ nodes: [], edges: [] })
   const [anteprimaAperta, setAnteprimaAperta] = useState(true)
 
-  // Rinomina del terminale utenze. Solo di quello: le etichette delle apparecchiature vengono
-  // dalla scheda dati e la riconciliazione le riscrive alla riapertura (è la regola che tiene
-  // la §2.3 aggiornata quando si corregge marca o modello), quindi permettere di cambiarle qui
-  // sarebbe una modifica che si perde in silenzio.
-  const [rinomina, setRinomina] = useState<{ id: string; valore: string } | null>(null)
+  // Il dialog di scrittura, uno solo per due bersagli.
+  //
+  // «terminale»: la scritta del terminale utenze, e solo quella — le etichette delle
+  // apparecchiature vengono dalla scheda dati e la riconciliazione le riscrive alla riapertura
+  // (è la regola che tiene la §2.3 aggiornata quando si corregge marca o modello), quindi
+  // permettere di cambiarle qui sarebbe una modifica che si perde in silenzio.
+  //
+  // «testo»: un'annotazione libera. Con `id` a `null` è un'annotazione che ancora non esiste:
+  // si scrive prima e si crea alla conferma (vedi `confermaScrittura`).
+  const [scrittura, setScrittura] = useState<{
+    bersaglio: 'terminale' | 'testo'
+    id: string | null
+    valore: string
+  } | null>(null)
 
   // Il modello dello schema come sta adesso sulla tela. Ricostruirlo qui una volta sola, invece
   // che dentro ognuno dei calcoli qui sotto, è quel che tiene quote, capi e anteprima sullo
@@ -199,7 +218,8 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
   const capi = useMemo(() => capiDegliArchi(layoutCorrente), [layoutCorrente])
 
   // La tela di react-flow mostra nodi e archi — terminale utenze compreso, che dal 12-08-2026
-  // è un nodo come gli altri e si ritocca qui — ma non muro, nota e tabella. Dal Blocco C1 le
+  // è un nodo come gli altri e si ritocca qui — più le annotazioni libere, che nodi non sono e
+  // vivono nel portale della viewport; non mostra invece muro, nota e tabella. Dal Blocco C1 le
   // linee hanno la stessa forma del render statico in ogni caso, con o senza gomiti imposti a
   // mano (`instrada` condivisa, vedi SchemaEdgeTubazione.tsx). L'anteprima qui accanto resta
   // comunque il giudice dell'aspetto finale — è la stessa funzione che produce il PNG del
@@ -259,6 +279,15 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
   // una sua approssimazione: altrimenti l'indice del tratto afferrato non torna più con quello
   // che l'utente vede (giro di riparazione 1).
   const { edgesConTrascinamento } = useTrascinamentoTratto(stato, applica, aggiornaSenzaCronologia, quote)
+
+  // Creare, spostare, riscrivere e togliere un'annotazione libera: logica isolata in un hook suo
+  // (vedi useTestiLiberi.ts), stesso motivo di useGomiti.ts qui sopra. Non riceve `stato`
+  // perché, a differenza degli altri tre, non deve derivarne nulla: le annotazioni si rendono
+  // da `stato.testi` qui sotto, nel portale della viewport.
+  const { aggiungiTesto, spostaTesto, modificaTesto, rimuoviTesto } = useTestiLiberi<StatoEditor>(
+    applica,
+    aggiornaSenzaCronologia
+  )
 
   // `edgesConGomitiBase`, `edgesConSegni` ed `edgesConTrascinamento` derivano TUTTI e tre da
   // `stato.edges` con dati aggiuntivi diversi (rispettivamente `onSpostaGomito`/
@@ -347,7 +376,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
         const id = codiceLibero(voce.prefisso, s.nodes)
         // Sotto tutto il resto: un punto fisso finirebbe sopra un'apparecchiatura già
         // disegnata, nascondendola proprio mentre si lavora.
-        const posizione = { x: 40, y: piedeDelDisegno(s.nodes) + 40 }
+        const posizione = { x: 40, y: piedeDelDisegno(s.nodes, s.testi) + 40 }
         const nodo = {
           id,
           tipo: voce.tipo,
@@ -504,31 +533,65 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
   const onNodeDoubleClick = useCallback((_: React.MouseEvent, nodo: Node) => {
     const dati = (nodo.data as SchemaNodeData).nodo
     if (dati.tipo !== 'utenze') return
-    setRinomina({ id: nodo.id, valore: dati.etichetta })
+    setScrittura({ bersaglio: 'terminale', id: nodo.id, valore: dati.etichetta })
   }, [])
 
-  // Una scritta vuota non è accettabile (il terminale resterebbe senza dicitura) e il rifiuto
-  // deve vedersi PRIMA: chi svuota il campo e preme «Cambia scritta» crede di aver tolto la
-  // scritta, mentre il gesto veniva scartato in silenzio.
-  const scrittaValida = Boolean(rinomina?.valore.trim())
+  /** Doppio clic su un'annotazione: la riapre in scrittura (di lì si può anche eliminare). */
+  const apriTesto = useCallback(
+    (id: string) => {
+      const testo = stato.testi.find((t) => t.id === id)
+      if (!testo) return
+      setScrittura({ bersaglio: 'testo', id, valore: testo.contenuto })
+    },
+    [stato.testi]
+  )
 
-  const confermaRinomina = useCallback(() => {
-    if (!rinomina) return
-    const { id, valore } = rinomina
-    const etichetta = valore.trim()
-    setRinomina(null)
-    if (!etichetta) return
-    // Passa da `applica`, non da `aggiornaSenzaCronologia`: è un gesto come lo spostamento, e
-    // un solo Ctrl+Z deve annullarlo.
-    applica((s) => ({
-      ...s,
-      nodes: s.nodes.map((n) =>
-        n.id === id
-          ? { ...n, data: { nodo: { ...(n.data as SchemaNodeData).nodo, etichetta } } satisfies SchemaNodeData }
-          : n
-      ),
-    }))
-  }, [applica, rinomina])
+  // Una scritta vuota non è accettabile — il terminale resterebbe senza dicitura, e
+  // un'annotazione senza contenuto non si vedrebbe sulla tela, quindi nessuno potrebbe più né
+  // afferrarla né toglierla — e il rifiuto deve vedersi PRIMA: chi svuota il campo e conferma
+  // crede di aver tolto la scritta, mentre il gesto veniva scartato in silenzio.
+  const scrittaValida = Boolean(scrittura?.valore.trim())
+
+  const confermaScrittura = useCallback(() => {
+    if (!scrittura) return
+    const { bersaglio, id } = scrittura
+    const contenuto = scrittura.valore.trim()
+    setScrittura(null)
+    if (!contenuto) return
+    // Tutti e tre i rami passano da `applica` (dentro l'hook, per le annotazioni) e non da
+    // `aggiornaSenzaCronologia`: sono gesti come lo spostamento, e un solo Ctrl+Z deve
+    // annullarli. Per un'annotazione nuova la voce di cronologia è UNA, non due, perché il
+    // contenuto entra insieme alla posizione: annullare la toglie del tutto, invece di
+    // riportarla al passo intermedio in cui era vuota — cioè invisibile.
+    if (bersaglio === 'terminale') {
+      applica((s) => ({
+        ...s,
+        nodes: s.nodes.map((n) =>
+          n.id === id
+            ? { ...n, data: { nodo: { ...(n.data as SchemaNodeData).nodo, etichetta: contenuto } } satisfies SchemaNodeData }
+            : n
+        ),
+      }))
+      return
+    }
+    if (id !== null) {
+      modificaTesto(id, contenuto)
+      return
+    }
+    // Annotazione nuova: nasce sotto tutto il disegno, come le apparecchiature della palette.
+    // Un punto fisso, o il centro della tela, finirebbe sopra qualcosa di già disegnato.
+    aggiungiTesto({ x: 40, y: piedeDelDisegno(stato.nodes, stato.testi) + 40 }, contenuto)
+  }, [aggiungiTesto, applica, modificaTesto, scrittura, stato.nodes, stato.testi])
+
+  /** Elimina l'annotazione aperta nel dialog: è la sola strada per toglierne una, perché non
+   *  essendo nodi di react-flow le annotazioni non entrano nella selezione della tela e il
+   *  pulsante «Elimina» della barra non le vede. */
+  const eliminaTestoAperto = useCallback(() => {
+    if (!scrittura || scrittura.bersaglio !== 'testo' || scrittura.id === null) return
+    const { id } = scrittura
+    setScrittura(null)
+    rimuoviTesto(id)
+  }, [rimuoviTesto, scrittura])
 
   return (
     <Stack sx={{ height: '100%' }}>
@@ -631,6 +694,18 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
             {voce.etichetta}
           </Button>
         ))}
+        {/* Il dialog si apre subito e l'annotazione nasce solo alla conferma: scritta e
+            posizione entrano insieme, così sulla tela non compare mai un'annotazione vuota —
+            invisibile, e quindi impossibile da riafferrare o togliere. */}
+        <Tooltip title="Una scritta libera sul disegno: si trascina dove serve, doppio clic per riscriverla o eliminarla">
+          <Button
+            size="small"
+            startIcon={<AddIcon />}
+            onClick={() => setScrittura({ bersaglio: 'testo', id: null, valore: '' })}
+          >
+            Testo
+          </Button>
+        </Tooltip>
 
         <Divider orientation="vertical" flexItem />
 
@@ -705,6 +780,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
           <Controls />
           <ViewportPortal>
             <GuideAllineamento guide={guide} />
+            <TestiLiberi testi={stato.testi} onSposta={spostaTesto} onModifica={apriTesto} />
           </ViewportPortal>
         </ReactFlow>
       </Box>
@@ -739,9 +815,15 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
         </Button>
       </Stack>
 
+      {/* Un dialog solo per due bersagli (la scritta del terminale e le annotazioni libere):
+          sono lo stesso gesto — comporre un testo su più righe e confermarlo — e sdoppiarlo
+          significherebbe tenere allineate a mano due copie delle stesse cautele su tasti,
+          Esc e validazione qui sotto. Cambiano il titolo, l'esempio e le dizioni dei pulsanti.
+          Annullare non lascia mai nulla dietro: un'annotazione nuova non è ancora stata creata,
+          una esistente non è stata toccata. */}
       <Dialog
-        open={rinomina !== null}
-        onClose={() => setRinomina(null)}
+        open={scrittura !== null}
+        onClose={() => setScrittura(null)}
         maxWidth="xs"
         fullWidth
         // I tasti si fermano qui, sul dialog, e non sul solo campo di testo. Lo stopPropagation
@@ -757,7 +839,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
             e.stopPropagation()
-            setRinomina(null)
+            setScrittura(null)
             return
           }
           e.stopPropagation()
@@ -765,10 +847,12 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
           // renderebbe impossibile comporre la seconda riga. Resta la scorciatoia da
           // tastiera, con il modificatore — la stessa convenzione dei campi di commento —
           // mentre la strada principale è il pulsante.
-          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && scrittaValida) confermaRinomina()
+          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && scrittaValida) confermaScrittura()
         }}
       >
-        <DialogTitle>Scritta del terminale</DialogTitle>
+        <DialogTitle>
+          {scrittura?.bersaglio === 'testo' ? 'Testo sul disegno' : 'Scritta del terminale'}
+        </DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
@@ -778,15 +862,26 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
             maxRows={8}
             margin="dense"
             label="Testo"
-            helperText="Per esempio «Utenze aria», «Utenze azoto». Invio va a capo, Ctrl+Invio conferma (oppure usa il pulsante qui sotto)."
-            value={rinomina?.valore ?? ''}
-            onChange={(e) => setRinomina((r) => (r ? { ...r, valore: e.target.value } : r))}
+            helperText={
+              scrittura?.bersaglio === 'testo'
+                ? 'Una scritta libera sul disegno, per esempio «Locale compressori». Invio va a capo, Ctrl+Invio conferma (oppure usa il pulsante qui sotto).'
+                : 'Per esempio «Utenze aria», «Utenze azoto». Invio va a capo, Ctrl+Invio conferma (oppure usa il pulsante qui sotto).'
+            }
+            value={scrittura?.valore ?? ''}
+            onChange={(e) => setScrittura((s) => (s ? { ...s, valore: e.target.value } : s))}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRinomina(null)}>Lascia com'è</Button>
-          <Button variant="contained" onClick={confermaRinomina} disabled={!scrittaValida}>
-            Cambia scritta
+          {scrittura?.bersaglio === 'testo' && scrittura.id !== null && (
+            <Button color="error" startIcon={<DeleteIcon />} onClick={eliminaTestoAperto} sx={{ mr: 'auto' }}>
+              Elimina
+            </Button>
+          )}
+          <Button onClick={() => setScrittura(null)}>
+            {scrittura?.id === null ? 'Annulla' : "Lascia com'è"}
+          </Button>
+          <Button variant="contained" onClick={confermaScrittura} disabled={!scrittaValida}>
+            {scrittura?.bersaglio !== 'testo' ? 'Cambia scritta' : scrittura.id === null ? 'Aggiungi' : 'Salva'}
           </Button>
         </DialogActions>
       </Dialog>
