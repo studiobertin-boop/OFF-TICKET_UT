@@ -327,13 +327,23 @@ describe('quoteInstradamento', () => {
   function layoutDiProva(): SchemaLayout {
     return {
       nodi: [
+        // Più in alto del serbatoio più alto: se `quotaCollettore` perdesse il filtro
+        // `tipo === 'serbatoio'` e considerasse tutti i nodi, il minimo cadrebbe qui e il
+        // primo test lo scoprirebbe (atteso resterebbe 380 solo col filtro applicato).
         {
           id: 'C1', tipo: 'compressore', etichetta: 'Compressore', gruppo: 'SALA_COMPRESSORI',
-          valvoleSicurezza: [], origine: 'scheda', x: 100, y: 700,
+          valvoleSicurezza: [], origine: 'scheda', x: 100, y: 200,
         },
         {
           id: 'S1', tipo: 'serbatoio', orientamento: 'VERTICALE', etichetta: 'Serbatoio',
           gruppo: 'SALA_COMPRESSORI', valvoleSicurezza: [], origine: 'scheda', x: 500, y: 400,
+        },
+        // Secondo serbatoio, più in basso del primo: separa `Math.min` da `Math.max` fra i
+        // serbatoi, che con un solo serbatoio coinciderebbero e lascerebbero passare la
+        // mutazione min→max senza che nessun test se ne accorga.
+        {
+          id: 'S2', tipo: 'serbatoio', orientamento: 'VERTICALE', etichetta: 'Serbatoio',
+          gruppo: 'SALA_COMPRESSORI', valvoleSicurezza: [], origine: 'scheda', x: 700, y: 620,
         },
         {
           id: 'T1', tipo: 'tanica', etichetta: 'Raccolta condense', gruppo: 'ALTRO',
