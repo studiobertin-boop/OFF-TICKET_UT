@@ -730,7 +730,23 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
       </Stack>
 
       <Stack direction="row" sx={{ flex: 1, minHeight: 360 }}>
-      <Box sx={{ flex: 1, minWidth: 0, border: 1, borderColor: 'divider' }}>
+      {/* La tela è un foglio, non una finestra sul tema scuro. react-flow lascia trasparente la
+          propria pane (`--xy-background-color-default`), quindi senza questo fondo si vedrebbe il
+          Paper del dialog: bianco come l'anteprima qui accanto e come il documento consegnato, così
+          ciò che si disegna e ciò che si stampa hanno lo stesso aspetto.
+          I comandi di zoom di react-flow sono bianchi su bordo #eee e sul foglio sparirebbero: il
+          bordo qui sotto li ridà all'occhio senza toccare il foglio di stile della libreria. */}
+      <Box
+        sx={{
+          flex: 1,
+          minWidth: 0,
+          border: 1,
+          borderColor: 'divider',
+          bgcolor: 'common.white',
+          '& .react-flow__controls': { boxShadow: '0 0 0 1px #c9ced6' },
+          '& .react-flow__controls-button': { borderBottomColor: '#c9ced6' },
+        }}
+      >
         <ReactFlow
           nodes={stato.nodes}
           edges={edgesConGomiti}
@@ -786,7 +802,9 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
             [4000, 4000],
           ]}
         >
-          <Background gap={10} />
+          {/* Il grigio predefinito di xyflow (#91919a) è tarato su fondo chiaro ma compete col
+              disegno: qui la griglia deve guidare l'occhio, non farsi leggere. */}
+          <Background gap={10} color="#c9ced6" />
           <Controls />
           <ViewportPortal>
             <GuideAllineamento guide={guide} />
