@@ -90,9 +90,10 @@ describe('renderSvg', () => {
     utenze.etichetta = 'Utenze azoto'
 
     const svg = renderSvg(layout)
-    // La scritta viene dal nodo: cambiarla nel layout la cambia nel disegno.
-    expect(svg).toContain('>Utenze azoto</text>')
-    expect(svg).not.toContain('>Utenze aria</text>')
+    // La scritta viene dal nodo: cambiarla nel layout la cambia nel disegno. Il terminale la
+    // disegna con `testoMultiRiga` (Task 4), che avvolge anche una riga sola in un `<tspan>`.
+    expect(svg).toContain('>Utenze azoto</tspan>')
+    expect(svg).not.toContain('>Utenze aria</tspan>')
     // Una sola uscita: se la freccia automatica sopravvivesse, di terminali se ne vedrebbero due.
     expect(svg.match(/stroke-dasharray="10 7"/g) ?? []).toHaveLength(1)
   })

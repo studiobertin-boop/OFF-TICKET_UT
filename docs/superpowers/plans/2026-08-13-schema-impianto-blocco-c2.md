@@ -512,7 +512,7 @@ describe('terminale utenze su più righe', () => {
 npx vitest run src/services/schemaImpianto/__tests__/simboli.test.ts > task-4-rosso.txt 2>&1
 ```
 
-Atteso: il primo test rosso (nessun `<tspan>`: oggi `simboloUtenze` usa `testo()`), il terzo rosso (l'altezza non cambia mai), il quarto rosso (il codolo parte da `DIMENSIONI.utenze.altezza`, non dall'altezza effettiva).
+Atteso: il primo test rosso (nessun `<tspan>`: oggi `simboloUtenze` usa `testo()`), il secondo rosso (la larghezza si misura su tutta la stringa, `\n` compreso, non sulla riga più lunga), il terzo rosso (l'altezza non cambia mai). Il quarto («il codolo parte dal fondo del riquadro») resta invece verde anche prima dell'implementazione: oggi sia `simboloUtenze` (`DIMENSIONI.utenze.altezza`) sia `dimensioniDi` (che prima del Task 4 restituisce sempre l'altezza fissa del registro) leggono lo stesso valore costante, quindi coincidono per qualunque etichetta — è un test che protegge il comportamento futuro, non uno che oggi discrimina un bug.
 
 - [ ] **Step 3: Implementa**
 

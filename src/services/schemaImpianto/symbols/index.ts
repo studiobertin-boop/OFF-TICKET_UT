@@ -57,11 +57,12 @@ export const INTERLINEA_TESTO = 1.25
  *
  * `x`/`y` sono il primo capo della PRIMA riga (o il suo centro, secondo `ancora`): le righe
  * successive scendono. Chi calcola l'ingombro di un testo deve quindi tenere conto che il
- * blocco cresce verso il basso.
+ * blocco cresce verso il basso — `dimensioniDi`, per il terminale utenze, è dove questo calcolo
+ * vive.
  *
- * Non ha ancora consumatori in questo repo: il terminale utenze e i testi liberi che la
- * useranno arrivano nei task successivi del Blocco C2 (`testo()` resta il disegno di tutto
- * ciò che oggi è a riga singola: codici, etichette, tabella).
+ * Il terminale utenze (`simboloUtenze`) è il primo consumatore in questo repo; i testi liberi
+ * che la useranno arrivano nei task successivi del Blocco C2 (`testo()` resta il disegno di
+ * tutto ciò che oggi è a riga singola: codici, etichette, tabella).
  */
 export function testoMultiRiga(
   x: number,
@@ -411,6 +412,8 @@ const UTENZE = {
    * tipograficamente, e misurare i glifi richiederebbe un DOM che queste funzioni non hanno.
    */
   larghezzaCarattere: 0.5,
+  /** Aria fra l'ultima riga della scritta e il fondo del riquadro. */
+  margineInferiore: 10,
 }
 
 /**
@@ -424,13 +427,13 @@ const UTENZE = {
  * verrebbe disegnato affatto.
  */
 export function simboloUtenze(nodo: SchemaNodo): string {
-  const { altezza } = DIMENSIONI.utenze
+  const { altezza } = dimensioniDi(nodo)
   const x = UTENZE.x
   const yPunta = 14
   return [
     `<path d="M ${x} ${altezza} L ${x} ${yPunta + 12}" fill="none" stroke="#000" stroke-width="${TRATTO}" stroke-dasharray="10 7" />`,
     `<path d="M ${x - 6} ${yPunta + 13} L ${x} ${yPunta} L ${x + 6} ${yPunta + 13} Z" fill="#000" />`,
-    testo(x + UTENZE.rientroScritta, yPunta + 6, nodo.etichetta, UTENZE.dimensioneScritta, 'start'),
+    testoMultiRiga(x + UTENZE.rientroScritta, yPunta + 6, nodo.etichetta, UTENZE.dimensioneScritta, 'start'),
   ].join('')
 }
 
@@ -538,11 +541,10 @@ export function definizioneDi(nodo: { tipo: SchemaNodoTipo; orientamento?: 'VERT
 
 /**
  * Le ancore di un nodo. Coincidono con quelle del registro per tutti i tipi tranne il
- * terminale utenze, il cui riquadro cresce con la lunghezza della scritta (vedi `dimensioniDi`):
- * il suo attacco sta in fondo al riquadro, dove comincia il codolo, quindi segue l'altezza
- * invece di restare alla quota fissa dichiarata nel registro. Oggi `dimensioniDi` dà
- * un'altezza fissa per il terminale (120, come tutti): la crescita in altezza arriva col
- * prossimo blocco, che farà sì che questo ramo smetta di essere un no-op.
+ * terminale utenze, il cui riquadro cresce con la lunghezza della scritta e, da quando la
+ * scritta può andare a capo, anche col numero di righe (vedi `dimensioniDi`): il suo attacco
+ * sta in fondo al riquadro, dove comincia il codolo, quindi segue l'altezza invece di restare
+ * alla quota fissa dichiarata nel registro.
  *
  * Il registro resta la fonte per la forma e per gli identificativi — che entrano negli archi
  * salvati e non possono cambiare — e questa funzione è l'unico posto dove una coordinata
@@ -565,21 +567,33 @@ export function ancoraDi(nodo: SchemaNodo, id: string): SchemaAncora | undefined
  * larghezza fissa di 190 le restavano una diciassettina di caratteri — oltre, la scritta usciva
  * dal riquadro, tagliata subito nell'editor (`SchemaNodeSymbol` monta un `<svg>` largo quanto
  * l'ingombro) e tagliata nel PNG appena superava il margine. La larghezza si ricava quindi dalla
- * lunghezza dell'etichetta, con quella del registro come minimo, così `dimensioniLayout` allarga
- * da sé la tela come la spec promette.
+ * lunghezza della riga più lunga dell'etichetta, con quella del registro come minimo, così
+ * `dimensioniLayout` allarga da sé la tela come la spec promette. Da quando la scritta può andare
+ * a capo (vedi `testoMultiRiga`), anche l'altezza cresce allo stesso modo, sull'ultima riga: sotto
+ * il numero di righe che il registro prevedeva resta quella fissa, sopra si allunga per farcele
+ * stare tutte.
  *
  * `DIMENSIONI_NODO` resta un `Record` statico per tipo e non può portare questa informazione:
  * chi ha in mano il nodo (e quindi la sua etichetta) passa di qui, gli altri continuano a leggere
- * il registro. I due punti dove la larghezza del terminale conta davvero sono `dimensioniLayout`
- * (la tela del PNG) e `SchemaNodeSymbol` (il riquadro sulla tela dell'editor).
+ * il registro. I due punti dove l'ingombro del terminale conta davvero sono `dimensioniLayout`
+ * (la tela del PNG) e `SchemaNodeSymbol` (il riquadro sulla tela dell'editor); `simboloUtenze` e
+ * `ancoreDi` leggono l'altezza da qui anziché dal registro, per la stessa ragione.
  */
 export function dimensioniDi(nodo: SchemaNodo): { larghezza: number; altezza: number } {
   const dimensioni = definizioneDi(nodo).dimensioni
   if (nodo.tipo !== 'utenze') return dimensioni
 
-  const scritta = nodo.etichetta.length * UTENZE.dimensioneScritta * UTENZE.larghezzaCarattere
-  const necessaria = UTENZE.x + UTENZE.rientroScritta + scritta + UTENZE.margineDestro
-  return { larghezza: Math.max(dimensioni.larghezza, Math.ceil(necessaria)), altezza: dimensioni.altezza }
+  const righe = nodo.etichetta.split('\n')
+  const piuLunga = Math.max(...righe.map((r) => r.length))
+  const scritta = piuLunga * UTENZE.dimensioneScritta * UTENZE.larghezzaCarattere
+  const larghezzaNecessaria = UTENZE.x + UTENZE.rientroScritta + scritta + UTENZE.margineDestro
+  // La prima riga è centrata a `yPunta + 6` = 20; ogni riga successiva scende di un'interlinea.
+  const ultimaRiga = 20 + (righe.length - 1) * UTENZE.dimensioneScritta * INTERLINEA_TESTO
+  const altezzaNecessaria = ultimaRiga + UTENZE.margineInferiore
+  return {
+    larghezza: Math.max(dimensioni.larghezza, Math.ceil(larghezzaNecessaria)),
+    altezza: Math.max(dimensioni.altezza, Math.ceil(altezzaNecessaria)),
+  }
 }
 
 /** Ingombri per tipo, ricavati dal registro. Conserva la forma che `layout.ts` già usa. */

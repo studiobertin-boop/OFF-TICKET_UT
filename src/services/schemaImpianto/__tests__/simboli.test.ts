@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { chiaveSimbolo } from '../types'
-import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, valvolaIntercettazione, riduttorePressione, testoMultiRiga } from '../symbols'
+import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloUtenze, valvolaIntercettazione, riduttorePressione, testoMultiRiga } from '../symbols'
 import { capoValido } from '../agganci'
 
 describe('chiaveSimbolo', () => {
@@ -73,8 +73,13 @@ describe('ancoreDi', () => {
     // Il codolo del terminale parte dal fondo del riquadro: se l'ancora restasse alla quota
     // fissa del registro mentre il riquadro si allunga, la tubazione si attaccherebbe a metà
     // del codolo invece che alla sua base.
+    //
+    // «lunga» deve avere righe a sufficienza da superare l'altezza minima del registro (120):
+    // con 3 righe (verifica fatta a mano in fase di stesura) il riquadro non cresce affatto e il
+    // test resterebbe vero anche con l'ancora fissa — decorativo, non protettivo. Con 6 lo
+    // supera davvero, e il test discrimina.
     const corta = terminale('Utenze aria')
-    const lunga = terminale('Utenze aria\nreparto verniciatura\ne collaudo')
+    const lunga = terminale('Utenze aria\nreparto verniciatura\ne collaudo\nlinea 4\nlinea 5\nlinea 6')
     expect(ancoreDi(corta).find((a) => a.id === 'in')!.y).toBe(dimensioniDi(corta).altezza)
     expect(ancoreDi(lunga).find((a) => a.id === 'in')!.y).toBe(dimensioniDi(lunga).altezza)
   })
@@ -91,8 +96,9 @@ describe('simbolo «Alle utenze»', () => {
   }
 
   it('disegna la scritta che il nodo porta, non una cablata nel codice', () => {
-    expect(simboloDi(utenze)).toContain('>Utenze aria</text>')
-    expect(simboloDi({ ...utenze, etichetta: 'Utenze azoto' })).toContain('>Utenze azoto</text>')
+    // `testoMultiRiga` (Task 4) avvolge anche una riga sola in un `<tspan>`.
+    expect(simboloDi(utenze)).toContain('>Utenze aria</tspan>')
+    expect(simboloDi({ ...utenze, etichetta: 'Utenze azoto' })).toContain('>Utenze azoto</tspan>')
   })
 
   it('disegna il codolo tratteggiato e la punta di freccia piena', () => {
@@ -128,7 +134,7 @@ describe('simbolo «Alle utenze»', () => {
     // Una lunga lo allarga, e la scritta ci sta dentro per intero.
     expect(lunga.larghezza).toBeGreaterThan(190)
     expect(simboloDi({ ...utenze, etichetta: 'Utenze aria compressa reparto 2' })).toContain(
-      '>Utenze aria compressa reparto 2</text>'
+      '>Utenze aria compressa reparto 2</tspan>'
     )
     // Cresce con la lunghezza, non a scatti fissi: quattro caratteri in più allargano ancora.
     expect(piuLunga.larghezza).toBeGreaterThan(lunga.larghezza)
@@ -152,6 +158,48 @@ describe('simbolo «Alle utenze»', () => {
     expect(capoValido(utenze, 'in', 'standard')).toBe(true)
     expect(capoValido(utenze, 'in', 'flessibile')).toBe(true)
     expect(capoValido(utenze, 'in', 'condensa')).toBe(false)
+  })
+})
+
+describe('terminale utenze su più righe', () => {
+  const terminale = (etichetta: string) => ({
+    id: 'UTENZE', tipo: 'utenze' as const, etichetta, gruppo: 'LINEA_DISTRIBUZIONE' as const,
+    valvoleSicurezza: [], origine: 'scheda' as const,
+  })
+
+  it('disegna una riga per capoverso', () => {
+    const svg = simboloUtenze(terminale('Utenze aria\nreparto 2'))
+    expect([...svg.matchAll(/<tspan/g)]).toHaveLength(2)
+    expect(svg).toContain('>Utenze aria</tspan>')
+    expect(svg).toContain('>reparto 2</tspan>')
+  })
+
+  it('la larghezza si misura sulla riga più lunga, non su tutto il contenuto', () => {
+    // Con la misura sull'intera stringa, due righe corte darebbero un riquadro largo quanto
+    // la loro somma: la tela del documento crescerebbe a vuoto di centinaia di unità.
+    const dueRigheCorte = dimensioniDi(terminale('Utenze aria\nreparto 2'))
+    const unaRigaLunga = dimensioniDi(terminale('Utenze aria reparto 2'))
+    expect(dueRigheCorte.larghezza).toBeLessThan(unaRigaLunga.larghezza)
+  })
+
+  it('l’altezza cresce col numero di righe, e solo quando serve', () => {
+    const una = dimensioniDi(terminale('Utenze aria'))
+    const due = dimensioniDi(terminale('Utenze aria\nreparto 2'))
+    const otto = dimensioniDi(terminale(Array.from({ length: 8 }, (_, i) => `riga ${i}`).join('\n')))
+    expect(due.altezza).toBe(una.altezza)
+    expect(otto.altezza).toBeGreaterThan(una.altezza)
+    // Tutte le righe stanno dentro il riquadro: l'ultima non sporge sotto il bordo.
+    const ultimaRiga = 20 + 7 * 18 * 1.25
+    expect(otto.altezza).toBeGreaterThanOrEqual(ultimaRiga)
+  })
+
+  it('il codolo parte dal fondo del riquadro, che è dove si attacca la tubazione', () => {
+    const lungo = terminale(Array.from({ length: 8 }, (_, i) => `riga ${i}`).join('\n'))
+    const altezza = dimensioniDi(lungo).altezza
+    // 12 è `UTENZE.x`, l'ascissa del codolo: la costante non è esportata, quindi il test la
+    // fissa come letterale — se cambia, questo test deve accorgersene.
+    expect(simboloUtenze(lungo)).toContain(`M 12 ${altezza}`)
+    expect(ancoreDi(lungo).find((a) => a.id === 'in')!.y).toBe(altezza)
   })
 })
 
