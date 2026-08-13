@@ -117,6 +117,7 @@ export const RequestDetail = () => {
   const [offCacValue, setOffCacValue] = useState<'off' | 'cac' | ''>('')
   const [statoFatturaValue, setStatoFatturaValue] = useState<StatoFattura>('NO')
   const [togglingUrgent, setTogglingUrgent] = useState(false)
+  const [savingXFattura, setSavingXFattura] = useState(false)
   const [salvandoStatoScheda, setSalvandoStatoScheda] = useState(false)
   const queryClient = useQueryClient()
 
@@ -249,6 +250,7 @@ export const RequestDetail = () => {
     return Object.entries(request.custom_fields)
       .filter(([key]) => {
         if (key === 'note') return false                                               // ha una sezione dedicata
+        if (key === 'x_fattura') return false                                          // colonna proprietà, solo admin
         if (isDM329 && ['no_civa', 'off_cac', 'stato_fattura'].includes(key)) return false // colonna proprietà
         if (campiCliente.includes(key)) return false                                   // sezione Cliente
         if (campiTecnici.includes(key)) return false                                   // interni
@@ -331,6 +333,24 @@ export const RequestDetail = () => {
       alert('Errore nel cambiamento dello stato urgente')
     } finally {
       setTogglingUrgent(false)
+    }
+  }
+
+  const handleChangeXFattura = async (delta: 1 | -1) => {
+    if (!id || !request) return
+    const current = (request.custom_fields?.x_fattura as number) ?? 1
+    const next = Math.min(10, Math.max(1, current + delta))
+    if (next === current) return
+
+    try {
+      setSavingXFattura(true)
+      await requestsApi.updateCustomField(id, 'x_fattura', next)
+      await refetch()
+    } catch (err) {
+      console.error('Error updating x_fattura:', err)
+      alert('Errore nel salvataggio di X Fattura')
+    } finally {
+      setSavingXFattura(false)
     }
   }
 
@@ -828,6 +848,10 @@ export const RequestDetail = () => {
               setStatoFatturaValue={setStatoFatturaValue}
               showIncompleteCustomer={!!customerRecord && hasIncompleteCustomerData(customerRecord)}
               onCompleteCustomer={() => setShowCompleteCustomerDialog(true)}
+              isAdmin={user?.role === 'admin'}
+              xFattura={(request.custom_fields?.x_fattura as number) ?? 1}
+              savingXFattura={savingXFattura}
+              onChangeXFattura={handleChangeXFattura}
             />
 
             <AssignmentSection

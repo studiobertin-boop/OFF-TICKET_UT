@@ -9,8 +9,9 @@ import {
   InputLabel,
   MenuItem,
   Select,
+  Typography,
 } from '@mui/material'
-import { Close as CloseIcon, Edit as EditIcon, Save as SaveIcon } from '@mui/icons-material'
+import { Close as CloseIcon, Edit as EditIcon, Save as SaveIcon, Add as AddIcon, Remove as RemoveIcon } from '@mui/icons-material'
 import { FieldValue, SectionLabel } from '@/components/common'
 import { isDM329Family } from '@/utils/workflow'
 import {
@@ -46,6 +47,12 @@ export interface RequestPropertiesRailProps {
 
   showIncompleteCustomer: boolean
   onCompleteCustomer: () => void
+
+  /** "X Fattura": visibile e modificabile solo da admin, sia su DM329 sia su richieste generali. */
+  isAdmin: boolean
+  xFattura: number
+  savingXFattura: boolean
+  onChangeXFattura: (delta: 1 | -1) => void
 }
 
 /**
@@ -77,6 +84,10 @@ export const RequestPropertiesRail = ({
   setStatoFatturaValue,
   showIncompleteCustomer,
   onCompleteCustomer,
+  isAdmin,
+  xFattura,
+  savingXFattura,
+  onChangeXFattura,
 }: RequestPropertiesRailProps) => {
   // Solo i tre campi fissi DM329 si modificano da qui: le richieste ordinarie
   // hanno campi dinamici da fields_schema, troppo larghi per una colonna stretta,
@@ -183,6 +194,35 @@ export const RequestPropertiesRail = ({
             />
           </>
         ))}
+
+        {isAdmin && (
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.4 }}>
+              X Fattura
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <IconButton
+                size="small"
+                onClick={() => onChangeXFattura(-1)}
+                disabled={savingXFattura || xFattura <= 1}
+                title="Diminuisci"
+              >
+                <RemoveIcon fontSize="small" />
+              </IconButton>
+              <Typography variant="body2" sx={{ minWidth: '1.5em', textAlign: 'center' }}>
+                {xFattura}
+              </Typography>
+              <IconButton
+                size="small"
+                onClick={() => onChangeXFattura(1)}
+                disabled={savingXFattura || xFattura >= 10}
+                title="Aumenta"
+              >
+                <AddIcon fontSize="small" />
+              </IconButton>
+            </Box>
+          </Box>
+        )}
 
         {showIncompleteCustomer && (
           <Alert
