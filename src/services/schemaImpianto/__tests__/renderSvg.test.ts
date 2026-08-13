@@ -243,13 +243,13 @@ describe('renderSvg', () => {
     expect((flessibile[0].match(/Q /g) ?? []).length).toBeGreaterThan(8)
   })
 
-  // La forma della mandata flessibile la decide `rottaFlessibile` (tratti.ts), condivisa con
-  // l'editor: qui si verifica che il documento la riporti davvero, non solo che disegni *un*
-  // percorso ondulato qualunque. Il vertice dove il collettore piega verso la discesa è quello
-  // che discrimina: se `instrada`/`rottaFlessibile` sbagliasse il verso dello scostamento
-  // (`AVVICINAMENTO`), la discesa cadrebbe dall'altra parte del bocchello e nessuno degli altri
-  // test sul flessibile se ne accorgerebbe (controllano solo l'onda e il punto d'arrivo finale,
-  // invariato in entrambi i casi).
+  // La forma della mandata flessibile la decide `rottaFlessibile` (tratti.ts), che il render del
+  // documento chiama tramite `instrada` da questo task: qui si verifica che il documento la
+  // riporti davvero, non solo che disegni *un* percorso ondulato qualunque. Il vertice dove il
+  // collettore piega verso la discesa è quello che discrimina: se `instrada`/`rottaFlessibile`
+  // sbagliasse il verso dello scostamento (`AVVICINAMENTO`), la discesa cadrebbe dall'altra parte
+  // del bocchello e nessuno degli altri test sul flessibile se ne accorgerebbe (controllano solo
+  // l'onda e il punto d'arrivo finale, invariato in entrambi i casi).
   it('la discesa della mandata flessibile si stacca dal fianco del serbatoio verso l’interno', () => {
     const scheda = makeScheda({
       compressori: [makeCompressore({ ha_disoleatore: false })],
@@ -272,6 +272,48 @@ describe('renderSvg', () => {
     const svg = renderSvg(layout)
     const atteso = new RegExp(`Q [-\\d.]+ [-\\d.]+ ${xDiscesa} ${quote.yCollettore}`)
     expect(svg).toMatch(atteso)
+  })
+
+  // Stessa logica della sonda sul flessibile qui sopra, applicata a `rottaLinea`: il vertice
+  // che discrimina è quello dove la spezzata piega, a metà strada in ORIZZONTALE (`xMedia`, sul
+  // primo tratto). Nessun altro test sulle mandate di linea guarda un punto intermedio: quelli
+  // esistenti controllano solo l'inizio (ancora di partenza) e la presenza/assenza della punta di
+  // freccia, entrambi invarianti anche se la spezzata girasse in verticale invece che in
+  // orizzontale.
+  it('la mandata di linea gira a metà strada in orizzontale, non in verticale', () => {
+    const scheda = makeScheda({ dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }) })
+    const layout = layoutSchema(
+      buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    )
+    const indice = new Map(layout.nodi.map((n) => [n.id, n]))
+    const arco = layout.archi.find(
+      (a) => a.stile === 'standard' && indice.get(a.a.nodo)!.tipo !== 'utenze'
+    )!
+    const pDa = posizioneAncora(indice.get(arco.da.nodo)!, arco.da.ancora)
+    const pA = posizioneAncora(indice.get(arco.a.nodo)!, arco.a.ancora)
+    const xMedia = (pDa.x + pA.x) / 2
+
+    const svg = renderSvg(layout)
+    expect(svg).toContain(`M ${pDa.x} ${pDa.y} L ${xMedia} ${pDa.y} L ${xMedia} ${pA.y} L ${pA.x} ${pA.y}`)
+  })
+
+  // Stessa logica ancora, applicata a `rottaCondensa`: il vertice che discrimina è il primo, dove
+  // il tubo sale dal nodo fino alla corsia comune restando sulla `x` di PARTENZA. Se il primo
+  // salto avvenisse sulla `x` di arrivo invece che su quella di partenza, il tratto orizzontale
+  // sulla corsia si sposterebbe ma il punto di partenza (che altri test verificano) e quello di
+  // arrivo resterebbero identici — nessun test esistente se ne accorgerebbe.
+  it('la linea condense sale dal nodo sulla propria x prima di traslare sulla corsia comune', () => {
+    const scheda = makeScheda({ dati_impianto: makeDatiImpianto({ raccolta_condense: 'tanica' }) })
+    const layout = layoutSchema(
+      buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    )
+    const arco = layout.archi.find((a) => a.stile === 'condensa')!
+    const indice = new Map(layout.nodi.map((n) => [n.id, n]))
+    const pDa = posizioneAncora(indice.get(arco.da.nodo)!, arco.da.ancora)
+    const quote = quoteInstradamento(layout)
+
+    const svg = renderSvg(layout)
+    expect(svg).toContain(`M ${pDa.x} ${pDa.y} L ${pDa.x} ${quote.yCorsiaCondense}`)
   })
 })
 

@@ -71,8 +71,8 @@ export interface RenderSvgOptions {
 
 /**
  * Mandata compressore → serbatoio, resa ondulata come i flessibili dei blocchi di riferimento.
- * La FORMA la decide `instrada` (tratti.ts), condivisa con l'editor: qui resta solo la resa
- * grafica — l'onda e la punta di freccia.
+ * La FORMA la decide `instrada` (tratti.ts), pensata per essere condivisa con l'editor (non
+ * ancora cablato su di lei): qui resta solo la resa grafica — l'onda e la punta di freccia.
  */
 function renderMandataCompressore(
   da: SchemaNodoPosizionato,
