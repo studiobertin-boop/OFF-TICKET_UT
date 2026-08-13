@@ -81,7 +81,8 @@ describe('riassumiBlocchi', () => {
 
   it('dispone i segmenti sulla vita della pratica, in ordine cronologico', () => {
     const r = riassumiBlocchi([APERTO, RISOLTO], { creataIl: CREATA, adesso: ADESSO })
-    expect(r.segmenti).toHaveLength(2)
+    // Fermo risolto, il segno del suo sblocco, fermo ancora aperto.
+    expect(r.segmenti.map((s) => s.tipo)).toEqual(['fermo', 'sblocco', 'fermo'])
 
     // Il primo fermo comincia al giorno 14 di 30 e dura 7 giorni.
     expect(r.segmenti[0].inizio).toBeCloseTo(46.7, 0)
@@ -91,10 +92,39 @@ describe('riassumiBlocchi', () => {
       '28 lug – 4 ago · 7 giorni · Manca la dichiarazione CE del serbatoio S2'
     )
 
-    expect(r.segmenti[1].aperto).toBe(true)
-    expect(r.segmenti[1].descrizione).toBe(
+    expect(r.segmenti[2].aperto).toBe(true)
+    expect(r.segmenti[2].descrizione).toBe(
       'Dal 10 ago · 3 giorni · In attesa del verbale di taratura delle valvole'
     )
+  })
+
+  it('segna anche il momento dello sblocco, con la sua nota', () => {
+    const r = riassumiBlocchi([RISOLTO], { creataIl: CREATA, adesso: ADESSO })
+    const sblocco = r.segmenti.find((s) => s.tipo === 'sblocco')!
+
+    // Non ha durata: larghezza fissa, e comincia dove il fermo finisce.
+    expect(sblocco.larghezza).toBeCloseTo(1.8, 5)
+    expect(sblocco.inizio).toBeCloseTo(r.segmenti[0].inizio + r.segmenti[0].larghezza, 0)
+    expect(sblocco.descrizione).toBe(
+      'Sbloccata il 4 ago da Francesco Bertin · Certificato ricevuto e allegato'
+    )
+  })
+
+  it('lo sblocco senza note lo dice, invece di lasciare il vuoto', () => {
+    const senzaNote = blocco({
+      blocked_at: '2026-08-01T08:00:00.000Z',
+      unblocked_at: '2026-08-03T08:00:00.000Z',
+      resolution_notes: null,
+      unblocked_by_user: undefined,
+    })
+    const sblocco = riassumiBlocchi([senzaNote], { creataIl: CREATA, adesso: ADESSO })
+      .segmenti.find((s) => s.tipo === 'sblocco')!
+    expect(sblocco.descrizione).toBe('Sbloccata il 3 ago · nessuna nota di risoluzione')
+  })
+
+  it('un fermo ancora aperto non produce alcun segno di sblocco', () => {
+    const r = riassumiBlocchi([APERTO], { creataIl: CREATA, adesso: ADESSO })
+    expect(r.segmenti.every((s) => s.tipo === 'fermo')).toBe(true)
   })
 
   it('un fermo di poche ore resta visibile invece di sparire in scala', () => {

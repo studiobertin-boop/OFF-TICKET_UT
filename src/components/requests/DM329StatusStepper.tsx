@@ -31,7 +31,7 @@ interface DM329StatusStepperProps {
 }
 
 // I 7 passi in sequenza (esclude "ARCHIVIATA NON FINITA", stato terminale a parte)
-const STEPS: DM329Status[] = [
+export const STEPS: DM329Status[] = [
   '1-INCARICO_RICEVUTO',
   '2-SCHEDA_DATI_PRONTA',
   '3-MAIL_CLIENTE_INVIATA',

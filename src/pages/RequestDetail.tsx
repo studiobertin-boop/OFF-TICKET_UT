@@ -55,7 +55,7 @@ import { useActiveBlock, useRequestBlocks } from '@/hooks/useRequestBlocks'
 import { riassumiBlocchi } from '@/utils/blocchiPratica'
 import { isDM329Family } from '@/utils/workflow'
 import { FieldValue, SectionLabel } from '@/components/common'
-import { DM329StatusStepper } from '@/components/requests/DM329StatusStepper'
+import { DM329StatusStepper, STEPS } from '@/components/requests/DM329StatusStepper'
 import { SchedaDatiStatoGroup } from '@/components/requests/SchedaDatiStatoGroup'
 import { CAMPO_STATO_SCHEDA, compilazioneDiPratica, type StatoScheda } from '@/utils/schedaStato'
 import { useRequestTypes } from '@/hooks/useRequestTypes'
@@ -542,9 +542,17 @@ export const RequestDetail = () => {
   const indirizzoImpianto = risolviIndirizzoImpianto(request.indirizzo_impianto)
   const noteSalvata = (request.custom_fields?.note as string) || ''
 
-  // Una lettura sola dei fermi per il chip e per il nastro: se la calcolassero separatamente
-  // potrebbero raccontare la stessa pratica in due modi.
   const riassuntoBlocchi = riassumiBlocchi(blocchiPratica, { creataIl: request.created_at })
+
+  /**
+   * Quanto del percorso la pratica ha coperto: la stessa frazione del pallino acceso nello
+   * stepper — centro del passo corrente, non suo bordo — così il nastro finisce lì sotto.
+   * Fuori dal DM329 non c'è uno stepper a cui allinearsi e il nastro prende tutta la riga.
+   */
+  const passoCorrente = STEPS.indexOf(request.status as never)
+  const avanzamento = isDM329 && passoCorrente > -1
+    ? (passoCorrente + 0.5) / STEPS.length
+    : 1
 
   return (
     <Layout>
@@ -557,6 +565,8 @@ export const RequestDetail = () => {
           canManageCodice={canManageCodice}
           onEditCodice={() => setCodiceDialogOpen(true)}
           blocchi={riassuntoBlocchi}
+          avanzamento={avanzamento}
+          blockReason={activeBlock?.reason}
           onBack={() => navigate('/requests')}
           primaryActions={
             <>

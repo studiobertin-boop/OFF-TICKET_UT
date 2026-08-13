@@ -22,8 +22,15 @@ export interface EventoBlocco {
   nota?: string
 }
 
-/** Un periodo di fermo sulla barra, in percentuale della vita della pratica. */
+/**
+ * Un tratto della barra, in percentuale della vita della pratica.
+ *
+ * I fermi hanno una durata e occupano lo spazio che gli spetta; lo sblocco è un istante e
+ * non ne occuperebbe nessuno — gli si dà una larghezza fissa, quel tanto che basta a
+ * vederlo e a passarci sopra col mouse per leggerne le note.
+ */
 export interface SegmentoFermo {
+  tipo: 'fermo' | 'sblocco'
   inizio: number
   larghezza: number
   /** Il fermo è ancora in corso: si disegna diverso, e non ha una fine da mostrare. */
@@ -58,6 +65,15 @@ export interface RiassuntoBlocchi {
  * scala sparirebbe, e la barra direbbe «mai ferma» di una pratica che si è fermata.
  */
 const LARGHEZZA_MINIMA = 1.5
+
+/**
+ * Larghezza del segno di sblocco, in percentuale.
+ *
+ * Lo sblocco non dura: è il momento in cui la pratica riparte. Sulla barra vale come un
+ * segno, non come un periodo — stretto perché non finga una durata, ma abbastanza largo da
+ * poterci passare sopra col mouse e leggere perché è ripartita.
+ */
+const LARGHEZZA_SBLOCCO = 1.8
 
 const giorniFra = (da: number, a: number) => Math.max(0, Math.floor((a - da) / MS_GIORNO))
 
@@ -113,6 +129,7 @@ export function riassumiBlocchi(
     const aperto = !b.unblocked_at
 
     segmenti.push({
+      tipo: 'fermo',
       // Il segmento resta dentro la barra anche quando la larghezza minima lo allargherebbe oltre.
       inizio: Math.max(0, Math.min(inizio, 100 - larghezza)),
       larghezza,
@@ -121,7 +138,27 @@ export function riassumiBlocchi(
         ? `Dal ${dataBreve(b.blocked_at)} · ${durataInParole(giorni)} · ${b.reason}`
         : `${dataBreve(b.blocked_at)} – ${dataBreve(b.unblocked_at!)} · ${durataInParole(giorni)} · ${b.reason}`,
     })
+
+    // Il momento in cui è ripartita, subito dopo il fermo che chiude.
+    if (b.unblocked_at) {
+      const inizioSblocco = ((a - nascita) / arco) * 100
+      const chi = b.unblocked_by_user?.full_name
+      segmenti.push({
+        tipo: 'sblocco',
+        inizio: Math.max(0, Math.min(inizioSblocco, 100 - LARGHEZZA_SBLOCCO)),
+        larghezza: LARGHEZZA_SBLOCCO,
+        aperto: false,
+        descrizione: [
+          `Sbloccata il ${dataBreve(b.unblocked_at)}${chi ? ` da ${chi}` : ''}`,
+          b.resolution_notes || 'nessuna nota di risoluzione',
+        ].join(' · '),
+      })
+    }
   }
+
+  // In ordine di posizione: il segno di sblocco è l'ultimo del suo fermo, e i fermi si
+  // susseguono, ma ordinarli esplicitamente rende il disegno indipendente dall'inserimento.
+  segmenti.sort((x, y) => x.inizio - y.inizio)
 
   const eventi: EventoBlocco[] = []
   for (const b of cronologici) {
