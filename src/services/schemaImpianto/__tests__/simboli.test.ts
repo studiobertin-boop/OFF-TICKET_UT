@@ -194,9 +194,13 @@ describe('terminale utenze su più righe', () => {
     const otto = dimensioniDi(terminale(Array.from({ length: 8 }, (_, i) => `riga ${i}`).join('\n')))
     expect(due.altezza).toBe(una.altezza)
     expect(otto.altezza).toBeGreaterThan(una.altezza)
-    // Tutte le righe stanno dentro il riquadro: l'ultima non sporge sotto il bordo.
-    const ultimaRiga = 20 + 7 * 18 * 1.25
-    expect(otto.altezza).toBeGreaterThanOrEqual(ultimaRiga)
+    // Valore atteso ESATTO, non solo un limite inferiore: un `toBeGreaterThanOrEqual` non si
+    // accorgerebbe se `UTENZE.margineInferiore` (symbols/index.ts) cambiasse — l'altezza
+    // crescerebbe comunque, e resterebbe sopra la soglia. 20 è il centro della prima riga
+    // (`yPunta + 6`), 7 * 18 * 1,25 (INTERLINEA_TESTO) porta all'ultima delle otto righe, e
+    // `margineInferiore` (10) è l'aria fra quella riga e il fondo del riquadro; il risultato è
+    // arrotondato per eccesso.
+    expect(otto.altezza).toBe(188)
   })
 
   it('il codolo parte dal fondo del riquadro, che è dove si attacca la tubazione', () => {

@@ -20,7 +20,7 @@ export const TIPO_NODO_FLOW = 'simbolo'
 export const TIPO_ARCO_FLOW = 'tubazione'
 
 export function layoutAFlow(
-  layout: Omit<SchemaLayout, 'testi'> & { testi?: SchemaTestoLibero[] }
+  layout: SchemaLayout
 ): { nodes: Node[]; edges: Edge[]; testi: SchemaTestoLibero[] } {
   const nodes: Node[] = layout.nodi.map(({ x, y, ...nodo }) => ({
     id: nodo.id,
@@ -54,7 +54,7 @@ export function layoutAFlow(
 export function flowALayout(
   nodes: Node[],
   edges: Edge[],
-  testi: SchemaTestoLibero[] = []
+  testi: SchemaTestoLibero[]
 ): SchemaLayout {
   const nodi: SchemaNodoPosizionato[] = nodes.map((n) => ({
     ...(n.data as SchemaNodeData).nodo,
@@ -75,10 +75,12 @@ export function flowALayout(
     // I testi non sono nodi di react-flow: non stanno in `nodes`/`edges`, quindi viaggiano come
     // terzo parametro esplicito, per copia di riferimento e senza trasformazioni — il ponte
     // esiste solo perché lo stato dell'editor e il layout hanno forme diverse, non perché le
-    // annotazioni vadano convertite. Chi non lo passa (default `[]`) non se le inventa: il solo
-    // chiamante che deve portarle davvero è `SchemaEditor` (`layoutCorrente`, dallo stato
-    // `testi` che sopravvive a cronologia e undo), dove ora si creano dal pulsante «Testo» della
-    // palette e si trascinano sulla tela (TestiLiberi.tsx).
+    // annotazioni vadano convertite. Il parametro è obbligatorio apposta: un default `[]`
+    // lascerebbe perdere in silenzio le annotazioni a chi dimentica di passarle, esattamente
+    // il difetto per cui esiste `SchemaLayout.testi` obbligatorio. Il solo chiamante di
+    // produzione è `SchemaEditor` (`layoutCorrente`, dallo stato `testi` che sopravvive a
+    // cronologia e undo), dove ora si creano dal pulsante «Testo» della palette e si trascinano
+    // sulla tela (TestiLiberi.tsx).
     testi,
   }
 }

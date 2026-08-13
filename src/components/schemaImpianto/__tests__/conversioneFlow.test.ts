@@ -49,7 +49,7 @@ describe('layoutAFlow / flowALayout', () => {
   it('l\'andata e ritorno conserva ancore, punti e stile', () => {
     const layout = layoutDiProva()
     const { nodes, edges } = layoutAFlow(layout)
-    const tornato = flowALayout(nodes, edges)
+    const tornato = flowALayout(nodes, edges, [])
 
     expect(tornato.nodi).toEqual(layout.nodi)
     expect(tornato.archi).toEqual(layout.archi)
@@ -77,7 +77,7 @@ describe('layoutAFlow / flowALayout', () => {
       n.id === 'S1' ? { ...n, position: { x: 777, y: 888 } } : n
     )
 
-    const tornato = flowALayout(spostati, edges)
+    const tornato = flowALayout(spostati, edges, [])
     const s1 = tornato.nodi.find((n) => n.id === 'S1')!
 
     expect(s1.x).toBe(777)
@@ -86,7 +86,7 @@ describe('layoutAFlow / flowALayout', () => {
 
   it('conserva i campi non posizionali del nodo attraverso il giro', () => {
     const { nodes, edges } = layoutAFlow(layoutDiProva())
-    const tornato = flowALayout(nodes, edges)
+    const tornato = flowALayout(nodes, edges, [])
     const s1 = tornato.nodi.find((n) => n.id === 'S1')!
 
     expect(s1.etichetta).toBe('Serbatoio ACME')
@@ -98,7 +98,7 @@ describe('layoutAFlow / flowALayout', () => {
   it('l’andata e ritorno conserva anche i segni sulla tubazione', () => {
     const layout = layoutDiProva()
     const { nodes, edges } = layoutAFlow(layout)
-    const tornato = flowALayout(nodes, edges)
+    const tornato = flowALayout(nodes, edges, [])
 
     expect(tornato.archi[0].segni).toEqual(layout.archi[0].segni)
   })
@@ -107,7 +107,7 @@ describe('layoutAFlow / flowALayout', () => {
     const layout = layoutDiProva()
     delete layout.archi[0].segni
     const { nodes, edges } = layoutAFlow(layout)
-    const tornato = flowALayout(nodes, edges)
+    const tornato = flowALayout(nodes, edges, [])
 
     expect(tornato.archi[0].segni).toBeUndefined()
   })
@@ -123,11 +123,11 @@ describe('testi liberi fra layout e stato dell’editor', () => {
     expect(flowALayout(flow.nodes, flow.edges, flow.testi).testi).toEqual([testo])
   })
 
-  it('un layout senza testi produce una lista vuota, non undefined', () => {
-    expect(layoutAFlow({ nodi: [], archi: [], muro: null }).testi).toEqual([])
+  it('un layout con testi vuoti resta con una lista vuota, non un segnaposto inventato', () => {
+    expect(layoutAFlow({ nodi: [], archi: [], muro: null, testi: [] }).testi).toEqual([])
   })
 
-  it('chi non passa i testi non se li inventa', () => {
-    expect(flowALayout([], []).testi).toEqual([])
+  it('nessun nodo/arco con testi vuoti torna con una lista vuota, non un segnaposto inventato', () => {
+    expect(flowALayout([], [], []).testi).toEqual([])
   })
 })

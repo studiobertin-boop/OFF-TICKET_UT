@@ -780,12 +780,29 @@ describe('testi liberi', () => {
 
   it('un layout senza testi resta identico a prima', () => {
     // Confronto con un riferimento ESTERNO (l'SVG dello stesso impianto, reso dal codice del
-    // commit 7a7bfb0, l'ultimo prima di questo blocco — vedi il commento in fixtures/
-    // svgRiferimentoSenzaTesti.ts), non con se stesso: `renderSvg(x) === renderSvg(x)` (la
+    // commit 7a7bfb0, l'ultimo prima del Task 7 del Blocco C2 — vedi il commento in
+    // fixtures/svgRiferimentoSenzaTesti.ts), non con se stesso: `renderSvg(x) === renderSvg(x)` (la
     // versione precedente di questo test, `testi: []` contro `testi: undefined`) passa sempre,
     // qualunque cosa aggiunga `renderSvg` a OGNI documento — l'ha dimostrato la revisione
     // prefissando un `<g id="annotazioni"></g>` costante a ogni SVG: il test restava verde. Solo
     // un riferimento congelato a un punto nel tempo lo scopre.
     expect(renderSvg(layoutConTesti([]))).toBe(SVG_RIFERIMENTO_SENZA_TESTI)
+  })
+
+  it('si disegnano dopo nodi e tubazioni, così una scritta posata su un tubo resta leggibile', () => {
+    // In SVG chi viene disegnato dopo sta sopra: se le annotazioni finissero prima di nodi e
+    // tubazioni nella stringa concatenata, un tubo o un simbolo posati sullo stesso punto
+    // coprirebbero la scritta. Niente in questo test lo impedirebbe se non l'ordine delle
+    // sottostringhe: `marker-end="url(#freccia)"` è la firma di ogni tratto di tubazione,
+    // `<circle cx="80" cy="75"` è la girante del compressore (unico nodo di questa fixture).
+    const svg = renderSvg(layoutConTesti([{ id: 'T1', x: 300, y: 400, contenuto: 'Sopra il tubo' }]))
+    const indiceTubo = svg.indexOf('marker-end="url(#freccia)"')
+    const indiceNodo = svg.indexOf('<circle cx="80" cy="75"')
+    const indiceTesto = svg.indexOf('>Sopra il tubo</tspan>')
+    expect(indiceTubo).toBeGreaterThan(-1)
+    expect(indiceNodo).toBeGreaterThan(-1)
+    expect(indiceTesto).toBeGreaterThan(-1)
+    expect(indiceTesto).toBeGreaterThan(indiceTubo)
+    expect(indiceTesto).toBeGreaterThan(indiceNodo)
   })
 })

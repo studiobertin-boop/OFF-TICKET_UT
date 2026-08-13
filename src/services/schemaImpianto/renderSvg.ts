@@ -16,6 +16,7 @@ import {
   testoMultiRiga,
   valvolaIntercettazione,
   valvolaScarico,
+  FONT,
   TESTO_LIBERO,
   TRATTO,
 } from './symbols'
@@ -37,7 +38,6 @@ import type {
 
 export type { Punto }
 
-const FONT = 'Arial, Helvetica, sans-serif'
 const MARGINE = 40
 const RIGA_TABELLA = 34
 const COLONNA_CODICE = 130

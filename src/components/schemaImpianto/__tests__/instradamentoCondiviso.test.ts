@@ -47,8 +47,8 @@ function layoutCompleto(): SchemaLayout {
  * tela divergeva dal documento.
  */
 function archiComeInEditor(layout: SchemaLayout): { nodes: Node[]; edges: Edge[] } {
-  const { nodes, edges } = layoutAFlow(layout)
-  const layoutCorrente = flowALayout(nodes, edges)
+  const { nodes, edges, testi } = layoutAFlow(layout)
+  const layoutCorrente = flowALayout(nodes, edges, testi)
   const fusi = fondiDatiArchi(
     edges,
     edges,

@@ -18,8 +18,9 @@ export function ancoraAmmette(ancora: SchemaAncora, stile: SchemaArcoStile): boo
 /**
  * Se un attacco ammette lo stile dato. Legge il registro invece di passare da `ancoraDi`: gli
  * serve solo il campo `accetta`, che dipende dal tipo (e dall'orientamento) del nodo e non dal
- * suo contenuto — a differenza di `ancoraDi`, che dal Task 3 può correggere una coordinata in
- * base al nodo intero. Allargare qui la firma a `SchemaNodo` costringerebbe ogni chiamante
+ * suo contenuto — a differenza di `ancoraDi`, che da quando le ancore possono dipendere dal nodo
+ * intero (vedi `ancoreDi`, symbols/index.ts) può correggere una sua coordinata in base
+ * all'etichetta. Allargare qui la firma a `SchemaNodo` costringerebbe ogni chiamante
  * (compreso l'editor, che verifica una connessione mentre l'utente la trascina) a costruire un
  * nodo completo solo per sapere se un capo accetta aria o condensa.
  */

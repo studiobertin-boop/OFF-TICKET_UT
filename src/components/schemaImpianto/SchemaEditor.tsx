@@ -54,8 +54,9 @@ import {
 import toast from 'react-hot-toast'
 import { capoValido, connessioneAmmessa, stileIniziale } from '@/services/schemaImpianto/agganci'
 import type { Asse, Bordo } from '@/services/schemaImpianto/allineamento'
-import { DIMENSIONI_NODO, ingombroTesto, quoteInstradamento } from '@/services/schemaImpianto/layout'
+import { ingombroTesto, quoteInstradamento } from '@/services/schemaImpianto/layout'
 import { renderSvg } from '@/services/schemaImpianto/renderSvg'
+import { dimensioniDi } from '@/services/schemaImpianto/symbols'
 import type {
   SchemaArcoStile,
   SchemaLayout,
@@ -148,10 +149,15 @@ export interface SchemaEditorProps {
  * apparecchiature e annotazioni nuove. Comprende le annotazioni già posate, non solo i nodi:
  * altrimenti due scritte create di seguito finirebbero esattamente l'una sull'altra, illeggibili
  * entrambe e con quella sopra a rubare il trascinamento all'altra.
+ *
+ * Legge l'altezza vera di ogni nodo (`dimensioniDi`, symbols/index.ts), non quella fissa del
+ * registro (`DIMENSIONI_NODO`): il terminale utenze cresce con le righe della scritta, e con la
+ * quota fissa una nuova apparecchiatura o annotazione poteva nascere sopra un terminale alto,
+ * come già corretto per `layout.ts` e `persistenza.ts` (Task 4).
  */
 function piedeDelDisegno(nodes: Node[], testi: SchemaTestoLibero[]): number {
   const quote = [
-    ...nodes.map((n) => n.position.y + DIMENSIONI_NODO[(n.data as SchemaNodeData).nodo.tipo].altezza),
+    ...nodes.map((n) => n.position.y + dimensioniDi((n.data as SchemaNodeData).nodo).altezza),
     ...testi.map((t) => ingombroTesto(t).basso),
   ]
   return quote.length === 0 ? 0 : Math.max(...quote)
