@@ -81,7 +81,12 @@ serve(async (req) => {
       throw new Error('ANTHROPIC_API_KEY not configured')
     }
 
-    const mediaType = body.media_type ?? rilevaMediaType(fileBase64)
+    /**
+     * La firma del file vince sul tipo dichiarato: l'API rifiuta la richiesta se i due non
+     * concordano, e un `.png` salvato con estensione sbagliata — o un browser che dichiara
+     * `application/octet-stream` — non deve far fallire una lettura che funzionerebbe.
+     */
+    const mediaType = rilevaMediaType(fileBase64) ?? body.media_type ?? 'image/jpeg'
     console.log(`Analisi ${equipment_type}${equipment_code ? ` (${equipment_code})` : ''}, formato: ${mediaType}`)
 
     /**
@@ -206,15 +211,16 @@ serve(async (req) => {
 })
 
 /**
- * MIME del file dai primi caratteri del base64, per le versioni dell'app che non lo dichiarano.
- * PNG inizia per iVBOR, JPEG per /9j/, PDF per JVBERi0 («%PDF-»).
+ * MIME riconosciuto dai primi caratteri del base64; null se la firma non dice niente.
+ * PNG inizia per iVBOR, JPEG per /9j/, PDF per JVBERi0 («%PDF-»), GIF per R0lG, WebP per UklG.
  */
-function rilevaMediaType(base64: string): string {
+function rilevaMediaType(base64: string): string | null {
   if (base64.startsWith('JVBERi0')) return 'application/pdf'
   if (base64.startsWith('iVBOR')) return 'image/png'
+  if (base64.startsWith('/9j/')) return 'image/jpeg'
   if (base64.startsWith('R0lG')) return 'image/gif'
   if (base64.startsWith('UklG')) return 'image/webp'
-  return 'image/jpeg'
+  return null
 }
 
 /** Campo nullable nella forma che lo schema accetta: niente `type: [...]`, si usa `anyOf`. */
