@@ -866,6 +866,7 @@ git commit -m "feat(schema-impianto): il documento disegna le annotazioni libere
 
 **Files:**
 - Modify: `src/components/schemaImpianto/conversioneFlow.ts`
+- Modify: `src/components/schemaImpianto/SchemaEditor.tsx` (`StatoEditor` porta `testi`; `layoutCorrente` lo passa a `flowALayout`)
 - Test: `src/components/schemaImpianto/__tests__/conversioneFlow.test.ts`
 
 **Interfaces:**
@@ -912,12 +913,12 @@ npx vitest run src/components/schemaImpianto > task-8-verde.txt 2>&1
 npx tsc --noEmit > task-8-tsc.txt 2>&1
 ```
 
-`tsc` segnalerà i chiamanti di `layoutAFlow`/`flowALayout` da aggiornare: in `SchemaEditor.tsx` il layout corrente deve ora portarsi dietro i testi dello stato.
+**Correzione:** `tsc` NON segnala da solo i chiamanti da aggiornare. `flowALayout(stato.nodes, stato.edges)` in `SchemaEditor.tsx` resta un'invocazione valida anche dopo la firma nuova, perché il terzo parametro ha un default — e `StatoEditor` (che non dichiara `testi`) rimane assegnabile all'`iniziale` restituito da `layoutAFlow` per compatibilità strutturale (l'argomento è una variabile, non un literal fresco: l'excess-property check non scatta). Il compilatore comincia a protestare solo *dopo* aver aggiunto `testi: SchemaTestoLibero[]` a `StatoEditor` e aver scritto `stato.testi` — a quel punto sì, segnala gli spread mancanti (un `applica((s) => ({ nodes: ..., edges: ... }))` senza `...s` perde `testi` dal tipo, non solo dal dato). La correzione in `SchemaEditor.tsx` va quindi fatta di proposito, non aspettando che `tsc` la imponga: è lei a chiudere il difetto per cui questo task esiste (la conferma che perde i testi in silenzio), non la sola firma di `flowALayout`.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/components/schemaImpianto/conversioneFlow.ts src/components/schemaImpianto/__tests__/conversioneFlow.test.ts
+git add src/components/schemaImpianto/conversioneFlow.ts src/components/schemaImpianto/SchemaEditor.tsx src/components/schemaImpianto/__tests__/conversioneFlow.test.ts
 git commit -m "feat(schema-impianto): i testi liberi passano fra layout e stato dell'editor"
 ```
 

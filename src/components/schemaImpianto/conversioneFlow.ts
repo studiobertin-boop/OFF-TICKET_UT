@@ -7,14 +7,21 @@ import type { Edge, Node } from '@xyflow/react'
 import { calcolaMuro } from '@/services/schemaImpianto/layout'
 import { posizioneAncora } from '@/services/schemaImpianto/renderSvg'
 import { instrada, polilineaConGomiti, type Punto, type QuoteInstradamento } from '@/services/schemaImpianto/tratti'
-import type { SchemaArcoStile, SchemaLayout, SchemaNodoPosizionato } from '@/services/schemaImpianto/types'
+import type {
+  SchemaArcoStile,
+  SchemaLayout,
+  SchemaNodoPosizionato,
+  SchemaTestoLibero,
+} from '@/services/schemaImpianto/types'
 import type { SchemaEdgeData } from './SchemaEdgeTubazione'
 import type { SchemaNodeData } from './SchemaNodeSymbol'
 
 export const TIPO_NODO_FLOW = 'simbolo'
 export const TIPO_ARCO_FLOW = 'tubazione'
 
-export function layoutAFlow(layout: SchemaLayout): { nodes: Node[]; edges: Edge[] } {
+export function layoutAFlow(
+  layout: Omit<SchemaLayout, 'testi'> & { testi?: SchemaTestoLibero[] }
+): { nodes: Node[]; edges: Edge[]; testi: SchemaTestoLibero[] } {
   const nodes: Node[] = layout.nodi.map(({ x, y, ...nodo }) => ({
     id: nodo.id,
     type: TIPO_NODO_FLOW,
@@ -34,7 +41,9 @@ export function layoutAFlow(layout: SchemaLayout): { nodes: Node[]; edges: Edge[
     data: { stile: arco.stile, punti: arco.punti, segni: arco.segni } satisfies SchemaEdgeData,
   }))
 
-  return { nodes, edges }
+  // I testi non sono nodi di react-flow (nessuna ancora, nessuna tubazione può attaccarcisi):
+  // attraversano il ponte come lista a sé, senza nulla da convertire.
+  return { nodes, edges, testi: layout.testi ?? [] }
 }
 
 /**
@@ -42,7 +51,11 @@ export function layoutAFlow(layout: SchemaLayout): { nodes: Node[]; edges: Edge[
  * nell'editor, ma la sua posizione sì: si ricalcola dalle posizioni correnti dei nodi,
  * altrimenti resterebbe ancorato a dov'era prima che l'utente spostasse le apparecchiature.
  */
-export function flowALayout(nodes: Node[], edges: Edge[]): SchemaLayout {
+export function flowALayout(
+  nodes: Node[],
+  edges: Edge[],
+  testi: SchemaTestoLibero[] = []
+): SchemaLayout {
   const nodi: SchemaNodoPosizionato[] = nodes.map((n) => ({
     ...(n.data as SchemaNodeData).nodo,
     x: n.position.x,
@@ -59,15 +72,14 @@ export function flowALayout(nodes: Node[], edges: Edge[]): SchemaLayout {
       segni: (e.data as SchemaEdgeData | undefined)?.segni,
     })),
     muro: calcolaMuro(nodi),
-    // Placeholder, non ancora la conversione vera: le annotazioni libere non hanno oggi una
-    // rappresentazione nello stato di react-flow (`nodes`/`edges` in ingresso qui non le
-    // portano), quindi questa funzione non può far altro che restituire lista vuota. Finché
-    // nessuno può crearne dall'editor (arriva col Task 10) è innocuo; dal Task 8 in poi
-    // `flowALayout` accetterà i testi come parametro esplicito e li riporterà per davvero — qui
-    // sarebbe altrimenti il punto dove un disegno con annotazioni, aperto nell'editor e
-    // confermato, le perderebbe in silenzio (`SchemaEditor` → `onConferma` →
-    // `SchemaImpiantoSection` → `serializzaLayout`).
-    testi: [],
+    // I testi non sono nodi di react-flow: non stanno in `nodes`/`edges`, quindi viaggiano come
+    // terzo parametro esplicito, per copia di riferimento e senza trasformazioni — il ponte
+    // esiste solo perché lo stato dell'editor e il layout hanno forme diverse, non perché le
+    // annotazioni vadano convertite. Chi non lo passa (default `[]`) non se le inventa: oggi il
+    // solo chiamante che deve portarle davvero è `SchemaEditor` (`layoutCorrente`, dallo stato
+    // `testi` che sopravvive a cronologia e undo); l'editor non le rende ancora sulla tela e non
+    // permette di crearne — quello arriva con `SchemaTestoLiberoNode` nel Task 10.
+    testi,
   }
 }
 

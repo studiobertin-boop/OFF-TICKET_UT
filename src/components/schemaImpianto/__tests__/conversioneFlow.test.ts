@@ -112,3 +112,22 @@ describe('layoutAFlow / flowALayout', () => {
     expect(tornato.archi[0].segni).toBeUndefined()
   })
 })
+
+describe('testi liberi fra layout e stato dell’editor', () => {
+  const testo = { id: 'T1', x: 100, y: 200, contenuto: 'Nota\nsu due righe' }
+
+  it('vanno e tornano identici', () => {
+    const layout = { nodi: [], archi: [], muro: null, testi: [testo] }
+    const flow = layoutAFlow(layout)
+    expect(flow.testi).toEqual([testo])
+    expect(flowALayout(flow.nodes, flow.edges, flow.testi).testi).toEqual([testo])
+  })
+
+  it('un layout senza testi produce una lista vuota, non undefined', () => {
+    expect(layoutAFlow({ nodi: [], archi: [], muro: null }).testi).toEqual([])
+  })
+
+  it('chi non passa i testi non se li inventa', () => {
+    expect(flowALayout([], []).testi).toEqual([])
+  })
+})

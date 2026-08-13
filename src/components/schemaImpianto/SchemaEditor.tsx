@@ -55,7 +55,12 @@ import { capoValido, connessioneAmmessa, stileIniziale } from '@/services/schema
 import type { Asse, Bordo } from '@/services/schemaImpianto/allineamento'
 import { DIMENSIONI_NODO, quoteInstradamento } from '@/services/schemaImpianto/layout'
 import { renderSvg } from '@/services/schemaImpianto/renderSvg'
-import type { SchemaArcoStile, SchemaLayout, SchemaNodoTipo } from '@/services/schemaImpianto/types'
+import type {
+  SchemaArcoStile,
+  SchemaLayout,
+  SchemaNodoTipo,
+  SchemaTestoLibero,
+} from '@/services/schemaImpianto/types'
 import { SchemaEdgeTubazione, type SchemaEdgeData } from './SchemaEdgeTubazione'
 import { SchemaNodeSymbol, type SchemaNodeData } from './SchemaNodeSymbol'
 import { TIPO_ARCO_FLOW, TIPO_NODO_FLOW, capiDegliArchi, flowALayout, fondiDatiArchi, layoutAFlow } from './conversioneFlow'
@@ -120,6 +125,10 @@ const PASSI: Record<string, [number, number]> = {
 interface StatoEditor {
   nodes: Node[]
   edges: Edge[]
+  // Non ancora leggibili né creabili dalla tela (arriva col Task 10): sopravvivono qui a
+  // cronologia e undo solo perché lo stato li porta fin da `layoutAFlow`, così la conferma non
+  // li perde in silenzio anche se oggi nessuna interazione dell'editor li tocca.
+  testi: SchemaTestoLibero[]
 }
 
 export interface SchemaEditorProps {
@@ -170,8 +179,8 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
   // che dentro ognuno dei calcoli qui sotto, è quel che tiene quote, capi e anteprima sullo
   // STESSO layout: sono i tre ingressi della geometria condivisa con il documento.
   const layoutCorrente = useMemo(
-    () => flowALayout(stato.nodes, stato.edges),
-    [stato.nodes, stato.edges]
+    () => flowALayout(stato.nodes, stato.edges, stato.testi),
+    [stato.nodes, stato.edges, stato.testi]
   )
 
   // Quote di instradamento (collettore della mandata flessibile, corsia delle condense):
@@ -424,6 +433,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
     const archi = new Set(selezione.edges.map((e) => e.id))
     if (nodi.size === 0 && archi.size === 0) return
     applica((s) => ({
+      ...s,
       nodes: s.nodes.filter((n) => !nodi.has(n.id)),
       // Un'apparecchiatura rimossa si porta via le tubazioni che vi arrivavano, o
       // resterebbero collegamenti verso un nodo inesistente.
