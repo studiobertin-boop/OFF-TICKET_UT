@@ -7,6 +7,10 @@ import {
   tSuTratto,
   polilineaConGomiti,
   trascinaTratto,
+  instrada,
+  rottaCondensa,
+  rottaFlessibile,
+  rottaLinea,
 } from '../tratti'
 
 /** Coppie (x,y) di tutti i punti d'arrivo dei comandi Q, nell'ordine. */
@@ -299,5 +303,66 @@ describe('trascinaTratto', () => {
     const pA = { x: 100, y: 100 }
     const gomiti = [{ x: 50, y: 50 }]
     expect(trascinaTratto(pDa, gomiti, pA, 99, { x: 10, y: 10 })).toEqual(gomiti)
+  })
+})
+
+describe('rotte native', () => {
+  it('la mandata flessibile sale al collettore, corre in orizzontale e scende accanto al bocchello', () => {
+    // xDiscesa = 400 - AVVICINAMENTO(34) = 366: il montante di discesa si stacca dal fianco
+    // del recipiente invece di correre sul suo contorno.
+    expect(rottaFlessibile({ x: 100, y: 500 }, { x: 400, y: 300 }, 200)).toEqual([
+      { x: 100, y: 500 },
+      { x: 100, y: 200 },
+      { x: 366, y: 200 },
+      { x: 366, y: 300 },
+      { x: 400, y: 300 },
+    ])
+  })
+
+  it('la mandata di linea gira a metà strada', () => {
+    expect(rottaLinea({ x: 0, y: 100 }, { x: 200, y: 300 })).toEqual([
+      { x: 0, y: 100 },
+      { x: 100, y: 100 },
+      { x: 100, y: 300 },
+      { x: 200, y: 300 },
+    ])
+  })
+
+  it('la linea condense scende sulla corsia comune e poi nel pozzo', () => {
+    expect(rottaCondensa({ x: 50, y: 100 }, { x: 300, y: 400 }, 450)).toEqual([
+      { x: 50, y: 100 },
+      { x: 50, y: 450 },
+      { x: 300, y: 450 },
+      { x: 300, y: 400 },
+    ])
+  })
+})
+
+describe('instrada', () => {
+  const quote = { yCollettore: 200, yCorsiaCondense: 450 }
+
+  it('sceglie la rotta nativa dello stile quando l’arco non ha gomiti', () => {
+    const pDa = { x: 100, y: 500 }
+    const pA = { x: 400, y: 300 }
+    expect(instrada('flessibile', pDa, pA, undefined, quote)).toEqual(rottaFlessibile(pDa, pA, 200))
+    expect(instrada('standard', pDa, pA, [], quote)).toEqual(rottaLinea(pDa, pA))
+    expect(instrada('condensa', pDa, pA, [], quote)).toEqual(rottaCondensa(pDa, pA, 450))
+  })
+
+  it('i gomiti imposti a mano vincono su ogni rotta nativa', () => {
+    const pDa = { x: 100, y: 500 }
+    const pA = { x: 400, y: 300 }
+    const gomiti = [{ x: 250, y: 500 }]
+    for (const stile of ['flessibile', 'standard', 'condensa'] as const) {
+      expect(instrada(stile, pDa, pA, gomiti, quote)).toEqual(polilineaConGomiti(pDa, gomiti, pA))
+    }
+  })
+
+  it('la rotta nativa non è mai il semplice angolo singolo che l’editor disegnava', () => {
+    // Il difetto del committente in forma di test: la tela faceva due tratti, il documento
+    // quattro. Se questa asserzione diventa verde, l'unificazione è tornata indietro.
+    const pDa = { x: 100, y: 500 }
+    const pA = { x: 400, y: 300 }
+    expect(instrada('flessibile', pDa, pA, [], quote)).not.toEqual(polilineaConGomiti(pDa, [], pA))
   })
 })

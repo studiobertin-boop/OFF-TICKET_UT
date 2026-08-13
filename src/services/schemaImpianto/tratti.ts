@@ -5,6 +5,8 @@
  * senza chiudere un ciclo, e perché è geometria pura, verificabile senza DOM.
  */
 
+import type { SchemaArcoStile } from './types'
+
 export interface Punto {
   x: number
   y: number
@@ -239,4 +241,84 @@ export function tSuTratto(punti: Punto[], p: Punto): number {
     percorsa += l
   }
   return migliore.t
+}
+
+/**
+ * Rientro del montante rispetto al fianco del recipiente: evita che corra sul contorno.
+ * Spostata qui da `renderSvg.ts` (dove era `AVVICINAMENTO`, privata) perché è geometria del
+ * tratto, non della resa grafica, e serve a chi instrada da entrambe le parti.
+ */
+export const AVVICINAMENTO = 34
+
+/**
+ * Le due quote che il disegno intero impone alle rotte native: dipendono da dove stanno
+ * TUTTI i nodi, non dai due capi dell'arco, quindi chi instrada le riceve invece di
+ * ricavarsele (un arco non ha, né deve avere, una vista sul layout globale).
+ * Le calcola `quoteInstradamento` in `layout.ts`.
+ */
+export interface QuoteInstradamento {
+  yCollettore: number
+  yCorsiaCondense: number
+}
+
+/**
+ * Mandata compressore → serbatoio: montante dal cielo del compressore fino al collettore
+ * comune, tratto orizzontale, discesa accanto al bocchello. È la resa degli schemi reali,
+ * dove più compressori confluiscono sulla stessa linea invece di attraversarsi.
+ */
+export function rottaFlessibile(pDa: Punto, pA: Punto, yCollettore: number): Punto[] {
+  const xDiscesa = pA.x - AVVICINAMENTO
+  return [
+    { x: pDa.x, y: pDa.y },
+    { x: pDa.x, y: yCollettore },
+    { x: xDiscesa, y: yCollettore },
+    { x: xDiscesa, y: pA.y },
+    { x: pA.x, y: pA.y },
+  ]
+}
+
+/** Mandata di linea fra due stadi di trattamento: spezzata che gira a metà strada. */
+export function rottaLinea(pDa: Punto, pA: Punto): Punto[] {
+  const xMedia = (pDa.x + pA.x) / 2
+  return [
+    { x: pDa.x, y: pDa.y },
+    { x: xMedia, y: pDa.y },
+    { x: xMedia, y: pA.y },
+    { x: pA.x, y: pA.y },
+  ]
+}
+
+/**
+ * Linea condense: scende dallo scarico del nodo, corre sulla corsia comune e scende nel pozzo
+ * di raccolta dall'alto — il pozzo sta sotto la corsia, come negli schemi reali.
+ */
+export function rottaCondensa(pDa: Punto, pA: Punto, yCorsia: number): Punto[] {
+  return [
+    { x: pDa.x, y: pDa.y },
+    { x: pDa.x, y: yCorsia },
+    { x: pA.x, y: yCorsia },
+    { x: pA.x, y: pA.y },
+  ]
+}
+
+/**
+ * L'unico posto che decide la forma di un tubo. Lo chiamano il render del documento
+ * (`renderSvg.ts`) e la tela dell'editor (`SchemaEdgeTubazione.tsx` via `polilineaDellArco`):
+ * finché passano di qui non possono più disegnare due percorsi diversi per lo stesso arco,
+ * che è esattamente il difetto che il Blocco C1 chiude.
+ *
+ * I gomiti imposti a mano vincono su ogni rotta nativa: da quel momento il percorso è una
+ * scelta dell'utente e nessuna euristica deve sovrascriverla.
+ */
+export function instrada(
+  stile: SchemaArcoStile,
+  pDa: Punto,
+  pA: Punto,
+  gomiti: Punto[] | undefined,
+  quote: QuoteInstradamento
+): Punto[] {
+  if (gomiti && gomiti.length > 0) return polilineaConGomiti(pDa, gomiti, pA)
+  if (stile === 'flessibile') return rottaFlessibile(pDa, pA, quote.yCollettore)
+  if (stile === 'condensa') return rottaCondensa(pDa, pA, quote.yCorsiaCondense)
+  return rottaLinea(pDa, pA)
 }
