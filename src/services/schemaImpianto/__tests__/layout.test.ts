@@ -16,6 +16,7 @@ import {
   layoutSchema,
   quoteInstradamento,
 } from '../layout'
+import { dimensioniDi } from '../symbols'
 import type { SchemaLayout } from '../types'
 
 function nodo(layout: SchemaLayout, id: string) {
@@ -278,7 +279,8 @@ describe('layoutSchema', () => {
   })
 
   describe('collocazione del terminale utenze', () => {
-    function layoutConUtenze() {
+    /** `etichetta`, se data, sostituisce quella di default sul nodo utenze prima del layout. */
+    function layoutConUtenze(etichetta?: string) {
       const scheda = makeScheda({
         compressori: [makeCompressore({ ha_disoleatore: false })],
         disoleatori: [],
@@ -288,7 +290,9 @@ describe('layoutSchema', () => {
         filtri: [],
         dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
       })
-      return layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } }))
+      const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+      if (etichetta !== undefined) model.nodi.find((n) => n.tipo === 'utenze')!.etichetta = etichetta
+      return layoutSchema(model)
     }
 
     it('sta a destra di tutto il resto della linea', () => {
@@ -306,6 +310,23 @@ describe('layoutSchema', () => {
 
       // L'ancora `in` sta in fondo al codolo: la sua quota assoluta è y + altezza.
       const quotaAncora = utenze.y + DIMENSIONI_NODO.utenze.altezza
+      const centroEssiccatore = essiccatore.y + DIMENSIONI_NODO.essiccatore.altezza / 2
+
+      expect(quotaAncora).toBe(centroEssiccatore)
+    })
+
+    it('mette l’ancora alla quota della fascia anche con un’etichetta su molte righe', () => {
+      // Sotto le 6 righe l'altezza necessaria (vedi `dimensioniDi`) non supera il minimo del
+      // registro (120): il riquadro non crescerebbe affatto e il test non discriminerebbe dal
+      // caso a riga singola sopra. Con 8 lo supera davvero.
+      const etichetta = Array.from({ length: 8 }, (_, i) => `riga ${i}`).join('\n')
+      const layout = layoutConUtenze(etichetta)
+      const utenze = layout.nodi.find((n) => n.tipo === 'utenze')!
+      const essiccatore = layout.nodi.find((n) => n.tipo === 'essiccatore')!
+
+      // L'ancora `in` sta in fondo al codolo: con la scritta su più righe il fondo del riquadro
+      // non è più a `DIMENSIONI_NODO.utenze.altezza` fisso, ma a `dimensioniDi(utenze).altezza`.
+      const quotaAncora = utenze.y + dimensioniDi(utenze).altezza
       const centroEssiccatore = essiccatore.y + DIMENSIONI_NODO.essiccatore.altezza / 2
 
       expect(quotaAncora).toBe(centroEssiccatore)

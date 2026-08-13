@@ -6,7 +6,8 @@
  * Il muro non si salva — è derivato dalle posizioni e si ricalcola.
  */
 import { calcolaMuro, layoutSchema, DIMENSIONI_NODO, pozzoCondense } from './layout'
-import type { SchemaArco, SchemaLayout, SchemaModel, SchemaNodoPosizionato } from './types'
+import { dimensioniDi } from './symbols'
+import type { SchemaArco, SchemaLayout, SchemaModel, SchemaNodo, SchemaNodoPosizionato } from './types'
 
 const VERSIONE = 1
 
@@ -128,6 +129,7 @@ export function layoutIniziale(
  * che usava `renderUscitaUtenze`), non con un controllo sul solo tipo `tanica`.
  */
 function posizioneTerminale(
+  nodo: SchemaNodo,
   nodi: SchemaNodoPosizionato[],
   archi: SchemaArco[]
 ): { x: number; y: number } | null {
@@ -138,7 +140,7 @@ function posizioneTerminale(
   const dim = DIMENSIONI_NODO[ultimo.tipo]
   return {
     x: ultimo.x + dim.larghezza + 50,
-    y: ultimo.y + dim.altezza / 2 - DIMENSIONI_NODO.utenze.altezza,
+    y: ultimo.y + dim.altezza / 2 - dimensioniDi(nodo).altezza,
   }
 }
 
@@ -179,7 +181,7 @@ export function riconcilia(salvato: Pick<SchemaLayout, 'nodi' | 'archi'>, modell
   const posizionati = nuovi.map((n) => {
     const proposto = automatico.nodi.find((p) => p.id === n.id)!
     if (n.tipo === 'utenze') {
-      const dedicata = posizioneTerminale(superstiti, modello.archi)
+      const dedicata = posizioneTerminale(n, superstiti, modello.archi)
       if (dedicata) return { ...proposto, ...dedicata }
     }
     return { ...proposto, y: proposto.y + piede }

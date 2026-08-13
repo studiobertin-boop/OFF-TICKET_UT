@@ -3,6 +3,7 @@ import { makeCompressore, makeDatiImpianto, makeEssiccatore, makeScheda, makeSep
 import { buildSchemaModel } from '../buildSchemaModel'
 import { layoutSchema, DIMENSIONI_NODO } from '../layout'
 import { serializzaLayout, deserializzaLayout, riconcilia, layoutIniziale, layoutDaPersistere } from '../persistenza'
+import { dimensioniDi } from '../symbols'
 
 function modelloDiProva(codiciCompressore: string[]) {
   const scheda = makeScheda({
@@ -321,13 +322,40 @@ describe('terminale utenze nei layout salvati prima che esistesse', () => {
     const dimUltimo = DIMENSIONI_NODO[ultimo.tipo]
 
     expect(utenze.x).toBe(ultimo.x + dimUltimo.larghezza + 50)
-    expect(utenze.y + DIMENSIONI_NODO.utenze.altezza).toBe(ultimo.y + dimUltimo.altezza / 2)
+    // L'ancora `in` sta in fondo al riquadro: la sua altezza effettiva (`dimensioniDi`), non
+    // quella fissa del registro — coincidono qui perché l'etichetta è a riga singola, ma
+    // l'invariante vera è quella, non `DIMENSIONI_NODO.utenze.altezza` (vedi il test sotto che
+    // la discrimina davvero con un'etichetta su molte righe).
+    expect(utenze.y + dimensioniDi(utenze).altezza).toBe(ultimo.y + dimUltimo.altezza / 2)
 
     // Il ripiego generico l'avrebbe buttato sotto tutto il disegno (y = piede + 320 = 540, con
     // questa fixture): qui il terminale sta a y = 120, ben al di sotto della soglia, quindi il
     // confronto discrimina davvero fra le due strade e non è un caso di numeri vicini.
     const piede = Math.max(...salvato.nodi.map((n) => n.y))
     expect(utenze.y).toBeLessThan(piede + 320)
+  })
+
+  it('lo mette alla quota della fascia anche con un’etichetta su molte righe', () => {
+    // Stessa ragione del test analogo in `layout.test.ts`: sotto le 6 righe l'altezza necessaria
+    // (vedi `dimensioniDi`) non supera il minimo del registro (120), il riquadro non
+    // crescerebbe affatto e il test non discriminerebbe dal caso a riga singola sopra.
+    const modello = modelloDiProva(['C1'])
+    modello.nodi.find((n) => n.tipo === 'utenze')!.etichetta = Array.from(
+      { length: 8 },
+      (_, i) => `riga ${i}`
+    ).join('\n')
+    const salvato = salvatoSenzaUtenze(modello)
+    const esito = riconcilia(salvato, modello)
+    const utenze = esito.layout.nodi.find((n) => n.tipo === 'utenze')!
+
+    const ultimo = salvato.nodi
+      .filter((n) => n.tipo !== 'compressore' && n.tipo !== 'tanica')
+      .reduce((a, b) => (a.x > b.x ? a : b))
+    const dimUltimo = DIMENSIONI_NODO[ultimo.tipo]
+
+    // Stessa ancora del test sopra, ma qui il riquadro è davvero cresciuto oltre il minimo:
+    // con l'altezza fissa del registro questo confronto cadrebbe.
+    expect(utenze.y + dimensioniDi(utenze).altezza).toBe(ultimo.y + dimUltimo.altezza / 2)
   })
 
   it('esclude dal calcolo il pozzo di raccolta condense anche quando è un separatore, non solo quando è una tanica', () => {
@@ -354,7 +382,7 @@ describe('terminale utenze nei layout salvati prima che esistesse', () => {
     const dimS1 = DIMENSIONI_NODO.serbatoio
     // Atteso: posizionato rispetto a S1 (x=340, y=110 con questa fixture) → x=540, y=120.
     expect(utenze.x).toBe(s1.x + dimS1.larghezza + 50)
-    expect(utenze.y + DIMENSIONI_NODO.utenze.altezza).toBe(s1.y + dimS1.altezza / 2)
+    expect(utenze.y + dimensioniDi(utenze).altezza).toBe(s1.y + dimS1.altezza / 2)
 
     // Col difetto del brief il terminale finirebbe invece rispetto a SEP1 (x=550, y=435, dim
     // 110×110): x=710, y=370. Ben diverso dal valore atteso, così se il difetto tornasse il

@@ -175,10 +175,16 @@ describe('terminale utenze su più righe', () => {
   })
 
   it('la larghezza si misura sulla riga più lunga, non su tutto il contenuto', () => {
-    // Con la misura sull'intera stringa, due righe corte darebbero un riquadro largo quanto
-    // la loro somma: la tela del documento crescerebbe a vuoto di centinaia di unità.
+    // Un `toBeLessThan` da solo non basta a discriminare: misurando l'intera stringa con `\n`
+    // (231, come `unaRigaLunga` sotto) o sommando la lunghezza delle due righe (222, una
+    // mutazione plausibile di «riga più lunga») il risultato è comunque minore di 231, quindi il
+    // confronto passerebbe con entrambe le implementazioni sbagliate. La riga più lunga di
+    // «Utenze aria» / «reparto 2» è 11 caratteri, sotto quanto serve a superare il minimo del
+    // registro: fissare il valore atteso a 190 (quel minimo) è l'unico modo che scopre la
+    // differenza.
     const dueRigheCorte = dimensioniDi(terminale('Utenze aria\nreparto 2'))
     const unaRigaLunga = dimensioniDi(terminale('Utenze aria reparto 2'))
+    expect(dueRigheCorte.larghezza).toBe(190)
     expect(dueRigheCorte.larghezza).toBeLessThan(unaRigaLunga.larghezza)
   })
 

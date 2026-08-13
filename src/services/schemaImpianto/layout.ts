@@ -157,12 +157,15 @@ export function layoutSchema(model: SchemaModel): SchemaLayout {
   const rigaRaccolta = disponiInRiga(raccolta, Math.max(rigaCatena.xFinale, MARGINE), yCondense)
 
   // Il terminale utenze non sta in nessuna riga: si appoggia a destra di tutto ciò che lo
-  // precede, con l'ancora (in fondo al codolo, vedi il registro simboli) proprio sulla fascia
-  // orizzontale dove corrono le tubazioni di linea — così la tubazione che vi arriva entra
-  // dritta invece di fare due gomiti per raggiungerlo.
+  // precede, con l'ancora (in fondo al codolo) proprio sulla fascia orizzontale dove corrono le
+  // tubazioni di linea — così la tubazione che vi arriva entra dritta invece di fare due gomiti
+  // per raggiungerlo. Il fondo del riquadro non è più a quota fissa da quando la scritta può
+  // andare a capo (`dimensioniDi`, in `symbols/index.ts`, lo fa crescere con le righe): si
+  // posiziona quindi da lì, non da `DIMENSIONI_NODO.utenze.altezza`, o con un'etichetta lunga
+  // l'ancora scenderebbe sotto la fascia e la tubazione arriverebbe con un gomito.
   const utenze = model.nodi.filter((n) => n.tipo === 'utenze')
   const posizionatiUtenze = utenze.map((n) =>
-    posiziona(n, rigaCatena.xFinale, yCentroSerbatoi - DIMENSIONI_NODO.utenze.altezza)
+    posiziona(n, rigaCatena.xFinale, yCentroSerbatoi - dimensioniDi(n).altezza)
   )
 
   const nodi = [
