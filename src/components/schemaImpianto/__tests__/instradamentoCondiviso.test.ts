@@ -64,6 +64,17 @@ describe('accordo fra la tela dell’editor e il documento', () => {
     }
   })
 
+  /**
+   * L'unico caso che uccide da solo una mutazione precisa: se `polilineaDellArco` smettesse di
+   * inoltrare i gomiti a `instrada` (`undefined` al posto di `data.punti`), il test qui sopra
+   * resterebbe VERDE — gli archi che `buildSchemaModel` genera non hanno gomiti a mano, quindi
+   * lì non c'è differenza — e cadrebbe solo questo. Verificato con la mutazione, non dedotto.
+   *
+   * Che non separi la versione ingenua da quella giusta è invece inevitabile per costruzione, e
+   * non è un difetto: con dei gomiti imposti `instrada` esce subito su `polilineaConGomiti`, che
+   * è esattamente ciò che faceva la tela di prima — su questo caso le due implementazioni
+   * coincidono e devono coincidere.
+   */
   it('i gomiti imposti a mano restano l’ultima parola anche sulla tela', () => {
     const layout = layoutCompleto()
     const flessibile = layout.archi.find((a) => a.stile === 'flessibile')!

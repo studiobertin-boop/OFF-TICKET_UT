@@ -6,13 +6,19 @@
  * (`renderSvg.ts`) SOLO quando l'arco porta gomiti imposti a mano (`punti.length > 0`): in
  * quel caso non c'è più una rotta `smoothstep` di react-flow disegnata sulla tela e un'altra,
  * vera, disegnata solo nell'anteprima, ed è questa condivisione a rendere possibile trascinare
- * un tratto con la certezza che sia lo stesso tratto che il .docx disegnerà. Senza gomiti — il
- * caso di default, ogni arco appena generato da `buildSchemaModel` — la tela disegna un
- * semplice angolo singolo con `raccordoOrtogonale`, mentre il render statico continua a usare
- * le proprie rotte native (collettore per il flessibile, spezzata a metà per la linea, corsia
- * condense): quelle non sono state portate in `tratti.ts` e la tela resta un'approssimazione
- * per quegli archi. L'anteprima (che chiama `renderSvg` vero) resta l'unico giudice affidabile
- * dell'aspetto finale.
+ * un tratto con la certezza che sia lo stesso tratto che il .docx disegnerà.
+ *
+ * Senza gomiti — il caso di default, ogni arco appena generato da `buildSchemaModel` — la tela
+ * resta invece un'approssimazione: qui sotto si disegna ancora un semplice angolo singolo con
+ * `polilineaConGomiti`/`raccordoOrtogonale`, mentre il documento instrada le rotte native
+ * (montante fino al collettore per il flessibile, spezzata a metà per la linea, corsia comune
+ * per le condense). Attenzione: quelle rotte ORA VIVONO in `tratti.ts` (`rottaFlessibile`,
+ * `rottaLinea`, `rottaCondensa`, dietro l'ingresso unico `instrada`) e `renderSvg.ts` le chiama
+ * di lì — il motivo della divergenza non è più che manchi la geometria condivisa, ma solo che
+ * QUESTO componente non è ancora cablato su `polilineaDellArco` (conversioneFlow.ts), la
+ * funzione che darebbe alla tela la stessa polilinea del documento. Il cablaggio è del task
+ * successivo; finché non c'è, l'anteprima (che chiama `renderSvg` vero) resta l'unico giudice
+ * affidabile dell'aspetto finale.
  */
 import { useCallback, useRef } from 'react'
 import { BaseEdge, EdgeLabelRenderer, useReactFlow, type EdgeProps } from '@xyflow/react'
