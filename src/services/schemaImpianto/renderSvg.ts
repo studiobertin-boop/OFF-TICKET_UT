@@ -17,7 +17,14 @@ import {
   valvolaScarico,
   TRATTO,
 } from './symbols'
-import { ondula, percorso, polilineaConGomiti, puntoSuTratto, type Punto } from './tratti'
+import {
+  instrada,
+  ondula,
+  percorso,
+  puntoSuTratto,
+  type Punto,
+  type QuoteInstradamento,
+} from './tratti'
 import type { SchemaLayout, SchemaNodoPosizionato, SchemaNodoTipo } from './types'
 
 export type { Punto }
@@ -27,8 +34,6 @@ const MARGINE = 40
 const RIGA_TABELLA = 34
 const COLONNA_CODICE = 130
 const ALTEZZA_NOTA = 90
-/** Rientro del montante rispetto al fianco del recipiente: evita che corra sul contorno. */
-const AVVICINAMENTO = 34
 
 /**
  * Posizione assoluta di un'ancora del nodo, in coordinate del disegno. Fallisce piano: se
@@ -65,90 +70,55 @@ export interface RenderSvgOptions {
 }
 
 /**
- * Mandata compressore → serbatoio: montante dal cielo del compressore fino al collettore
- * comune, poi tratto orizzontale fino all'ingresso del serbatoio. È la resa degli schemi
- * reali, dove più compressori confluiscono sulla stessa linea invece di attraversarsi.
+ * Mandata compressore → serbatoio, resa ondulata come i flessibili dei blocchi di riferimento.
+ * La FORMA la decide `instrada` (tratti.ts), condivisa con l'editor: qui resta solo la resa
+ * grafica — l'onda e la punta di freccia.
  */
 function renderMandataCompressore(
   da: SchemaNodoPosizionato,
   ancoraDa: string,
   a: SchemaNodoPosizionato,
   ancoraA: string,
-  yCollettore: number,
+  quote: QuoteInstradamento,
   gomiti?: Punto[]
 ): { svg: string; punti: Punto[] } {
   const pDa = posizioneAncora(da, ancoraDa)
   const pA = posizioneAncora(a, ancoraA)
-  // La discesa si stacca dal fianco del recipiente e l'ultimo tratto entra in orizzontale:
-  // scendendo sul bordo, la linea si confonderebbe col contorno del simbolo.
-  const xDiscesa = pA.x - AVVICINAMENTO
-
-  const punti: Punto[] =
-    gomiti && gomiti.length > 0
-      ? polilineaConGomiti(pDa, gomiti, pA)
-      : [
-          { x: pDa.x, y: pDa.y },
-          { x: pDa.x, y: yCollettore },
-          { x: xDiscesa, y: yCollettore },
-          { x: xDiscesa, y: pA.y },
-          { x: pA.x, y: pA.y },
-        ]
-  // Il flessibile è ondulato da un capo all'altro, come nei blocchi di riferimento: prima del
-  // 12-08-2026 l'onda era un ricciolo di 40 unità sul solo montante, e la legenda — che ne
-  // mostra un campione — rendeva la differenza evidente.
+  const punti = instrada('flessibile', pDa, pA, gomiti, quote)
   const svg = `<path d="${ondula(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" marker-end="url(#freccia)" />`
   return { svg, punti }
 }
 
-/** Mandata di linea fra due stadi di trattamento: tratto orizzontale con valvola in ingresso. */
+/** Mandata di linea fra due stadi di trattamento. Forma da `instrada`, resa continua. */
 function renderMandataLinea(
   da: SchemaNodoPosizionato,
   ancoraDa: string,
   a: SchemaNodoPosizionato,
   ancoraA: string,
+  quote: QuoteInstradamento,
   gomiti?: Punto[],
   frecciaFinale = true
 ): { svg: string; punti: Punto[] } {
   const pDa = posizioneAncora(da, ancoraDa)
   const pA = posizioneAncora(a, ancoraA)
-  const xMedia = (pDa.x + pA.x) / 2
-  const punti: Punto[] =
-    gomiti && gomiti.length > 0
-      ? polilineaConGomiti(pDa, gomiti, pA)
-      : [
-          { x: pDa.x, y: pDa.y },
-          { x: xMedia, y: pDa.y },
-          { x: xMedia, y: pA.y },
-          { x: pA.x, y: pA.y },
-        ]
+  const punti = instrada('standard', pDa, pA, gomiti, quote)
   const freccia = frecciaFinale ? ' marker-end="url(#freccia)"' : ''
   const svg = `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}"${freccia} />`
   return { svg, punti }
 }
 
-/**
- * Linea condense: scende dallo scarico del nodo, corre sulla corsia comune e scende nel
- * pozzo di raccolta dall'alto — il pozzo sta sotto la corsia, come negli schemi reali.
- */
+/** Linea condense. Forma da `instrada`, resa tratteggiata. */
 function renderLineaCondense(
   da: SchemaNodoPosizionato,
   ancoraDa: string,
   a: SchemaNodoPosizionato,
   ancoraA: string,
-  yCorsia: number,
+  quote: QuoteInstradamento,
   gomiti?: Punto[]
 ): { svg: string; punti: Punto[] } {
   const pDa = posizioneAncora(da, ancoraDa)
   const pA = posizioneAncora(a, ancoraA)
-  const punti: Punto[] =
-    gomiti && gomiti.length > 0
-      ? polilineaConGomiti(pDa, gomiti, pA)
-      : [
-          { x: pDa.x, y: pDa.y },
-          { x: pDa.x, y: yCorsia },
-          { x: pA.x, y: yCorsia },
-          { x: pA.x, y: pA.y },
-        ]
+  const punti = instrada('condensa', pDa, pA, gomiti, quote)
   const svg = `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" stroke-dasharray="10 7" marker-end="url(#freccia)" />`
   return { svg, punti }
 }
@@ -162,8 +132,7 @@ function renderLineaCondense(
  */
 function renderArchi(
   layout: SchemaLayout,
-  yCorsiaCondense: number,
-  yCollettore: number
+  quote: QuoteInstradamento
 ): { svg: string; varchi: number[] } {
   const indice = new Map(layout.nodi.map((n) => [n.id, n]))
   const parti: string[] = []
@@ -179,10 +148,10 @@ function renderArchi(
 
     const reso =
       arco.stile === 'condensa'
-        ? renderLineaCondense(da, arco.da.ancora, a, arco.a.ancora, yCorsiaCondense, arco.punti)
+        ? renderLineaCondense(da, arco.da.ancora, a, arco.a.ancora, quote, arco.punti)
         : arco.stile === 'flessibile'
-          ? renderMandataCompressore(da, arco.da.ancora, a, arco.a.ancora, yCollettore, arco.punti)
-          : renderMandataLinea(da, arco.da.ancora, a, arco.a.ancora, arco.punti, a.tipo !== 'utenze')
+          ? renderMandataCompressore(da, arco.da.ancora, a, arco.a.ancora, quote, arco.punti)
+          : renderMandataLinea(da, arco.da.ancora, a, arco.a.ancora, quote, arco.punti, a.tipo !== 'utenze')
 
     parti.push(reso.svg)
     for (const segno of arco.segni ?? []) {
@@ -334,7 +303,7 @@ export function renderSvg(layout: SchemaLayout, options: RenderSvgOptions = {}):
   const yTabella = yNota + altezzaNota
   const altezzaTotale = yTabella + RIGA_TABELLA * (righe.length + 1) + MARGINE
 
-  const archi = renderArchi(layout, quote.yCorsiaCondense, quote.yCollettore)
+  const archi = renderArchi(layout, quote)
 
   const larghezzaTabella = COLONNA_CODICE + 620 + MARGINE * 2
   const larghezzaTotale = Math.max(dimensioniDisegno.larghezza, larghezzaTabella)

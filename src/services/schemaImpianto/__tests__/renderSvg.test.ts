@@ -10,9 +10,9 @@ import {
   makeValvola,
 } from '@/services/relazione/__tests__/fixtures'
 import { buildSchemaModel } from '../buildSchemaModel'
-import { layoutSchema } from '../layout'
+import { layoutSchema, quoteInstradamento } from '../layout'
 import { renderSvg, righeLista, righeLegenda, posizioneAncora } from '../renderSvg'
-import { raccordoOrtogonale } from '../tratti'
+import { AVVICINAMENTO, raccordoOrtogonale } from '../tratti'
 import { dimensioniDi } from '../symbols'
 import type { SchemaSegnoTubo } from '../types'
 
@@ -241,6 +241,37 @@ describe('renderSvg', () => {
     expect(flessibile.length).toBeGreaterThan(0)
     // Molte onde, non le quattro del vecchio ricciolo da 40 unità.
     expect((flessibile[0].match(/Q /g) ?? []).length).toBeGreaterThan(8)
+  })
+
+  // La forma della mandata flessibile la decide `rottaFlessibile` (tratti.ts), condivisa con
+  // l'editor: qui si verifica che il documento la riporti davvero, non solo che disegni *un*
+  // percorso ondulato qualunque. Il vertice dove il collettore piega verso la discesa è quello
+  // che discrimina: se `instrada`/`rottaFlessibile` sbagliasse il verso dello scostamento
+  // (`AVVICINAMENTO`), la discesa cadrebbe dall'altra parte del bocchello e nessuno degli altri
+  // test sul flessibile se ne accorgerebbe (controllano solo l'onda e il punto d'arrivo finale,
+  // invariato in entrambi i casi).
+  it('la discesa della mandata flessibile si stacca dal fianco del serbatoio verso l’interno', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ ha_disoleatore: false })],
+      disoleatori: [],
+      serbatoi: [makeSerbatoio({ orientamento: 'ORIZZONTALE' })],
+      essiccatori: [],
+      scambiatori: [],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const layout = layoutSchema(
+      buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    )
+    const arco = layout.archi.find((a) => a.stile === 'flessibile')!
+    const indice = new Map(layout.nodi.map((n) => [n.id, n]))
+    const pA = posizioneAncora(indice.get(arco.a.nodo)!, arco.a.ancora)
+    const quote = quoteInstradamento(layout)
+    const xDiscesa = pA.x - AVVICINAMENTO
+
+    const svg = renderSvg(layout)
+    const atteso = new RegExp(`Q [-\\d.]+ [-\\d.]+ ${xDiscesa} ${quote.yCollettore}`)
+    expect(svg).toMatch(atteso)
   })
 })
 
