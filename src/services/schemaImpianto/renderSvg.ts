@@ -5,7 +5,7 @@
  * Il disegno riproduce l'impaginazione delle relazioni storiche: schema in alto, nota sui
  * diametri delle tubazioni, tabella "Lista Apparecchiature" in basso.
  */
-import { corpoNodo, dimensioniLayout, pozzoCondense } from './layout'
+import { corpoNodo, dimensioniLayout, quoteInstradamento } from './layout'
 import {
   ancoraDi,
   campioneTubazione,
@@ -323,33 +323,18 @@ function renderNota(note: string[], larghezza: number, yTop: number): string {
   return `<rect x="${x}" y="${yTop}" width="${w}" height="${h}" fill="none" stroke="#000" stroke-width="${TRATTO}" />${righe}`
 }
 
-/** Quota del collettore di mandata: appena sopra la fascia dei serbatoi, così i montanti dei compressori vi confluiscono senza attraversare nulla. */
-function quotaCollettore(layout: SchemaLayout): number {
-  const serbatoi = layout.nodi.filter((n) => n.tipo === 'serbatoio')
-  const riferimento = serbatoi.length > 0 ? serbatoi : layout.nodi
-  if (riferimento.length === 0) return MARGINE
-  return Math.min(...riferimento.map((n) => n.y)) - MARGINE / 2
-}
-
-/** Quota della corsia comune delle linee condense: appena sopra il pozzo di raccolta, così le linee vi scendono dentro dall'alto. */
-function quotaCorsiaCondense(layout: SchemaLayout, altezzaDisegno: number): number {
-  const pozzo = pozzoCondense(layout.nodi, layout)
-  return pozzo ? corpoNodo(pozzo).y - 40 : altezzaDisegno - MARGINE / 2
-}
-
 export function renderSvg(layout: SchemaLayout, options: RenderSvgOptions = {}): string {
   const note = options.noteTubazioni ?? []
   const dimensioniDisegno = dimensioniLayout(layout)
   const righe = [...righeLista(layout), ...righeLegenda(layout)]
 
-  const yCollettore = quotaCollettore(layout)
-  const yCorsiaCondense = quotaCorsiaCondense(layout, dimensioniDisegno.altezza)
+  const quote = quoteInstradamento(layout)
   const yNota = dimensioniDisegno.altezza + MARGINE
   const altezzaNota = note.length > 0 ? ALTEZZA_NOTA : 0
   const yTabella = yNota + altezzaNota
   const altezzaTotale = yTabella + RIGA_TABELLA * (righe.length + 1) + MARGINE
 
-  const archi = renderArchi(layout, yCorsiaCondense, yCollettore)
+  const archi = renderArchi(layout, quote.yCorsiaCondense, quote.yCollettore)
 
   const larghezzaTabella = COLONNA_CODICE + 620 + MARGINE * 2
   const larghezzaTotale = Math.max(dimensioniDisegno.larghezza, larghezzaTabella)

@@ -280,6 +280,7 @@ describe('quoteInstradamento', () => {
       archi: [
         { id: 'a1', da: { nodo: 'C1', ancora: 'basso-out' }, a: { nodo: 'T1', ancora: 'alto-in' }, stile: 'condensa' },
       ],
+      muro: null,
     }
   }
 

@@ -8,6 +8,7 @@
  */
 import { ordinaCatenaTrattamento } from './buildSchemaModel'
 import { DIMENSIONI_NODO, dimensioniDi } from './symbols'
+import type { QuoteInstradamento } from './tratti'
 import type {
   SchemaLayout,
   SchemaModel,
@@ -230,4 +231,31 @@ export function dimensioniLayout(layout: SchemaLayout): { larghezza: number; alt
   const maxX = Math.max(...layout.nodi.map((n) => n.x + dimensioniDi(n).larghezza))
   const maxY = Math.max(...layout.nodi.map((n) => n.y + dimensioniDi(n).altezza))
   return { larghezza: maxX + MARGINE, altezza: maxY + MARGINE }
+}
+
+/** Quota del collettore di mandata: appena sopra la fascia dei serbatoi, così i montanti dei compressori vi confluiscono senza attraversare nulla. */
+export function quotaCollettore(layout: SchemaLayout): number {
+  const serbatoi = layout.nodi.filter((n) => n.tipo === 'serbatoio')
+  const riferimento = serbatoi.length > 0 ? serbatoi : layout.nodi
+  if (riferimento.length === 0) return MARGINE
+  return Math.min(...riferimento.map((n) => n.y)) - MARGINE / 2
+}
+
+/** Quota della corsia comune delle linee condense: appena sopra il pozzo di raccolta, così le linee vi scendono dentro dall'alto. */
+export function quotaCorsiaCondense(layout: SchemaLayout, altezzaDisegno: number): number {
+  const pozzo = pozzoCondense(layout.nodi, layout)
+  return pozzo ? corpoNodo(pozzo).y - 40 : altezzaDisegno - MARGINE / 2
+}
+
+/**
+ * Le due quote che le rotte native impongono al disegno intero, in una chiamata sola.
+ * Vivono qui e non in `renderSvg.ts` perché le usa anche l'editor, sullo stesso layout
+ * ricostruito dallo stato react-flow (`flowALayout`): se ognuno le calcolasse a modo suo,
+ * tela e documento tornerebbero a disegnare percorsi diversi.
+ */
+export function quoteInstradamento(layout: SchemaLayout): QuoteInstradamento {
+  return {
+    yCollettore: quotaCollettore(layout),
+    yCorsiaCondense: quotaCorsiaCondense(layout, dimensioniLayout(layout).altezza),
+  }
 }

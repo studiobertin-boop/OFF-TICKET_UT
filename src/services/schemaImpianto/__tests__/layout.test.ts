@@ -8,7 +8,14 @@ import {
   makeSerbatoio,
 } from '@/services/relazione/__tests__/fixtures'
 import { buildSchemaModel } from '../buildSchemaModel'
-import { calcolaMuro, DIMENSIONI_NODO, MARGINE_SUPERIORE, dimensioniLayout, layoutSchema } from '../layout'
+import {
+  calcolaMuro,
+  DIMENSIONI_NODO,
+  MARGINE_SUPERIORE,
+  dimensioniLayout,
+  layoutSchema,
+  quoteInstradamento,
+} from '../layout'
 import type { SchemaLayout } from '../types'
 
 function nodo(layout: SchemaLayout, id: string) {
@@ -312,5 +319,50 @@ describe('layoutSchema', () => {
         utenze.x + DIMENSIONI_NODO.utenze.larghezza
       )
     })
+  })
+})
+
+describe('quoteInstradamento', () => {
+  /** Layout minimo scritto a mano: numeri fissi, così i valori attesi sono verificabili a occhio. */
+  function layoutDiProva(): SchemaLayout {
+    return {
+      nodi: [
+        {
+          id: 'C1', tipo: 'compressore', etichetta: 'Compressore', gruppo: 'SALA_COMPRESSORI',
+          valvoleSicurezza: [], origine: 'scheda', x: 100, y: 700,
+        },
+        {
+          id: 'S1', tipo: 'serbatoio', orientamento: 'VERTICALE', etichetta: 'Serbatoio',
+          gruppo: 'SALA_COMPRESSORI', valvoleSicurezza: [], origine: 'scheda', x: 500, y: 400,
+        },
+        {
+          id: 'T1', tipo: 'tanica', etichetta: 'Raccolta condense', gruppo: 'ALTRO',
+          valvoleSicurezza: [], origine: 'scheda', x: 200, y: 900,
+        },
+      ],
+      archi: [
+        { id: 'a1', da: { nodo: 'C1', ancora: 'basso-out' }, a: { nodo: 'T1', ancora: 'alto-in' }, stile: 'condensa' },
+      ],
+      muro: null,
+    }
+  }
+
+  it('mette il collettore mezzo margine sopra il serbatoio più alto', () => {
+    // Serbatoio a y=400, MARGINE=40: 400 - 20 = 380.
+    expect(quoteInstradamento(layoutDiProva()).yCollettore).toBe(380)
+  })
+
+  it('mette la corsia condense 40 unità sopra il corpo del pozzo di raccolta', () => {
+    // Tanica a y=900, il suo corpo comincia 6 più in basso (corpoNodo): 906 - 40 = 866.
+    expect(quoteInstradamento(layoutDiProva()).yCorsiaCondense).toBe(866)
+  })
+
+  it('senza pozzo di raccolta la corsia va in fondo al disegno', () => {
+    const layout = layoutDiProva()
+    layout.nodi = layout.nodi.filter((n) => n.tipo !== 'tanica')
+    layout.archi = []
+    // Nessun pozzo: la corsia scende a mezzo margine dal fondo della tela, non resta a 866.
+    const attesa = dimensioniLayout(layout).altezza - 20
+    expect(quoteInstradamento(layout).yCorsiaCondense).toBe(attesa)
   })
 })
