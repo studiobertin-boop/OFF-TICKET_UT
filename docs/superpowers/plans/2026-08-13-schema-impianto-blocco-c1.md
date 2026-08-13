@@ -718,13 +718,20 @@ git commit -m "feat(schema-impianto): polilineaDellArco e il test dell'accordo f
 
 **Files:**
 - Modify: `src/components/schemaImpianto/SchemaEditor.tsx:168-182` (commento e nuovo `useMemo`), `:235-242` (fusione dei dati degli archi)
-- Modify: `src/components/schemaImpianto/SchemaEdgeTubazione.tsx:1-16` (commento di testa), `:263`
+- Modify: `src/components/schemaImpianto/SchemaEdgeTubazione.tsx:1-16` (commento di testa), `:24-49` (docblock di `SchemaEdgeData.quote` e di `onTrascinaTratto`), `:263`
+- Modify: `src/components/schemaImpianto/conversioneFlow.ts` (nuova `fondiDatiArchi`, docblock di `polilineaDellArco`)
+- Modify: `src/services/schemaImpianto/tratti.ts` (docblock di `instrada`; firma e docblock di `trascinaTratto` — vedi correzione «giro di riparazione 1» più sotto)
+- Modify: `src/components/schemaImpianto/useTrascinamentoTratto.ts` (riceve `quote`, la passa a `trascinaTratto`)
+- Create: `src/components/schemaImpianto/__tests__/fondiDatiArchi.test.ts`
+- Modify: `src/services/schemaImpianto/__tests__/tratti.test.ts` (firma nuova nei test esistenti di `trascinaTratto`, due test nuovi sulla regressione)
 
 **Interfaces:**
 - Consumes: `quoteInstradamento` da `@/services/schemaImpianto/layout`; `polilineaDellArco` da `./conversioneFlow` (Task 4).
-- Produces: `fondiDatiArchi` in `./conversioneFlow` (funzione pura, nuova in questo task). Da qui in poi ogni arco della tela porta `data.quote`.
+- Produces: `fondiDatiArchi` in `./conversioneFlow` (funzione pura, nuova in questo task). Da qui in poi ogni arco della tela porta `data.quote`. `trascinaTratto` (tratti.ts) cambia firma: riceve anche `stile` e `quote`.
 
 **Corretto in revisione (dopo il Task 4):** il piano diceva «nessun test automatico nuovo», motivato dal fatto che la fusione dei tre elenchi di archi vive dentro un `useMemo` di `SchemaEditor`, dove nessun test arriva (niente UI test, CLAUDE.md). Non è più vero: il ramo di ripiego di `polilineaDellArco` (`!data?.quote` → `polilineaConGomiti`) è una rete di sicurezza per il tipo, non coperta da nulla — se scattasse sulla tela, il difetto originale (rotte diverse fra editor e documento) tornerebbe in silenzio. Questo task estrae quindi la fusione in una funzione pura, `fondiDatiArchi` (conversioneFlow.ts), che prende i tre elenchi di archi più le quote e restituisce l'elenco fuso; il `useMemo` di `SchemaEditor` diventa una chiamata a questa funzione. Un test nuovo, `__tests__/fondiDatiArchi.test.ts`, prova l'invariante — ogni arco fuso porta `quote` valorizzato, e i callback dei tre hook sopravvivono alla fusione — SENZA fissare il comportamento del ripiego stesso (che non deve mai scattare sulla tela reale).
+
+**Corretto in revisione (giro di riparazione 1) — Critical reale introdotto da questo task:** cablare `polilineaDellArco` dentro `SchemaEdgeTubazione` (Step 3) senza toccare `trascinaTratto` rompe il trascinamento del tratto per OGNI arco senza gomiti a mano — il caso di default, e proprio quello che il blocco doveva sistemare. `indiceTrattoPiuVicino` numera l'indice sulla polilinea VERA (`polilineaDellArco`/`instrada`), ma `trascinaTratto` ricostruiva `full` con `polilineaConGomiti(pDa, gomiti, pA)`: per uno stile senza gomiti le due polilinee hanno geometria e numero di tratti diversi, quindi l'indice numera un tratto diverso, oppure cade fuori dalla polilinea più corta e il gesto non fa nulla. Fix: `trascinaTratto` riceve `stile` e `quote` in più (stessa firma di `instrada`, con `indiceTratto`/`delta` in coda) e ricostruisce `full` con `instrada(stile, pDa, pA, gomiti, quote)`, non più con `polilineaConGomiti` da sola — così numera esattamente i tratti che l'utente vede, gomiti a mano compresi (`instrada` ci ripiega comunque quando ce ne sono). La `quote` non è nei dati dell'arco che questo hook legge (`stato.edges`, non quello fuso da `fondiDatiArchi`): `useTrascinamentoTratto` la riceve come quarto parametro, calcolato da `SchemaEditor` una volta per aggiornamento, la stessa istanza che finisce anche in `fondiDatiArchi`. Due test nuovi in `tratti.test.ts` (`describe('trascinaTratto')`) fissano i due scenari numerici trovati in revisione: uno stile `standard` senza gomiti dove il tratto verticale afferrato deve finire a x=130 (non x=230, l'indirizzo sbagliato della versione rotta), e uno stile `condensa` senza gomiti dove il gesto deve produrre uno spostamento reale (non `[]`, il no-op silenzioso della versione rotta).
 
 - [ ] **Step 1: Calcola le quote nell'editor**
 
@@ -796,9 +803,9 @@ In `src/components/schemaImpianto/SchemaEdgeTubazione.tsx`, sostituisci la riga 
 
 aggiungendo l'import di `polilineaDellArco` da `./conversioneFlow` e togliendo `polilineaConGomiti` dagli import se non resta usato altrove nel file.
 
-- [ ] **Step 4: Riscrivi i due commenti che oggi dichiarano il limite**
+- [ ] **Step 4: Riscrivi i commenti che oggi dichiarano il limite**
 
-Il commento di testa di `SchemaEdgeTubazione.tsx` (righe 1-16) e quello in `SchemaEditor.tsx` (righe ~168-177) descrivono l'approssimazione che questo task elimina: erano stati corretti a fine Blocco B **proprio perché prima dicevano il falso**, e vanno tenuti onesti. Riscrivili così:
+Non sono due, sono cinque, e vanno controllati uno per uno: il commento di testa di `SchemaEdgeTubazione.tsx` (righe 1-16), quello in `SchemaEditor.tsx` (righe ~168-177), il docblock di `polilineaDellArco` (conversioneFlow.ts), il docblock di `instrada` (tratti.ts) e il docblock del campo `SchemaEdgeData.quote` — tutti dicevano, in una forma o nell'altra, che il cablaggio non c'era ancora. Il giro di riparazione 1 aggiunge un sesto commento da riscrivere dopo il fix: il docblock di `onTrascinaTratto` (SchemaEdgeTubazione.tsx), che nominava `polilineaConGomiti` come la polilinea resa — falso una volta che `trascinaTratto` ricostruisce con `instrada`. I primi due erano stati corretti a fine Blocco B **proprio perché prima dicevano il falso**, e vanno tenuti onesti. Riscrivili così:
 
 `SchemaEdgeTubazione.tsx`, righe 1-16:
 
@@ -831,16 +838,20 @@ Il commento di testa di `SchemaEdgeTubazione.tsx` (righe 1-16) e quello in `Sche
 
 ```bash
 npx vitest run src/components/schemaImpianto > task-5-verde.txt 2>&1
+npx vitest run src/services/schemaImpianto > task-5-fix1-servizi.txt 2>&1
 npx tsc --noEmit > task-5-tsc.txt 2>&1
 npx eslint src/components/schemaImpianto > task-5-eslint.txt 2>&1
 ```
 
-Atteso: verdi, `tsc` pulito, nessun errore di lint (attenzione agli import rimasti orfani).
+Atteso: verdi, `tsc` pulito, nessun errore di lint (attenzione agli import rimasti orfani). La seconda riga (`src/services/schemaImpianto`) è la correzione del giro di riparazione 1: la firma nuova di `trascinaTratto` vive lì, non sotto `src/components`.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/components/schemaImpianto/SchemaEditor.tsx src/components/schemaImpianto/SchemaEdgeTubazione.tsx
+git add src/components/schemaImpianto/SchemaEditor.tsx src/components/schemaImpianto/SchemaEdgeTubazione.tsx \
+  src/components/schemaImpianto/conversioneFlow.ts src/components/schemaImpianto/useTrascinamentoTratto.ts \
+  src/components/schemaImpianto/__tests__/fondiDatiArchi.test.ts \
+  src/services/schemaImpianto/tratti.ts src/services/schemaImpianto/__tests__/tratti.test.ts
 git commit -m "feat(schema-impianto): la tela disegna le rotte vere, quote calcolate dall'editor"
 ```
 

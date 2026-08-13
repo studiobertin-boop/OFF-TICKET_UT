@@ -238,6 +238,12 @@ describe('tSuTratto', () => {
 })
 
 describe('trascinaTratto', () => {
+  // Con gomiti a mano già presenti `instrada` ripiega su `polilineaConGomiti` (vedi describe
+  // 'instrada' più sotto): stile e quote non contano per questi casi, un valore qualsiasi va
+  // bene, e la polilinea interna a `trascinaTratto` coincide con quella di prima di questo giro.
+  const STILE_INDIFFERENTE = 'standard'
+  const QUOTE_INDIFFERENTE = { yCollettore: 999, yCorsiaCondense: 999 }
+
   it('un tratto orizzontale fra due gomiti trasla entrambi sulla y, la x non cambia', () => {
     const pDa = { x: 0, y: 0 }
     const pA = { x: 300, y: 300 }
@@ -254,7 +260,15 @@ describe('trascinaTratto', () => {
     )
     expect(indiceTratto).toBeGreaterThanOrEqual(0)
 
-    const nuovi = trascinaTratto(pDa, gomiti, pA, indiceTratto, { x: 0, y: 50 })
+    const nuovi = trascinaTratto(
+      STILE_INDIFFERENTE,
+      pDa,
+      pA,
+      gomiti,
+      QUOTE_INDIFFERENTE,
+      indiceTratto,
+      { x: 0, y: 50 }
+    )
     // I due gomiti che delimitavano il tratto ora stanno a y=150, x invariate.
     expect(nuovi).toContainEqual({ x: 100, y: 150 })
     expect(nuovi).toContainEqual({ x: 200, y: 150 })
@@ -262,11 +276,22 @@ describe('trascinaTratto', () => {
 
   it('trascinare il tratto che tocca l’ancora Da fa nascere un gomito nuovo, l’ancora non si sposta', () => {
     const pDa = { x: 0, y: 0 }
-    const pA = { x: 200, y: 0 }
-    // Nessun gomito: full = [pDa, pA] (un solo tratto orizzontale, indice 0).
-    const nuovi = trascinaTratto(pDa, [], pA, 0, { x: 0, y: 40 })
-    // Un gomito nuovo vicino a pDa (stessa x, nuova y) e uno vicino a pA (stessa x di pA,
-    // nuova y): il tratto centrale è quello che si è davvero spostato.
+    const pA = { x: 300, y: 300 }
+    // Nessun gomito a mano: la polilinea interna è ora la rotta nativa dello stile
+    // (`instrada`), non più il semplice raccordo a un angolo — qui 'standard' (rottaLinea),
+    // che gira a metà strada: [pDa, (150,0), (150,300), pA]. Il tratto 0, (0,0)-(150,0),
+    // tocca l'ancora Da.
+    const nuovi = trascinaTratto(
+      'standard',
+      pDa,
+      pA,
+      undefined,
+      QUOTE_INDIFFERENTE,
+      0,
+      { x: 0, y: 40 }
+    )
+    // Un gomito nuovo vicino a pDa (stessa x, nuova y) e uno vicino al gomito successivo della
+    // rotta nativa: il tratto centrale è quello che si è davvero spostato.
     expect(nuovi.length).toBeGreaterThanOrEqual(1)
     const full = polilineaConGomiti(pDa, nuovi, pA)
     expect(full[0]).toEqual(pDa)
@@ -289,7 +314,15 @@ describe('trascinaTratto', () => {
       { x: 150, y: 0 },
       { x: 150, y: 100 },
     ]
-    const nuovi = trascinaTratto(pDa, gomiti, pA, 1, { x: 0, y: 30 })
+    const nuovi = trascinaTratto(
+      STILE_INDIFFERENTE,
+      pDa,
+      pA,
+      gomiti,
+      QUOTE_INDIFFERENTE,
+      1,
+      { x: 0, y: 30 }
+    )
     // Il gomito del montante finale, (150,100), deve comparire ancora — non toccato dal
     // trascinamento del tratto (50,0)-(150,0).
     expect(nuovi).toContainEqual({ x: 150, y: 100 })
@@ -302,7 +335,60 @@ describe('trascinaTratto', () => {
     const pDa = { x: 0, y: 0 }
     const pA = { x: 100, y: 100 }
     const gomiti = [{ x: 50, y: 50 }]
-    expect(trascinaTratto(pDa, gomiti, pA, 99, { x: 10, y: 10 })).toEqual(gomiti)
+    expect(
+      trascinaTratto(STILE_INDIFFERENTE, pDa, pA, gomiti, QUOTE_INDIFFERENTE, 99, { x: 10, y: 10 })
+    ).toEqual(gomiti)
+  })
+
+  // Giro di riparazione 1: prima di questo giro, un arco SENZA gomiti a mano veniva ricostruito
+  // qui dentro con `polilineaConGomiti(pDa, [], pA)` — un semplice angolo singolo — mentre il
+  // componente disegna con `polilineaDellArco`/`instrada` la rotta nativa dello stile, a più
+  // tratti. L'indice che l'utente afferra (`indiceTrattoPiuVicino` sulla polilinea VERA) non
+  // corrispondeva più a quello su cui `trascinaTratto` operava: il tratto sbagliato si spostava,
+  // o il gesto non faceva nulla se l'indice cadeva fuori dalla polilinea (troppo corta).
+  it('standard senza gomiti: il tratto verticale afferrato si sposta sulla propria x, non su quella di un raccordo diverso', () => {
+    const pDa = { x: 0, y: 0 }
+    const pA = { x: 200, y: 100 }
+    const quote = { yCollettore: 999, yCorsiaCondense: 999 }
+    // Rotta nativa 'standard' (rottaLinea): [(0,0), (100,0), (100,100), (200,100)]. Il tratto
+    // verticale (100,0)-(100,100) è quello visto e afferrato dall'utente, indice 1.
+    const full = instrada('standard', pDa, pA, undefined, quote)
+    const indiceTratto = full.findIndex((p, i) => full[i + 1] && p.x === full[i + 1].x && p.x === 100)
+    expect(indiceTratto).toBe(1)
+
+    const nuovi = trascinaTratto('standard', pDa, pA, undefined, quote, indiceTratto, { x: 30, y: 0 })
+
+    // Con la ricostruzione corretta (via `instrada`) il tratto verticale finisce a x=130
+    // (100+30). La versione rotta lo spostava a x=230, perché numerava un'altra polilinea
+    // (quella di `polilineaConGomiti(pDa, [], pA)`, il cui unico raccordo verticale sta a
+    // x=200) — non il tratto che l'utente ha davvero afferrato.
+    expect(nuovi).toEqual([
+      { x: 130, y: 0 },
+      { x: 130, y: 100 },
+    ])
+  })
+
+  it('condensa senza gomiti: trascinare l’ultimo tratto sposta davvero la linea, non è un gesto a vuoto', () => {
+    const pDa = { x: 50, y: 200 }
+    const pA = { x: 400, y: 500 }
+    const quote = { yCollettore: 999, yCorsiaCondense: 340 }
+    // Rotta nativa 'condensa' (rottaCondensa): [(50,200), (50,340), (400,340), (400,500)].
+    // L'ultimo tratto, (400,340)-(400,500), è quello che l'utente vede e afferra: indice 2.
+    const full = instrada('condensa', pDa, pA, undefined, quote)
+    expect(full.length).toBe(4)
+    const indiceTratto = 2
+
+    const nuovi = trascinaTratto('condensa', pDa, pA, undefined, quote, indiceTratto, { x: 20, y: 0 })
+
+    // Con la ricostruzione corretta il gesto sposta davvero la corsia (x passa da 400 a 420
+    // sui due gomiti toccati dal tratto trascinato). La versione rotta ricostruiva con
+    // `polilineaConGomiti(pDa, [], pA)` — due soli tratti, `full[2]` fuori range — e restituiva
+    // i gomiti invariati: il trascinamento non faceva NULLA, un gesto silenziosamente a vuoto.
+    expect(nuovi).toEqual([
+      { x: 50, y: 340 },
+      { x: 420, y: 340 },
+      { x: 420, y: 500 },
+    ])
   })
 })
 

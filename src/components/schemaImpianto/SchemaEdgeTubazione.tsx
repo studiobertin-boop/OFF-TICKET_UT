@@ -50,8 +50,11 @@ export interface SchemaEdgeData extends Record<string, unknown> {
   /**
    * Legata a questo arco specifico da `useTrascinamentoTratto` (vedi `edgesConTrascinamento`
    * lì dentro): il componente dell'arco non conosce la cronologia, sa solo chiedere di
-   * aggiornarla. `indiceTratto` è quello nella polilinea RESA (`polilineaConGomiti`), non
-   * nell'elenco dei soli gomiti a mano.
+   * aggiornarla. `indiceTratto` è quello nella polilinea RESA — la stessa che disegna
+   * `polilineaDellArco`/`instrada`, rotta nativa compresa quando l'arco non ha gomiti a mano —
+   * non nell'elenco dei soli gomiti a mano. `useTrascinamentoTratto` la ricostruisce con
+   * `instrada` proprio per restare sugli stessi indici: numerarla diversamente sposterebbe un
+   * tratto diverso da quello afferrato (era il difetto del giro di riparazione 1).
    */
   onTrascinaTratto?: (pDa: Punto, pA: Punto, indiceTratto: number, puntoLibero: Punto, concluso: boolean) => void
 }

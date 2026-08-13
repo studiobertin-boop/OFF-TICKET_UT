@@ -6,7 +6,7 @@
  */
 import { useCallback, useMemo, useRef } from 'react'
 import type { Edge, Node } from '@xyflow/react'
-import { trascinaTratto, type Punto } from '@/services/schemaImpianto/tratti'
+import { trascinaTratto, type Punto, type QuoteInstradamento } from '@/services/schemaImpianto/tratti'
 import type { SchemaEdgeData } from './SchemaEdgeTubazione'
 
 interface StatoConNodiEdArchi {
@@ -44,7 +44,15 @@ export function indiceTrattoPiuVicino(full: Punto[], p: Punto): number {
 export function useTrascinamentoTratto<T extends StatoConNodiEdArchi>(
   stato: T,
   applica: Aggiorna<T>,
-  aggiornaSenzaCronologia: Aggiorna<T>
+  aggiornaSenzaCronologia: Aggiorna<T>,
+  // Quote di instradamento del disegno intero (`quoteInstradamento`, layout.ts), calcolate una
+  // volta da `SchemaEditor`: servono per ricostruire la polilinea con `instrada`, la STESSA che
+  // il componente disegna, così l'indice del tratto afferrato (`indiceTrattoPiuVicino`, sotto)
+  // numera gli stessi segmenti che `trascinaTratto` numera qui dentro. Ricostruire con
+  // `polilineaConGomiti` direttamente — il bug del giro di riparazione 1 — sposta il tratto
+  // sbagliato per ogni arco senza gomiti a mano, perché quella polilinea ha una forma diversa
+  // dalla rotta nativa che l'utente vede.
+  quote: QuoteInstradamento
 ) {
   // Stesso principio di useGomiti.ts: il PRIMO evento del gesto entra in cronologia.
   const trascinamentoAvviato = useRef(false)
@@ -65,13 +73,13 @@ export function useTrascinamentoTratto<T extends StatoConNodiEdArchi>(
         ...s,
         edges: s.edges.map((e) => {
           if (e.id !== arcoId) return e
-          const gomiti = (e.data as SchemaEdgeData).punti ?? []
-          const nuovi = trascinaTratto(pDa, gomiti, pA, indiceTratto, delta)
-          return { ...e, data: { ...(e.data as SchemaEdgeData), punti: nuovi } satisfies SchemaEdgeData }
+          const data = e.data as SchemaEdgeData
+          const nuovi = trascinaTratto(data.stile, pDa, pA, data.punti, quote, indiceTratto, delta)
+          return { ...e, data: { ...data, punti: nuovi } satisfies SchemaEdgeData }
         }),
       }))
     },
-    [applica, aggiornaSenzaCronologia]
+    [applica, aggiornaSenzaCronologia, quote]
   )
 
   const edgesConTrascinamento = useMemo(

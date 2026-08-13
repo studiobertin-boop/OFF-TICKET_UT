@@ -234,8 +234,11 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
   const { aggiungiSegno, edgesConSegni } = useSegniTubo(stato, applica, aggiornaSenzaCronologia)
 
   // Trascinare in blocco un tratto dritto: logica isolata in un hook suo (vedi
-  // useTrascinamentoTratto.ts), stesso motivo di useGomiti.ts qui sopra.
-  const { edgesConTrascinamento } = useTrascinamentoTratto(stato, applica, aggiornaSenzaCronologia)
+  // useTrascinamentoTratto.ts), stesso motivo di useGomiti.ts qui sopra. Riceve `quote`
+  // perché deve ricostruire la STESSA polilinea che il componente disegna (`instrada`), non
+  // una sua approssimazione: altrimenti l'indice del tratto afferrato non torna più con quello
+  // che l'utente vede (giro di riparazione 1).
+  const { edgesConTrascinamento } = useTrascinamentoTratto(stato, applica, aggiornaSenzaCronologia, quote)
 
   // `edgesConGomitiBase`, `edgesConSegni` ed `edgesConTrascinamento` derivano TUTTI e tre da
   // `stato.edges` con dati aggiuntivi diversi (rispettivamente `onSpostaGomito`/

@@ -66,25 +66,36 @@ function raccordaPreservando(fisso: Punto, daPreservare: Punto, orizzontale: boo
 
 /**
  * Nuovi gomiti dopo aver trascinato in blocco il tratto dritto fra `full[indiceTratto]` e
- * `full[indiceTratto+1]`, numerazione della polilinea COMPLETA (`polilineaConGomiti`: ancore
- * e gomiti auto-inseriti compresi) di `delta`. Il tratto resta ortogonale per costruzione
- * (`raccordoOrtogonale` lo garantisce a monte): si sposta la sola coordinata condivisa dai
- * due capi (y se il tratto è orizzontale, x se verticale) e si ricongiungono i vicini — è il
- * modo in cui «i gomiti ai capi si aggiustano da soli»: se un capo tocca un'ancora, ne nasce
- * uno nuovo lì vicino (l'ancora non si sposta mai); se tocca già un gomito, quel gomito
- * trasla e basta, perché `raccordaPreservando` lo trova già allineato.
+ * `full[indiceTratto+1]`, numerazione della polilinea COMPLETA che l'utente vede — quella che
+ * produce `instrada` per questo arco (rotta nativa dello stile se senza gomiti a mano,
+ * `polilineaConGomiti` se ce ne sono già) — di `delta`. Riceve `stile` e `quote` proprio per
+ * ricostruirla con `instrada`, non con `polilineaConGomiti` direttamente: numerare una
+ * polilinea diversa da quella che il componente ha disegnato (e su cui l'utente ha afferrato
+ * il tratto con `indiceTrattoPiuVicino`) sposta un tratto diverso da quello agganciato: è
+ * esattamente il difetto del giro di riparazione 1, dove questa funzione ricostruiva ancora
+ * con `polilineaConGomiti` da sola — per un arco senza gomiti a mano una spezzata a un solo
+ * angolo, mentre la tela (via `polilineaDellArco`) disegna già la rotta nativa a più tratti.
+ *
+ * Il tratto resta ortogonale per costruzione (le rotte di `instrada` lo garantiscono a monte):
+ * si sposta la sola coordinata condivisa dai due capi (y se il tratto è orizzontale, x se
+ * verticale) e si ricongiungono i vicini — è il modo in cui «i gomiti ai capi si aggiustano da
+ * soli»: se un capo tocca un'ancora, ne nasce uno nuovo lì vicino (l'ancora non si sposta mai);
+ * se tocca già un gomito, quel gomito trasla e basta, perché `raccordaPreservando` lo trova già
+ * allineato.
  */
 export function trascinaTratto(
+  stile: SchemaArcoStile,
   pDa: Punto,
-  gomiti: Punto[],
   pA: Punto,
+  gomiti: Punto[] | undefined,
+  quote: QuoteInstradamento,
   indiceTratto: number,
   delta: Punto
 ): Punto[] {
-  const full = polilineaConGomiti(pDa, gomiti, pA)
+  const full = instrada(stile, pDa, pA, gomiti, quote)
   const a = full[indiceTratto]
   const b = full[indiceTratto + 1]
-  if (!a || !b) return gomiti
+  if (!a || !b) return gomiti ?? []
 
   const orizzontale = a.y === b.y
   const sposta = (p: Punto): Punto => (orizzontale ? { x: p.x, y: p.y + delta.y } : { x: p.x + delta.x, y: p.y })
