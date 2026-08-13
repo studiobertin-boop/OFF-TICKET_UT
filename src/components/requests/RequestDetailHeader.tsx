@@ -2,7 +2,9 @@ import { ReactNode } from 'react'
 import { Box, Button, Chip, IconButton, Typography } from '@mui/material'
 import { ArrowBack as ArrowBackIcon, Edit as EditIcon } from '@mui/icons-material'
 import { StatusChip } from '@/components/common'
-import { BlockIndicator } from './BlockIndicator'
+import { BlocchiChip } from './BlocchiChip'
+import { BlocchiNastro } from './BlocchiNastro'
+import type { RiassuntoBlocchi } from '@/utils/blocchiPratica'
 import type { Request } from '@/types'
 
 export interface RequestDetailHeaderProps {
@@ -14,7 +16,8 @@ export interface RequestDetailHeaderProps {
   codicePratica: string
   canManageCodice: boolean
   onEditCodice: () => void
-  blockReason?: string
+  /** Lettura dei fermi della pratica: il chip in barra e il nastro sotto lo stepper. */
+  blocchi: RiassuntoBlocchi
   onBack: () => void
   /** Azione primaria a destra (Scheda dati) e, se la pratica è ferma, Sblocca. */
   primaryActions?: ReactNode
@@ -40,7 +43,7 @@ export const RequestDetailHeader = ({
   codicePratica,
   canManageCodice,
   onEditCodice,
-  blockReason,
+  blocchi,
   onBack,
   primaryActions,
   actions,
@@ -113,7 +116,8 @@ export const RequestDetailHeader = ({
 
           <StatusChip status={request.status} />
           {request.is_urgent && <Chip size="small" color="error" label="Urgente" />}
-          {request.is_blocked && <BlockIndicator isBlocked reason={blockReason} />}
+          {/* Il chip dei fermi dice anche i blocchi già risolti, che il triangolino taceva. */}
+          <BlocchiChip riassunto={blocchi} />
         </Box>
 
         {/* Le azioni vanno a capo invece di sfondare: dove il mouse non c'è le etichette
@@ -137,6 +141,10 @@ export const RequestDetailHeader = ({
         </Typography>
 
         <Box sx={{ mt: 1.5 }}>{workflow}</Box>
+
+        {/* Quante volte si è fermata e per quanto: la domanda cui il chip risponde solo
+            aprendosi. Sta sotto lo stepper, che è la stessa lettura del percorso. */}
+        <BlocchiNastro riassunto={blocchi} creataIl={request.created_at} />
       </Box>
     </>
   )

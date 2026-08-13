@@ -51,7 +51,8 @@ import { CompleteCustomerDataDialog } from '@/components/customers/CompleteCusto
 import { CodicePraticaDialog } from '@/components/requests/CodicePraticaDialog'
 import { CustomerInfoSection } from '@/components/requests/CustomerInfoSection'
 import { PlantLocationSection } from '@/components/requests/PlantLocationSection'
-import { useActiveBlock } from '@/hooks/useRequestBlocks'
+import { useActiveBlock, useRequestBlocks } from '@/hooks/useRequestBlocks'
+import { riassumiBlocchi } from '@/utils/blocchiPratica'
 import { isDM329Family } from '@/utils/workflow'
 import { FieldValue, SectionLabel } from '@/components/common'
 import { DM329StatusStepper } from '@/components/requests/DM329StatusStepper'
@@ -70,6 +71,7 @@ export const RequestDetail = () => {
   const { user } = useAuth()
   const { data: request, isLoading, error, refetch } = useRequest(id!)
   const { data: activeBlock } = useActiveBlock(id)
+  const { data: blocchiPratica = [] } = useRequestBlocks(id)
   const { isEnabled: dm329FullWorkflowEnabled } = useFeatureFlag('dm329_full_workflow')
   const { data: requestTypes = [] } = useRequestTypes()
 
@@ -540,6 +542,10 @@ export const RequestDetail = () => {
   const indirizzoImpianto = risolviIndirizzoImpianto(request.indirizzo_impianto)
   const noteSalvata = (request.custom_fields?.note as string) || ''
 
+  // Una lettura sola dei fermi per il chip e per il nastro: se la calcolassero separatamente
+  // potrebbero raccontare la stessa pratica in due modi.
+  const riassuntoBlocchi = riassumiBlocchi(blocchiPratica, { creataIl: request.created_at })
+
   return (
     <Layout>
       <Box>
@@ -550,7 +556,7 @@ export const RequestDetail = () => {
           codicePratica={codicePratica}
           canManageCodice={canManageCodice}
           onEditCodice={() => setCodiceDialogOpen(true)}
-          blockReason={activeBlock?.reason}
+          blocchi={riassuntoBlocchi}
           onBack={() => navigate('/requests')}
           primaryActions={
             <>
