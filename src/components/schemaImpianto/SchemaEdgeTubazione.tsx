@@ -298,19 +298,18 @@ export function SchemaEdgeTubazione({
        * allo stack per posizione, prima ancora che React entri in gioco — `stopPropagation`
        * agisce solo dopo che il target è già stato scelto, qui non è la ragione.
        *
-       * Disattivata sul flessibile (`pointerEvents: 'none'`): la sua linea VISIBILE è l'onda
-       * (`ondula(polilinea)`), non la polilinea dritta — un'area di hit-test sagomata sulla
-       * dritta, sovrapposta a un disegno ondulato, sposterebbe il tubo in un punto diverso da
-       * dove l'utente lo vede, ed è peggio di non offrire il gesto lì. Il flessibile resta
-       * trascinabile nei suoi gomiti (il gesto già esistente), non nel tratto: la spec del
-       * blocco parla di «tratto dritto», e l'onda non lo è.
+       * Attiva anche sul flessibile (fino al Blocco C1 era spenta lì): la sua polilinea dritta
+       * ora coincide sempre con quella che il documento disegnerà, e l'onda non è altro che la
+       * decorazione di quella stessa linea. Finché le due divergevano, un'area di presa
+       * sagomata sulla dritta avrebbe spostato il tubo altrove da dove l'utente lo vede; ora è
+       * lo stesso tubo, e il committente lo ha chiesto esplicitamente.
        */}
       <path
         d={percorso(polilinea)}
         fill="none"
         stroke="transparent"
         strokeWidth={16}
-        style={{ cursor: 'move', pointerEvents: stile === 'flessibile' ? 'none' : 'all' }}
+        style={{ cursor: 'move', pointerEvents: 'all' }}
         onPointerDown={(e) => {
           e.stopPropagation()
           mossoTrattoRef.current = false
