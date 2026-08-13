@@ -65,9 +65,10 @@ export const INTERLINEA_TESTO = 1.25
  * blocco cresce verso il basso — `dimensioniDi`, per il terminale utenze, è dove questo calcolo
  * vive.
  *
- * Il terminale utenze (`simboloUtenze`) è il primo consumatore in questo repo; i testi liberi
- * che la useranno arrivano nei task successivi del Blocco C2 (`testo()` resta il disegno di
- * tutto ciò che oggi è a riga singola: codici, etichette, tabella).
+ * Due consumatori: il terminale utenze (`simboloUtenze`), il primo in questo repo, e le
+ * annotazioni libere (`renderTestiLiberi`, renderSvg.ts), che l'editor permette di posare sul
+ * disegno. `testo()` resta il disegno di tutto ciò che è a riga singola: codici, etichette,
+ * tabella.
  */
 export function testoMultiRiga(
   x: number,

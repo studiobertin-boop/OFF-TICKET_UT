@@ -59,6 +59,9 @@ function TestoLibero({ testo, onSposta, onModifica }: TestoLiberoProps) {
   // l'angolo sotto il cursore al primo pixel di movimento: si afferra una scritta per il mezzo,
   // non per il suo angolo in alto a sinistra.
   const scostamentoRef = useRef({ x: 0, y: 0 })
+  // Ultima posizione consegnata durante il gesto: serve a chiuderlo se il puntatore viene
+  // annullato, dove le coordinate dell'evento non sono un dato su cui contare.
+  const ultimaRef = useRef({ x: 0, y: 0 })
 
   const posizioneDa = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -84,7 +87,9 @@ function TestoLibero({ testo, onSposta, onModifica }: TestoLiberoProps) {
       if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
       e.stopPropagation()
       mossoRef.current = true
-      onSposta(testo.id, posizioneDa(e), false)
+      const posizione = posizioneDa(e)
+      ultimaRef.current = posizione
+      onSposta(testo.id, posizione, false)
     },
     [onSposta, posizioneDa, testo.id]
   )
@@ -96,8 +101,33 @@ function TestoLibero({ testo, onSposta, onModifica }: TestoLiberoProps) {
       e.currentTarget.releasePointerCapture(e.pointerId)
       // Nessun movimento: niente da spostare e, soprattutto, niente da scrivere in cronologia.
       if (mossoRef.current) onSposta(testo.id, posizioneDa(e), true)
+      mossoRef.current = false
     },
     [onSposta, posizioneDa, testo.id]
+  )
+
+  /**
+   * Puntatore annullato a metà gesto (il sistema lo revoca, il dito esce dalla superficie
+   * touch): il rilascio non arriverà mai, e il gesto va chiuso qui. Senza, `spostaTesto`
+   * resterebbe con il suo «trascinamento avviato» alzato, e il PRIMO evento del trascinamento
+   * successivo — l'unico che entra in cronologia — passerebbe da `aggiornaSenzaCronologia`:
+   * quello spostamento non sarebbe più annullabile con Ctrl+Z.
+   *
+   * Si chiude sull'ultima posizione consegnata, non su quelle dell'evento di annullamento, che
+   * non è un movimento e può portare coordinate qualsiasi: l'annotazione resta dove il gesto
+   * l'aveva portata, che è anche ciò che l'utente ha appena visto sulla tela.
+   */
+  const suPointerCancel = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.stopPropagation()
+      // La cattura di norma è ancora attiva qui (il rilascio implicito segue `pointercancel`),
+      // ma rilasciarla senza averla farebbe lanciare: si verifica prima.
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
+      if (!mossoRef.current) return
+      mossoRef.current = false
+      onSposta(testo.id, ultimaRef.current, true)
+    },
+    [onSposta, testo.id]
   )
 
   const suDoppioClic = useCallback(
@@ -122,6 +152,7 @@ function TestoLibero({ testo, onSposta, onModifica }: TestoLiberoProps) {
       onPointerDown={suPointerDown}
       onPointerMove={suPointerMove}
       onPointerUp={suPointerUp}
+      onPointerCancel={suPointerCancel}
       onDoubleClick={suDoppioClic}
       style={{
         position: 'absolute',

@@ -580,8 +580,12 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
     }
     // Annotazione nuova: nasce sotto tutto il disegno, come le apparecchiature della palette.
     // Un punto fisso, o il centro della tela, finirebbe sopra qualcosa di già disegnato.
-    aggiungiTesto({ x: 40, y: piedeDelDisegno(stato.nodes, stato.testi) + 40 }, contenuto)
-  }, [aggiungiTesto, applica, modificaTesto, scrittura, stato.nodes, stato.testi])
+    // Il piede si calcola DENTRO l'updater, su `s`, non da `stato` catturato in questa
+    // chiusura: è la stessa cautela di `aggiungiNodo` e della generazione dell'id in
+    // useTestiLiberi.ts — `stato` può essere l'istantanea di un render precedente a quello su
+    // cui il reducer sta per applicare l'aggiunta, e l'annotazione nascerebbe sopra qualcosa.
+    aggiungiTesto((s) => ({ x: 40, y: piedeDelDisegno(s.nodes, s.testi) + 40 }), contenuto)
+  }, [aggiungiTesto, applica, modificaTesto, scrittura])
 
   /** Elimina l'annotazione aperta nel dialog: è la sola strada per toglierne una, perché non
    *  essendo nodi di react-flow le annotazioni non entrano nella selezione della tela e il

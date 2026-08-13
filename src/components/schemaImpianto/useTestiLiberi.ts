@@ -75,9 +75,18 @@ export function useTestiLiberi<T extends StatoConTesti>(
   // di un render precedente a quello su cui il reducer sta per applicare l'aggiunta (stesso
   // rischio di lettura-stantia descritto in useSchemaHistory.ts, a proposito di più `dispatch`
   // nello stesso lotto) e riusare un id già assegnato.
+  //
+  // La posizione si accetta anche come funzione dello stato, sulla falsariga di `applica`
+  // stessa: chi la calcola dal disegno corrente (l'editor la mette sotto tutto ciò che è già
+  // disegnato) deve leggere i nodi e i testi che il reducer sta per aggiornare, non quelli
+  // catturati nella chiusura del render — è la stessa lettura stantia da cui l'id qui sotto si
+  // difende.
   const aggiungiTesto = useCallback(
-    (posizione: { x: number; y: number }, contenuto = '') => {
-      applica((s) => ({ ...s, testi: testoAggiunto(s.testi, posizione, contenuto) }))
+    (posizione: { x: number; y: number } | ((corrente: T) => { x: number; y: number }), contenuto = '') => {
+      applica((s) => ({
+        ...s,
+        testi: testoAggiunto(s.testi, typeof posizione === 'function' ? posizione(s) : posizione, contenuto),
+      }))
     },
     [applica]
   )
