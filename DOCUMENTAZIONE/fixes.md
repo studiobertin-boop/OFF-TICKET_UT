@@ -18,3 +18,7 @@ _Nessun fix in attesa._
 | 2026-08-11 | Elenco pratiche DM329: nuova icona di compilazione della scheda dati (vuota, percentuale a due cifre, completa), ordinabile e filtrabile. Lo stato si può imporre a mano dal dettaglio pratica, accanto al pulsante «Scheda dati», e riportare all'automatico. |
 | 2026-08-12 | Relazione/dichiarazioni: generavano dai dati letti al caricamento della pagina, non da quelli appena salvati — una modifica alla scheda non compariva nel documento senza prima ricaricare la pagina. |
 | 2026-08-12 | Genera relazione: pulsante verde "scarica" e icona "rigenera" (poco visibile) uniti in un solo pulsante con menu Scarica / Rigenera. |
+| 2026-08-13 | Dichiarazioni: la dichiarazione su carta intestata non elenca più gli apparecchi marcati «già denunciato». Riguarda ciò che si sta denunciando adesso, non ciò che INAIL ha già a matricola. |
+| 2026-08-13 | Catalogo e scheda dati: sulle valvole di sicurezza il diametro distingue le varianti insieme alla Ptar. Si sceglie da elenco e la scelta autocompila i dati della variante; le grafie a catalogo («3/8», «3/8''») sono state normalizzate. |
+| 2026-08-13 | Scheda dati: il riconoscimento automatico legge anche i PDF (certificati, fascicoli di più pagine). Prima la rotellina girava e non succedeva niente, perché la risposta del modello non era leggibile; ora l'eventuale errore si vede anche in pagina. |
+| 2026-08-13 | Scheda dati: le valvole annidate al secondo livello (C1.2) hanno un solo gancio di collegamento, quello che risale all'apparecchio che le porta. |
