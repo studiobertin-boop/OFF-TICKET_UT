@@ -49,17 +49,32 @@ function entroLimiti(valore: unknown, [minimo, massimo]: readonly [number, numbe
   return Math.min(massimo, Math.max(minimo, valore))
 }
 
-export function leggiPreferenze(): PreferenzeEditor {
-  let salvato: unknown
+/**
+ * Legge la chiave salvata, o `null` se manca, non è JSON valido, o non è un oggetto. Unico punto
+ * in cui si tocca `localStorage` e si interpreta il suo contenuto grezzo: `leggiPreferenze` non
+ * restituisce mai questo valore direttamente, per non consegnare al chiamante l'identità di un
+ * oggetto che potrebbe condividere memoria con `PREFERENZE_PREDEFINITE`.
+ */
+function leggiGrezzo(): Partial<Record<keyof PreferenzeEditor, unknown>> | null {
   try {
     const grezzo = localStorage.getItem(CHIAVE)
-    if (grezzo === null) return PREFERENZE_PREDEFINITE
-    salvato = JSON.parse(grezzo)
+    if (grezzo === null) return null
+    const salvato = JSON.parse(grezzo)
+    if (typeof salvato !== 'object' || salvato === null) return null
+    return salvato as Partial<Record<keyof PreferenzeEditor, unknown>>
   } catch {
-    return PREFERENZE_PREDEFINITE
+    return null
   }
-  if (typeof salvato !== 'object' || salvato === null) return PREFERENZE_PREDEFINITE
-  const letto = salvato as Partial<Record<keyof PreferenzeEditor, unknown>>
+}
+
+/**
+ * Restituisce sempre un oggetto nuovo, mai l'identità di `PREFERENZE_PREDEFINITE`: i suoi campi
+ * non sono `readonly`, quindi un consumatore che mutasse il risultato di questa funzione
+ * corromperebbe anche il valore di ripiego usato altrove nel modulo se le due cose condividessero
+ * memoria.
+ */
+export function leggiPreferenze(): PreferenzeEditor {
+  const letto = leggiGrezzo() ?? {}
   return {
     schermoIntero: typeof letto.schermoIntero === 'boolean' ? letto.schermoIntero : PREFERENZE_PREDEFINITE.schermoIntero,
     larghezza: entroLimiti(letto.larghezza, LIMITI.larghezza, PREFERENZE_PREDEFINITE.larghezza),

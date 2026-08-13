@@ -47,6 +47,15 @@ describe('lettura e scrittura delle preferenze', () => {
     expect(lette.schermoIntero).toBe(PREFERENZE_PREDEFINITE.schermoIntero)
     expect(lette.larghezza).toBe(55)
   })
+
+  // leggiPreferenze() deve restituire un oggetto proprio, non l'identità di PREFERENZE_PREDEFINITE:
+  // due chiamate non devono condividere memoria, altrimenti mutare il risultato in un consumatore
+  // corromperebbe anche il valore di ripiego usato dal resto del modulo.
+  it('non restituisce l\'identità della costante condivisa: mutarlo non tocca i predefiniti', () => {
+    const lette = leggiPreferenze()
+    lette.larghezza = 999
+    expect(PREFERENZE_PREDEFINITE.larghezza).toBe(90)
+  })
 })
 
 describe('percentualeAnteprima', () => {
@@ -67,9 +76,12 @@ describe('percentualeAnteprima', () => {
 describe('dimensioneFinestra', () => {
   // La finestra resta centrata, quindi cresce in tutte le direzioni: metà larghezza è la
   // distanza dell'angolo dal centro dello schermo. Schermo 1000x800, centro (500,400):
-  // l'angolo a (900, 720) dà 400*2=800 di larghezza (80%) e 320*2=640 di altezza (80%).
+  // l'angolo a (900, 600) dà 400*2=800 di larghezza (80%) e 200*2=400 di altezza (50%).
+  // Larghezza e altezza attese diverse apposta: un'implementazione che calcolasse l'altezza
+  // copiando l'espressione della larghezza (ignorando y e altezzaSchermo) darebbe {80, 80} e
+  // cadrebbe qui.
   it('ricava le percentuali dalla distanza dell\'angolo dal centro', () => {
-    expect(dimensioneFinestra(900, 720, 1000, 800)).toEqual({ larghezza: 80, altezza: 80 })
+    expect(dimensioneFinestra(900, 600, 1000, 800)).toEqual({ larghezza: 80, altezza: 50 })
   })
 
   it('non lascia rimpicciolire la finestra sotto il minimo utile', () => {
