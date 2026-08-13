@@ -505,3 +505,32 @@ describe('la tubazione del terminale quando cambia la coda della catena', () => 
     expect(entranti[0].punti).toEqual([{ x: 777, y: 333 }])
   })
 })
+
+describe('testi liberi', () => {
+  const testo = { id: 'T1', x: 100, y: 200, contenuto: 'Linea azoto\nal reparto 2' }
+
+  it('si salvano e si rileggono', () => {
+    const layout = { nodi: [], archi: [], muro: null, testi: [testo] }
+    const salvato = serializzaLayout(layout)
+    expect(salvato.testi).toEqual([testo])
+    expect(deserializzaLayout(salvato)!.testi).toEqual([testo])
+  })
+
+  it('il salvataggio è un’istantanea: modificare il layout dopo non tocca il salvato', () => {
+    const layout = { nodi: [], archi: [], muro: null, testi: [{ ...testo }] }
+    const salvato = serializzaLayout(layout)
+    layout.testi![0].contenuto = 'cambiato'
+    expect(salvato.testi![0].contenuto).toBe('Linea azoto\nal reparto 2')
+  })
+
+  it('un layout salvato prima di questo blocco si rilegge senza testi, non in errore', () => {
+    const vecchio = { versione: 1, nodi: [], archi: [] }
+    expect(deserializzaLayout(vecchio)!.testi).toEqual([])
+  })
+
+  it('sopravvivono alla riconciliazione con la scheda, come i nodi aggiunti a mano', () => {
+    const modello = { nodi: [], archi: [] }
+    const esito = riconcilia({ nodi: [], archi: [], testi: [testo] }, modello)
+    expect(esito.layout.testi).toEqual([testo])
+  })
+})

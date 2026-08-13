@@ -7,7 +7,7 @@
  */
 import { calcolaMuro, layoutSchema, DIMENSIONI_NODO, pozzoCondense } from './layout'
 import { dimensioniDi } from './symbols'
-import type { SchemaArco, SchemaLayout, SchemaModel, SchemaNodo, SchemaNodoPosizionato } from './types'
+import type { SchemaArco, SchemaLayout, SchemaModel, SchemaNodo, SchemaNodoPosizionato, SchemaTestoLibero } from './types'
 
 const VERSIONE = 1
 
@@ -15,13 +15,21 @@ export interface LayoutSalvato {
   versione: number
   nodi: SchemaNodoPosizionato[]
   archi: SchemaArco[]
+  /** Assente sui layout salvati prima del Blocco C2: un campo nuovo e opzionale, non un cambio
+   *  di formato — per questo non alza `VERSIONE` (vedi `deserializzaLayout`). */
+  testi?: SchemaTestoLibero[]
 }
 
 export function serializzaLayout(layout: SchemaLayout): LayoutSalvato {
   // Copia profonda, non solo degli array: chi tiene il risultato deve avere un'istantanea
   // vera. Senza clonare anche i singoli nodi/archi, un trascinamento successivo nell'editor
   // (che muta x/y in place sullo stesso oggetto) si propagherebbe dentro al "salvato".
-  return { versione: VERSIONE, nodi: structuredClone(layout.nodi), archi: structuredClone(layout.archi) }
+  return {
+    versione: VERSIONE,
+    nodi: structuredClone(layout.nodi),
+    archi: structuredClone(layout.archi),
+    testi: structuredClone(layout.testi ?? []),
+  }
 }
 
 /**
@@ -40,7 +48,7 @@ function contenutoRiconoscibile(salvato: LayoutSalvato): boolean {
 export function deserializzaLayout(salvato: LayoutSalvato | null | undefined): SchemaLayout | null {
   if (!salvato || salvato.versione !== VERSIONE) return null
   if (!contenutoRiconoscibile(salvato)) return null
-  return { nodi: salvato.nodi, archi: salvato.archi, muro: calcolaMuro(salvato.nodi) }
+  return { nodi: salvato.nodi, archi: salvato.archi, muro: calcolaMuro(salvato.nodi), testi: salvato.testi ?? [] }
 }
 
 /**
@@ -144,7 +152,7 @@ function posizioneTerminale(
   }
 }
 
-export function riconcilia(salvato: Pick<SchemaLayout, 'nodi' | 'archi'>, modello: SchemaModel): EsitoRiconciliazione {
+export function riconcilia(salvato: Pick<SchemaLayout, 'nodi' | 'archi' | 'testi'>, modello: SchemaModel): EsitoRiconciliazione {
   const inScheda = new Set(modello.nodi.map((n) => n.id))
   const salvatiPerId = new Map(salvato.nodi.map((n) => [n.id, n]))
   const modelloPerId = new Map(modello.nodi.map((n) => [n.id, n]))
@@ -225,5 +233,11 @@ export function riconcilia(salvato: Pick<SchemaLayout, 'nodi' | 'archi'>, modell
     if (dalModello) archi.push(dalModello)
   }
 
-  return { layout: { nodi, archi, muro: calcolaMuro(nodi) }, aggiunti, aggiuntiDaScheda, rimossi }
+  // I testi liberi sopravvivono sempre, senza confronto col modello: sono manuali per
+  // definizione (nessun codice di scheda li produce, nessuna riga di scheda li nomina), quindi
+  // stanno nella stessa categoria dei nodi di origine 'manuale' sopra — la scheda dati non li
+  // conosce e non ha titolo per cancellarli o correggerli.
+  const testi = salvato.testi ?? []
+
+  return { layout: { nodi, archi, muro: calcolaMuro(nodi), testi }, aggiunti, aggiuntiDaScheda, rimossi }
 }

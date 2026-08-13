@@ -162,9 +162,26 @@ export interface SchemaMuroSeparazione {
   yMax: number
 }
 
+/**
+ * Annotazione libera sulla tela: una scritta che l'utente piazza dove vuole, senza legarla a
+ * un'apparecchiatura. Non è un nodo — non ha ancore, nessuna tubazione può attaccarcisi, non
+ * entra nella lista apparecchiature né in legenda — ed è lo stesso principio già applicato ai
+ * segni sulla tubazione: un'annotazione non è un'apparecchiatura.
+ */
+export interface SchemaTestoLibero {
+  id: string
+  /** Coordinate assolute del primo capo della prima riga, in unità del disegno. */
+  x: number
+  y: number
+  /** Può contenere a-capo: lo disegna `testoMultiRiga`. */
+  contenuto: string
+}
+
 /** Output di `layout`: stessa struttura logica, con posizioni assegnate. Consumato da `renderSvg` e dall'editor. */
 export interface SchemaLayout {
   nodi: SchemaNodoPosizionato[]
   archi: SchemaArco[]
   muro: SchemaMuroSeparazione | null
+  /** Annotazioni libere. Assente sui layout salvati prima del Blocco C2. */
+  testi?: SchemaTestoLibero[]
 }
