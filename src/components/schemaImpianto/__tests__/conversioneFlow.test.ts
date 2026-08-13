@@ -41,6 +41,7 @@ function layoutDiProva(): SchemaLayout {
       },
     ],
     muro: null,
+    testi: [],
   }
 }
 

@@ -152,7 +152,17 @@ function posizioneTerminale(
   }
 }
 
-export function riconcilia(salvato: Pick<SchemaLayout, 'nodi' | 'archi' | 'testi'>, modello: SchemaModel): EsitoRiconciliazione {
+/**
+ * `testi` resta opzionale qui, benché `SchemaLayout.testi` sia obbligatorio: questa funzione
+ * riceve anche `LayoutSalvato` così com'è (`serializzaLayout` lo scrive sempre popolato, ma il
+ * tipo lo dichiara opzionale per restare leggibile su un salvataggio scritto prima del Blocco
+ * C2), non solo `SchemaLayout` già normalizzati. `Pick<SchemaLayout, 'nodi' | 'archi' | 'testi'>`
+ * imporrebbe `testi` obbligatorio e romperebbe ogni chiamata con un `LayoutSalvato` vero.
+ */
+export function riconcilia(
+  salvato: Pick<SchemaLayout, 'nodi' | 'archi'> & { testi?: SchemaTestoLibero[] },
+  modello: SchemaModel
+): EsitoRiconciliazione {
   const inScheda = new Set(modello.nodi.map((n) => n.id))
   const salvatiPerId = new Map(salvato.nodi.map((n) => [n.id, n]))
   const modelloPerId = new Map(modello.nodi.map((n) => [n.id, n]))

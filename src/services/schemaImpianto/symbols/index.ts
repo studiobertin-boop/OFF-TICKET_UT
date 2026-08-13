@@ -419,9 +419,12 @@ const UTENZE = {
 /**
  * Le annotazioni libere (`SchemaTestoLibero`) usano lo stesso carattere e lo stesso corpo della
  * scritta del terminale utenze, come deciso col committente: sono entrambe scritte libere posate
- * sul disegno, senza cornice.
+ * sul disegno, senza cornice. `larghezzaCarattere` è la stessa approssimazione di `UTENZE` (vedi
+ * il suo commento) esposta qui: chi stima l'ingombro di un'annotazione (`ingombroTesto` in
+ * `layout.ts`) la legge da qui, non da un `0.5` scritto a mano una seconda volta — le due stime
+ * altrimenti potrebbero divergere in silenzio se una sola delle due venisse mai ritoccata.
  */
-export const TESTO_LIBERO = { dimensione: UTENZE.dimensioneScritta }
+export const TESTO_LIBERO = { dimensione: UTENZE.dimensioneScritta, larghezzaCarattere: UTENZE.larghezzaCarattere }
 
 /**
  * Terminale «Alle utenze»: codolo tratteggiato che sale dall'ancora, punta di freccia e la

@@ -15,6 +15,7 @@ import { renderSvg, righeLista, righeLegenda, posizioneAncora } from '../renderS
 import { AVVICINAMENTO, raccordoOrtogonale } from '../tratti'
 import { dimensioniDi } from '../symbols'
 import type { SchemaSegnoTubo } from '../types'
+import { SVG_RIFERIMENTO_SENZA_TESTI } from './fixtures/svgRiferimentoSenzaTesti'
 
 function svgMinimo(noteTubazioni?: string[]) {
   const scheda = makeScheda({
@@ -778,8 +779,13 @@ describe('testi liberi', () => {
   })
 
   it('un layout senza testi resta identico a prima', () => {
-    // Il blocco non deve cambiare i documenti che non hanno annotazioni: senza questa
-    // asserzione, un separatore o uno spazio in più passerebbe inosservato.
-    expect(renderSvg(layoutConTesti([]))).toBe(renderSvg({ ...layoutConTesti([]), testi: undefined }))
+    // Confronto con un riferimento ESTERNO (l'SVG dello stesso impianto, reso dal codice del
+    // commit 7a7bfb0, l'ultimo prima di questo blocco — vedi il commento in fixtures/
+    // svgRiferimentoSenzaTesti.ts), non con se stesso: `renderSvg(x) === renderSvg(x)` (la
+    // versione precedente di questo test, `testi: []` contro `testi: undefined`) passa sempre,
+    // qualunque cosa aggiunga `renderSvg` a OGNI documento — l'ha dimostrato la revisione
+    // prefissando un `<g id="annotazioni"></g>` costante a ogni SVG: il test restava verde. Solo
+    // un riferimento congelato a un punto nel tempo lo scopre.
+    expect(renderSvg(layoutConTesti([]))).toBe(SVG_RIFERIMENTO_SENZA_TESTI)
   })
 })

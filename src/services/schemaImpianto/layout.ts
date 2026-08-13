@@ -179,10 +179,11 @@ export function layoutSchema(model: SchemaModel): SchemaLayout {
 
   // `testi` è sempre presente, mai assente: `deserializzaLayout` e `riconcilia` (persistenza.ts)
   // normalizzano allo stesso modo un layout riletto o riconciliato, e l'auto-layout non fa
-  // eccezione. Chi consuma un `SchemaLayout` legge quindi sempre una lista, mai `undefined` —
-  // con `strict: false` un `layout.testi.map(...)` dimenticato in un consumatore futuro non
-  // verrebbe segnalato dal compilatore, quindi l'asimmetria si chiude qui alla fonte invece di
-  // lasciare che ogni chiamante si difenda con `?? []`.
+  // eccezione. Da `SchemaLayout.testi` obbligatorio (types.ts) in poi non è più solo una
+  // convenzione tenuta da questa funzione: `tsc` segnala chiunque costruisca un `SchemaLayout`
+  // senza — è così che si è scoperto che `flowALayout` (`conversioneFlow.ts`) lo dimenticava,
+  // un percorso di produzione (la conferma nell'editor) che avrebbe perso in silenzio le
+  // annotazioni di un disegno riaperto, dal Task 10 in poi.
   return { nodi, archi: model.archi, muro: calcolaMuro(nodi), testi: [] }
 }
 
@@ -233,15 +234,18 @@ export function corpoNodo(nodo: SchemaNodoPosizionato): {
 /**
  * Ingombro stimato di un'annotazione libera, con la stessa approssimazione già usata per la
  * scritta del terminale utenze (`dimensioniDi`, in `symbols/index.ts`): la larghezza sulla riga
- * più lunga, un carattere Arial largo in media metà del corpo; l'altezza sul numero di righe, con
- * l'interlinea del blocco di testo. Non è tipografia vera — misurare i glifi richiederebbe un DOM
+ * più lunga, un carattere largo in media `TESTO_LIBERO.larghezzaCarattere` volte il corpo;
+ * l'altezza sul numero di righe, con l'interlinea del blocco di testo. La costante del carattere
+ * si legge da `TESTO_LIBERO` — la stessa che usa `dimensioniDi` per il terminale — apposta: due
+ * `0.5` scritti a mano in due file diversi potrebbero divergere in silenzio se uno dei due
+ * venisse ritoccato senza l'altro. Non è tipografia vera — misurare i glifi richiederebbe un DOM
  * che queste funzioni non hanno — serve solo a decidere quanto allargare la tela.
  */
 function ingombroTesto(testo: SchemaTestoLibero): { destra: number; basso: number } {
   const righe = testo.contenuto.split('\n')
   const piuLunga = Math.max(...righe.map((r) => r.length))
   return {
-    destra: testo.x + piuLunga * TESTO_LIBERO.dimensione * 0.5,
+    destra: testo.x + piuLunga * TESTO_LIBERO.dimensione * TESTO_LIBERO.larghezzaCarattere,
     basso: testo.y + (righe.length - 1) * TESTO_LIBERO.dimensione * INTERLINEA_TESTO,
   }
 }
@@ -253,9 +257,13 @@ function ingombroTesto(testo: SchemaTestoLibero): { destra: number; basso: numbe
  * tela e finirebbe tagliata nel PNG. Tiene conto anche dei testi liberi, per lo stesso motivo:
  * un'annotazione trascinata oltre l'ultima apparecchiatura non deve finire tagliata nel PNG.
  *
- * `layout.testi` legge in modo difensivo (`?? []`) benché `layoutSchema` non lo lasci mai
- * assente: questa funzione riceve anche layout costruiti a mano nei test e, in futuro, layout
- * salvati prima del Blocco C2 che un chiamante non abbia fatto passare da `deserializzaLayout`.
+ * `layout.testi` legge in modo difensivo (`?? []`) benché `SchemaLayout.testi` sia obbligatorio a
+ * livello di tipo (`types.ts`): il produttore che davvero lo dimenticava era `flowALayout`
+ * (`conversioneFlow.ts`), corretto insieme a questo campo — non i test o i salvataggi pre-Blocco
+ * C2, che passano già da `deserializzaLayout`/`riconcilia` e arrivano qui con `testi` normalizzato.
+ * Il ripiego resta perché il tipo è una garanzia statica, non a runtime: un JSON grezzo non ancora
+ * passato da `deserializzaLayout` (o un cast che elude il compilatore, come nei test di
+ * `serializzazione` qui accanto) può ancora presentarsi senza il campo.
  */
 export function dimensioniLayout(layout: SchemaLayout): { larghezza: number; altezza: number } {
   const testi = layout.testi ?? []

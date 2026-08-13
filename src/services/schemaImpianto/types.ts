@@ -182,6 +182,15 @@ export interface SchemaLayout {
   nodi: SchemaNodoPosizionato[]
   archi: SchemaArco[]
   muro: SchemaMuroSeparazione | null
-  /** Annotazioni libere. Assente sui layout salvati prima del Blocco C2. */
-  testi?: SchemaTestoLibero[]
+  /**
+   * Annotazioni libere. Obbligatorio: ogni produttore di `SchemaLayout` ne porta sempre una
+   * lista, mai `undefined` (`layoutSchema`, `deserializzaLayout`, `riconcilia`, `flowALayout`
+   * la normalizzano già a `[]` quando non c'è nulla da riportare). Il campo era opzionale fino
+   * alla revisione del Blocco C2: con `strict: false` questo lasciava `flowALayout`
+   * (`conversioneFlow.ts`) libero di produrre un layout senza `testi` senza che il compilatore
+   * lo segnalasse — e quel percorso è la conferma nell'editor, non un test. `LayoutSalvato.testi`
+   * (`persistenza.ts`) resta invece legittimamente opzionale: un salvataggio scritto prima del
+   * Blocco C2 non ce l'ha.
+   */
+  testi: SchemaTestoLibero[]
 }

@@ -303,6 +303,29 @@ describe('layoutSchema', () => {
     expect(con.altezza).toBeGreaterThan(senza.altezza)
   })
 
+  describe('ingombro stimato di un testo libero', () => {
+    // Layout senza nodi: l'unico contributo a `larghezza`/`altezza` è quello del testo, così i
+    // due test discriminano sul VALORE calcolato da `ingombroTesto`, non solo sulla direzione
+    // della variazione. Il test sopra ("la tela si allarga...") non ci riesce da solo: piazzando
+    // l'annotazione a `senza.larghezza + 500`, quell'offset da solo basta a far crescere il
+    // riquadro anche se `ingombroTesto` calcolasse un ingombro nullo o scambiasse le due
+    // dimensioni fra loro — due mutazioni che infatti sopravvivevano a quel test soltanto.
+    const layoutVuoto: SchemaLayout = { nodi: [], archi: [], muro: null, testi: [] }
+
+    it('la larghezza segue la riga più lunga, non il numero di righe', () => {
+      // 100 caratteri, dimensione 18, larghezzaCarattere 0.5: 100 × 18 × 0.5 = 900, + MARGINE 40.
+      const layout = { ...layoutVuoto, testi: [{ id: 'T1', x: 0, y: 0, contenuto: 'x'.repeat(100) }] }
+      expect(dimensioniLayout(layout).larghezza).toBeCloseTo(940, 5)
+    })
+
+    it('l’altezza segue il numero di righe, non la lunghezza del contenuto', () => {
+      // 10 righe da un carattere: 9 interlinee × 18 × 1,25 = 202,5, + MARGINE 40.
+      const dieciRigheCorte = Array.from({ length: 10 }, () => 'x').join('\n')
+      const layout = { ...layoutVuoto, testi: [{ id: 'T1', x: 0, y: 0, contenuto: dieciRigheCorte }] }
+      expect(dimensioniLayout(layout).altezza).toBeCloseTo(242.5, 5)
+    })
+  })
+
   describe('collocazione del terminale utenze', () => {
     /** `etichetta`, se data, sostituisce quella di default sul nodo utenze prima del layout. */
     function layoutConUtenze(etichetta?: string) {
@@ -400,6 +423,7 @@ describe('quoteInstradamento', () => {
         { id: 'a1', da: { nodo: 'C1', ancora: 'basso-out' }, a: { nodo: 'T1', ancora: 'alto-in' }, stile: 'condensa' },
       ],
       muro: null,
+      testi: [],
     }
   }
 

@@ -59,6 +59,15 @@ export function flowALayout(nodes: Node[], edges: Edge[]): SchemaLayout {
       segni: (e.data as SchemaEdgeData | undefined)?.segni,
     })),
     muro: calcolaMuro(nodi),
+    // Placeholder, non ancora la conversione vera: le annotazioni libere non hanno oggi una
+    // rappresentazione nello stato di react-flow (`nodes`/`edges` in ingresso qui non le
+    // portano), quindi questa funzione non può far altro che restituire lista vuota. Finché
+    // nessuno può crearne dall'editor (arriva col Task 10) è innocuo; dal Task 8 in poi
+    // `flowALayout` accetterà i testi come parametro esplicito e li riporterà per davvero — qui
+    // sarebbe altrimenti il punto dove un disegno con annotazioni, aperto nell'editor e
+    // confermato, le perderebbe in silenzio (`SchemaEditor` → `onConferma` →
+    // `SchemaImpiantoSection` → `serializzaLayout`).
+    testi: [],
   }
 }
 
