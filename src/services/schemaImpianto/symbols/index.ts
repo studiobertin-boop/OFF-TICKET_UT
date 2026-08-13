@@ -18,7 +18,12 @@ import type { SchemaArcoStile, SchemaNodoTipo, SchemaNodo, SchemaAncora, ChiaveS
 import { chiaveSimbolo } from '../types'
 
 export const TRATTO = 2
-const FONT = 'Arial, Helvetica, sans-serif'
+/**
+ * Esportato perché non lo usa solo l'SVG: l'editor rende le annotazioni libere in HTML sulla
+ * tela (TestiLiberi.tsx) e deve usare lo STESSO carattere del documento, non una seconda
+ * dichiarazione uguale che nessuno terrebbe allineata a questa.
+ */
+export const FONT = 'Arial, Helvetica, sans-serif'
 
 /** Ingombri per tipo, in unità SVG: le funzioni di disegno vi leggono `larghezza`/`altezza`. */
 const DIMENSIONI: Record<SchemaNodoTipo, { larghezza: number; altezza: number }> = {
