@@ -77,16 +77,6 @@ export interface SchemaEdgeData extends Record<string, unknown> {
   onTrascinaTratto?: (pDa: Punto, pA: Punto, indiceTratto: number, puntoLibero: Punto, concluso: boolean) => void
 }
 
-/**
- * Solo il tratto flessibile porta un'etichetta: le linee condense si riconoscono già dal
- * tratteggio, e ripeterlo su ognuna riempirebbe il disegno di scritte.
- */
-const ETICHETTA: Record<SchemaArcoStile, string> = {
-  standard: '',
-  flessibile: 'flessibile',
-  condensa: '',
-}
-
 interface SchemaGomitoProps {
   indice: number
   punto: { x: number; y: number }
@@ -298,9 +288,6 @@ export function SchemaEdgeTubazione({
   // editor e documento concordano sulla forma della linea — non più un'approssimazione.
   const polilinea = polilineaDellArco(capi, edgeData)
   const path = stile === 'flessibile' ? ondula(polilinea) : percorso(polilinea)
-  const { punto: puntoEtichetta } = puntoSuTratto(polilinea, 0.5)
-  const labelX = puntoEtichetta.x
-  const labelY = puntoEtichetta.y
 
   return (
     <>
@@ -360,22 +347,6 @@ export function SchemaEdgeTubazione({
         }}
       />
       <EdgeLabelRenderer>
-        {ETICHETTA[stile] && (
-          <div
-            style={{
-              position: 'absolute',
-              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
-              fontSize: 11,
-              padding: '1px 4px',
-              borderRadius: 3,
-              background: '#fff',
-              border: '1px solid #bbb',
-              pointerEvents: 'none',
-            }}
-          >
-            {ETICHETTA[stile]}
-          </div>
-        )}
         {punti.map((punto, indice) => (
           <SchemaGomito
             key={`${id}-gomito-${indice}`}
