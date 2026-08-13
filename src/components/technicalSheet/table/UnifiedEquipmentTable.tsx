@@ -178,6 +178,13 @@ interface EqRowProps {
   onSelected: (specs: Record<string, any>, item?: EquipmentCatalogItem) => void
   /** Un montante per ogni livello di annidamento; vuoto per le righe principali. */
   guide: Guida[]
+  /**
+   * Colore del montante che scende da questa riga alle proprie collegate, dalla metà in giù.
+   *
+   * Senza, il binario delle collegate comincia dal bordo alto della loro prima riga e sembra
+   * spuntare dal nulla: il ramo va fatto partire da chi lo genera.
+   */
+  discendente?: string
   adv: boolean
   ocr: OcrRef
   /** Posizione nell'elenco navigabile della finestra dei dettagli. */
@@ -187,7 +194,7 @@ interface EqRowProps {
 }
 
 const EqRow = ({
-  control, def, base, code, rowKey, onCampoExit, onSelected, guide, adv, ocr, indice, onSelect, selezionata,
+  control, def, base, code, rowKey, onCampoExit, onSelected, guide, discendente, adv, ocr, indice, onSelect, selezionata,
 }: EqRowProps) => {
   const { setValue } = useFormContext()
   // Il confine è la cella: la verifica scatta anche passando da una colonna all'altra della
@@ -334,6 +341,15 @@ const EqRow = ({
             )}
           </Fragment>
         ))}
+        {/* Il ramo verso le proprie collegate parte da qui, a metà riga: sotto, la prima
+            collegata lo riprende dal proprio bordo alto e il binario risulta continuo. */}
+        {discendente && (
+          <Box sx={{
+            position: 'absolute', left: `${BINARIO_X + depth * RIENTRO_LIVELLO}px`,
+            top: '50%', bottom: 0, width: '1.5px',
+            bgcolor: alpha(discendente, 0.45),
+          }} />
+        )}
         <Tooltip title={`Dettagli di ${code}`} placement="top">
           <Box
             component="button"
@@ -655,6 +671,8 @@ export const UnifiedEquipmentTable = ({
     code: string
     rowKey: string
     guide: Guida[]
+    /** Colore del ramo che scende alle collegate di questa riga; assente se non ne ha. */
+    discendente?: string
     ocr: OcrRef
     onDelete: (() => void) | null
     append: { label: string; onClick: () => void } | null
@@ -663,7 +681,7 @@ export const UnifiedEquipmentTable = ({
     /** Assente per le valvole: il loro certificato entra nel fascicolo del recipiente. */
     fascicolo?: RigaFascicolo | null
   }) => {
-    const { key, def, base, code, rowKey, guide, ocr, onDelete, append, identita } = args
+    const { key, def, base, code, rowKey, guide, discendente, ocr, onDelete, append, identita } = args
     const onSelected = selettoreCatalogo(def, base, rowKey, identita)
     const onExit = uscita(def, base, rowKey, code)
     const indice = voci.length
@@ -682,6 +700,7 @@ export const UnifiedEquipmentTable = ({
         onCampoExit={onExit}
         onSelected={onSelected}
         guide={guide}
+        discendente={discendente}
         adv={adv}
         ocr={ocr}
         indice={indice}
@@ -720,11 +739,17 @@ export const UnifiedEquipmentTable = ({
     /** Percorso della j-esima valvola: la prima è quella obbligatoria, le altre sono appese. */
     const baseValvola = (j: number) => (j === 0 ? `${base}.valvola_sicurezza` : `${base}.valvole_aggiuntive.${j - 1}`)
 
-    // Il recipiente porta sempre almeno la valvola principale: sotto di lui il ramo di
-    // ogni antenato continua per forza.
+    /**
+     * Le guide arrivano come le ha volute il chiamante: chi genera la riga sa se sotto di lei
+     * il ramo dell'antenato prosegue, e forzarlo qui a `continua` lasciava scendere un
+     * montante che nessuna riga successiva riprendeva — il pezzo orfano sotto C1.1.
+     *
+     * Il ramo che invece parte per forza è il proprio: il recipiente porta sempre almeno la
+     * valvola principale.
+     */
     aggiungiRiga({
       key, def, base, code, rowKey: rowKeyOf(arrayName, code),
-      guide: guide.map((g) => ({ ...g, continua: true })), ocr, onDelete, identita,
+      guide, discendente: KIND_COLOR[def.kind], ocr, onDelete, identita,
       append: { label: 'Valvola di sicurezza', onClick: () => appendiValvola(base, aggiuntive) },
       fascicolo: fascicoloDi({
         code,
@@ -769,6 +794,7 @@ export const UnifiedEquipmentTable = ({
     aggiungiRiga({
       key: `c-${f.id}`, def: EQUIPMENT_DEFS.compressore, base: `compressori.${i}`, code,
       rowKey: rowKeyOf('compressori', code), guide: [],
+      discendente: dIdx >= 0 ? colore : undefined,
       ocr: { equipmentType: 'Compressori', equipmentIndex: i },
       identita: { path: `compressori.${i}.codice`, value: code },
       onDelete: () => ask('il compressore', code, () => { if (dIdx >= 0) disoleatori.remove(dIdx); compressori.remove(i); dopoEliminazione() }),
@@ -782,7 +808,9 @@ export const UnifiedEquipmentTable = ({
         key: `c-${f.id}-d`, def: EQUIPMENT_DEFS.disoleatore, arrayName: 'disoleatori',
         base: `disoleatori.${dIdx}`, code: `${code}.1`,
         valori: (disoleatoriVals ?? disoleatori.fields)[dIdx],
-        guide: [{ color: colore, continua: true }],
+        // Il disoleatore è l'unica collegata del compressore: il ramo del compressore si
+        // chiude qui, sul suo baffo, e non deve proseguire sotto verso le valvole.
+        guide: [{ color: colore, continua: false }],
         ocr: { equipmentType: 'Disoleatori', equipmentIndex: dIdx },
         ocrValvola: { equipmentType: 'Disoleatori', equipmentIndex: dIdx, componentType: 'valvola_sicurezza' },
         onDelete: () => ask('il disoleatore', `${code}.1`, () => { disoleatori.remove(dIdx); setValue(`compressori.${i}.ha_disoleatore`, false); dopoEliminazione() }),
@@ -810,6 +838,7 @@ export const UnifiedEquipmentTable = ({
     aggiungiRiga({
       key: `e-${f.id}`, def: EQUIPMENT_DEFS.essiccatore, base: `essiccatori.${i}`, code,
       rowKey: rowKeyOf('essiccatori', code), guide: [],
+      discendente: sIdx >= 0 ? KIND_COLOR.essiccatore : undefined,
       ocr: { equipmentType: 'Essiccatori', equipmentIndex: i },
       identita: { path: `essiccatori.${i}.codice`, value: code },
       onDelete: () => ask("l'essiccatore", code, () => { if (sIdx >= 0) scambiatori.remove(sIdx); essiccatori.remove(i); dopoEliminazione() }),
@@ -840,6 +869,7 @@ export const UnifiedEquipmentTable = ({
     aggiungiRiga({
       key: `f-${f.id}`, def: EQUIPMENT_DEFS.filtro, base: `filtri.${i}`, code,
       rowKey: rowKeyOf('filtri', code), guide: [],
+      discendente: (rIdx >= 0 && showRecipienteFiltro) ? KIND_COLOR.filtro : undefined,
       ocr: { equipmentType: 'Filtri', equipmentIndex: i },
       identita: { path: `filtri.${i}.codice`, value: code },
       onDelete: () => ask('il filtro', code, () => { if (rIdx >= 0) recipienti.remove(rIdx); filtri.remove(i); dopoEliminazione() }),
