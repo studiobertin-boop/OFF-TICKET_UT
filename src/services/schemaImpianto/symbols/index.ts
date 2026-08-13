@@ -536,11 +536,27 @@ export function definizioneDi(nodo: { tipo: SchemaNodoTipo; orientamento?: 'VERT
   return REGISTRO_SIMBOLI[chiaveSimbolo(nodo)]
 }
 
-export function ancoraDi(
-  nodo: { tipo: SchemaNodoTipo; orientamento?: 'VERTICALE' | 'ORIZZONTALE' },
-  id: string
-): SchemaAncora | undefined {
-  return definizioneDi(nodo).ancore.find((a) => a.id === id)
+/**
+ * Le ancore di un nodo. Coincidono con quelle del registro per tutti i tipi tranne il
+ * terminale utenze, il cui riquadro cresce con la lunghezza della scritta (vedi `dimensioniDi`):
+ * il suo attacco sta in fondo al riquadro, dove comincia il codolo, quindi segue l'altezza
+ * invece di restare alla quota fissa dichiarata nel registro. Oggi `dimensioniDi` dà
+ * un'altezza fissa per il terminale (120, come tutti): la crescita in altezza arriva col
+ * prossimo blocco, che farà sì che questo ramo smetta di essere un no-op.
+ *
+ * Il registro resta la fonte per la forma e per gli identificativi — che entrano negli archi
+ * salvati e non possono cambiare — e questa funzione è l'unico posto dove una coordinata
+ * dipende dal contenuto del nodo.
+ */
+export function ancoreDi(nodo: SchemaNodo): SchemaAncora[] {
+  const ancore = definizioneDi(nodo).ancore
+  if (nodo.tipo !== 'utenze') return ancore
+  const { altezza } = dimensioniDi(nodo)
+  return ancore.map((a) => (a.id === 'in' ? { ...a, y: altezza } : a))
+}
+
+export function ancoraDi(nodo: SchemaNodo, id: string): SchemaAncora | undefined {
+  return ancoreDi(nodo).find((a) => a.id === id)
 }
 
 /**

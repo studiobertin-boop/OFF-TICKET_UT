@@ -3,7 +3,7 @@
  * vede mentre si corregge è ciò che finirà in relazione.
  */
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { definizioneDi, dimensioniDi, simboloDi } from '@/services/schemaImpianto/symbols'
+import { ancoreDi, dimensioniDi, simboloDi } from '@/services/schemaImpianto/symbols'
 import type { SchemaAncora, SchemaNodo } from '@/services/schemaImpianto/types'
 
 export interface SchemaNodeData extends Record<string, unknown> {
@@ -59,7 +59,6 @@ export function latoDi(ancora: SchemaAncora, dim: { larghezza: number; altezza: 
 
 export function SchemaNodeSymbol({ data, selected }: NodeProps) {
   const { nodo } = data as SchemaNodeData
-  const def = definizioneDi(nodo)
   // Ingombro effettivo, non quello del registro: la scritta del terminale utenze è libera, e con
   // la larghezza fissa il `<svg>` qui sotto la taglierebbe appena supera i 17-18 caratteri.
   const dimensioni = dimensioniDi(nodo)
@@ -69,7 +68,7 @@ export function SchemaNodeSymbol({ data, selected }: NodeProps) {
 
   return (
     <div style={{ position: 'relative', width: larghezza, height: altezza }}>
-      {def.ancore.flatMap((ancora) => {
+      {ancoreDi(nodo).flatMap((ancora) => {
         // Ogni ancora ospita sia source sia target, sovrapposti: una tubazione può
         // partire o arrivare dallo stesso punto. Chi decide se il collegamento è legale
         // non è l'handle ma `isValidConnection` in SchemaEditor, via `capoValido`.

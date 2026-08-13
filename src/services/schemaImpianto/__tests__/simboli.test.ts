@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { chiaveSimbolo } from '../types'
-import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, simboloDi, simboloGiunzione, valvolaIntercettazione, riduttorePressione, testoMultiRiga } from '../symbols'
+import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, valvolaIntercettazione, riduttorePressione, testoMultiRiga } from '../symbols'
 import { capoValido } from '../agganci'
 
 describe('chiaveSimbolo', () => {
@@ -41,8 +41,12 @@ describe('registro dei simboli', () => {
   })
 
   it('il serbatoio orizzontale ha ancore diverse dal verticale', () => {
-    const v = ancoraDi({ tipo: 'serbatoio', orientamento: 'VERTICALE' }, 'sx')
-    const o = ancoraDi({ tipo: 'serbatoio', orientamento: 'ORIZZONTALE' }, 'sx')
+    const serbatoio = (orientamento: 'VERTICALE' | 'ORIZZONTALE') => ({
+      id: 'S1', tipo: 'serbatoio' as const, orientamento, etichetta: 'S1', gruppo: 'SALA_COMPRESSORI' as const,
+      valvoleSicurezza: [], origine: 'scheda' as const,
+    })
+    const v = ancoraDi(serbatoio('VERTICALE'), 'sx')
+    const o = ancoraDi(serbatoio('ORIZZONTALE'), 'sx')
     expect(v).toBeDefined()
     expect(o).toBeDefined()
     expect(v).not.toEqual(o)
@@ -51,6 +55,28 @@ describe('registro dei simboli', () => {
   it('definizioneDi risolve la variante del nodo', () => {
     expect(definizioneDi({ tipo: 'serbatoio', orientamento: 'ORIZZONTALE' }).dimensioni.larghezza).toBe(150)
     expect(definizioneDi({ tipo: 'tanica' }).dimensioni.larghezza).toBe(80)
+  })
+})
+
+describe('ancoreDi', () => {
+  const terminale = (etichetta: string) => ({
+    id: 'UTENZE', tipo: 'utenze' as const, etichetta, gruppo: 'LINEA_DISTRIBUZIONE' as const,
+    valvoleSicurezza: [], origine: 'scheda' as const,
+  })
+
+  it('per un nodo qualunque restituisce le ancore del registro, intatte', () => {
+    const compressore = { id: 'C1', tipo: 'compressore' as const, etichetta: 'C', gruppo: 'SALA_COMPRESSORI' as const, valvoleSicurezza: [], origine: 'scheda' as const }
+    expect(ancoreDi(compressore)).toEqual(REGISTRO_SIMBOLI.compressore.ancore)
+  })
+
+  it('l’attacco del terminale utenze sta in fondo al riquadro, anche quando il riquadro cresce', () => {
+    // Il codolo del terminale parte dal fondo del riquadro: se l'ancora restasse alla quota
+    // fissa del registro mentre il riquadro si allunga, la tubazione si attaccherebbe a metà
+    // del codolo invece che alla sua base.
+    const corta = terminale('Utenze aria')
+    const lunga = terminale('Utenze aria\nreparto verniciatura\ne collaudo')
+    expect(ancoreDi(corta).find((a) => a.id === 'in')!.y).toBe(dimensioniDi(corta).altezza)
+    expect(ancoreDi(lunga).find((a) => a.id === 'in')!.y).toBe(dimensioniDi(lunga).altezza)
   })
 })
 

@@ -346,11 +346,18 @@ git commit -m "feat(schema-impianto): testoMultiRiga, il testo che va a capo sug
 **Files:**
 - Modify: `src/services/schemaImpianto/symbols/index.ts` (`ancoraDi`, nuova `ancoreDi`)
 - Modify: `src/components/schemaImpianto/SchemaNodeSymbol.tsx` (gli handle si posano sulle ancore del nodo)
+- Modify: `src/services/schemaImpianto/agganci.ts` (`capoValido` legge il registro invece di `ancoraDi`)
 - Test: `src/services/schemaImpianto/__tests__/simboli.test.ts`
 
 **Interfaces:**
 - Consumes: `definizioneDi`, `dimensioniDi`, `REGISTRO_SIMBOLI`.
 - Produces: `ancoreDi(nodo: SchemaNodo): SchemaAncora[]` (esportata). `ancoraDi(nodo: SchemaNodo, id: string)` cambia firma: riceve il nodo intero (prima bastavano `tipo` e `orientamento`) e delega a `ancoreDi`.
+
+**Nota dopo l'esecuzione:** questa sezione «Files» e il comando `git add` dello Step 5, nella
+stesura originale, non elencavano `agganci.ts` fra i file da modificare, benché il corpo del task
+(qui sotto) chieda esplicitamente di cambiare come `capoValido` recupera l'ancora. Senza quella
+modifica il modulo non avrebbe compilato: `ancoraDi` cambia firma e `capoValido` la chiamava con
+un nodo parziale. Corretto qui e nel comando di commit.
 
 Questo task **non cambia ancora nulla di visibile**: prepara il terreno perché il Task 4 possa far crescere il riquadro del terminale senza staccarne la tubazione. Va fatto prima, e da solo, perché tocca una funzione che tutto il modulo usa.
 
@@ -437,7 +444,7 @@ npx tsc --noEmit > task-3-tsc.txt 2>&1
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/services/schemaImpianto/symbols/index.ts src/components/schemaImpianto/SchemaNodeSymbol.tsx src/services/schemaImpianto/__tests__/simboli.test.ts
+git add src/services/schemaImpianto/symbols/index.ts src/components/schemaImpianto/SchemaNodeSymbol.tsx src/services/schemaImpianto/agganci.ts src/services/schemaImpianto/__tests__/simboli.test.ts
 git commit -m "refactor(schema-impianto): le ancore di un nodo possono dipendere dal nodo"
 ```
 

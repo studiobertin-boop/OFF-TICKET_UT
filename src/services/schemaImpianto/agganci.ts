@@ -3,7 +3,7 @@
  * costruttore del modello, l'editor (che rifiuta una connessione illegale mentre la si
  * traccia) e il preflight: tre punti distanti che devono dire la stessa cosa.
  */
-import { ancoraDi } from './symbols'
+import { definizioneDi } from './symbols'
 import type { SchemaAncora, SchemaArcoStile, SchemaNodoTipo, SchemaTipoAggancio } from './types'
 
 /** La tubazione flessibile è pur sempre aria: cambia il tratto, non il fluido. */
@@ -15,12 +15,20 @@ export function ancoraAmmette(ancora: SchemaAncora, stile: SchemaArcoStile): boo
   return ancora.accetta.includes(tipoAggancioPerStile(stile))
 }
 
+/**
+ * Se un attacco ammette lo stile dato. Legge il registro invece di passare da `ancoraDi`: gli
+ * serve solo il campo `accetta`, che dipende dal tipo (e dall'orientamento) del nodo e non dal
+ * suo contenuto — a differenza di `ancoraDi`, che dal Task 3 può correggere una coordinata in
+ * base al nodo intero. Allargare qui la firma a `SchemaNodo` costringerebbe ogni chiamante
+ * (compreso l'editor, che verifica una connessione mentre l'utente la trascina) a costruire un
+ * nodo completo solo per sapere se un capo accetta aria o condensa.
+ */
 export function capoValido(
   nodo: { tipo: SchemaNodoTipo; orientamento?: 'VERTICALE' | 'ORIZZONTALE' },
   ancoraId: string,
   stile: SchemaArcoStile
 ): boolean {
-  const ancora = ancoraDi(nodo, ancoraId)
+  const ancora = definizioneDi(nodo).ancore.find((a) => a.id === ancoraId)
   return Boolean(ancora && ancoraAmmette(ancora, stile))
 }
 
