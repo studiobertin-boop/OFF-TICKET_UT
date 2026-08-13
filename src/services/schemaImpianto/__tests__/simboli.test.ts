@@ -153,15 +153,22 @@ describe('giunzione', () => {
     expect(per('dx')).toMatchObject({ x: larghezza, y: altezza / 2 })
     expect(per('alto')).toMatchObject({ x: larghezza / 2, y: 0 })
     expect(per('basso')).toMatchObject({ x: larghezza / 2, y: altezza })
+    // Il centro del pallino va ricavato dalle dimensioni del registro, non scritto a mano:
+    // se l'ingombro cambia, il test deve seguirlo senza bisogno di essere riscritto.
+    const svg = simboloGiunzione(nodo)
+    const cx = Number(/cx="([\d.]+)"/.exec(svg)![1])
+    const cy = Number(/cy="([\d.]+)"/.exec(svg)![1])
+    expect(cx).toBe(larghezza / 2)
+    expect(cy).toBe(altezza / 2)
   })
 
-  it('il pallino copre quasi tutto il riquadro: fra tubo e giunzione non resta un buco visibile', () => {
-    // Con l'ingombro grande del Blocco B (50x50) fra la fine del tubo e il pallino restavano
-    // 25 unità di vuoto per lato. Il vuoto massimo tollerato è di poche unità, invisibile a
-    // spessore di tratto 2.
+  it('il pallino tocca esattamente le ancore: né un buco né una sporgenza fuori dal riquadro', () => {
+    // Il raggio è metà della larghezza per costruzione (vedi simboloGiunzione): un'uguaglianza,
+    // non una tolleranza, perché qualunque scarto lascerebbe un buco (raggio più piccolo) o
+    // farebbe sporgere il pallino fuori dal riquadro (raggio più grande).
     const { larghezza } = REGISTRO_SIMBOLI.giunzione.dimensioni
     const raggio = Number(/r="([\d.]+)"/.exec(simboloGiunzione(nodo))![1])
-    expect(larghezza / 2 - raggio).toBeLessThanOrEqual(3)
+    expect(raggio).toBe(larghezza / 2)
   })
 })
 

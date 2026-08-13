@@ -17,16 +17,26 @@ export interface SchemaNodeData extends Record<string, unknown> {
 }
 
 /**
- * L'handle è un quadrato di LATO_HANDLE px centrato sull'ancora (`translate(-50%, -50%)`).
- * Il lato conta: react-flow non passa all'arco il centro dell'handle ma il suo bordo esterno
- * dal lato dichiarato in `position` — cioè il centro dell'ancora spostato di metà lato. È il
- * motivo per cui i capi degli archi NON si prendono da `sourceX`/`sourceY` (vedi
- * `capiDegliArchi` in conversioneFlow.ts): il documento userebbe il centro e i due disegni
- * uscirebbero sfalsati.
+ * L'handle è un quadrato centrato sull'ancora (`translate(-50%, -50%)`), di lato `LATO_HANDLE`
+ * salvo che `latoHandle` lo riduca sui nodi piccoli (vedi sotto). Il lato conta: react-flow non
+ * passa all'arco il centro dell'handle ma il suo bordo esterno dal lato dichiarato in
+ * `position` — cioè il centro dell'ancora spostato di metà lato. È il motivo per cui i capi
+ * degli archi NON si prendono da `sourceX`/`sourceY` (vedi `capiDegliArchi` in
+ * conversioneFlow.ts): il documento userebbe il centro e i due disegni uscirebbero sfalsati.
  */
 export const LATO_HANDLE = 10
 
-const ANCORA = { width: LATO_HANDLE, height: LATO_HANDLE, background: '#1976d2', border: 'none' }
+/**
+ * Lato dell'handle per un nodo di dimensioni date: `LATO_HANDLE`, ma non oltre un terzo del
+ * lato minore del riquadro. Sulla giunzione (24×24, quattro ancore agli angoli del riquadro)
+ * un handle di 10px si sovrapponeva al vicino e copriva quasi tutta la superficie, lasciando
+ * solo qualche pixel al centro da cui trascinare il nodo invece di avviare una connessione —
+ * inutilizzabile allo zoom con cui l'editor si apre. Sugli altri simboli, il più piccolo dei
+ * quali è la tanica (80×70), il limite non scatta mai: resta `LATO_HANDLE`.
+ */
+function latoHandle(dim: { larghezza: number; altezza: number }): number {
+  return Math.min(LATO_HANDLE, Math.min(dim.larghezza, dim.altezza) / 3)
+}
 
 /**
  * Lato react-flow a cui appoggiare l'handle: quello del riquadro d'ingombro più vicino
@@ -54,6 +64,8 @@ export function SchemaNodeSymbol({ data, selected }: NodeProps) {
   // la larghezza fissa il `<svg>` qui sotto la taglierebbe appena supera i 17-18 caratteri.
   const dimensioni = dimensioniDi(nodo)
   const { larghezza, altezza } = dimensioni
+  const latoHandlePx = latoHandle(dimensioni)
+  const stileAncora = { width: latoHandlePx, height: latoHandlePx, background: '#1976d2', border: 'none' }
 
   return (
     <div style={{ position: 'relative', width: larghezza, height: altezza }}>
@@ -61,7 +73,7 @@ export function SchemaNodeSymbol({ data, selected }: NodeProps) {
         // Ogni ancora ospita sia source sia target, sovrapposti: una tubazione può
         // partire o arrivare dallo stesso punto. Chi decide se il collegamento è legale
         // non è l'handle ma `isValidConnection` in SchemaEditor, via `capoValido`.
-        const stile = { ...ANCORA, left: ancora.x, top: ancora.y, transform: 'translate(-50%, -50%)' }
+        const stile = { ...stileAncora, left: ancora.x, top: ancora.y, transform: 'translate(-50%, -50%)' }
         const lato = latoDi(ancora, dimensioni)
         // L'ordine qui non è indifferente: due handle sovrapposti senza z-index si
         // contendono il mousedown, e vince l'ultimo nel DOM. In connectionMode Strict

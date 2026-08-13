@@ -664,8 +664,9 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
           // aggiunti: `aggiungiNodo` li mette tutti a x=40, dentro quella fascia cieca, e
           // react-flow (correttamente) non disegna ciò che è fuori campo. Si salvavano solo i
           // tipi abbastanza larghi da sporgere oltre x=136 — serbatoio (150), pacco bombole
-          // (120), filtro/essiccatore/separatore (110) — mentre giunzione (50) e raccolta
-          // condense (80) restavano invisibili per sempre, senza alcun errore in console.
+          // (120), filtro/essiccatore/separatore (110) — mentre giunzione (50 all'epoca, poi
+          // rimpicciolita) e raccolta condense (80) restavano invisibili per sempre, senza
+          // alcun errore in console.
           // Non era quindi un difetto del simbolo TEE: era la soglia di larghezza.
           minZoom={0.1}
           // react-flow ha una propria gestione delle frecce da tastiera sul nodo selezionato

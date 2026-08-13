@@ -31,7 +31,7 @@
 - Il layer HTML portale (`EdgeLabelRenderer`, `ViewportPortal`) è dipinto **sopra** il layer SVG dei tubi e vince sempre il clic, per ordine nel DOM.
 - react-flow passa all'arco il **bordo esterno** dell'handle, non il centro dell'ancora: per questo dal Blocco C1 i capi degli archi si calcolano con `posizioneAncora` e viaggiano nei dati dell'arco (`capiDegliArchi`). Non tornare a `sourceX/sourceY`.
 - Un gesto del mouse che «non fa nulla» può essere finito sul pane di react-flow, che panna la tela senza cambiare il disegno: controllare `document.elementFromPoint` prima di concludere.
-- **Nessuno schema reale è ancora salvato**: il committente ha dichiarato il 13-08-2026 di non usare ancora l'editor per i propri disegni. Non c'è quindi dato da preservare, e nessuna scelta di questo blocco va motivata con la retrocompatibilità — se una motivazione del genere compare in un commento, è falsa. Resta invece vero che gli identificativi delle ancore finiscono negli archi salvati, e che cambiarli senza motivo prepara un'incompatibilità per il giorno in cui i disegni veri esisteranno.
+- **Nessuno schema reale è ancora salvato**: il committente ha dichiarato il 13-08-2026 di non usare ancora l'editor per i propri disegni. Non c'è quindi dato da preservare, e nessuna scelta di questo blocco va motivata con la retrocompatibilità — se una motivazione del genere compare in un commento, è falsa. Attenzione anche alla variante «evita un'incompatibilità futura»: la revisione del Task 1 ha corretto pure quella, perché è la stessa idea travestita — se oggi non esiste alcun layout salvato, non c'è nulla con cui un nome scelto ora possa essere incompatibile domani. Una scelta di identificativi si motiva con quello che significano (es. `sx`/`dx`/`alto`/`basso` sono i nomi dei quattro lati), non con un dato futuro che non esiste ancora.
 
 ## Decisioni di progetto
 
@@ -39,9 +39,9 @@
 
 Il committente ha scelto fra tre strade (pallino neutro / nodo ruotabile a mano / segno orientato lungo il tubo) e ha preso la prima: **il simbolo perde i tre monconi e diventa un punto pieno, con quattro ancore sempre disponibili** — sinistra, destra, alto, basso. Non c'è rotazione da modellare perché tutte le direzioni esistono contemporaneamente, e la forma a T la disegnano le tubazioni che ci arrivano.
 
-Gli identificativi delle tre ancore esistenti (`sx`, `dx`, `basso`) **non cambiano** e si aggiunge `alto`. Non è per retrocompatibilità — il committente ha dichiarato il 13-08-2026 che non usa ancora l'editor per i suoi schemi, quindi non c'è alcun layout salvato da preservare — ma perché quegli identificativi finiscono negli archi salvati e cambiarli senza motivo introdurrebbe un'incompatibilità gratuita il giorno in cui i disegni veri cominceranno a esistere.
+Gli identificativi delle tre ancore esistenti (`sx`, `dx`, `basso`) **non cambiano** e si aggiunge `alto`. Non è per retrocompatibilità — il committente ha dichiarato il 13-08-2026 che non usa ancora l'editor per i suoi schemi, quindi non c'è alcun layout salvato da preservare. Non è nemmeno, come diceva una prima stesura di questo piano, per evitare un'«incompatibilità futura»: quell'argomento non regge, perché se oggi non esiste alcun layout salvato, qualunque nome si scelga ora diventa per definizione quello in vigore il giorno in cui i disegni veri cominceranno a esistere — non c'è nulla con cui essere incompatibili. La ragione vera e sufficiente è più semplice: `sx`/`dx`/`alto`/`basso` sono i nomi dei quattro lati.
 
-L'ingombro scende da 50×50 a **16×16** con il pallino di raggio 5 al centro: con l'ingombro grande, le ancore stanno sul bordo del riquadro e fra la fine del tubo e il pallino resterebbero 25 unità di vuoto per lato — quattro buchi visibili. A 16×16 il vuoto massimo è 3 unità, invisibile a spessore di tratto 2. È un cambiamento **visibile sui TEE già disegnati**: il simbolo si rimpicciolisce e i tubi collegati si riattaccano più vicino al centro. È voluto, e va mostrato al committente in verifica.
+L'ingombro scende da 50×50 a **24×24**, col pallino di raggio pari a metà della larghezza (12, non un numero fisso): tocca così esattamente le quattro ancore, che stanno sui bordi, senza lasciare un buco fra la fine di un tubo e la giunzione né sporgere fuori dal riquadro. Una prima stesura di questo task era arrivata a 16×16 con un pallino di raggio 5 fisso, ma la revisione del Task 1 ha mostrato che il TEE così è praticamente inutilizzabile: gli handle di react-flow sono quadrati di 10px fissi (`LATO_HANDLE`) che a 16×16 si sovrappongono e coprono quasi tutta la superficie del nodo, lasciando solo pochi pixel al centro da cui trascinarlo, e allo zoom con cui l'editor si apre (`fitView`, ~0,36 su uno schema tipico) i quattro attacchi distano ~3px l'uno dall'altro — esattamente la capacità che il committente ha chiesto. La correzione è su due fronti insieme: l'ingombro cresce a 24×24 e `SchemaNodeSymbol.tsx` dimensiona l'handle sul nodo (il minore fra `LATO_HANDLE` e un terzo del lato minore del riquadro), così sulla giunzione l'handle scende a 8px. È un cambiamento **visibile sui TEE già disegnati**: il simbolo si rimpicciolisce rispetto ai 50×50 originali e i tubi collegati si riattaccano più vicino al centro. È voluto, e va mostrato al committente in verifica.
 
 ### 2. Testo su più righe
 
@@ -80,11 +80,23 @@ Nella riconciliazione con la scheda dati i testi **sopravvivono sempre**: sono p
 
 **Files:**
 - Modify: `src/services/schemaImpianto/symbols/index.ts` (`DIMENSIONI.giunzione`, `simboloGiunzione`, voce `giunzione` del registro)
+- Modify: `src/components/schemaImpianto/SchemaNodeSymbol.tsx` (`latoHandle`, che dimensiona l'handle sul nodo)
 - Test: `src/services/schemaImpianto/__tests__/simboli.test.ts`
 
 **Interfaces:**
 - Consumes: `traccia`, `DIMENSIONI`, `REGISTRO_SIMBOLI` già in `symbols/index.ts`.
-- Produces: nessuna firma nuova. Il registro espone per `giunzione` quattro ancore: `sx` (0,8), `dx` (16,8), `alto` (8,0), `basso` (8,16), tutte `accetta: ['aria']`.
+- Produces: nessuna firma nuova. Il registro espone per `giunzione` quattro ancore: `sx` (0,12), `dx` (24,12), `alto` (12,0), `basso` (12,24), tutte `accetta: ['aria']`.
+
+**Nota dopo il giro di correzione 1:** la prima stesura di questo task fissava l'ingombro a
+16×16 con un pallino di raggio 5 fisso, e toccava solo `symbols/index.ts`. La revisione ha
+trovato due difetti veri: i test sul pallino non discriminavano (nessuno fissava `cx`/`cy`, e
+il limite sul raggio era una tolleranza a senso unico che qualunque raggio grande soddisfa), e
+l'ingombro di 16×16 rendeva il TEE quasi impossibile da usare — gli handle di react-flow sono
+quadrati di 10px fissi (`LATO_HANDLE`) che a quella dimensione si sovrappongono e coprono quasi
+tutto il nodo, lasciando pochi pixel al centro da cui trascinarlo, e allo zoom di apertura
+dell'editor (`fitView`, ~0,36 su uno schema tipico) i quattro attacchi distano ~3px l'uno
+dall'altro. Il testo sotto riflette la versione corretta: ingombro 24×24, raggio derivato dalla
+larghezza (non un numero fisso), e `SchemaNodeSymbol.tsx` che dimensiona l'handle sul nodo.
 
 - [ ] **Step 1: Scrivi i test che falliscono**
 
@@ -115,15 +127,22 @@ describe('giunzione', () => {
     expect(per('dx')).toMatchObject({ x: larghezza, y: altezza / 2 })
     expect(per('alto')).toMatchObject({ x: larghezza / 2, y: 0 })
     expect(per('basso')).toMatchObject({ x: larghezza / 2, y: altezza })
+    // Il centro del pallino va ricavato dalle dimensioni del registro, non scritto a mano:
+    // se l'ingombro cambia, il test deve seguirlo senza bisogno di essere riscritto.
+    const svg = simboloGiunzione(nodo)
+    const cx = Number(/cx="([\d.]+)"/.exec(svg)![1])
+    const cy = Number(/cy="([\d.]+)"/.exec(svg)![1])
+    expect(cx).toBe(larghezza / 2)
+    expect(cy).toBe(altezza / 2)
   })
 
-  it('il pallino copre quasi tutto il riquadro: fra tubo e giunzione non resta un buco visibile', () => {
-    // Con l'ingombro grande del Blocco B (50x50) fra la fine del tubo e il pallino restavano
-    // 25 unità di vuoto per lato. Il vuoto massimo tollerato è di poche unità, invisibile a
-    // spessore di tratto 2.
+  it('il pallino tocca esattamente le ancore: né un buco né una sporgenza fuori dal riquadro', () => {
+    // Il raggio è metà della larghezza per costruzione (vedi simboloGiunzione): un'uguaglianza,
+    // non una tolleranza, perché qualunque scarto lascerebbe un buco (raggio più piccolo) o
+    // farebbe sporgere il pallino fuori dal riquadro (raggio più grande).
     const { larghezza } = REGISTRO_SIMBOLI.giunzione.dimensioni
     const raggio = Number(/r="([\d.]+)"/.exec(simboloGiunzione(nodo))![1])
-    expect(larghezza / 2 - raggio).toBeLessThanOrEqual(3)
+    expect(raggio).toBe(larghezza / 2)
   })
 })
 ```
@@ -141,7 +160,7 @@ Atteso: rossi sul numero di ancore (tre invece di quattro), sulla presenza di `<
 In `src/services/schemaImpianto/symbols/index.ts`, in `DIMENSIONI`:
 
 ```ts
-  giunzione: { larghezza: 16, altezza: 16 },
+  giunzione: { larghezza: 24, altezza: 24 },
 ```
 
 Sostituisci `simboloGiunzione`:
@@ -154,13 +173,13 @@ Sostituisci `simboloGiunzione`:
  * libero da qualunque lato, e la forma a T (o a croce, o a gomito) la disegnano ora le
  * tubazioni che ci arrivano davvero.
  *
- * Il pallino riempie quasi tutto il riquadro apposta: le ancore stanno sui bordi, e un
- * disco piccolo al centro di un riquadro grande lascerebbe un buco visibile fra la fine di
- * ogni tubo e la giunzione.
+ * Il raggio è esattamente metà della larghezza del riquadro: il pallino tocca così le quattro
+ * ancore, che stanno sui bordi, senza lasciare un buco fra la fine di un tubo e la giunzione.
+ * Un raggio più piccolo lo lascerebbe, un raggio più grande sporgerebbe fuori dal riquadro.
  */
 export function simboloGiunzione(_nodo: SchemaNodo): string {
   const { larghezza, altezza } = DIMENSIONI.giunzione
-  return `<circle cx="${larghezza / 2}" cy="${altezza / 2}" r="5" fill="#000" />`
+  return `<circle cx="${larghezza / 2}" cy="${altezza / 2}" r="${larghezza / 2}" fill="#000" />`
 }
 ```
 
@@ -170,32 +189,54 @@ e nel registro:
   giunzione: {
     dimensioni: DIMENSIONI.giunzione,
     // Quattro attacchi sempre disponibili, uno per lato: non c'è un «davanti», quindi non
-    // c'è nulla da ruotare. Gli identificativi sx/dx/basso sono quelli del Blocco B: finiscono
-    // negli archi salvati, e cambiarli senza motivo introdurrebbe un'incompatibilità gratuita
-    // il giorno in cui esisteranno disegni veri da rileggere. `alto` è nuovo.
+    // c'è nulla da ruotare. Gli id sono i nomi dei quattro lati: sx/dx/alto/basso.
     ancore: [
-      { id: 'sx', x: 0, y: 8, accetta: ['aria'] },
-      { id: 'dx', x: 16, y: 8, accetta: ['aria'] },
-      { id: 'alto', x: 8, y: 0, accetta: ['aria'] },
-      { id: 'basso', x: 8, y: 16, accetta: ['aria'] },
+      { id: 'sx', x: 0, y: 12, accetta: ['aria'] },
+      { id: 'dx', x: 24, y: 12, accetta: ['aria'] },
+      { id: 'alto', x: 12, y: 0, accetta: ['aria'] },
+      { id: 'basso', x: 12, y: 24, accetta: ['aria'] },
     ],
     disegna: simboloGiunzione,
   },
 ```
 
+In `src/components/schemaImpianto/SchemaNodeSymbol.tsx`, l'handle non può più avere un lato
+fisso (`LATO_HANDLE = 10`): su un nodo di 24×24 con quattro ancore sui bordi coprirebbe ancora
+gran parte della superficie. Aggiungi, accanto a `LATO_HANDLE`:
+
+```ts
+/**
+ * Lato dell'handle per un nodo di dimensioni date: `LATO_HANDLE`, ma non oltre un terzo del
+ * lato minore del riquadro. Sulla giunzione (24×24, quattro ancore agli angoli del riquadro)
+ * un handle di 10px si sovrapponeva al vicino e copriva quasi tutta la superficie, lasciando
+ * solo qualche pixel al centro da cui trascinare il nodo invece di avviare una connessione —
+ * inutilizzabile allo zoom con cui l'editor si apre. Sugli altri simboli, il più piccolo dei
+ * quali è la tanica (80×70), il limite non scatta mai: resta `LATO_HANDLE`.
+ */
+function latoHandle(dim: { larghezza: number; altezza: number }): number {
+  return Math.min(LATO_HANDLE, Math.min(dim.larghezza, dim.altezza) / 3)
+}
+```
+
+e usa `latoHandle(dimensioni)` (invece del `LATO_HANDLE` fisso nella costante `ANCORA`) per
+`width`/`height` dello stile di ogni handle in `SchemaNodeSymbol`.
+
 - [ ] **Step 4: Esegui i test e verifica che passino**
 
 ```bash
 npx vitest run src/services/schemaImpianto > task-1-verde.txt 2>&1
+npx vitest run src/components/schemaImpianto > task-1-componenti.txt 2>&1
 npx tsc --noEmit > task-1-tsc.txt 2>&1
 ```
 
-Atteso: modulo verde, `tsc` pulito. Se qualche test di `layout`/`renderSvg` cade per l'ingombro cambiato, **leggi cosa asserisce prima di toccarlo**: se dipende dal 50×50 della giunzione è legittimo aggiornarlo, se invece riguarda altro hai rotto qualcosa.
+Atteso: entrambi i moduli verdi, `tsc` pulito. Se qualche test di `layout`/`renderSvg` cade per
+l'ingombro cambiato, **leggi cosa asserisce prima di toccarlo**: se dipende dal 50×50 della
+giunzione è legittimo aggiornarlo, se invece riguarda altro hai rotto qualcosa.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/services/schemaImpianto/symbols/index.ts src/services/schemaImpianto/__tests__/simboli.test.ts
+git add src/services/schemaImpianto/symbols/index.ts src/components/schemaImpianto/SchemaNodeSymbol.tsx src/services/schemaImpianto/__tests__/simboli.test.ts
 git commit -m "feat(schema-impianto): il TEE diventa un punto di giunzione con quattro attacchi"
 ```
 

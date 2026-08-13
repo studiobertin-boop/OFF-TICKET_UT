@@ -30,7 +30,7 @@ const DIMENSIONI: Record<SchemaNodoTipo, { larghezza: number; altezza: number }>
   tanica: { larghezza: 80, altezza: 70 },
   pacco_bombole: { larghezza: 120, altezza: 100 },
   utenze: { larghezza: 190, altezza: 120 },
-  giunzione: { larghezza: 16, altezza: 16 },
+  giunzione: { larghezza: 24, altezza: 24 },
 }
 
 /** Testo: `x`/`y` sono il centro, o il capo iniziale/finale se `ancora` lo dice. */
@@ -350,13 +350,13 @@ export function simboloPaccoBombole(nodo: SchemaNodo): string {
  * libero da qualunque lato, e la forma a T (o a croce, o a gomito) la disegnano ora le
  * tubazioni che ci arrivano davvero.
  *
- * Il pallino riempie quasi tutto il riquadro apposta: le ancore stanno sui bordi, e un
- * disco piccolo al centro di un riquadro grande lascerebbe un buco visibile fra la fine di
- * ogni tubo e la giunzione.
+ * Il raggio è esattamente metà della larghezza del riquadro: il pallino tocca così le quattro
+ * ancore, che stanno sui bordi, senza lasciare un buco fra la fine di un tubo e la giunzione.
+ * Un raggio più piccolo lo lascerebbe, un raggio più grande sporgerebbe fuori dal riquadro.
  */
 export function simboloGiunzione(_nodo: SchemaNodo): string {
   const { larghezza, altezza } = DIMENSIONI.giunzione
-  return `<circle cx="${larghezza / 2}" cy="${altezza / 2}" r="5" fill="#000" />`
+  return `<circle cx="${larghezza / 2}" cy="${altezza / 2}" r="${larghezza / 2}" fill="#000" />`
 }
 
 /**
@@ -481,14 +481,12 @@ export const REGISTRO_SIMBOLI: Record<ChiaveSimbolo, DefinizioneSimbolo> = {
   giunzione: {
     dimensioni: DIMENSIONI.giunzione,
     // Quattro attacchi sempre disponibili, uno per lato: non c'è un «davanti», quindi non
-    // c'è nulla da ruotare. Gli identificativi sx/dx/basso sono quelli del Blocco B: finiscono
-    // negli archi salvati, e cambiarli senza motivo introdurrebbe un'incompatibilità gratuita
-    // il giorno in cui esisteranno disegni veri da rileggere. `alto` è nuovo.
+    // c'è nulla da ruotare. Gli id sono i nomi dei quattro lati: sx/dx/alto/basso.
     ancore: [
-      { id: 'sx', x: 0, y: 8, accetta: ['aria'] },
-      { id: 'dx', x: 16, y: 8, accetta: ['aria'] },
-      { id: 'alto', x: 8, y: 0, accetta: ['aria'] },
-      { id: 'basso', x: 8, y: 16, accetta: ['aria'] },
+      { id: 'sx', x: 0, y: 12, accetta: ['aria'] },
+      { id: 'dx', x: 24, y: 12, accetta: ['aria'] },
+      { id: 'alto', x: 12, y: 0, accetta: ['aria'] },
+      { id: 'basso', x: 12, y: 24, accetta: ['aria'] },
     ],
     disegna: simboloGiunzione,
   },
