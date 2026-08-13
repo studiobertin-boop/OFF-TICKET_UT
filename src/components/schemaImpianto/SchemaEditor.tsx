@@ -58,7 +58,7 @@ import { renderSvg } from '@/services/schemaImpianto/renderSvg'
 import type { SchemaArcoStile, SchemaLayout, SchemaNodoTipo } from '@/services/schemaImpianto/types'
 import { SchemaEdgeTubazione, type SchemaEdgeData } from './SchemaEdgeTubazione'
 import { SchemaNodeSymbol, type SchemaNodeData } from './SchemaNodeSymbol'
-import { TIPO_ARCO_FLOW, TIPO_NODO_FLOW, flowALayout, fondiDatiArchi, layoutAFlow } from './conversioneFlow'
+import { TIPO_ARCO_FLOW, TIPO_NODO_FLOW, capiDegliArchi, flowALayout, fondiDatiArchi, layoutAFlow } from './conversioneFlow'
 import { GuideAllineamento } from './GuideAllineamento'
 import { useAllineamentoSelezione } from './useAllineamentoSelezione'
 import { useGomiti } from './useGomiti'
@@ -166,6 +166,14 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
   // sarebbe una modifica che si perde in silenzio.
   const [rinomina, setRinomina] = useState<{ id: string; valore: string } | null>(null)
 
+  // Il modello dello schema come sta adesso sulla tela. Ricostruirlo qui una volta sola, invece
+  // che dentro ognuno dei calcoli qui sotto, è quel che tiene quote, capi e anteprima sullo
+  // STESSO layout: sono i tre ingressi della geometria condivisa con il documento.
+  const layoutCorrente = useMemo(
+    () => flowALayout(stato.nodes, stato.edges),
+    [stato.nodes, stato.edges]
+  )
+
   // Quote di instradamento (collettore della mandata flessibile, corsia delle condense):
   // dipendono da dove stanno TUTTI i nodi, non dal singolo arco, quindi si calcolano qui una
   // volta per aggiornamento e viaggiano nei dati di ogni arco. È la stessa funzione che usa
@@ -173,10 +181,13 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
   // rimetterebbe in piedi la divergenza fra tela e documento che questo blocco ha chiuso.
   // Ricalcolarle a ogni spostamento è voluto: le linee si riassestano mentre si trascina un
   // nodo, esattamente come farà il documento.
-  const quote = useMemo(
-    () => quoteInstradamento(flowALayout(stato.nodes, stato.edges)),
-    [stato.nodes, stato.edges]
-  )
+  const quote = useMemo(() => quoteInstradamento(layoutCorrente), [layoutCorrente])
+
+  // Capi di ogni arco, dalle ancore dei nodi e con la stessa `posizioneAncora` del documento
+  // (vedi `capiDegliArchi`). Viaggiano nei dati dell'arco per lo stesso motivo delle quote: il
+  // componente dell'arco non ha una vista sui nodi, e quel che react-flow gli passerebbe da sé
+  // (`sourceX`/`sourceY`) è il bordo dell'handle, 5 unità fuori dal centro dell'ancora.
+  const capi = useMemo(() => capiDegliArchi(layoutCorrente), [layoutCorrente])
 
   // La tela di react-flow mostra nodi e archi — terminale utenze compreso, che dal 12-08-2026
   // è un nodo come gli altri e si ritocca qui — ma non muro, nota e tabella. Dal Blocco C1 le
@@ -186,9 +197,9 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
   // .docx — perché disegna anche ciò che la tela non mostra affatto.
   const anteprima = useMemo(() => {
     if (!anteprimaAperta) return null
-    const svg = renderSvg(flowALayout(stato.nodes, stato.edges), { noteTubazioni })
+    const svg = renderSvg(layoutCorrente, { noteTubazioni })
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
-  }, [anteprimaAperta, noteTubazioni, stato.edges, stato.nodes])
+  }, [anteprimaAperta, layoutCorrente, noteTubazioni])
 
   // Se il trascinamento in corso ha già registrato in cronologia lo stato da cui è partito:
   // senza, l'evento conclusivo (`dragging: false`) sarebbe quello che chiama `applica`, ma a
@@ -245,10 +256,11 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
   // `onRimuoviGomito`, `onSpostaSegno`/`onRimuoviSegno`, `onTrascinaTratto`): vanno fusi, non
   // passati tutti a `<ReactFlow edges={...}>`, o l'ultimo sovrascriverebbe i precedenti. La
   // fusione vera e propria vive in `fondiDatiArchi` (conversioneFlow.ts), funzione pura e non
-  // qui dentro, perché è lì che si prova l'invariante «ogni arco porta `quote`».
+  // qui dentro, perché è lì che si provano le invarianti «ogni arco porta `quote`» e «ogni arco
+  // porta i propri `capi`».
   const edgesConGomiti = useMemo(
-    () => fondiDatiArchi(edgesConGomitiBase, edgesConSegni, edgesConTrascinamento, quote),
-    [edgesConGomitiBase, edgesConSegni, edgesConTrascinamento, quote]
+    () => fondiDatiArchi(edgesConGomitiBase, edgesConSegni, edgesConTrascinamento, quote, capi),
+    [edgesConGomitiBase, edgesConSegni, edgesConTrascinamento, quote, capi]
   )
 
   // Guide di allineamento durante il trascinamento: stato locale, non cronologia (vedi
@@ -476,8 +488,8 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
       : null
 
   const conferma = useCallback(() => {
-    onConferma(flowALayout(stato.nodes, stato.edges))
-  }, [onConferma, stato.edges, stato.nodes])
+    onConferma(layoutCorrente)
+  }, [layoutCorrente, onConferma])
 
   const onNodeDoubleClick = useCallback((_: React.MouseEvent, nodo: Node) => {
     const dati = (nodo.data as SchemaNodeData).nodo

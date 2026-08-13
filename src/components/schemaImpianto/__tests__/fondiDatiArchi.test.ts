@@ -1,10 +1,16 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { Edge } from '@xyflow/react'
 import type { QuoteInstradamento } from '@/services/schemaImpianto/tratti'
-import { fondiDatiArchi } from '../conversioneFlow'
+import { fondiDatiArchi, type CapiArco } from '../conversioneFlow'
 import type { SchemaEdgeData } from '../SchemaEdgeTubazione'
 
 const QUOTE: QuoteInstradamento = { yCollettore: 120, yCorsiaCondense: 340 }
+
+/** I capi come `capiDegliArchi` li produce dalle ancore, uno per arco. */
+const CAPI = new Map<string, CapiArco>([
+  ['a1', { da: { x: 100, y: 200 }, a: { x: 400, y: 260 } }],
+  ['a2', { da: { x: 400, y: 260 }, a: { x: 700, y: 300 } }],
+])
 
 /**
  * I tre elenchi come li producono useGomiti, useSegniTubo e useTrascinamentoTratto: stesso
@@ -31,7 +37,7 @@ describe('fondiDatiArchi', () => {
   // difetto (rotte diverse fra tela e documento) torna senza che nulla protesti.
   it('ogni arco fuso porta le quote di instradamento', () => {
     const { conGomiti, conSegni, conTrascinamento } = treElenchi()
-    const fusi = fondiDatiArchi(conGomiti, conSegni, conTrascinamento, QUOTE)
+    const fusi = fondiDatiArchi(conGomiti, conSegni, conTrascinamento, QUOTE, CAPI)
 
     expect(fusi).toHaveLength(2)
     for (const arco of fusi) {
@@ -39,10 +45,25 @@ describe('fondiDatiArchi', () => {
     }
   })
 
+  // Stessa invariante, sull'altro dato che un arco non può ricavarsi da solo: se esce da qui
+  // senza `capi`, `capiDellArco` ripiega sulle coordinate degli handle di react-flow — il bordo
+  // dell'handle invece del centro dell'ancora — e la tela torna a disegnare 5 unità più in là
+  // del documento. Che quei capi siano davvero le ancore lo prova
+  // `instradamentoCondiviso.test.ts`, che li confronta con `posizioneAncora` su un layout vero.
+  it('ogni arco fuso porta i propri capi', () => {
+    const { conGomiti, conSegni, conTrascinamento } = treElenchi()
+    const fusi = fondiDatiArchi(conGomiti, conSegni, conTrascinamento, QUOTE, CAPI)
+
+    expect(fusi).toHaveLength(2)
+    for (const arco of fusi) {
+      expect((arco.data as SchemaEdgeData).capi, `arco ${arco.id}`).toEqual(CAPI.get(arco.id))
+    }
+  })
+
   it('i callback dei tre hook sopravvivono alla fusione', () => {
     const { conGomiti, conSegni, conTrascinamento, onSpostaGomito, onSpostaSegno, onTrascinaTratto } =
       treElenchi()
-    const fusi = fondiDatiArchi(conGomiti, conSegni, conTrascinamento, QUOTE)
+    const fusi = fondiDatiArchi(conGomiti, conSegni, conTrascinamento, QUOTE, CAPI)
 
     for (const arco of fusi) {
       const data = arco.data as SchemaEdgeData

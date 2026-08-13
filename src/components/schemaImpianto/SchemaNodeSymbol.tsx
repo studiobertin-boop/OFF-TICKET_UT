@@ -16,14 +16,28 @@ export interface SchemaNodeData extends Record<string, unknown> {
   nodo: SchemaNodo
 }
 
-const ANCORA = { width: 10, height: 10, background: '#1976d2', border: 'none' }
+/**
+ * L'handle è un quadrato di LATO_HANDLE px centrato sull'ancora (`translate(-50%, -50%)`).
+ * Il lato conta: react-flow non passa all'arco il centro dell'handle ma il suo bordo esterno
+ * dal lato dichiarato in `position` — cioè il centro dell'ancora spostato di metà lato. È il
+ * motivo per cui i capi degli archi NON si prendono da `sourceX`/`sourceY` (vedi
+ * `capiDegliArchi` in conversioneFlow.ts): il documento userebbe il centro e i due disegni
+ * uscirebbero sfalsati.
+ */
+export const LATO_HANDLE = 10
+
+const ANCORA = { width: LATO_HANDLE, height: LATO_HANDLE, background: '#1976d2', border: 'none' }
 
 /**
  * Lato react-flow a cui appoggiare l'handle: quello del riquadro d'ingombro più vicino
  * all'ancora. È solo resa grafica — l'aggancio vero, cioè cosa può collegarsi dove, lo
  * decide `capoValido` dal registro simboli, non questa posizione.
+ *
+ * Esportata perché è anche il dato da cui dipendono le coordinate che react-flow passa
+ * all'arco: il test dell'accordo (`__tests__/instradamentoCondiviso.test.ts`) la usa per
+ * ricostruire quei capi — la fonte sbagliata — e provare che la tela non li segue più.
  */
-function latoDi(ancora: SchemaAncora, dim: { larghezza: number; altezza: number }): Position {
+export function latoDi(ancora: SchemaAncora, dim: { larghezza: number; altezza: number }): Position {
   const distanze = [
     { lato: Position.Left, d: ancora.x },
     { lato: Position.Right, d: dim.larghezza - ancora.x },

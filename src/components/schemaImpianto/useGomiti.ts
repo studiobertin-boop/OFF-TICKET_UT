@@ -7,8 +7,7 @@
  */
 import { useCallback, useMemo, useRef, type MouseEvent as ReactMouseEvent } from 'react'
 import { useReactFlow, type Edge, type Node } from '@xyflow/react'
-import { ancoraDi } from '@/services/schemaImpianto/symbols'
-import type { SchemaNodoTipo } from '@/services/schemaImpianto/types'
+import { posizioneAncora } from '@/services/schemaImpianto/renderSvg'
 import type { SchemaEdgeData } from './SchemaEdgeTubazione'
 import type { SchemaNodeData } from './SchemaNodeSymbol'
 
@@ -18,19 +17,6 @@ interface StatoConNodiEdArchi {
 }
 
 type Aggiorna<T> = (prossimo: T | ((corrente: T) => T)) => void
-
-/**
- * Posizione assoluta di un'ancora: stesso calcolo che `SchemaNodeSymbol` usa per piazzare
- * l'Handle di react-flow, serve qui per sapere dove parte e arriva davvero una tubazione
- * quando si deve decidere in che punto della polilinea cade un doppio clic.
- */
-function posizioneAncora(
-  nodo: { tipo: SchemaNodoTipo; orientamento?: 'VERTICALE' | 'ORIZZONTALE'; x: number; y: number },
-  ancoraId: string
-): { x: number; y: number } | null {
-  const ancora = ancoraDi(nodo, ancoraId)
-  return ancora ? { x: nodo.x + ancora.x, y: nodo.y + ancora.y } : null
-}
 
 /** Distanza fra un punto e il segmento (proiezione bloccata agli estremi, non la retta). */
 function distanzaDaSegmento(
@@ -82,10 +68,12 @@ export function useGomiti<T extends StatoConNodiEdArchi>(
   // cui vivono nodi, archi e gomiti: la stessa funzione che react-flow usa internamente.
   const { screenToFlowPosition } = useReactFlow()
 
-  // Doppio clic sulla tubazione: aggiunge un gomito nel punto cliccato. Le ancore vere
-  // (non le sourceX/targetX approssimate dal solo layout dei nodi) servono a capire su
-  // quale tratto della polilinea è caduto il clic, altrimenti l'indice d'inserimento
-  // sbaglierebbe proprio sui percorsi già piegati che questo gesto deve rispettare.
+  // Doppio clic sulla tubazione: aggiunge un gomito nel punto cliccato. I capi servono a capire
+  // su quale tratto della polilinea è caduto il clic, altrimenti l'indice d'inserimento
+  // sbaglierebbe proprio sui percorsi già piegati che questo gesto deve rispettare. Vengono
+  // dalle ancore, con la stessa `posizioneAncora` del documento e degli archi della tela
+  // (`capiDegliArchi`, conversioneFlow.ts): le `sourceX`/`targetX` di react-flow sono il bordo
+  // dell'handle, 5 unità più in là, e darebbero una polilinea diversa da quella cliccata.
   const creaGomito = useCallback(
     (evento: ReactMouseEvent, arco: Edge) => {
       const nodoPartenza = stato.nodes.find((n) => n.id === arco.source)
@@ -96,7 +84,6 @@ export function useGomiti<T extends StatoConNodiEdArchi>(
       const datiArrivo = { ...(nodoArrivo.data as SchemaNodeData).nodo, ...nodoArrivo.position }
       const partenza = posizioneAncora(datiPartenza, arco.sourceHandle ?? '')
       const arrivo = posizioneAncora(datiArrivo, arco.targetHandle ?? '')
-      if (!partenza || !arrivo) return
 
       const clic = screenToFlowPosition({ x: evento.clientX, y: evento.clientY })
       const puntiEsistenti = (arco.data as SchemaEdgeData | undefined)?.punti ?? []

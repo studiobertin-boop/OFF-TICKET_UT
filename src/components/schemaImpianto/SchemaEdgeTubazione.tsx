@@ -3,18 +3,19 @@
  * continua, flessibile ondulata, condense tratteggiata.
  *
  * La forma della linea è la STESSA del render statico (`renderSvg.ts`) per ogni arco, con o
- * senza gomiti imposti a mano: entrambi passano da `instrada` (tratti.ts), l'editor tramite
- * `polilineaDellArco`. È questa condivisione a rendere sensato trascinare un tratto sulla
- * tela — quello che si sposta è lo stesso tratto che il .docx disegnerà. L'anteprima resta
- * comunque il giudice dell'aspetto finale, perché disegna anche ciò che la tela non mostra
- * affatto (tabella, legenda, nota sui diametri).
+ * senza gomiti imposti a mano: entrambi passano da `instrada` (tratti.ts) sugli stessi capi —
+ * le ancore dei nodi via `posizioneAncora`, non le coordinate degli handle — l'editor tramite
+ * `capiDellArco` e `polilineaDellArco`. È questa condivisione a rendere sensato trascinare un
+ * tratto sulla tela: quello che si sposta è lo stesso tratto che il .docx disegnerà.
+ * L'anteprima resta comunque il giudice dell'aspetto finale, perché disegna anche ciò che la
+ * tela non mostra affatto (tabella, legenda, nota sui diametri).
  */
 import { useCallback, useRef } from 'react'
 import { BaseEdge, EdgeLabelRenderer, useReactFlow, type EdgeProps } from '@xyflow/react'
 import { riduttorePressione, valvolaIntercettazione } from '@/services/schemaImpianto/symbols'
 import { ondula, percorso, puntoSuTratto, tSuTratto, type Punto, type QuoteInstradamento } from '@/services/schemaImpianto/tratti'
 import type { SchemaArcoStile, SchemaSegnoTubo, SchemaSegnoTuboTipo } from '@/services/schemaImpianto/types'
-import { polilineaDellArco } from './conversioneFlow'
+import { capiDellArco, polilineaDellArco, type CapiArco } from './conversioneFlow'
 import { indiceTrattoPiuVicino } from './useTrascinamentoTratto'
 
 export interface SchemaEdgeData extends Record<string, unknown> {
@@ -36,6 +37,21 @@ export interface SchemaEdgeData extends Record<string, unknown> {
    */
   quote?: QuoteInstradamento
   /**
+   * I due capi dell'arco in coordinate del disegno, calcolati da `SchemaEditor` con
+   * `posizioneAncora` (renderSvg.ts) — la STESSA funzione che usa il documento — e infilati qui
+   * da `fondiDatiArchi` (conversioneFlow.ts) insieme alle quote.
+   *
+   * Non si usano `sourceX`/`sourceY` di react-flow: quelli sono il BORDO ESTERNO dell'handle
+   * (10×10 px in `SchemaNodeSymbol`) secondo il lato su cui è appoggiato, cioè il centro
+   * dell'ancora spostato di 5 unità. Lo scarto non resta ai capi — `rottaLinea` ricava `xMedia`
+   * da loro — e sfalsava ogni vertice della tela rispetto al documento: sulla pratica di prova,
+   * zero archi su nove combaciavano.
+   *
+   * `undefined` qui non è un caso previsto sulla tela: è la rete di sicurezza per il tipo di
+   * `capiDellArco`, che senza capi ripiega proprio sulle coordinate degli handle.
+   */
+  capi?: CapiArco
+  /**
    * Legate a questo arco specifico da `useGomiti` (vedi `edgesConGomiti` lì dentro): il
    * componente dell'arco non conosce la cronologia, sa solo chiedere di aggiornarla.
    */
@@ -54,7 +70,9 @@ export interface SchemaEdgeData extends Record<string, unknown> {
    * `polilineaDellArco`/`instrada`, rotta nativa compresa quando l'arco non ha gomiti a mano —
    * non nell'elenco dei soli gomiti a mano. `useTrascinamentoTratto` la ricostruisce con
    * `instrada` proprio per restare sugli stessi indici: numerarla diversamente sposterebbe un
-   * tratto diverso da quello afferrato (era il difetto del giro di riparazione 1).
+   * tratto diverso da quello afferrato (era il difetto del giro di riparazione 1). Per lo stesso
+   * motivo `pDa`/`pA` sono i capi risolti da `capiDellArco` — gli stessi da cui nasce la
+   * polilinea disegnata — e non le coordinate degli handle.
    */
   onTrascinaTratto?: (pDa: Punto, pA: Punto, indiceTratto: number, puntoLibero: Punto, concluso: boolean) => void
 }
@@ -266,12 +284,19 @@ export function SchemaEdgeTubazione({
   const mossoTrattoRef = useRef(false)
   const edgeData = data as SchemaEdgeData | undefined
   const stile = (edgeData?.stile ?? 'standard') as SchemaArcoStile
-  const pDa: Punto = { x: sourceX, y: sourceY }
-  const pA: Punto = { x: targetX, y: targetY }
+  // I capi vengono dalle ancore dei nodi (`data.capi`, vedi sopra), non da `sourceX`/`sourceY`:
+  // quelli sono il bordo dell'handle, 5 unità fuori dal centro dell'ancora, e restano solo come
+  // ripiego per il tipo. Risolti UNA volta e usati per tutto ciò che segue — polilinea, area di
+  // presa, capi consegnati a `trascinaTratto` — perché una seconda fonte per i capi dello stesso
+  // arco rimetterebbe in piedi la divergenza fra tela e documento.
+  const capi = capiDellArco(edgeData, {
+    da: { x: sourceX, y: sourceY },
+    a: { x: targetX, y: targetY },
+  })
   const punti = edgeData?.punti ?? []
   // Stessa geometria del render statico (renderSvg.ts) per OGNI arco, con o senza gomiti:
   // editor e documento concordano sulla forma della linea — non più un'approssimazione.
-  const polilinea = polilineaDellArco(pDa, pA, edgeData)
+  const polilinea = polilineaDellArco(capi, edgeData)
   const path = stile === 'flessibile' ? ondula(polilinea) : percorso(polilinea)
   const { punto: puntoEtichetta } = puntoSuTratto(polilinea, 0.5)
   const labelX = puntoEtichetta.x
@@ -321,7 +346,7 @@ export function SchemaEdgeTubazione({
           mossoTrattoRef.current = true
           const libero = screenToFlowPosition({ x: e.clientX, y: e.clientY })
           const indice = indiceTrattoPiuVicino(polilinea, libero)
-          edgeData?.onTrascinaTratto?.(pDa, pA, indice, libero, false)
+          edgeData?.onTrascinaTratto?.(capi.da, capi.a, indice, libero, false)
         }}
         onPointerUp={(e) => {
           if (!(e.currentTarget as SVGPathElement).hasPointerCapture(e.pointerId)) return
@@ -330,7 +355,7 @@ export function SchemaEdgeTubazione({
           if (mossoTrattoRef.current) {
             const libero = screenToFlowPosition({ x: e.clientX, y: e.clientY })
             const indice = indiceTrattoPiuVicino(polilinea, libero)
-            edgeData?.onTrascinaTratto?.(pDa, pA, indice, libero, true)
+            edgeData?.onTrascinaTratto?.(capi.da, capi.a, indice, libero, true)
           }
         }}
       />

@@ -952,15 +952,18 @@ Sul flessibile cambia perfino il numero di semiperiodi dell'onda, perché dipend
 
 Questo è esattamente il limite che il Task 4 aveva dichiarato «verificato leggendo `SchemaNodeSymbol.tsx`, non da un test» e che due revisioni avevano classificato come rischio residuo accettabile. La misura lo ha smentito. Il test dell'accordo non lo cattura perché ricostruisce i capi con posizione-nodo + ancora — cioè assumendo vera proprio l'ipotesi da verificare.
 
-**Files:**
+**Files** (elenco corretto a fine task: al piano mancavano gli ultimi tre):
 - Modify: `src/components/schemaImpianto/SchemaEditor.tsx` (calcolo dei capi accanto a quello delle quote)
-- Modify: `src/components/schemaImpianto/conversioneFlow.ts` (`fondiDatiArchi` porta i capi; `polilineaDellArco` li usa)
+- Modify: `src/components/schemaImpianto/conversioneFlow.ts` (`capiDegliArchi` e `capiDellArco` nuove; `fondiDatiArchi` porta i capi; `polilineaDellArco` li riceve come un solo argomento)
 - Modify: `src/components/schemaImpianto/SchemaEdgeTubazione.tsx` (`SchemaEdgeData` porta i capi; il componente smette di fidarsi di `sourceX/sourceY`)
+- Modify: `src/components/schemaImpianto/SchemaNodeSymbol.tsx` (`latoDi` e `LATO_HANDLE` esportati: sono i due dati da cui dipendono le coordinate che react-flow passa all'arco, e il test li usa per ricostruire la fonte sbagliata)
+- Modify: `src/components/schemaImpianto/useGomiti.ts` (la sua copia privata di `posizioneAncora` sparisce a favore di quella condivisa: era la terza definizione di «dove sta un capo»)
 - Test: `src/components/schemaImpianto/__tests__/instradamentoCondiviso.test.ts`
+- Test: `src/components/schemaImpianto/__tests__/fondiDatiArchi.test.ts` (l'invariante nuova sta accanto a quella delle quote, come chiede lo Step 1)
 
 **Interfaces:**
-- Consumes: `posizioneAncora` da `@/services/schemaImpianto/renderSvg`, `ancoraDi` da `@/services/schemaImpianto/symbols`, `flowALayout`/`fondiDatiArchi`/`polilineaDellArco` già esistenti.
-- Produces: `SchemaEdgeData.capi?: { da: Punto; a: Punto }` — i due capi in coordinate del disegno, calcolati dall'editor dalle ancore dei nodi correnti.
+- Consumes: `posizioneAncora` da `@/services/schemaImpianto/renderSvg`, `flowALayout`/`fondiDatiArchi`/`polilineaDellArco` già esistenti. Il test consuma anche `ancoraDi`/`dimensioniDi` da `@/services/schemaImpianto/symbols` e `latoDi`/`LATO_HANDLE` da `SchemaNodeSymbol`, per rifare il conto di react-flow.
+- Produces: `SchemaEdgeData.capi?: CapiArco` (`{ da: Punto; a: Punto }`) — i due capi in coordinate del disegno, calcolati dall'editor dalle ancore dei nodi correnti; `capiDegliArchi(layout)` che li calcola per tutti gli archi e `capiDellArco(data, ripiego)` che li risolve per il componente.
 
 **Direzione (la stessa già scelta per le quote).** L'editor ha i nodi: calcola i capi con la stessa funzione che usa il documento e li passa nei dati dell'arco, dove il componente li trova già pronti. Il ripiego su `sourceX/sourceY` resta come rete di sicurezza per il tipo, mai come caso previsto — esattamente il trattamento riservato a `quote`.
 
@@ -982,10 +985,12 @@ Il rosso «funzione non definita» non basta: fai fallire il test con la fonte s
 
 **Criterio di accettazione, verificato in pagina dal controller:** sulla pratica `c6f56ca5`, tutti e nove i tracciati della tela devono combaciare **alla lettera** con i corrispondenti dell'anteprima — confronto di stringhe, non a occhio.
 
-- [ ] **Step 4: Aggiorna il ledger**
+*(I due passi che seguono erano numerati «Step 4» e «Step 5» una seconda volta, copiati dal Task 7: rinumerati a fine task. Restano in carico al controller, non all'implementatore.)*
+
+- [ ] **Step 6: Aggiorna il ledger**
 
 `.superpowers/sdd/2026-08-13-schema-impianto-blocco-c1/progress.md`: cause vere dei difetti trovati, decisioni prese, debito rimandato. La storia git non racconta i perché.
 
-- [ ] **Step 5: Consegna al committente**
+- [ ] **Step 7: Consegna al committente**
 
 Riepilogo di cosa provare in pagina, con dichiarati i due comportamenti nuovi e visibili: le linee che si riassestano mentre si trascina un nodo, e la flessibile trascinabile nel tratto. Nessun merge su `main` finché non lo dice lui.
