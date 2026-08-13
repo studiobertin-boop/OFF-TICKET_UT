@@ -22,3 +22,4 @@ _Nessun fix in attesa._
 | 2026-08-13 | Catalogo e scheda dati: sulle valvole di sicurezza il diametro distingue le varianti insieme alla Ptar. Si sceglie da elenco e la scelta autocompila i dati della variante; le grafie a catalogo («3/8», «3/8''») sono state normalizzate. |
 | 2026-08-13 | Scheda dati: il riconoscimento automatico legge anche i PDF (certificati, fascicoli di più pagine). Prima la rotellina girava e non succedeva niente, perché la risposta del modello non era leggibile; ora l'eventuale errore si vede anche in pagina. |
 | 2026-08-13 | Scheda dati: le valvole annidate al secondo livello (C1.2) hanno un solo gancio di collegamento, quello che risale all'apparecchio che le porta. |
+| 2026-08-13 | Dettaglio pratica: chip accanto allo stato che dice se la pratica è ferma o quante volte lo è stata (date e motivi a un clic), e nastro sotto lo stepper con i periodi di fermo. Prima un blocco risolto non lasciava traccia fuori dallo storico. |
