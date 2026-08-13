@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react'
-import { Controller, useWatch, type Control } from 'react-hook-form'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useController, useWatch, type Control } from 'react-hook-form'
 import { Box, IconButton, MenuItem, Select, Tooltip } from '@mui/material'
 import { Edit as EditIcon, ListAlt as ListAltIcon } from '@mui/icons-material'
 import { LARGHEZZA_AZIONE, NumberCell, PAD_CELLA, TextCell, type AllineamentoCella } from './EquipmentCells'
@@ -78,6 +78,24 @@ export const CatalogValueCell = ({
 
   const name = `${base}.${campo}`
   const valori = valoriACatalogo(catalogType, righe, specKey)
+  const { field } = useController({ name, control })
+
+  /**
+   * Marca e modello con un solo valore a catalogo per questo dato: non c'è scelta da fare,
+   * quindi la si fa da soli. Una volta per combinazione — il ref ricorda l'ultima marca+modello
+   * già tentata — così uno svuotamento volontario del campo dopo l'autocompilazione non viene
+   * riscritto subito, e il passaggio a "valore libero" non viene mai toccato.
+   */
+  const autoApplicataRef = useRef<string | null>(null)
+  useEffect(() => {
+    const chiave = `${marca ?? ''}::${modello ?? ''}`
+    if (libero || valori.length !== 1 || autoApplicataRef.current === chiave) return
+    autoApplicataRef.current = chiave
+    if (field.value == null || field.value === '') {
+      field.onChange(kind === 'number' ? Number(valori[0]) : valori[0])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [valori, marca, modello, libero])
 
   const campoLibero = (
     kind === 'number'
@@ -110,50 +128,42 @@ export const CatalogValueCell = ({
     )
   }
 
-  return (
-    <Controller
-      name={name}
-      control={control}
-      render={({ field }) => {
-        // Una scheda già compilata può portare un valore che a catalogo non c'è (più): resta
-        // fra le voci, altrimenti aprire la scheda basterebbe a cancellarlo.
-        const corrente = field.value == null || field.value === '' ? '' : String(field.value)
-        const voci = corrente && !valori.some((v) => String(v) === corrente) ? [corrente, ...valori] : valori
+  // Una scheda già compilata può portare un valore che a catalogo non c'è (più): resta
+  // fra le voci, altrimenti aprire la scheda basterebbe a cancellarlo.
+  const corrente = field.value == null || field.value === '' ? '' : String(field.value)
+  const voci = corrente && !valori.some((v) => String(v) === corrente) ? [corrente, ...valori] : valori
 
-        return (
-          <Tooltip title={disabled ? (motivoBlocco ?? '') : ''} placement="top">
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <Select
-                value={corrente}
-                disabled={disabled}
-                variant="standard"
-                disableUnderline
-                displayEmpty
-                onChange={(e) => {
-                  const v = e.target.value
-                  if (v === '') { field.onChange(null); return }
-                  field.onChange(kind === 'number' ? Number(v) : v)
-                }}
-                onBlur={field.onBlur}
-                renderValue={(v) =>
-                  v ? String(v) : <Box component="span" sx={{ color: 'text.disabled' }}>—</Box>
-                }
-                sx={selectSx(align)}
-              >
-                <MenuItem value=""><em>—</em></MenuItem>
-                {voci.map((v) => <MenuItem key={String(v)} value={String(v)}>{String(v)}</MenuItem>)}
-              </Select>
-              <Tooltip title="Inserisci un valore diverso da quelli a catalogo">
-                <span>
-                  <IconButton size="small" sx={bottoneSx} disabled={disabled} onClick={() => setLibero(true)} aria-label="Modifica il valore">
-                    <EditIcon />
-                  </IconButton>
-                </span>
-              </Tooltip>
-            </Box>
-          </Tooltip>
-        )
-      }}
-    />
+  return (
+    <Tooltip title={disabled ? (motivoBlocco ?? '') : ''} placement="top">
+      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+        <Select
+          value={corrente}
+          disabled={disabled}
+          variant="standard"
+          disableUnderline
+          displayEmpty
+          onChange={(e) => {
+            const v = e.target.value
+            if (v === '') { field.onChange(null); return }
+            field.onChange(kind === 'number' ? Number(v) : v)
+          }}
+          onBlur={field.onBlur}
+          renderValue={(v) =>
+            v ? String(v) : <Box component="span" sx={{ color: 'text.disabled' }}>—</Box>
+          }
+          sx={selectSx(align)}
+        >
+          <MenuItem value=""><em>—</em></MenuItem>
+          {voci.map((v) => <MenuItem key={String(v)} value={String(v)}>{String(v)}</MenuItem>)}
+        </Select>
+        <Tooltip title="Inserisci un valore diverso da quelli a catalogo">
+          <span>
+            <IconButton size="small" sx={bottoneSx} disabled={disabled} onClick={() => setLibero(true)} aria-label="Modifica il valore">
+              <EditIcon />
+            </IconButton>
+          </span>
+        </Tooltip>
+      </Box>
+    </Tooltip>
   )
 }

@@ -255,7 +255,7 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
   /**
    * Il gate su `isDirty` non è un'ottimizzazione: la scheda resta modificabile anche dopo il
    * completamento, quindi senza di esso la sola apertura in consultazione la riscriverebbe
-   * dopo 120 secondi. `watch()` cambia a ogni render, `isDirty` solo su modifica reale.
+   * dopo pochi secondi. `watch()` cambia a ogni render, `isDirty` solo su modifica reale.
    */
   useEffect(() => {
     if (!onAutoSave || !isDirty) return
@@ -265,10 +265,11 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
       clearTimeout(autoSaveTimeoutRef.current)
     }
 
-    // Set new timeout for autosave (120 secondi dopo l'ultima modifica)
+    // Set new timeout for autosave (3 secondi dopo l'ultima modifica)
     autoSaveTimeoutRef.current = setTimeout(() => {
+      autoSaveTimeoutRef.current = null
       onAutoSave(watchedData as SchedaDatiCompleta)
-    }, 120000)
+    }, 3000)
 
     // Cleanup
     return () => {
@@ -277,6 +278,27 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
       }
     }
   }, [watchedData, onAutoSave, isDirty])
+
+  /**
+   * Non c'è più un pulsante "Salva bozza": uscire dalla scheda prima che il debounce sopra
+   * scada perderebbe l'ultima modifica. I ref si aggiornano a ogni render (non sono nella
+   * dependency array apposta) così la cleanup, che gira solo allo smontaggio, salva sempre
+   * il dato più fresco invece di quello catturato alla creazione dell'effetto.
+   */
+  const latestWatchedDataRef = useRef(watchedData)
+  latestWatchedDataRef.current = watchedData
+  const onAutoSaveRef = useRef(onAutoSave)
+  onAutoSaveRef.current = onAutoSave
+
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current)
+        autoSaveTimeoutRef.current = null
+        onAutoSaveRef.current?.(latestWatchedDataRef.current as SchedaDatiCompleta)
+      }
+    }
+  }, [])
 
 
   const handleBatchOCRComplete = (results: BatchOCRResult, items: BatchOCRItem[]) => {
