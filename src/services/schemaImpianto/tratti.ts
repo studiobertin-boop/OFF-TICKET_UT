@@ -302,12 +302,10 @@ export function rottaCondensa(pDa: Punto, pA: Punto, yCorsia: number): Punto[] {
 }
 
 /**
- * L'unico posto che deve decidere la forma di un tubo. Lo chiama già il render del documento
- * (`renderSvg.ts`, da questo task): la tela dell'editor (`SchemaEdgeTubazione.tsx`) non è
- * ancora cablata su questa funzione e per ora calcola la propria polilinea chiamando
- * `polilineaConGomiti` direttamente — resta quindi un secondo posto che decide, e finché
- * l'editor non passa di qui il Blocco C1 non ha ancora chiuso la divergenza fra i due disegni,
- * solo aperto la strada per chiuderla.
+ * L'unico posto che deve decidere la forma di un tubo. La chiamano sia il render del documento
+ * (`renderSvg.ts`) sia la tela dell'editor, quest'ultima tramite `polilineaDellArco`
+ * (`conversioneFlow.ts`, cablata dentro `SchemaEdgeTubazione.tsx`): è questa condivisione a
+ * chiudere la divergenza fra i due disegni, non solo ad aprirle la strada.
  *
  * I gomiti imposti a mano vincono su ogni rotta nativa: da quel momento il percorso è una
  * scelta dell'utente e nessuna euristica deve sovrascriverla.

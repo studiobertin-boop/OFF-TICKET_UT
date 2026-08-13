@@ -722,9 +722,9 @@ git commit -m "feat(schema-impianto): polilineaDellArco e il test dell'accordo f
 
 **Interfaces:**
 - Consumes: `quoteInstradamento` da `@/services/schemaImpianto/layout`; `polilineaDellArco` da `./conversioneFlow` (Task 4).
-- Produces: nessuna. Da qui in poi ogni arco della tela porta `data.quote`.
+- Produces: `fondiDatiArchi` in `./conversioneFlow` (funzione pura, nuova in questo task). Da qui in poi ogni arco della tela porta `data.quote`.
 
-Nessun test automatico nuovo: il modulo non monta componenti React nei test (`no UI test`, CLAUDE.md), e la logica testabile è già coperta dal Task 4. La prova è la verifica in pagina del Task 7.
+**Corretto in revisione (dopo il Task 4):** il piano diceva «nessun test automatico nuovo», motivato dal fatto che la fusione dei tre elenchi di archi vive dentro un `useMemo` di `SchemaEditor`, dove nessun test arriva (niente UI test, CLAUDE.md). Non è più vero: il ramo di ripiego di `polilineaDellArco` (`!data?.quote` → `polilineaConGomiti`) è una rete di sicurezza per il tipo, non coperta da nulla — se scattasse sulla tela, il difetto originale (rotte diverse fra editor e documento) tornerebbe in silenzio. Questo task estrae quindi la fusione in una funzione pura, `fondiDatiArchi` (conversioneFlow.ts), che prende i tre elenchi di archi più le quote e restituisce l'elenco fuso; il `useMemo` di `SchemaEditor` diventa una chiamata a questa funzione. Un test nuovo, `__tests__/fondiDatiArchi.test.ts`, prova l'invariante — ogni arco fuso porta `quote` valorizzato, e i callback dei tre hook sopravvivono alla fusione — SENZA fissare il comportamento del ripiego stesso (che non deve mai scattare sulla tela reale).
 
 - [ ] **Step 1: Calcola le quote nell'editor**
 
@@ -744,27 +744,45 @@ In `src/components/schemaImpianto/SchemaEditor.tsx`, aggiungi `quoteInstradament
   )
 ```
 
-- [ ] **Step 2: Passa le quote a ogni arco**
+- [ ] **Step 2: Estrai la fusione in una funzione pura e passa le quote a ogni arco**
 
-Nella fusione dei tre elenchi di archi (riga 235):
+La fusione dei tre elenchi di archi (riga 235) non resta dentro l'`useMemo` di `SchemaEditor`: si estrae in `conversioneFlow.ts`, accanto a `polilineaDellArco`, perché solo lì un test può arrivare a provare che ogni arco fuso porta `quote`.
+
+In `src/components/schemaImpianto/conversioneFlow.ts`:
+
+```ts
+export function fondiDatiArchi(
+  edgesConGomitiBase: Edge[],
+  edgesConSegni: Edge[],
+  edgesConTrascinamento: Edge[],
+  quote: QuoteInstradamento
+): Edge[] {
+  return edgesConGomitiBase.map((e, i) => ({
+    ...e,
+    data: {
+      ...e.data,
+      ...edgesConSegni[i]?.data,
+      ...edgesConTrascinamento[i]?.data,
+      quote,
+    } as SchemaEdgeData,
+  }))
+}
+```
+
+In `SchemaEditor.tsx`, l'`useMemo` diventa una chiamata a questa funzione:
 
 ```ts
   const edgesConGomiti = useMemo(
-    () =>
-      edgesConGomitiBase.map((e, i) => ({
-        ...e,
-        data: {
-          ...e.data,
-          ...edgesConSegni[i]?.data,
-          ...edgesConTrascinamento[i]?.data,
-          quote,
-        } as SchemaEdgeData,
-      })),
+    () => fondiDatiArchi(edgesConGomitiBase, edgesConSegni, edgesConTrascinamento, quote),
     [edgesConGomitiBase, edgesConSegni, edgesConTrascinamento, quote]
   )
 ```
 
 `quote` non entra nel modello salvato: `flowALayout` mappa esplicitamente `stile`, `punti` e `segni`, e ignora il resto dei dati dell'arco.
+
+- [ ] **Step 2bis: Scrivi il test dell'invariante e vedilo fallire**
+
+Crea `src/components/schemaImpianto/__tests__/fondiDatiArchi.test.ts`: costruisce i tre elenchi come li produrrebbero `useGomiti`, `useSegniTubo` e `useTrascinamentoTratto` (stesso id/capi per indice, un callback diverso ciascuno), chiama `fondiDatiArchi` e verifica che ogni arco fuso porti `quote` valorizzato e che i tre callback sopravvivano. Per vederlo fallire davvero, scrivi prima `fondiDatiArchi` SENZA il campo `quote` nella fusione, lancia il test e redirigi l'esito su file; poi aggiungi `quote` e rilancia. Non un test che fissa il comportamento del ripiego (`polilineaDellArco` senza `quote` → angolo singolo): quel ramo non deve mai scattare sulla tela reale, e un test così lo cementerebbe invece di proteggere dall'invariante.
 
 - [ ] **Step 3: Fai disegnare l'arco con la rotta vera**
 

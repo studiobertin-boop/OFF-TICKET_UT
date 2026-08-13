@@ -2,29 +2,19 @@
  * Collegamento dell'editor. I tre stili corrispondono alle convenzioni del CAD: rigida
  * continua, flessibile ondulata, condense tratteggiata.
  *
- * Tutti gli stili condividono `polilineaConGomiti` (tratti.ts) con il render statico
- * (`renderSvg.ts`) SOLO quando l'arco porta gomiti imposti a mano (`punti.length > 0`): in
- * quel caso non c'è più una rotta `smoothstep` di react-flow disegnata sulla tela e un'altra,
- * vera, disegnata solo nell'anteprima, ed è questa condivisione a rendere possibile trascinare
- * un tratto con la certezza che sia lo stesso tratto che il .docx disegnerà.
- *
- * Senza gomiti — il caso di default, ogni arco appena generato da `buildSchemaModel` — la tela
- * resta invece un'approssimazione: qui sotto si disegna ancora un semplice angolo singolo con
- * `polilineaConGomiti`/`raccordoOrtogonale`, mentre il documento instrada le rotte native
- * (montante fino al collettore per il flessibile, spezzata a metà per la linea, corsia comune
- * per le condense). Attenzione: quelle rotte ORA VIVONO in `tratti.ts` (`rottaFlessibile`,
- * `rottaLinea`, `rottaCondensa`, dietro l'ingresso unico `instrada`) e `renderSvg.ts` le chiama
- * di lì — il motivo della divergenza non è più che manchi la geometria condivisa, ma solo che
- * QUESTO componente non è ancora cablato su `polilineaDellArco` (conversioneFlow.ts), la
- * funzione che darebbe alla tela la stessa polilinea del documento. Il cablaggio è del task
- * successivo; finché non c'è, l'anteprima (che chiama `renderSvg` vero) resta l'unico giudice
- * affidabile dell'aspetto finale.
+ * La forma della linea è la STESSA del render statico (`renderSvg.ts`) per ogni arco, con o
+ * senza gomiti imposti a mano: entrambi passano da `instrada` (tratti.ts), l'editor tramite
+ * `polilineaDellArco`. È questa condivisione a rendere sensato trascinare un tratto sulla
+ * tela — quello che si sposta è lo stesso tratto che il .docx disegnerà. L'anteprima resta
+ * comunque il giudice dell'aspetto finale, perché disegna anche ciò che la tela non mostra
+ * affatto (tabella, legenda, nota sui diametri).
  */
 import { useCallback, useRef } from 'react'
 import { BaseEdge, EdgeLabelRenderer, useReactFlow, type EdgeProps } from '@xyflow/react'
 import { riduttorePressione, valvolaIntercettazione } from '@/services/schemaImpianto/symbols'
-import { ondula, percorso, polilineaConGomiti, puntoSuTratto, tSuTratto, type Punto, type QuoteInstradamento } from '@/services/schemaImpianto/tratti'
+import { ondula, percorso, puntoSuTratto, tSuTratto, type Punto, type QuoteInstradamento } from '@/services/schemaImpianto/tratti'
 import type { SchemaArcoStile, SchemaSegnoTubo, SchemaSegnoTuboTipo } from '@/services/schemaImpianto/types'
+import { polilineaDellArco } from './conversioneFlow'
 import { indiceTrattoPiuVicino } from './useTrascinamentoTratto'
 
 export interface SchemaEdgeData extends Record<string, unknown> {
@@ -38,10 +28,11 @@ export interface SchemaEdgeData extends Record<string, unknown> {
    * dove stanno TUTTI i nodi, non dai due capi dell'arco, quindi un arco le riceve invece di
    * ricavarsele — non ha, né deve avere, una vista sul layout globale.
    *
-   * Il campo esiste perché `polilineaDellArco` (conversioneFlow.ts) lo consuma, ma oggi
-   * NESSUNO lo valorizza: `SchemaEditor` non calcola ancora le quote e questo componente
-   * disegna tuttora con `polilineaConGomiti` (vedi il commento in testa al file). Il cablaggio
-   * è del task successivo.
+   * `SchemaEditor` le calcola una volta per aggiornamento e le infila nei dati di ogni arco
+   * tramite `fondiDatiArchi` (conversioneFlow.ts); questo componente le inoltra a
+   * `polilineaDellArco` senza toccarle. `undefined` qui non è un caso previsto sulla tela: è
+   * la rete di sicurezza per il tipo di `polilineaDellArco`, che senza quote ripiega
+   * sull'angolo singolo.
    */
   quote?: QuoteInstradamento
   /**
@@ -275,9 +266,9 @@ export function SchemaEdgeTubazione({
   const pDa: Punto = { x: sourceX, y: sourceY }
   const pA: Punto = { x: targetX, y: targetY }
   const punti = edgeData?.punti ?? []
-  // Stessa geometria del render statico (renderSvg.ts): editor e disegno finale concordano
-  // sulla forma della linea, angoli netti compresi — non più un'approssimazione a parte.
-  const polilinea = polilineaConGomiti(pDa, punti, pA)
+  // Stessa geometria del render statico (renderSvg.ts) per OGNI arco, con o senza gomiti:
+  // editor e documento concordano sulla forma della linea — non più un'approssimazione.
+  const polilinea = polilineaDellArco(pDa, pA, edgeData)
   const path = stile === 'flessibile' ? ondula(polilinea) : percorso(polilinea)
   const { punto: puntoEtichetta } = puntoSuTratto(polilinea, 0.5)
   const labelX = puntoEtichetta.x

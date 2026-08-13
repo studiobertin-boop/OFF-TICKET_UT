@@ -53,12 +53,12 @@ import {
 import toast from 'react-hot-toast'
 import { capoValido, connessioneAmmessa, stileIniziale } from '@/services/schemaImpianto/agganci'
 import type { Asse, Bordo } from '@/services/schemaImpianto/allineamento'
-import { DIMENSIONI_NODO } from '@/services/schemaImpianto/layout'
+import { DIMENSIONI_NODO, quoteInstradamento } from '@/services/schemaImpianto/layout'
 import { renderSvg } from '@/services/schemaImpianto/renderSvg'
 import type { SchemaArcoStile, SchemaLayout, SchemaNodoTipo } from '@/services/schemaImpianto/types'
 import { SchemaEdgeTubazione, type SchemaEdgeData } from './SchemaEdgeTubazione'
 import { SchemaNodeSymbol, type SchemaNodeData } from './SchemaNodeSymbol'
-import { TIPO_ARCO_FLOW, TIPO_NODO_FLOW, flowALayout, layoutAFlow } from './conversioneFlow'
+import { TIPO_ARCO_FLOW, TIPO_NODO_FLOW, flowALayout, fondiDatiArchi, layoutAFlow } from './conversioneFlow'
 import { GuideAllineamento } from './GuideAllineamento'
 import { useAllineamentoSelezione } from './useAllineamentoSelezione'
 import { useGomiti } from './useGomiti'
@@ -166,15 +166,24 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
   // sarebbe una modifica che si perde in silenzio.
   const [rinomina, setRinomina] = useState<{ id: string; valore: string } | null>(null)
 
-  // La tela di react-flow resta un'approssimazione: mostra nodi e archi — terminale utenze
-  // compreso, che dal 12-08-2026 è un nodo come gli altri e si ritocca qui — ma non muro, nota
-  // e tabella. Da questo task instrada le linee come il render statico (`polilineaConGomiti`
-  // condivisa, vedi SchemaEdgeTubazione.tsx) SOLO per gli archi con gomiti imposti a mano:
-  // senza gomiti — il caso di default — il render statico continua a usare le proprie rotte
-  // native (collettore, spezzata, corsia condense), non replicate qui, quindi la tela resta
-  // un'approssimazione visibile anche per quegli archi. L'anteprima qui accanto resta comunque
-  // il giudice dell'aspetto — la stessa funzione che produce il PNG del .docx — perché è lei a
-  // disegnare anche ciò che la tela non mostra affatto.
+  // Quote di instradamento (collettore della mandata flessibile, corsia delle condense):
+  // dipendono da dove stanno TUTTI i nodi, non dal singolo arco, quindi si calcolano qui una
+  // volta per aggiornamento e viaggiano nei dati di ogni arco. È la stessa funzione che usa
+  // renderSvg, sullo stesso layout ricostruito dallo stato: calcolarle a modo proprio qui
+  // rimetterebbe in piedi la divergenza fra tela e documento che questo blocco ha chiuso.
+  // Ricalcolarle a ogni spostamento è voluto: le linee si riassestano mentre si trascina un
+  // nodo, esattamente come farà il documento.
+  const quote = useMemo(
+    () => quoteInstradamento(flowALayout(stato.nodes, stato.edges)),
+    [stato.nodes, stato.edges]
+  )
+
+  // La tela di react-flow mostra nodi e archi — terminale utenze compreso, che dal 12-08-2026
+  // è un nodo come gli altri e si ritocca qui — ma non muro, nota e tabella. Dal Blocco C1 le
+  // linee hanno la stessa forma del render statico in ogni caso, con o senza gomiti imposti a
+  // mano (`instrada` condivisa, vedi SchemaEdgeTubazione.tsx). L'anteprima qui accanto resta
+  // comunque il giudice dell'aspetto finale — è la stessa funzione che produce il PNG del
+  // .docx — perché disegna anche ciò che la tela non mostra affatto.
   const anteprima = useMemo(() => {
     if (!anteprimaAperta) return null
     const svg = renderSvg(flowALayout(stato.nodes, stato.edges), { noteTubazioni })
@@ -231,14 +240,12 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla }: S
   // `edgesConGomitiBase`, `edgesConSegni` ed `edgesConTrascinamento` derivano TUTTI e tre da
   // `stato.edges` con dati aggiuntivi diversi (rispettivamente `onSpostaGomito`/
   // `onRimuoviGomito`, `onSpostaSegno`/`onRimuoviSegno`, `onTrascinaTratto`): vanno fusi, non
-  // passati tutti a `<ReactFlow edges={...}>`, o l'ultimo sovrascriverebbe i precedenti.
+  // passati tutti a `<ReactFlow edges={...}>`, o l'ultimo sovrascriverebbe i precedenti. La
+  // fusione vera e propria vive in `fondiDatiArchi` (conversioneFlow.ts), funzione pura e non
+  // qui dentro, perché è lì che si prova l'invariante «ogni arco porta `quote`».
   const edgesConGomiti = useMemo(
-    () =>
-      edgesConGomitiBase.map((e, i) => ({
-        ...e,
-        data: { ...e.data, ...edgesConSegni[i]?.data, ...edgesConTrascinamento[i]?.data } as SchemaEdgeData,
-      })),
-    [edgesConGomitiBase, edgesConSegni, edgesConTrascinamento]
+    () => fondiDatiArchi(edgesConGomitiBase, edgesConSegni, edgesConTrascinamento, quote),
+    [edgesConGomitiBase, edgesConSegni, edgesConTrascinamento, quote]
   )
 
   // Guide di allineamento durante il trascinamento: stato locale, non cronologia (vedi
