@@ -749,3 +749,37 @@ describe('righeLegenda — riduttore di pressione', () => {
     expect(righeLegenda(senzaValvole).map((r) => r.descrizione)).not.toContain('Valvola di intercettazione')
   })
 })
+
+describe('testi liberi', () => {
+  function layoutConTesti(testi: { id: string; x: number; y: number; contenuto: string }[]) {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ ha_disoleatore: false })],
+      disoleatori: [],
+      serbatoi: [makeSerbatoio({ orientamento: 'ORIZZONTALE' })],
+      essiccatori: [],
+      scambiatori: [],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const layout = layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } }))
+    return { ...layout, testi }
+  }
+
+  it('li disegna nel documento, con gli a-capo', () => {
+    const svg = renderSvg(layoutConTesti([{ id: 'T1', x: 300, y: 400, contenuto: 'Linea azoto\nal reparto 2' }]))
+    expect(svg).toContain('>Linea azoto</tspan>')
+    expect(svg).toContain('>al reparto 2</tspan>')
+  })
+
+  it('non entrano né in lista apparecchiature né in legenda', () => {
+    const svg = renderSvg(layoutConTesti([{ id: 'T1', x: 300, y: 400, contenuto: 'Nota di prova' }]))
+    const tabella = svg.slice(svg.indexOf('LISTA APPARECCHIATURE'))
+    expect(tabella).not.toContain('Nota di prova')
+  })
+
+  it('un layout senza testi resta identico a prima', () => {
+    // Il blocco non deve cambiare i documenti che non hanno annotazioni: senza questa
+    // asserzione, un separatore o uno spazio in più passerebbe inosservato.
+    expect(renderSvg(layoutConTesti([]))).toBe(renderSvg({ ...layoutConTesti([]), testi: undefined }))
+  })
+})

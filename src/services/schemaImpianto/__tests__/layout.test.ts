@@ -54,6 +54,20 @@ describe('layoutSchema', () => {
     expect(layout.archi).toEqual(model.archi)
   })
 
+  it('restituisce sempre testi: [], mai assente: chi legge il layout non deve ripiegare su ?? []', () => {
+    // `deserializzaLayout` e `riconcilia` normalizzano già `testi` a lista vuota: se
+    // `layoutSchema` lasciasse il campo assente, il ramo "nessun salvataggio leggibile" di
+    // `layoutIniziale` (persistenza.ts) sarebbe l'unico produttore di layout con `testi`
+    // undefined, e con `strict: false` un `layout.testi.map(...)` dimenticato in un
+    // consumatore non verrebbe segnalato dal compilatore.
+    const model = buildSchemaModel({
+      scheda: schedaTrePiuUno(),
+      collegamentiCompressoriSerbatoi: { C1: ['S1'], C2: ['S1'], C3: ['S1'] },
+    })
+
+    expect(layoutSchema(model).testi).toEqual([])
+  })
+
   it('dispone i compressori in riga, tutti a sinistra del serbatoio che alimentano', () => {
     const model = buildSchemaModel({
       scheda: schedaTrePiuUno(),
@@ -276,6 +290,17 @@ describe('layoutSchema', () => {
       expect(n.x).toBeGreaterThanOrEqual(0)
       expect(n.y).toBeGreaterThanOrEqual(0)
     }
+  })
+
+  it('la tela si allarga per contenere un testo libero che sporge oltre le apparecchiature', () => {
+    const layout = layoutSchema(buildSchemaModel({ scheda: makeScheda({}), collegamentiCompressoriSerbatoi: {} }))
+    const senza = dimensioniLayout(layout)
+    const con = dimensioniLayout({
+      ...layout,
+      testi: [{ id: 'T1', x: senza.larghezza + 500, y: senza.altezza + 300, contenuto: 'Nota' }],
+    })
+    expect(con.larghezza).toBeGreaterThan(senza.larghezza)
+    expect(con.altezza).toBeGreaterThan(senza.altezza)
   })
 
   describe('collocazione del terminale utenze', () => {

@@ -417,6 +417,13 @@ const UTENZE = {
 }
 
 /**
+ * Le annotazioni libere (`SchemaTestoLibero`) usano lo stesso carattere e lo stesso corpo della
+ * scritta del terminale utenze, come deciso col committente: sono entrambe scritte libere posate
+ * sul disegno, senza cornice.
+ */
+export const TESTO_LIBERO = { dimensione: UTENZE.dimensioneScritta }
+
+/**
  * Terminale «Alle utenze»: codolo tratteggiato che sale dall'ancora, punta di freccia e la
  * scritta accanto. Riproduce la forma del disegno di riferimento del committente
  * (`DOCUMENTAZIONE/relazione/schema.png`), dove il tratteggio è corto e il tratto prima è

@@ -750,6 +750,17 @@ git commit -m "feat(schema-impianto): il testo libero entra nel modello e nel sa
 - Consumes: `testoMultiRiga`, `INTERLINEA_TESTO` (Task 2); `SchemaTestoLibero` (Task 6).
 - Produces: `TESTO_LIBERO = { dimensione: 18 }` esportata da `symbols/index.ts` (stessa dimensione della scritta del terminale, come deciso col committente).
 
+**Correzione post-Task-6.** Il Task 6 ha lasciato un'asimmetria (annotata nelle sue
+"Preoccupazioni residue"): `layoutSchema` (`layout.ts`) restituisce un `SchemaLayout` con `testi`
+**assente**, mentre `deserializzaLayout` e `riconcilia` (`persistenza.ts`) lo normalizzano sempre a
+lista vuota. Con `strict: false` un `layout.testi.map(...)` dimenticato in un consumatore non
+verrebbe segnalato dal compilatore, e quel percorso (`layoutIniziale`, ramo "nessun salvataggio
+leggibile") è già in produzione per la rigenerazione dell'auto-layout. Questo task chiude
+l'asimmetria alla fonte: `layoutSchema` restituisce sempre `testi: []`, con un test dedicato
+(`layoutSchema` produce sempre `testi: []`, mai assente). Il codice di render resta comunque
+difensivo (`layout.testi ?? []`), perché `renderSvg`/`dimensioniLayout` ricevono anche layout
+costruiti a mano nei test.
+
 - [ ] **Step 1: Scrivi i test che falliscono**
 
 In `renderSvg.test.ts`. Il file ha già l'helper `svgMinimo(noteTubazioni?)` (riga 19), che però costruisce il layout al suo interno e restituisce direttamente l'SVG: qui serve il layout, quindi costruiscilo come fa lui, con le stesse fixture:
@@ -832,6 +843,8 @@ function renderTestiLiberi(testi: SchemaTestoLibero[]): string {
 e chiamala dentro `renderSvg` con `layout.testi ?? []`, dopo il disegno degli archi e dei nodi.
 
 In `layout.ts`, `dimensioniLayout` deve considerare anche i testi: per ognuno, la larghezza si stima sulla riga più lunga (`riga.length * TESTO_LIBERO.dimensione * 0.5`, la stessa approssimazione già usata per il terminale) e l'altezza sul numero di righe (`(righe.length - 1) * TESTO_LIBERO.dimensione * INTERLINEA_TESTO`). Un testo trascinato fuori dal disegno non deve finire tagliato nel PNG.
+
+In `layout.ts`, anche `layoutSchema`: il `return` finale porta `testi: []` esplicito, non solo `{ nodi, archi, muro }` — è la correzione post-Task-6 descritta sopra.
 
 - [ ] **Step 4: Esegui i test e verifica che passino**
 

@@ -13,8 +13,10 @@ import {
   riduttorePressione,
   simboloDi,
   simboloMuro,
+  testoMultiRiga,
   valvolaIntercettazione,
   valvolaScarico,
+  TESTO_LIBERO,
   TRATTO,
 } from './symbols'
 import {
@@ -25,7 +27,13 @@ import {
   type Punto,
   type QuoteInstradamento,
 } from './tratti'
-import type { SchemaArcoStile, SchemaLayout, SchemaNodoPosizionato, SchemaNodoTipo } from './types'
+import type {
+  SchemaArcoStile,
+  SchemaLayout,
+  SchemaNodoPosizionato,
+  SchemaNodoTipo,
+  SchemaTestoLibero,
+} from './types'
 
 export type { Punto }
 
@@ -282,6 +290,15 @@ function renderTabella(righe: RigaTabella[], larghezza: number, yTop: number): s
   return parti.join('')
 }
 
+/**
+ * Annotazioni libere: solo testo, nessuna cornice. Si disegnano dopo i nodi e le tubazioni,
+ * così una scritta posata su un tubo resta leggibile. Non toccano la tabella: `righeLista` e
+ * `righeLegenda` non le leggono, `SchemaTestoLibero` non è un `SchemaNodo`.
+ */
+function renderTestiLiberi(testi: SchemaTestoLibero[]): string {
+  return testi.map((t) => testoMultiRiga(t.x, t.y, t.contenuto, TESTO_LIBERO.dimensione, 'start')).join('')
+}
+
 function renderNota(note: string[], larghezza: number, yTop: number): string {
   if (note.length === 0) return ''
   const w = Math.min(larghezza - MARGINE * 2, 680)
@@ -326,6 +343,7 @@ export function renderSvg(layout: SchemaLayout, options: RenderSvgOptions = {}):
     muro,
     archi.svg,
     nodi,
+    renderTestiLiberi(layout.testi ?? []),
     renderNota(note, larghezzaTotale, yNota),
     renderTabella(righe, larghezzaTotale, yTabella),
     '</svg>',

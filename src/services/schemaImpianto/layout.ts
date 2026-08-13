@@ -7,7 +7,7 @@
  * destra. Funzione pura: nessun DOM, testabile in Node.
  */
 import { ordinaCatenaTrattamento } from './buildSchemaModel'
-import { DIMENSIONI_NODO, dimensioniDi } from './symbols'
+import { DIMENSIONI_NODO, INTERLINEA_TESTO, TESTO_LIBERO, dimensioniDi } from './symbols'
 import type { QuoteInstradamento } from './tratti'
 import type {
   SchemaLayout,
@@ -15,6 +15,7 @@ import type {
   SchemaMuroSeparazione,
   SchemaNodo,
   SchemaNodoPosizionato,
+  SchemaTestoLibero,
 } from './types'
 
 /**
@@ -176,7 +177,13 @@ export function layoutSchema(model: SchemaModel): SchemaLayout {
     ...posizionatiUtenze,
   ]
 
-  return { nodi, archi: model.archi, muro: calcolaMuro(nodi) }
+  // `testi` è sempre presente, mai assente: `deserializzaLayout` e `riconcilia` (persistenza.ts)
+  // normalizzano allo stesso modo un layout riletto o riconciliato, e l'auto-layout non fa
+  // eccezione. Chi consuma un `SchemaLayout` legge quindi sempre una lista, mai `undefined` —
+  // con `strict: false` un `layout.testi.map(...)` dimenticato in un consumatore futuro non
+  // verrebbe segnalato dal compilatore, quindi l'asimmetria si chiude qui alla fonte invece di
+  // lasciare che ogni chiamante si difenda con `?? []`.
+  return { nodi, archi: model.archi, muro: calcolaMuro(nodi), testi: [] }
 }
 
 /**
@@ -224,15 +231,44 @@ export function corpoNodo(nodo: SchemaNodoPosizionato): {
 }
 
 /**
- * Riquadro complessivo del disegno, usato da `renderSvg` per la viewBox. Legge l'ingombro con
- * `dimensioniDi` e non da `DIMENSIONI_NODO`: la scritta del terminale utenze è libera, e con la
- * larghezza fissa del registro una scritta lunga sporgerebbe oltre il bordo destro della tela e
- * finirebbe tagliata nel PNG.
+ * Ingombro stimato di un'annotazione libera, con la stessa approssimazione già usata per la
+ * scritta del terminale utenze (`dimensioniDi`, in `symbols/index.ts`): la larghezza sulla riga
+ * più lunga, un carattere Arial largo in media metà del corpo; l'altezza sul numero di righe, con
+ * l'interlinea del blocco di testo. Non è tipografia vera — misurare i glifi richiederebbe un DOM
+ * che queste funzioni non hanno — serve solo a decidere quanto allargare la tela.
+ */
+function ingombroTesto(testo: SchemaTestoLibero): { destra: number; basso: number } {
+  const righe = testo.contenuto.split('\n')
+  const piuLunga = Math.max(...righe.map((r) => r.length))
+  return {
+    destra: testo.x + piuLunga * TESTO_LIBERO.dimensione * 0.5,
+    basso: testo.y + (righe.length - 1) * TESTO_LIBERO.dimensione * INTERLINEA_TESTO,
+  }
+}
+
+/**
+ * Riquadro complessivo del disegno, usato da `renderSvg` per la viewBox. Legge l'ingombro dei
+ * nodi con `dimensioniDi` e non da `DIMENSIONI_NODO`: la scritta del terminale utenze è libera, e
+ * con la larghezza fissa del registro una scritta lunga sporgerebbe oltre il bordo destro della
+ * tela e finirebbe tagliata nel PNG. Tiene conto anche dei testi liberi, per lo stesso motivo:
+ * un'annotazione trascinata oltre l'ultima apparecchiatura non deve finire tagliata nel PNG.
+ *
+ * `layout.testi` legge in modo difensivo (`?? []`) benché `layoutSchema` non lo lasci mai
+ * assente: questa funzione riceve anche layout costruiti a mano nei test e, in futuro, layout
+ * salvati prima del Blocco C2 che un chiamante non abbia fatto passare da `deserializzaLayout`.
  */
 export function dimensioniLayout(layout: SchemaLayout): { larghezza: number; altezza: number } {
-  if (layout.nodi.length === 0) return { larghezza: MARGINE * 2, altezza: MARGINE * 2 }
-  const maxX = Math.max(...layout.nodi.map((n) => n.x + dimensioniDi(n).larghezza))
-  const maxY = Math.max(...layout.nodi.map((n) => n.y + dimensioniDi(n).altezza))
+  const testi = layout.testi ?? []
+  if (layout.nodi.length === 0 && testi.length === 0) return { larghezza: MARGINE * 2, altezza: MARGINE * 2 }
+  const ingombriTesti = testi.map(ingombroTesto)
+  const maxX = Math.max(
+    ...layout.nodi.map((n) => n.x + dimensioniDi(n).larghezza),
+    ...ingombriTesti.map((i) => i.destra)
+  )
+  const maxY = Math.max(
+    ...layout.nodi.map((n) => n.y + dimensioniDi(n).altezza),
+    ...ingombriTesti.map((i) => i.basso)
+  )
   return { larghezza: maxX + MARGINE, altezza: maxY + MARGINE }
 }
 
