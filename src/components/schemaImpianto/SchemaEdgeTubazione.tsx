@@ -17,7 +17,7 @@
 import { useCallback, useRef } from 'react'
 import { BaseEdge, EdgeLabelRenderer, useReactFlow, type EdgeProps } from '@xyflow/react'
 import { riduttorePressione, valvolaIntercettazione } from '@/services/schemaImpianto/symbols'
-import { ondula, percorso, polilineaConGomiti, puntoSuTratto, tSuTratto, type Punto } from '@/services/schemaImpianto/tratti'
+import { ondula, percorso, polilineaConGomiti, puntoSuTratto, tSuTratto, type Punto, type QuoteInstradamento } from '@/services/schemaImpianto/tratti'
 import type { SchemaArcoStile, SchemaSegnoTubo, SchemaSegnoTuboTipo } from '@/services/schemaImpianto/types'
 import { indiceTrattoPiuVicino } from './useTrascinamentoTratto'
 
@@ -27,6 +27,17 @@ export interface SchemaEdgeData extends Record<string, unknown> {
   punti?: { x: number; y: number }[]
   /** Valvole di intercettazione e riduttori di pressione posati sul tratto. */
   segni?: SchemaSegnoTubo[]
+  /**
+   * Quote di instradamento del disegno intero (`quoteInstradamento`, layout.ts): dipendono da
+   * dove stanno TUTTI i nodi, non dai due capi dell'arco, quindi un arco le riceve invece di
+   * ricavarsele — non ha, né deve avere, una vista sul layout globale.
+   *
+   * Il campo esiste perché `polilineaDellArco` (conversioneFlow.ts) lo consuma, ma oggi
+   * NESSUNO lo valorizza: `SchemaEditor` non calcola ancora le quote e questo componente
+   * disegna tuttora con `polilineaConGomiti` (vedi il commento in testa al file). Il cablaggio
+   * è del task successivo.
+   */
+  quote?: QuoteInstradamento
   /**
    * Legate a questo arco specifico da `useGomiti` (vedi `edgesConGomiti` lì dentro): il
    * componente dell'arco non conosce la cronologia, sa solo chiedere di aggiornarla.

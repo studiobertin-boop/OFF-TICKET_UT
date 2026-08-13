@@ -534,11 +534,21 @@ In `src/components/schemaImpianto/SchemaEdgeTubazione.tsx`, dentro l'interfaccia
 
 ```ts
   /**
-   * Quote di instradamento del disegno intero, calcolate una volta da `SchemaEditor` e passate
-   * a ogni arco: un arco non ha una vista sul layout globale e non deve ricavarsele da sé.
+   * Quote di instradamento del disegno intero (`quoteInstradamento`, layout.ts): dipendono da
+   * dove stanno TUTTI i nodi, non dai due capi dell'arco, quindi un arco le riceve invece di
+   * ricavarsele — non ha, né deve avere, una vista sul layout globale.
+   *
+   * Il campo esiste perché `polilineaDellArco` (conversioneFlow.ts) lo consuma, ma oggi
+   * NESSUNO lo valorizza: `SchemaEditor` non calcola ancora le quote e questo componente
+   * disegna tuttora con `polilineaConGomiti` (vedi il commento in testa al file). Il cablaggio
+   * è del task successivo.
    */
   quote?: QuoteInstradamento
 ```
+
+Il commento dice «oggi nessuno lo valorizza» perché è vero a fine Task 4: chi calcola le quote
+e chi le infila negli archi arriva col Task 5. Il Task 5 deve quindi riscrivere questo commento
+(e la NOTA in coda a quello di `polilineaDellArco`, Step 5) quando il cablaggio esiste davvero.
 
 con l'import del tipo aggiunto alla riga 20 (`import { ondula, percorso, ... type QuoteInstradamento }`).
 
@@ -672,6 +682,12 @@ Sostituisci il corpo appena scritto:
  * arco) non c'è modo di ricostruire le rotte native, e si ripiega sul raccordo semplice: è
  * una rete di sicurezza per il tipo, non un caso previsto: se compare sulla tela, il
  * cablaggio delle quote si è rotto.
+ *
+ * NOTA sullo stato attuale del repo: quel cablaggio non c'è ancora. `SchemaEditor` non
+ * calcola le quote, nessuno valorizza `SchemaEdgeData.quote` e `SchemaEdgeTubazione` non
+ * chiama questa funzione — disegna ancora da sé con `polilineaConGomiti`. Finché il task
+ * successivo non collega le due cose, l'unico chiamante è il test dell'accordo fra tela e
+ * documento (`__tests__/instradamentoCondiviso.test.ts`).
  */
 export function polilineaDellArco(pDa: Punto, pA: Punto, data: SchemaEdgeData | undefined): Punto[] {
   const stile = (data?.stile ?? 'standard') as SchemaArcoStile

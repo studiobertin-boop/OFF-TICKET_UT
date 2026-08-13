@@ -5,6 +5,7 @@
  */
 import type { Edge, Node } from '@xyflow/react'
 import { calcolaMuro } from '@/services/schemaImpianto/layout'
+import { instrada, polilineaConGomiti, type Punto } from '@/services/schemaImpianto/tratti'
 import type { SchemaArcoStile, SchemaLayout, SchemaNodoPosizionato } from '@/services/schemaImpianto/types'
 import type { SchemaEdgeData } from './SchemaEdgeTubazione'
 import type { SchemaNodeData } from './SchemaNodeSymbol'
@@ -58,4 +59,27 @@ export function flowALayout(nodes: Node[], edges: Edge[]): SchemaLayout {
     })),
     muro: calcolaMuro(nodi),
   }
+}
+
+/**
+ * Polilinea di un arco dell'editor: la stessa che il documento disegnerà per quell'arco,
+ * perché passa dalla stessa `instrada` (tratti.ts). Vive qui e non dentro
+ * `SchemaEdgeTubazione` per poter essere provata senza montare react-flow — il componente
+ * si limita a chiamarla con i capi che react-flow gli passa.
+ *
+ * Senza `quote` (che `SchemaEditor` calcola a ogni aggiornamento e infila nei dati di ogni
+ * arco) non c'è modo di ricostruire le rotte native, e si ripiega sul raccordo semplice: è
+ * una rete di sicurezza per il tipo, non un caso previsto: se compare sulla tela, il
+ * cablaggio delle quote si è rotto.
+ *
+ * NOTA sullo stato attuale del repo: quel cablaggio non c'è ancora. `SchemaEditor` non
+ * calcola le quote, nessuno valorizza `SchemaEdgeData.quote` e `SchemaEdgeTubazione` non
+ * chiama questa funzione — disegna ancora da sé con `polilineaConGomiti`. Finché il task
+ * successivo non collega le due cose, l'unico chiamante è il test dell'accordo fra tela e
+ * documento (`__tests__/instradamentoCondiviso.test.ts`).
+ */
+export function polilineaDellArco(pDa: Punto, pA: Punto, data: SchemaEdgeData | undefined): Punto[] {
+  const stile = (data?.stile ?? 'standard') as SchemaArcoStile
+  if (!data?.quote) return polilineaConGomiti(pDa, data?.punti ?? [], pA)
+  return instrada(stile, pDa, pA, data.punti, data.quote)
 }
