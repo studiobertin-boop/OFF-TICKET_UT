@@ -8,6 +8,11 @@
  * per questo il gesto congela lo stato di partenza (punto di presa, gomiti, indice del tratto)
  * al primo evento e passa sempre il delta CUMULATIVO da lì, mai l'incremento evento-per-evento
  * — vedi il commento sui ref sotto per il perché.
+ *
+ * Un trascinamento che finisce dov'è cominciato (delta cumulativo nullo all'evento conclusivo)
+ * lascia `punti` vuoto invece di materializzare la rotta in gomiti a mano: il tubo torna
+ * all'instradamento automatico. Decisione del committente — vedi il commento su `trascinaSegmento`
+ * più sotto per il perché e per il criterio.
  */
 import { useCallback, useMemo, useRef } from 'react'
 import type { Edge, Node } from '@xyflow/react'
@@ -62,22 +67,32 @@ export function useTrascinamentoTratto<T extends StatoConNodiEdArchi>(
   // Stesso principio di useGomiti.ts: il PRIMO evento del gesto entra in cronologia.
   const trascinamentoAvviato = useRef(false)
   // Punto di presa del gesto (congelato al primo evento): il delta passato a `trascinaTratto`
-  // è cumulativo da QUI, non incrementale evento-per-evento. `trascinaTratto` ora posa una
-  // quota assoluta agganciata (`agganciaQuota`, griglia.ts) invece di sommare uno spostamento:
-  // se si ripartisse ogni volta dai gomiti già aggiornati (già agganciati) sommando solo
-  // l'ultimo incremento, un evento la cui quota agganciata restasse la stessa (perché la
-  // griglia vince ancora) farebbe perdere quell'incremento per sempre — il tratto resterebbe
-  // fermo sotto un cursore che si è mosso, o "scivolerebbe indietro" appena un evento
-  // superasse mezzo passo di griglia. Congelando l'inizio del gesto e applicando sempre il
-  // delta cumulativo da lì, l'aggancio diventa idempotente: lo stesso punto libero produce
-  // sempre la stessa quota, qualunque sia la storia degli eventi intermedi.
+  // è cumulativo da QUI, non incrementale evento-per-evento. Il puntatore arriva ai gesti già
+  // agganciato alla griglia (`screenToFlowPosition` di `@xyflow/react` legge `snapToGrid`/
+  // `snapGrid` dal negozio quando il chiamante non passa opzioni, e la tela monta `snapToGrid
+  // snapGrid={[10, 10]}` in `SchemaEditor.tsx`; `SchemaEdgeTubazione.tsx` la chiama senza
+  // opzioni): gli incrementi fra un evento e il successivo sono quindi 0 o multipli esatti di
+  // 10, mai una frazione del passo, e su quei valori l'aggancio COMMUTA con lo spostamento
+  // (`allinea(q + 10k) = allinea(q) + 10k`) — nessun delta blocca il tratto né lo fa scivolare.
+  // La ragione del congelamento è un'altra: l'idempotenza rispetto alla storia degli eventi.
+  // Applicando sempre il delta cumulativo dal punto di presa, un gesto avanti 30 e indietro 30
+  // torna ESATTAMENTE al punto di partenza anche se questo è fuori griglia (una quota
+  // preferita, non un nodo della griglia) — con la somma incrementale a stato già agganciato
+  // valeva solo per spostamenti multipli del passo. Ed è l'infrastruttura di cui ha bisogno il
+  // gesto a vuoto qui sotto (`trascinaSegmento`): senza questo ref non ci sarebbe modo di
+  // sapere dove il gesto è cominciato, per confrontarlo con dove finisce.
   const puntoPresaRef = useRef<Punto | null>(null)
-  // Gomiti e indice del tratto, congelati allo stesso istante: `SchemaEdgeTubazione` ricalcola
-  // l'indice a ogni evento (`indiceTrattoPiuVicino` su `polilinea`), ma quell'indice numera la
-  // polilinea CORRENTE — se i gomiti restassero quelli aggiornati mentre il delta diventa
-  // cumulativo, l'indice del primo evento smetterebbe di corrispondere al tratto giusto man
-  // mano che la polilinea si aggancia. Congelare entrambi allo stesso momento tiene indice e
-  // gomiti coerenti fra loro per tutta la durata del gesto.
+  // Gomiti e indice del tratto, congelati allo stesso istante del punto di presa. Ragione
+  // dominante: `trascinaTratto` posa la quota ASSOLUTA agganciata a partire dai gomiti che
+  // riceve — se questi fossero quelli GIÀ aggiornati dall'evento precedente mentre il delta
+  // resta cumulativo dal punto di presa, lo spostamento verrebbe sommato due volte (una nei
+  // gomiti di partenza, una nel delta) e il tratto correrebbe al doppio della velocità del
+  // cursore. In più, `SchemaEdgeTubazione` ricalcola l'indice a ogni evento
+  // (`indiceTrattoPiuVicino` su `polilinea`), ma quell'indice numera la polilinea CORRENTE — se
+  // i gomiti restassero quelli aggiornati mentre il delta è cumulativo, l'indice del primo
+  // evento smetterebbe di corrispondere al tratto giusto man mano che la polilinea si aggancia.
+  // Congelare entrambi allo stesso momento tiene indice, gomiti e delta coerenti fra loro per
+  // tutta la durata del gesto.
   const gomitiCongelatiRef = useRef<Punto[] | undefined>(undefined)
   const indiceCongelatoRef = useRef(0)
 
@@ -86,11 +101,15 @@ export function useTrascinamentoTratto<T extends StatoConNodiEdArchi>(
       const primoEventoDelGesto = !trascinamentoAvviato.current
       if (primoEventoDelGesto) {
         // Il congelamento sta QUI, fuori dall'updater passato ad `applica`/
-        // `aggiornaSenzaCronologia`: in StrictMode React invoca due volte l'updater per
-        // scovare effetti impuri, e scrivere i ref lì dentro li farebbe scrivere due volte,
-        // catturando lo stato sbagliato alla seconda chiamata. L'arco fresco è già in mano
-        // tramite `stato.edges` (si ricrea a ogni cambio, vedi `edgesConTrascinamento` sotto),
-        // quindi i gomiti di partenza si leggono da lì, non dall'`s` dentro l'updater.
+        // `aggiornaSenzaCronologia`. Non per la doppia invocazione di StrictMode in sé — React
+        // reinvoca l'updater con gli STESSI argomenti e scarta il primo risultato, quindi
+        // scriverebbe due volte lo STESSO valore, non uno sbagliato. Il pericolo vero è che
+        // l'updater deve restare puro perché può essere invocato zero, una o più volte, in
+        // momenti che questo handler non controlla: un effetto collaterale come la scrittura di
+        // un ref non ha posto lì dentro, a prescindere da quante volte scatti. L'arco fresco è
+        // già in mano tramite `stato.edges` (si ricrea a ogni cambio, vedi
+        // `edgesConTrascinamento` sotto), quindi i gomiti di partenza si leggono da lì, non
+        // dall'`s` dentro l'updater.
         puntoPresaRef.current = puntoLibero
         indiceCongelatoRef.current = indiceTratto
         gomitiCongelatiRef.current = (stato.edges.find((e) => e.id === arcoId)?.data as SchemaEdgeData | undefined)
@@ -103,12 +122,33 @@ export function useTrascinamentoTratto<T extends StatoConNodiEdArchi>(
       const indice = indiceCongelatoRef.current
 
       const aggiorna = primoEventoDelGesto ? applica : aggiornaSenzaCronologia
+      // Gesto a vuoto (domanda aperta #1 del Blocco C1, decisa dal committente): un
+      // trascinamento che finisce dov'è cominciato restituisce il tubo all'instradamento
+      // automatico invece di materializzare la rotta in gomiti a mano — altrimenti l'arco
+      // smetterebbe di seguire il riassestamento delle quote quando si spostano le
+      // apparecchiature, pur non avendo l'utente spostato nulla. «Dov'è cominciato» è il punto
+      // di presa congelato sopra, non «il puntatore non si è mosso»: un gesto che si sposta e
+      // torna indietro conta comunque come a vuoto, perché è il delta CUMULATIVO da lì — non lo
+      // spostamento dell'ultimo evento — a decidere. Il confronto è sul delta invece che sui
+      // punti per non duplicare l'aritmetica già fatta sopra; è esatto, senza tolleranze da
+      // tarare, perché il delta fra due punti già agganciati alla griglia (vedi il commento su
+      // `puntoPresaRef`) è 0 o un multiplo esatto di 10, mai una frazione che renda incerto lo
+      // zero. Vale solo per l'evento CONCLUSIVO: un gesto ancora in corso che transita per il
+      // punto di presa non deve svuotare `punti` a metà, o l'arco sparirebbe e riapparirebbe
+      // mentre l'utente lo tiene ancora premuto.
+      //
+      // Resta aperto un caso che questo confronto non chiude: due punti di presa DIVERSI
+      // possono agganciarsi alla stessa quota preferita, cosicché un tratto finisce dov'era pur
+      // avendo il gesto un delta diverso da zero — chiuderlo richiederebbe confrontare
+      // polilinee, non punti, in un file senza test automatici. Registrato come coda, non
+      // implementato qui.
+      const gestoAVuoto = concluso && delta.x === 0 && delta.y === 0
       aggiorna((s) => ({
         ...s,
         edges: s.edges.map((e) => {
           if (e.id !== arcoId) return e
           const data = e.data as SchemaEdgeData
-          const nuovi = trascinaTratto(data.stile, pDa, pA, gomiti, quote, indice, delta)
+          const nuovi = gestoAVuoto ? [] : trascinaTratto(data.stile, pDa, pA, gomiti, quote, indice, delta)
           return { ...e, data: { ...data, punti: nuovi } satisfies SchemaEdgeData }
         }),
       }))
