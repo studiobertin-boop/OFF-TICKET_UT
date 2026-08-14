@@ -11,6 +11,7 @@ import { DatiGeneraliSection } from './DatiGeneraliSection'
 import { DatiImpiantoSection } from './DatiImpiantoSection'
 import { SchedaSection } from './SchedaSection'
 import { UnifiedEquipmentTable } from './table/UnifiedEquipmentTable'
+import { AperturaApparecchiaturaProvider } from './AperturaApparecchiatura'
 import { AltriApparecchiSection } from './AllEquipmentSections'
 import { BatchOCRDialog } from './BatchOCRDialog'
 import { AzioneIcona, CompletenessBar, SectionLabel } from '@/components/common'
@@ -509,6 +510,9 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
 
   return (
     <FormProvider {...methods}>
+      {/* Il provider avvolge barra e tabella insieme: i chip dei fascicoli stanno nella prima
+          e la finestra che aprono vive nella seconda. */}
+      <AperturaApparecchiaturaProvider>
       <Box component="form" onSubmit={handleSubmit(onSubmit)}>
         {header?.(compTotale)}
 
@@ -593,6 +597,7 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
         />
 
       </Box>
+      </AperturaApparecchiaturaProvider>
     </FormProvider>
   )
 })

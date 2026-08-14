@@ -1,5 +1,6 @@
 export { AzioneIcona } from './AzioneIcona'
 export { AzionePronta } from './AzionePronta'
+export { ChipAzione } from './ChipAzione'
 export { StatusChip } from './StatusChip'
 export { FieldValue } from './FieldValue'
 export { SectionLabel } from './SectionLabel'

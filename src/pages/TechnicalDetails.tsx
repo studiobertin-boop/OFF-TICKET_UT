@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { saveAs } from 'file-saver'
 import {
   Box,
   CircularProgress,
@@ -34,6 +33,7 @@ import type { DM329TechnicalData, SchedaDatiCompleta, OCRExtractedData, FuzzyMat
 import { isDM329Family } from '@/utils/workflow'
 import { normalizeSchedaCodes } from '@/utils/equipmentCodes'
 import { puoLeggereStoriaPratica } from '@/utils/storiaPratica'
+import { attendi, scaricaDaUrl } from '@/utils/scaricaFile'
 
 /**
  * Pagina SCHEDA DATI - Gestione dati tecnici pratiche DM329
@@ -357,11 +357,14 @@ export const TechnicalDetails = () => {
     enabled: !!id && canGenerateDocs,
   })
 
+  // I documenti già salvati si scaricano da un link firmato e non da un blob in memoria:
+  // `utils/scaricaFile` spiega perché — sui .docx il blob resta fermo al controllo di
+  // sicurezza del browser e il file non arriva mai.
   const handleScaricaRelazione = async () => {
     if (!relazioneSalvata) return
     try {
-      const blob = await relazioneDocumentiApi.scarica(relazioneSalvata.filePath)
-      saveAs(blob, relazioneSalvata.nome)
+      const url = await relazioneDocumentiApi.urlFirmato(relazioneSalvata.filePath, relazioneSalvata.nome)
+      scaricaDaUrl(url, relazioneSalvata.nome)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Scaricamento non riuscito')
     }
@@ -369,8 +372,8 @@ export const TechnicalDetails = () => {
   const handleScaricaDichiarazioni = async () => {
     if (!dichiarazioniSalvate) return
     try {
-      const blob = await dichiarazioniDocumentiApi.scarica(dichiarazioniSalvate.filePath)
-      saveAs(blob, dichiarazioniSalvate.nome)
+      const url = await dichiarazioniDocumentiApi.urlFirmato(dichiarazioniSalvate.filePath, dichiarazioniSalvate.nome)
+      scaricaDaUrl(url, dichiarazioniSalvate.nome)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Scaricamento non riuscito')
     }
@@ -383,14 +386,24 @@ export const TechnicalDetails = () => {
   // caricata.
   const handleScaricaCompleta = async () => {
     try {
+      // Prima si raccolgono tutti i link, poi partono i download. Nell'ordine inverso ogni
+      // scaricamento aspetterebbe la chiamata di rete del successivo, allungando la fila; e
+      // un errore a metà lascerebbe scaricati i primi file e non gli altri, senza dirlo.
+      const daScaricare: { url: string; nome: string }[] = []
+
       if (relazioneSalvata) {
-        const blob = await relazioneDocumentiApi.scarica(relazioneSalvata.filePath)
-        saveAs(blob, relazioneSalvata.nome)
+        daScaricare.push({
+          url: await relazioneDocumentiApi.urlFirmato(relazioneSalvata.filePath, relazioneSalvata.nome),
+          nome: relazioneSalvata.nome,
+        })
       }
       if (dichiarazioniSalvate) {
-        const blob = await dichiarazioniDocumentiApi.scarica(dichiarazioniSalvate.filePath)
-        saveAs(blob, dichiarazioniSalvate.nome)
+        daScaricare.push({
+          url: await dichiarazioniDocumentiApi.urlFirmato(dichiarazioniSalvate.filePath, dichiarazioniSalvate.nome),
+          nome: dichiarazioniSalvate.nome,
+        })
       }
+
       // Un file per codice: il browser mette in coda i download consecutivi, non serve uno zip
       // lato client per un pugno di file — la scelta è deliberatamente la più semplice che
       // funzioni (vedi documento di design, sezione «Fuori scope»).
@@ -402,8 +415,17 @@ export const TechnicalDetails = () => {
           console.warn('[handleScaricaCompleta] Nessun fascicolo trovato per il codice', codice)
           continue
         }
-        const blob = await fascicoloDocumentiApi.scarica(fascicolo.filePath)
-        saveAs(blob, fascicolo.nome)
+        daScaricare.push({
+          url: await fascicoloDocumentiApi.urlFirmato(fascicolo.filePath, fascicolo.nome),
+          nome: fascicolo.nome,
+        })
+      }
+
+      // Distanziati: partiti tutti nello stesso istante, alcuni browser considerano i
+      // successivi al primo un tentativo di scaricamento automatico e li strozzano.
+      for (const [i, doc] of daScaricare.entries()) {
+        if (i > 0) await attendi(400)
+        scaricaDaUrl(doc.url, doc.nome)
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Scaricamento non riuscito')

@@ -1,10 +1,10 @@
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { useFieldArray, useFormContext, useWatch, type Control } from 'react-hook-form'
 import {
   Box, Card, Typography, Button, Tooltip, Menu, MenuItem,
   Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
 } from '@mui/material'
-import { Add as AddIcon, ChevronRight as ChevronRightIcon, Folder as FolderIcon } from '@mui/icons-material'
+import { Add as AddIcon, ChevronRight as ChevronRightIcon } from '@mui/icons-material'
 import { alpha } from '@mui/material/styles'
 import { radii } from '@/theme/tokens'
 import { AzioneIcona, CompletenessBar, CompletenessDot } from '@/components/common'
@@ -32,10 +32,10 @@ import {
   EQUIPMENT_DEFS, NEW_EQUIPMENT_KINDS, nuovaRiga,
   type EquipmentKind, type NewEquipmentKind, type EquipmentTypeDef,
 } from './equipmentConfig'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { fascicoloDocumentiApi } from '@/services/api/fascicoloDocumenti'
 import { type MovimentoPratica } from '@/services/fascicolo/scadenza'
-import { calcolaEsitiPerCodice, codiciConAdempimento } from '@/utils/dm329Classification'
+import { useAperturaApparecchiatura } from '../AperturaApparecchiatura'
 
 /**
  * Colonne della tabella, con larghezza e allineamento dichiarati.
@@ -479,32 +479,6 @@ export const UnifiedEquipmentTable = ({
   const recipientiVals = useWatch({ control, name: 'recipienti_filtro' }) as any[] | undefined
   const separatoriVals = useWatch({ control, name: 'separatori' }) as any[] | undefined
 
-  /**
-   * Codici che comportano un adempimento INAIL (dichiarazione o verifica) e non sono già
-   * denunciati: sono le pillole sopra la tabella. Si riusano i valori già osservati sopra
-   * (serbatoi, disoleatori, scambiatori, recipienti_filtro) invece di aprire una seconda
-   * sottoscrizione `useWatch` sugli stessi campi.
-   */
-  const codiciRichiesti = useMemo(
-    () =>
-      codiciConAdempimento(
-        calcolaEsitiPerCodice({
-          serbatoi: serbatoiVals,
-          disoleatori: disoleatoriVals,
-          scambiatori: scambiatoriVals,
-          recipienti_filtro: recipientiVals,
-        })
-      ),
-    [serbatoiVals, disoleatoriVals, scambiatoriVals, recipientiVals]
-  )
-
-  /** Codici che hanno già un fascicolo composto: colora la pillola di verde invece che blu. */
-  const { data: codiciConFascicoloPronto } = useQuery({
-    queryKey: ['fascicolo-codici-pronti', requestId],
-    queryFn: () => fascicoloDocumentiApi.codiciConFascicolo(requestId),
-    enabled: !!requestId,
-  })
-
   const fieldArrays: Record<string, { replace: (v: any[]) => void }> = {
     serbatoi, compressori, disoleatori, essiccatori,
     scambiatori, filtri, recipienti_filtro: recipienti, separatori,
@@ -909,6 +883,23 @@ export const UnifiedEquipmentTable = ({
 
   const total = serbatoi.fields.length + compressori.fields.length + essiccatori.fields.length + filtri.fields.length + separatori.fields.length
 
+  /*
+   * I chip dei fascicoli in barra titolo aprono queste finestre.
+   *
+   * La barra conosce i codici, non le posizioni nell'elenco: quelle si sanno solo qui, dove
+   * `voci` si costruisce riga per riga. Ci si riregistra a ogni render — l'effetto è senza
+   * array di dipendenze di proposito — perché `voci` si ricostruisce mentre si compila, e una
+   * funzione registrata una volta sola punterebbe a un elenco vecchio.
+   */
+  const apertura = useAperturaApparecchiatura()
+  useEffect(() => {
+    apertura?.registra((codice) => {
+      const indice = voci.findIndex((v) => v.code === codice)
+      if (indice >= 0) setAperta(indice)
+    })
+    return () => apertura?.registra(null)
+  })
+
   /** Voce aperta, con le azioni richiuse su «chiudi prima, poi agisci». */
   const dettaglio = aperta !== null && aperta < voci.length ? voci[aperta] : null
   const dettaglioConChiusura: DettaglioRiga | null = dettaglio && {
@@ -929,32 +920,9 @@ export const UnifiedEquipmentTable = ({
             larghezza={150}
             etichetta={`${total} principali`}
           />
-          {/* Pillole del fascicolo INAIL: una per apparecchiatura che comporta adempimento e
-              non è già denunciata. Blu contornata finché il fascicolo non è composto, verde
-              piena da lì in poi. Aprono la finestra dei dettagli di quella apparecchiatura,
-              dove il fascicolo si compone. */}
-          {codiciRichiesti.map((codice) => {
-            const pronto = codiciConFascicoloPronto?.has(codice) ?? false
-            return (
-              <Button
-                key={codice}
-                size="small"
-                variant={pronto ? 'contained' : 'outlined'}
-                color={pronto ? 'success' : 'primary'}
-                startIcon={<FolderIcon fontSize="small" />}
-                onClick={() => {
-                  const indice = voci.findIndex((v) => v.code === codice)
-                  if (indice >= 0) setAperta(indice)
-                }}
-                sx={{
-                  minWidth: 0, px: 1.25, borderRadius: 10,
-                  ...(pronto ? {} : { borderColor: 'primary.main' }),
-                }}
-              >
-                {codice}
-              </Button>
-            )
-          })}
+          {/* Le pillole dei fascicoli stavano qui. Sono salite in barra titolo
+              (TechnicalSheetHeader), che resta agganciata allo scroll: qui sotto sparivano
+              appena si scendeva nella tabella, cioè proprio mentre si lavorava. */}
           <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
             {azioni}
             <AzioneIcona

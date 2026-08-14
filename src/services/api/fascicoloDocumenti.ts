@@ -1,4 +1,5 @@
 import { supabase } from '../supabase'
+import { DURATA_LINK_FIRMATO_S } from '@/utils/scaricaFile'
 import type { DocumentoFascicolo, RuoloDocumento } from '@/services/fascicolo/types'
 
 /**
@@ -257,6 +258,22 @@ export const fascicoloDocumentiApi = {
     const { data, error } = await supabase.storage.from(BUCKET_FASCICOLI).download(filePath)
     if (error) throw new Error(`Errore nello scaricamento: ${error.message}`)
     return data
+  },
+
+  /**
+   * Link firmato per far scaricare il file al browser: vedi `utils/scaricaFile`.
+   *
+   * Resta distinto da `scarica`, che serve a tutt'altro — leggere i byte per comporre il
+   * fascicolo (`services/fascicolo/sorgente`) — e per quello il blob è la forma giusta.
+   */
+  urlFirmato: async (filePath: string, nome: string): Promise<string> => {
+    const { data, error } = await supabase.storage
+      .from(BUCKET_FASCICOLI)
+      .createSignedUrl(filePath, DURATA_LINK_FIRMATO_S, { download: nome })
+    if (error || !data) {
+      throw new Error(`Errore nella preparazione dello scaricamento: ${error?.message ?? 'link non creato'}`)
+    }
+    return data.signedUrl
   },
 
   /** La nota «fascicolo scaduto il …», se i documenti sono stati cancellati. */
