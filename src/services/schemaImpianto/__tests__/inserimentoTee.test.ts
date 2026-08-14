@@ -41,6 +41,18 @@ describe('arcoPiuVicino', () => {
   it('senza archi non sceglie nulla', () => {
     expect(arcoPiuVicino([], { x: 0, y: 0 })).toBeNull()
   })
+
+  // Senza la guardia su `polilinea.length < 2`, `puntoSuTratto([])` tratta l'arco vuoto come se
+  // fosse un punto fermo all'origine (0,0): un rilascio vicino all'origine lo troverebbe
+  // "vicino" anche se non è un tubo vero. L'arco lontano qui è irraggiungibile dal punto di
+  // prova, quindi solo la guardia lo tiene fuori dal risultato.
+  it('un arco con polilinea degenere (senza punti) non viene mai scelto', () => {
+    const conDegenere = [
+      { id: 'degenere', polilinea: [] as Punto[] },
+      { id: 'lontano', polilinea: [{ x: 500, y: 500 }, { x: 600, y: 500 }] },
+    ]
+    expect(arcoPiuVicino(conDegenere, { x: 2, y: 2 })).toBeNull()
+  })
 })
 
 describe('spezzaArco', () => {
@@ -49,6 +61,16 @@ describe('spezzaArco', () => {
     // partirebbero da un punto che il tubo non tocca e il disegno farebbe uno scalino.
     const { centro } = spezzaArco(ROTTA, [], { x: 156, y: 50 })
     expect(centro).toEqual({ x: 150, y: 50 })
+  })
+
+  // Non basta che `centro` torni giusto: anche il gomito sintetizzato dal fallback del punto
+  // medio deve usare `centro` come capo, non `puntoLibero`. Qui il rilascio è fuori dal tubo
+  // (y=5, non y=0) e cade in un tratto senza vertici interni: se il fallback usasse
+  // `puntoLibero`, il gomito cadrebbe a (42.5, 2.5) — fuori dalla linea — invece che sul tubo.
+  it('il gomito sintetizzato dal fallback sta sulla linea, non sul punto libero fuori tubo', () => {
+    const { centro, primo } = spezzaArco(ROTTA, [], { x: 85, y: 5 })
+    expect(centro).toEqual({ x: 85, y: 0 })
+    expect(primo.punti).toEqual([{ x: 42.5, y: 0 }])
   })
 
   it('i vertici si dividono fra le due metà secondo dove cade il taglio', () => {
@@ -88,6 +110,37 @@ describe('spezzaArco', () => {
     expect(primo.segni).toEqual([])
     expect(secondo.segni).toEqual(segni)
     expect(primo.punti.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))).toBe(true)
+  })
+
+  // Simmetrico al capo di partenza: rilascio proprio sul capo di arrivo, la seconda metà è
+  // lunga zero. Non deve produrre NaN — una t divisa per zero finirebbe nel layout salvato e
+  // da lì nel documento.
+  it('un taglio sul capo di arrivo non produce quote non numeriche', () => {
+    const segni: SchemaSegnoTubo[] = [{ id: 'v1', tipo: 'valvola_intercettazione', t: 0.75 }]
+    const { primo, secondo } = spezzaArco(ROTTA, segni, { x: 300, y: 100 })
+    expect(primo.segni).toEqual(segni)
+    expect(secondo.segni).toEqual([])
+    expect(secondo.punti.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))).toBe(true)
+  })
+
+  // Nessun segno con `t` nel dominio dichiarato (0..1, tratti.ts) può mai superare `tTaglio`
+  // quando il taglio cade sul capo di arrivo (tTaglio=1): il filtro `s.t > tTaglio` lo esclude
+  // sempre. Solo un dato fuori dominio — qui simulato — raggiunge davvero la divisione per
+  // (1 - tTaglio), altrimenti nulla la eserciterebbe mai.
+  it('un segno fuori dal dominio [0,1] non produce una quota infinita quando il taglio cade sul capo di arrivo', () => {
+    const segni: SchemaSegnoTubo[] = [{ id: 'fuori-dominio', tipo: 'valvola_intercettazione', t: 1.5 }]
+    const { secondo } = spezzaArco(ROTTA, segni, { x: 300, y: 100 })
+    expect(secondo.segni.every((s) => Number.isFinite(s.t))).toBe(true)
+  })
+
+  // Una polilinea di lunghezza nulla (tutti i punti coincidenti): `quoteDeiVertici` calcola le
+  // quote dei vertici dividendo per la lunghezza totale, che qui è zero.
+  it('una polilinea di lunghezza nulla non produce quote non numeriche', () => {
+    const puntoUnico: Punto[] = [{ x: 5, y: 5 }, { x: 5, y: 5 }, { x: 5, y: 5 }]
+    const { centro, primo, secondo } = spezzaArco(puntoUnico, [], { x: 5, y: 5 })
+    expect(Number.isFinite(centro.x) && Number.isFinite(centro.y)).toBe(true)
+    expect(primo.punti.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))).toBe(true)
+    expect(secondo.punti.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))).toBe(true)
   })
 })
 
