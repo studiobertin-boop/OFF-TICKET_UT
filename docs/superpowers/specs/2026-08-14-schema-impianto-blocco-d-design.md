@@ -212,30 +212,39 @@ approvata.
 
 ### D2.1 Tutto ciò che si piazza a mano va sulla griglia (osservazione 7)
 
-Passo 10, lo stesso della griglia visibile e dello `snapGrid` dei nodi. I punti da
-portare in riga:
+**Misurato in pagina il 14-08-2026, prima di scrivere il piano.** La formulazione
+originale di questa sezione — «gomiti, trascinamento del tratto e annotazioni usano le
+coordinate grezze del puntatore» — era **sbagliata**, e la misura l'ha smentita. Ecco
+i fatti, ognuno provato con un gesto vero sulla pratica di prova:
 
-| Punto | Dove |
-|---|---|
-| Creazione del gomito | `useGomiti.ts:88` |
-| Trascinamento del gomito | `useGomiti.ts:113-129` |
-| Trascinamento del tratto | `useTrascinamentoTratto.ts:62-83` — usa **delta continui in virgola mobile**, è il caso certo |
-| Frecce da tastiera | `SchemaEditor.tsx:121-127, 522` — oggi passo **1**, con Shift ×10 |
-| Annotazioni libere | `TestiLiberi.tsx:68-71` |
-| Posizione dei nodi nuovi | `SchemaEditor.tsx:385, 593` — `piedeDelDisegno()` somma altezze tipografiche arrotondate, quindi produce quote arbitrarie |
-| Muro | nasce nel D4, deve nascere già allineato |
+| Gesto | Comportamento misurato | Da correggere? |
+|---|---|---|
+| Trascinamento delle apparecchiature | posizione assoluta sulla griglia, via `snapGrid` di react-flow | No |
+| Creazione del gomito (doppio clic) | atterra in (730, 250): **sulla griglia** | No |
+| Trascinamento del gomito | atterra in (780, 170): **sulla griglia** | No |
+| Trascinamento del tratto | **726,5 → 776,5**: si sposta di 50 esatti e resta sul mezzo | **Sì** |
+| Trascinamento dell'annotazione | **573,75 → 513,75**: si sposta di 60 esatti e resta sui tre quarti | **Sì** |
+| Frecce da tastiera | passo **1**, con Shift **10** | **Sì** |
+| Nodo nuovo dalla palette | atterra a y = **585** | **Sì** |
+| Annotazione nuova | nasce a y = **573,75** | **Sì** |
+| Auto-layout | E1 e F1 a y = **185** | Fuori perimetro: si sistema con la libreria nuova |
 
-Le frecce da tastiera passano a **10 unità**, con Shift a 50. Sotto la griglia non si
-scende: il committente ha chiesto che il piazzamento sia consentito *solo* sui punti
-della griglia, e un passo da 1 unità è il modo più rapido per uscirne senza
-accorgersene.
+**La causa vera non è quella che questa specifica aveva scritto.** Gomiti e nodi
+finiscono sulla griglia perché la loro posizione nasce da `screenToFlowPosition`, che
+eredita `snapToGrid` dallo store e restituisce quindi una **posizione assoluta**
+agganciata. Il trascinamento del tratto e quello dell'annotazione invece calcolano uno
+**spostamento** fra due posizioni agganciate, e lo sommano a una posizione di partenza
+che agganciata non è: lo spostamento è un multiplo di 10, ma lo scarto iniziale
+sopravvive **per sempre**.
 
-**Da verificare prima di scrivere codice, non da assumere.** Alcuni di questi punti
-passano da `screenToFlowPosition`, che **eredita `snapToGrid` dallo store** quando non
-riceve opzioni: le annotazioni si agganciano già alla griglia per questa ragione. Nel
-Blocco C2 un report ha affermato il contrario ed è costato una caccia a un difetto
-inesistente. Ogni voce della tabella va **misurata in pagina** prima di toccarla, e
-quelle già a posto vanno depennate.
+Ne segue la formulazione corretta del lavoro: **non si tratta di aggiungere
+l'aggancio ai gesti che non ce l'hanno, ma di far agganciare la posizione risultante a
+chi oggi aggancia solo il movimento.** È una differenza che cambia il codice da
+scrivere, e sarebbe costata un giro di correzione scoprirla dopo.
+
+Le frecce da tastiera passano a **10 unità**, con Shift a 50, e la posizione risultante
+va agganciata anch'essa: sotto la griglia non si scende, perché il committente ha
+chiesto che il piazzamento sia consentito *solo* sui punti della griglia.
 
 ### D2.2 Il secondo magnete: le quote dei capi (aggiunta, approvata)
 
@@ -246,6 +255,13 @@ parte comunque da una quota che non è multipla di 10**. Un gomito portato sulla
 griglia introduce allora uno scalino di 9 unità: esattamente il difetto che
 l'osservazione 7 denuncia, e che l'aggancio alla griglia da solo **peggiorerebbe**
 invece di risolvere.
+
+**Misurato in pagina, non previsto.** Sulla tubazione `std-3` della pratica di prova
+il tracciato è `M 677 260 L 726,5 260 L 726,5 234 L 776 234`: parte da una quota di
+260 e arriva a una di **234**, perché le due ancore stanno ad altezze diverse. Creando
+un gomito col doppio clic, quello atterra correttamente sulla griglia in (730, 250) —
+e il risultato è una linea con **tre scalini invece di uno**. Non è un difetto del
+gesto: è che nessun punto della griglia può raccordare 260 con 234.
 
 Rimedio: mentre si trascina un gomito o un tratto, le posizioni buone sono quelle
 della griglia **più le quote esatte dei due capi del tubo**, e vince la più vicina
