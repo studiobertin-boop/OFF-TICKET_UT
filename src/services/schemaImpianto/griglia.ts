@@ -11,7 +11,12 @@
 export const PASSO_GRIGLIA = 10
 
 export function allineaAllaGriglia(valore: number): number {
-  return Math.round(valore / PASSO_GRIGLIA) * PASSO_GRIGLIA
+  const risultato = Math.round(valore / PASSO_GRIGLIA) * PASSO_GRIGLIA
+  // Math.round(-0.4) è -0: per ogni valore in [-5, 0) il risultato "matematico" è -0, che
+  // supera qualunque confronto numerico ma fallisce `toBe` (Object.is distingue -0 da 0).
+  // -0 non ha senso per una coordinata dell'editor, quindi si normalizza qui una volta sola,
+  // invece di lasciare che la trappola scatti in un chiamante lontano da questa causa.
+  return risultato === 0 ? 0 : risultato
 }
 
 /**
@@ -20,16 +25,17 @@ export function allineaAllaGriglia(valore: number): number {
  *
  * Serve perché le ancore dei simboli sono ancora fuori griglia: un tubo che parte da quota
  * 260 e arriva a quota 234 non può essere raccordato da alcun punto della griglia, e
- * agganciare solo alla griglia peggiora il disegno invece di migliorarlo (produce uno
- * scalino in più invece di uno). Quando il committente porterà le ancore sui punti giusti,
- * le due famiglie di candidati coincideranno e questa funzione diventerà indistinguibile da
- * `allineaAllaGriglia`: non è un debito da disfare.
+ * agganciare solo alla griglia peggiora il disegno invece di migliorarlo — misurato in
+ * pagina su una tubazione reale, produce tre scalini invece di uno. Quando il committente
+ * porterà le ancore sui punti giusti, le due famiglie di candidati coincideranno e questa
+ * funzione diventerà indistinguibile da `allineaAllaGriglia`: non è un debito da disfare.
  *
- * Nessun raggio di tolleranza da tarare, e non è una svista: col passo a 10 la distanza dal
- * punto di griglia più vicino non supera mai 5, quindi una quota preferita vince se e solo
- * se dista meno di 5 — la soglia esiste già, implicita nella geometria. A parità vince la
- * quota preferita, perché il punto di griglia lì non aggiunge nulla mentre lei tiene dritta
- * la linea.
+ * Nessun raggio di tolleranza da tarare: una quota preferita vince sul punto di griglia se
+ * e solo se non è più lontana di esso da `valore`. Poiché il punto di griglia più vicino
+ * dista al più 5 (metà passo), una quota preferita a più di 5 non vince mai — quella soglia
+ * non è un parametro scelto, è un tetto che discende dalla geometria della griglia. A
+ * parità vince la quota preferita, perché in quel caso il punto di griglia non aggiunge
+ * nulla mentre lei tiene dritta la linea; fra più quote preferite vince la più vicina.
  */
 export function agganciaQuota(valore: number, quotePreferite: number[]): number {
   let migliore = allineaAllaGriglia(valore)

@@ -8,8 +8,10 @@ describe('allineaAllaGriglia', () => {
     expect(allineaAllaGriglia(585)).toBe(590)
   })
 
-  // Un valore già allineato non deve muoversi: è il caso che un arrotondamento
-  // sbagliato (per difetto o per eccesso invece che al più vicino) sposterebbe.
+  // Non prova la direzione dell'arrotondamento — floor, ceil e round lasciano fermo un
+  // multiplo esatto allo stesso modo — ma scopre bug di segno o di scala: un'inversione di
+  // segno sposterebbe -40, e una divisione per PASSO_GRIGLIA dimenticata sposterebbe anche
+  // 260 e 0.
   it('lascia fermo ciò che è già sulla griglia', () => {
     expect(allineaAllaGriglia(260)).toBe(260)
     expect(allineaAllaGriglia(0)).toBe(0)
@@ -19,6 +21,14 @@ describe('allineaAllaGriglia', () => {
   it('vale anche a sinistra dello zero', () => {
     expect(allineaAllaGriglia(-23)).toBe(-20)
     expect(allineaAllaGriglia(-27)).toBe(-30)
+  })
+
+  // Math.round(-0.4) è -0: senza normalizzazione questo fallirebbe, perché toBe usa
+  // Object.is e distingue -0 da 0. Fissato qui perché i prossimi task del blocco D2
+  // scrivono test su coordinate che attraversano lo zero, dove la trappola scatterebbe
+  // lontano da questa causa.
+  it('normalizza il -0 a 0', () => {
+    expect(allineaAllaGriglia(-4)).toBe(0)
   })
 
   it('il passo è quello della griglia visibile', () => {
@@ -33,7 +43,7 @@ describe('agganciaQuota', () => {
   })
 
   // 234 è la quota di un capo del tubo: dista 2 dal valore grezzo, mentre il punto di
-  // griglia più vicino (240) ne dista 6. Vince il capo, e la linea resta dritta.
+  // griglia più vicino (240) ne dista 4. Vince il capo, e la linea resta dritta.
   it('una quota preferita vicina vince sul punto di griglia', () => {
     expect(agganciaQuota(236, [260, 234])).toBe(234)
   })
@@ -44,17 +54,19 @@ describe('agganciaQuota', () => {
     expect(agganciaQuota(312, [260, 234])).toBe(310)
   })
 
-  // A parità di distanza vince la quota preferita: il suo scopo è tenere dritta la linea,
-  // e il punto di griglia in quel caso non aggiunge nulla. Una sola quota preferita, non
-  // due: con due equidistanti il caso non direbbe nulla sul pareggio fra griglia e capo,
-  // ma solo su quale delle due il ciclo tiene per ultima.
+  // Pareggio su un valore intero, non un mezzo punto: resta indipendente dalla direzione
+  // dell'arrotondamento a metà passo. Griglia (240) e quota preferita (234) distano
+  // entrambe 3 da 237 — un capo davvero fuori griglia, come nel caso reale. Vince la quota
+  // preferita: il punto di griglia lì non aggiunge nulla.
   it('a parità di distanza vince la quota preferita', () => {
-    // 245 dista 5 dal punto di griglia (250) e 5 dalla quota preferita (240).
-    expect(agganciaQuota(245, [240])).toBe(240)
+    expect(agganciaQuota(237, [234])).toBe(234)
   })
 
   it('sceglie la più vicina fra più quote preferite', () => {
-    expect(agganciaQuota(258, [234, 260])).toBe(260)
+    // Griglia a 250 (dista 4), capi a 234 (dista 12) e 249 (dista 3): vince 249,
+    // in qualunque ordine arrivi la lista, e la sola griglia darebbe 250.
+    expect(agganciaQuota(246, [234, 249])).toBe(249)
+    expect(agganciaQuota(246, [249, 234])).toBe(249)
   })
 
   it('una quota preferita già sulla griglia non cambia nulla', () => {
