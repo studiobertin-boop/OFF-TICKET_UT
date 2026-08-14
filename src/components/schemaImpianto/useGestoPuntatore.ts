@@ -2,10 +2,14 @@
  * Il pattern comune ai gesti di trascinamento con cattura del puntatore: `SchemaGomito`,
  * `SchemaSegno` e l'area di trascinamento del tratto (tutti in `SchemaEdgeTubazione.tsx`) lo
  * usano. Collaudato per primo su `TestoLibero` (`TestiLiberi.tsx`, non toccato da questo hook:
- * la sua implementazione era già corretta prima che questo file esistesse) e sui due gesti nati
- * nel Blocco D1 (`DivisorioAnteprima.tsx`, `ManigliaRidimensiona.tsx`, anch'essi non toccati:
- * il loro `onCambia` non distingue un evento intermedio da uno conclusivo, quindi non hanno
- * nulla da spostare qui dentro).
+ * la sua implementazione era già corretta prima che questo file esistesse — resta una seconda
+ * copia dello stesso pattern, non accorpata qui per restare nel perimetro di questo task, che
+ * autorizzava a toccare solo `SchemaEdgeTubazione.tsx`) e sui due gesti nati nel Blocco D1
+ * (`DivisorioAnteprima.tsx`, `ManigliaRidimensiona.tsx`, anch'essi non toccati: hanno già la
+ * stessa cattura del puntatore, identica — vedi `DivisorioAnteprima.tsx:19-41` e
+ * `ManigliaRidimensiona.tsx:35-64` — ma non la guardia «si è mosso» né il concetto di evento
+ * conclusivo, perché il loro `onCambia` non distingue un evento intermedio da uno finale: non
+ * scrivono mai in una cronologia, quindi non hanno nulla da attendere).
  *
  * Che cosa entra: la cattura del puntatore (invece di listener globali su `window`, così il
  * gesto regge anche se il cursore esce per un attimo dall'elemento), la guardia «si è mosso

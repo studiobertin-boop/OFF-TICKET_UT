@@ -146,8 +146,13 @@ function SchemaGomito({ indice, punto, onSposta, onRimuovi }: SchemaGomitoProps)
       // di React possa fermarlo). Il pan sposta il riferimento che screenToFlowPosition usa
       // mentre siamo a metà trascinamento, e il gomito rilasciato torna dov'era.
       className="nopan"
-      // `suInizio` ferma qui il gesto lato React: senza, il pointerdown sulla maniglia
-      // arriverebbe anche alla tubazione sottostante e diventerebbe un trascinamento dell'arco.
+      // `suInizio` ferma qui il gesto lato React: la maniglia vive nel portale di
+      // EdgeLabelRenderer ma resta figlia nell'albero React — stessa ragione di `suDoppioClic`
+      // qui sopra — e senza stopPropagation il pointerdown risalirebbe fino ai gestori della
+      // tela (Pane, `react-flow__pane`, che avvolge tutti i nodi e gli archi ed espone i propri
+      // onPointerMove/onPointerUp in bubbling). Non risalirebbe invece al gestore del tratto qui
+      // sotto: quel `<path>` è un fratello di EdgeLabelRenderer nell'albero React, non un
+      // antenato, e un pointerdown sulla maniglia non lo raggiungerebbe comunque.
       onPointerDown={suInizio}
       onPointerMove={suPointerMove}
       onPointerUp={suPointerUp}
