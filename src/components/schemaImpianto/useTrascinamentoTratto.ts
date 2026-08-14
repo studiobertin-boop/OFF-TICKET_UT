@@ -67,13 +67,11 @@ export function useTrascinamentoTratto<T extends StatoConNodiEdArchi>(
   // dalla rotta nativa che l'utente vede.
   quote: QuoteInstradamento
 ) {
-  // Entra in cronologia il primo evento che sposta DAVVERO qualcosa (delta non nullo), non il
-  // primo evento e basta: il primo evento di ogni gesto ha SEMPRE delta nullo per costruzione
-  // (è quello che congela `puntoPresaRef` su se stesso, sotto), quindi lo stato è ancora pulito
-  // quando arriva. È lo stesso principio di `useGomiti.ts:105-110` — il PRIMO evento entra, non
-  // l'ultimo, perché registrare tardi leggerebbe uno stato già spostato — applicato al punto in
-  // cui QUI lo stato inizia davvero a spostarsi, che non coincide col primo evento in assoluto.
-  // Un gesto che non esce mai dalla cella di presa non scrive NESSUNA voce (zero, non una).
+  // Vero mentre un gesto è in corso (dal primo evento a quello conclusivo): decide
+  // `primoEventoDelGesto` sotto, che congela punto di presa, gomiti e indice al vero inizio del
+  // gesto e azzera `cronologiaScrittaRef` (sotto) per il nuovo gesto. Il momento in cui il
+  // gesto ENTRA in cronologia non lo decide questo ref, ma `cronologiaScrittaRef`: vedi il suo
+  // commento per il perché.
   const trascinamentoAvviato = useRef(false)
   // Punto di presa del gesto (congelato al primo evento): il delta passato a `trascinaTratto`
   // è cumulativo da QUI, non incrementale evento-per-evento. Il puntatore arriva ai gesti già
@@ -112,14 +110,21 @@ export function useTrascinamentoTratto<T extends StatoConNodiEdArchi>(
   const gomitiCongelatiRef = useRef<Punto[] | undefined>(undefined)
   const indiceCongelatoRef = useRef(0)
   // Vero se QUESTO gesto ha già scritto qualcosa: cioè se un evento con delta non nullo si è
-  // già presentato. Usato in `trascinaSegmento` per due cose. (1) Decidere quando entrare in
-  // cronologia: al primo evento con delta non nullo (`applica`, mentre lo stato è ancora
-  // pulito), i successivi restano su `aggiornaSenzaCronologia` — così ne entra al più una per
-  // gesto, mai una per un gesto che non si è mai mosso. (2) Decidere se un evento a delta nullo
-  // debba anche solo TOCCARE lo stato: finché non è stata fatta alcuna scrittura, un evento a
-  // delta nullo non ha nulla da ripristinare (lo stato è già quello di partenza) — lasciarlo
-  // stare evita pure il cambiamento innocuo ma superfluo `undefined` → `[]`. Si azzera a ogni
-  // nuovo gesto (dentro `if (primoEventoDelGesto)` sotto) e si alza alla prima scrittura.
+  // già presentato. Entra in cronologia il primo evento che sposta DAVVERO qualcosa (delta non
+  // nullo), non il primo evento e basta: il primo evento di ogni gesto ha SEMPRE delta nullo per
+  // costruzione (è quello che congela `puntoPresaRef` su se stesso, sotto), quindi lo stato è
+  // ancora pulito quando arriva — è lo stesso principio di `useGomiti.ts:105-110` (il PRIMO
+  // evento entra, non l'ultimo, perché registrare tardi leggerebbe uno stato già spostato),
+  // applicato al punto in cui QUI lo stato inizia davvero a spostarsi, che non coincide col
+  // primo evento in assoluto. Usato in `trascinaSegmento` per due cose. (1) Decidere quando
+  // entrare in cronologia: al primo evento con delta non nullo (`applica`, mentre lo stato è
+  // ancora pulito), i successivi restano su `aggiornaSenzaCronologia` — così ne entra al più una
+  // per gesto, e un gesto che non esce mai dalla cella di presa non ne scrive NESSUNA (zero, non
+  // una). (2) Decidere se un evento a delta nullo debba anche solo TOCCARE lo stato: finché non
+  // è stata fatta alcuna scrittura, un evento a delta nullo non ha nulla da ripristinare (lo
+  // stato è già quello di partenza) — lasciarlo stare evita pure il cambiamento innocuo ma
+  // superfluo `undefined` → `[]`. Si azzera a ogni nuovo gesto (dentro `if (primoEventoDelGesto)`
+  // sotto) e si alza alla prima scrittura.
   const cronologiaScrittaRef = useRef(false)
 
   const trascinaSegmento = useCallback(
@@ -177,11 +182,19 @@ export function useTrascinamentoTratto<T extends StatoConNodiEdArchi>(
 
       // Un evento a delta nullo (anche non conclusivo, una volta che il gesto ha già scritto
       // qualcosa — il ramo sopra copre il caso "non ancora") ripristina lo stato d'inizio
-      // gesto — i gomiti congelati sopra — invece di lasciare la rotta materializzata
-      // dall'ultimo spostamento: il tubo segue davvero il cursore, e non resta "appiccicato"
-      // a dove l'evento precedente l'aveva messo quando il cursore ripassa dalla presa. Per un
-      // arco che non aveva gomiti a mano quello stato È il vuoto (domanda aperta #1 del Blocco
-      // C1, decisa dal committente): il tubo torna all'instradamento automatico. Non serve più
+      // gesto — i gomiti congelati sopra — invece di chiamare `trascinaTratto` con delta zero:
+      // a delta zero, con gomiti e indice congelati, quella chiamata ridisegna sempre la rotta
+      // di partenza (dipende solo da valori congelati, mai dal risultato dell'evento precedente:
+      // verificato eseguendo il codice), **non** una rotta ferma allo spostamento precedente —
+      // ma la ridisegna MATERIALIZZANDOLA in punti espliciti, e quel cambio di rappresentazione
+      // resta anche quando la polilinea disegnata è identica. Un arco così materializzato non è
+      // più equivalente ai gomiti congelati (`undefined`/`[]` per un arco auto-instradato): si
+      // stacca dal riassestamento delle quote quando le apparecchiature si spostano — la stessa
+      // ragione per cui esiste questo intero task — ed è ciò che `flowALayout`
+      // (`conversioneFlow.ts:71`) persisterebbe nel layout salvato se un salvataggio cogliesse
+      // questo stato transitorio. Per un arco che non aveva gomiti a mano quello stato È il
+      // vuoto (domanda aperta #1 del Blocco C1, decisa dal committente): il tubo torna
+      // all'instradamento automatico. Non serve più
       // distinguere l'evento conclusivo dagli altri — la stessa regola vale a ogni evento, e il
       // «gesto a vuoto» è semplicemente il caso in cui l'ULTIMO evento capita ad avere delta
       // nullo. Per un arco con una rotta disegnata a mano il gesto la lascia intatta invece di
