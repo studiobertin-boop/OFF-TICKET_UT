@@ -66,12 +66,19 @@ function monta(iniziale: Stato) {
 
 type Hook = ReturnType<typeof monta>
 
-/** Sposta il TEE (come farebbe `applyNodeChanges` durante il trascinamento) e notifica l'hook. */
+/**
+ * Sposta il TEE (come farebbe `applyNodeChanges` durante il trascinamento) e notifica l'hook.
+ * Il primo movimento del gesto entra in cronologia con `applica`, non con
+ * `aggiornaSenzaCronologia`: è ciò che fa davvero `onNodesChange` (SchemaEditor.tsx) al primo
+ * evento di posizione di un trascinamento. Riprodurlo qui rende la dipendenza dell'hook da
+ * quella regola una proprietà guardata da un test (il test E, sotto), non un'assunzione
+ * nascosta nel banco.
+ */
 function trascina(hook: Hook, verso: { x: number; y: number }) {
   act(() => {
     const tee = hook.result.current.stato.nodes.find((n) => n.id === 'M-G1')!
     hook.result.current.iniziaTrascinamento(tee)
-    hook.result.current.aggiornaSenzaCronologia((s) => ({
+    hook.result.current.applica((s) => ({
       ...s,
       nodes: s.nodes.map((n) => (n.id === 'M-G1' ? { ...n, position: verso } : n)),
     }))
@@ -185,13 +192,20 @@ describe('useInserimentoTee', () => {
     expect(archi(hook)).toHaveLength(1)
   })
 
-  it('G. un rilascio lontano da ogni tubo non cambia nulla', () => {
+  it('G. un rilascio lontano da ogni tubo non spezza niente — resta un trascinamento normale', () => {
     const hook = monta(statoIniziale())
     trascina(hook, { x: 600, y: 300 })
     rilascia(hook)
 
     expect(archi(hook)).toHaveLength(1)
-    expect(hook.result.current.puoAnnullare).toBe(false)
+    // Il TEE SI È mosso (anche se non è atterrato su un tubo): è un trascinamento di nodo
+    // ordinario, undoable come qualunque altro — `onNodesChange`, simulato da `trascina`, lo
+    // scrive in cronologia al primo evento di posizione. `concludiTrascinamento` qui non ha
+    // aggiunto nulla di suo (nessun candidato trovato): `puoAnnullare` è vero solo per il
+    // movimento, e un solo Ctrl+Z lo disfa.
+    expect(hook.result.current.puoAnnullare).toBe(true)
+    act(() => hook.result.current.annulla())
+    expect(hook.result.current.stato.nodes.find((n) => n.id === 'M-G1')!.position).toEqual({ x: 600, y: 600 })
   })
 
   it('H. un tubo che ha già questo TEE per capo non è un candidato', () => {

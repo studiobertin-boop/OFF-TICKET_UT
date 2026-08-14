@@ -160,31 +160,20 @@ export function useInserimentoTee<T extends StatoConNodiEdArchi>(
         ],
       })
 
-      // Un solo passo di Ctrl+Z, ottenuto rendendo QUESTO hook autosufficiente sulla cronologia
-      // invece di appoggiarsi a una voce scritta altrove. `stato`, qui dentro, riflette già la
-      // posizione di RILASCIO: il gesto — fuori da questo hook — l'ha mossa lì con
-      // `aggiornaSenzaCronologia` (`onNodesChange` in SchemaEditor.tsx fa lo stesso per ogni
-      // evento di posizione dopo il primo). Se `applica` scrivesse lo spezzamento così com'è,
-      // catturerebbe come "stato precedente" il TEE già spostato ma non ancora spezzato: un
-      // Ctrl+Z tornerebbe lì, non al vero punto di partenza — ne servirebbero due (è la
-      // mutazione 2 dello Step 5, e deve far cadere il test E).
+      // Un solo passo di Ctrl+Z, e si ottiene NON scrivendo una seconda voce di cronologia.
+      // `onNodesChange` (SchemaEditor.tsx) ne ha già scritta una con `applica` al primo evento di
+      // posizione del trascinamento, quando lo stato era ancora quello di partenza: TEE dov'era e
+      // tubo intero. Appoggiarsi a quella voce (con `aggiornaSenzaCronologia`) significa un solo
+      // passo; scriverne un'altra con `applica` ne richiederebbe due — uno per il tubo, uno per
+      // la posizione, perché a quel punto `stato` riflette già la posizione di rilascio, non
+      // quella di partenza.
       //
-      // Per questo, quando il nodo si è mosso, lo si riporta prima silenziosamente a `iniziale`
-      // — con `aggiornaSenzaCronologia`, senza toccare la cronologia — e SOLO DOPO si applica in
-      // un solo colpo il risultato finale: a quel punto `applica` cattura come "precedente" lo
-      // stato VERO di partenza (TEE dov'era, tubo intero), qualunque cosa un chiamante esterno
-      // abbia già scritto o meno. Un TEE non mosso (l'eccezione del punto 3 del brief: premuto e
-      // rilasciato senza muoverlo) non ha bisogno del riporto — lo stato corrente È già quello
-      // di partenza — e va dritto ad `applica`.
-      const siEMosso = !!iniziale && (iniziale.x !== nodo.position.x || iniziale.y !== nodo.position.y)
-      if (siEMosso && iniziale) {
-        const posizioneDiPartenza = iniziale
-        aggiornaSenzaCronologia((s) => ({
-          ...s,
-          nodes: s.nodes.map((n) => (n.id === nodo.id ? { ...n, position: posizioneDiPartenza } : n)),
-        }))
-      }
-      applica(costruisci)
+      // L'eccezione è un TEE già fermo sopra un tubo, premuto e rilasciato senza muoverlo:
+      // nessun evento di posizione, quindi nessuna voce su cui appoggiarsi, e lo spezzamento
+      // sarebbe irreversibile. Lì la voce va scritta qui, con `applica`.
+      const siEMosso = !iniziale || iniziale.x !== nodo.position.x || iniziale.y !== nodo.position.y
+      const aggiorna = siEMosso ? aggiornaSenzaCronologia : applica
+      aggiorna(costruisci)
     },
     [arcoSotto, stato.edges, capi, applica, aggiornaSenzaCronologia]
   )
