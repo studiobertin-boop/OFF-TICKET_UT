@@ -578,6 +578,18 @@ export function ancoraDi(nodo: SchemaNodo, id: string): SchemaAncora | undefined
 }
 
 /**
+ * Dove si afferra un attacco sulla tela dell'editor. Coincide con l'ancora per ogni simbolo
+ * tranne la giunzione, le cui ancore stanno tutte al centro del pallino mentre le prese
+ * restano sulle mezzerie dei lati del riquadro.
+ *
+ * Restituisce sempre un oggetto nuovo: il chiamante ne ricava uno stile CSS, e il registro è
+ * condiviso fra documento ed editor — una mutazione accidentale lo corromperebbe per entrambi.
+ */
+export function presaDi(ancora: SchemaAncora): { x: number; y: number } {
+  return ancora.presa ? { x: ancora.presa.x, y: ancora.presa.y } : { x: ancora.x, y: ancora.y }
+}
+
+/**
  * Ingombro effettivo di un nodo. Coincide col riquadro dichiarato nel registro per tutti i tipi
  * tranne il terminale utenze, la cui scritta è libera: l'utente la cambia dall'editor, e con la
  * larghezza fissa di 190 le restavano una diciassettina di caratteri — oltre, la scritta usciva

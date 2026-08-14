@@ -3,8 +3,8 @@
  * vede mentre si corregge è ciò che finirà in relazione.
  */
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { ancoreDi, dimensioniDi, simboloDi } from '@/services/schemaImpianto/symbols'
-import type { SchemaAncora, SchemaNodo } from '@/services/schemaImpianto/types'
+import { ancoreDi, dimensioniDi, presaDi, simboloDi } from '@/services/schemaImpianto/symbols'
+import type { SchemaAncora, SchemaLatoAncora, SchemaNodo } from '@/services/schemaImpianto/types'
 
 export interface SchemaNodeData extends Record<string, unknown> {
   /**
@@ -28,11 +28,12 @@ export const LATO_HANDLE = 10
 
 /**
  * Lato dell'handle per un nodo di dimensioni date: `LATO_HANDLE`, ma non oltre un terzo del
- * lato minore del riquadro. Sulla giunzione (24×24, quattro ancore agli angoli del riquadro)
- * un handle di 10px si sovrapponeva al vicino e copriva quasi tutta la superficie, lasciando
- * solo qualche pixel al centro da cui trascinare il nodo invece di avviare una connessione —
- * inutilizzabile allo zoom con cui l'editor si apre. Sugli altri simboli, il più piccolo dei
- * quali è la tanica (80×70), il limite non scatta mai: resta `LATO_HANDLE`.
+ * lato minore del riquadro. Sulla giunzione (24×24, quattro punti di presa sulle mezzerie dei
+ * lati del riquadro) un handle di 10px si sovrapponeva al vicino e copriva quasi tutta la
+ * superficie, lasciando solo qualche pixel al centro da cui trascinare il nodo invece di
+ * avviare una connessione — inutilizzabile allo zoom con cui l'editor si apre. Sugli altri
+ * simboli, il più piccolo dei quali è la tanica (80×70), il limite non scatta mai: resta
+ * `LATO_HANDLE`.
  */
 function latoHandle(dim: { larghezza: number; altezza: number }): number {
   return Math.min(LATO_HANDLE, Math.min(dim.larghezza, dim.altezza) / 3)
@@ -47,7 +48,20 @@ function latoHandle(dim: { larghezza: number; altezza: number }): number {
  * all'arco: il test dell'accordo (`__tests__/instradamentoCondiviso.test.ts`) la usa per
  * ricostruire quei capi — la fonte sbagliata — e provare che la tela non li segue più.
  */
+/** Traduzione fra il vocabolario del registro (un servizio, che non conosce react-flow) e
+ *  quello della tela. È l'unico punto che ha diritto di conoscerli entrambi. */
+const LATO_REACT_FLOW: Record<SchemaLatoAncora, Position> = {
+  sx: Position.Left,
+  dx: Position.Right,
+  alto: Position.Top,
+  basso: Position.Bottom,
+}
+
 export function latoDi(ancora: SchemaAncora, dim: { larghezza: number; altezza: number }): Position {
+  // Il lato dichiarato vince: la deduzione qui sotto guarda l'ancora, ed è degenere quando più
+  // ancore coincidono — le quattro della giunzione stanno tutte al centro del riquadro, a
+  // distanza uguale da tutti e quattro i bordi, e il `reduce` le appoggerebbe tutte a sinistra.
+  if (ancora.lato) return LATO_REACT_FLOW[ancora.lato]
   const distanze = [
     { lato: Position.Left, d: ancora.x },
     { lato: Position.Right, d: dim.larghezza - ancora.x },
@@ -72,7 +86,11 @@ export function SchemaNodeSymbol({ data, selected }: NodeProps) {
         // Ogni ancora ospita sia source sia target, sovrapposti: una tubazione può
         // partire o arrivare dallo stesso punto. Chi decide se il collegamento è legale
         // non è l'handle ma `isValidConnection` in SchemaEditor, via `capoValido`.
-        const stile = { ...stileAncora, left: ancora.x, top: ancora.y, transform: 'translate(-50%, -50%)' }
+        // Sulla PRESA, non sull'ancora: sulla giunzione le due cose divergono — i tubi arrivano
+        // al centro del pallino, ma il simbolo si afferra e si collega dalle mezzerie dei lati,
+        // dove le maniglie stanno larghe invece di sovrapporsi (`presaDi`, symbols/index.ts).
+        const presa = presaDi(ancora)
+        const stile = { ...stileAncora, left: presa.x, top: presa.y, transform: 'translate(-50%, -50%)' }
         const lato = latoDi(ancora, dimensioni)
         // L'ordine qui non è indifferente: due handle sovrapposti senza z-index si
         // contendono il mousedown, e vince l'ultimo nel DOM. In connectionMode Strict

@@ -83,6 +83,15 @@ export interface SchemaNodo {
 export type SchemaTipoAggancio = 'aria' | 'condensa' | 'valvola_sicurezza'
 
 /**
+ * Lato del riquadro d'ingombro su cui affacciare la maniglia di un attacco sulla tela.
+ * I nomi sono quelli dei lati, gli stessi che il registro usa già come id delle ancore della
+ * giunzione. Vive qui e non come `Position` di @xyflow/react perché il registro dei simboli è
+ * un servizio: il documento non conosce react-flow, e la traduzione la fa `latoDi`
+ * (SchemaNodeSymbol.tsx), l'unico punto che ha diritto di conoscere entrambi i vocabolari.
+ */
+export type SchemaLatoAncora = 'sx' | 'dx' | 'alto' | 'basso'
+
+/**
  * Punto di attacco dichiarato dal simbolo, in coordinate locali al riquadro d'ingombro.
  * È dato puro — nessuna funzione — perché il Blocco 3 lo sposterà su tabella.
  */
@@ -93,6 +102,23 @@ export interface SchemaAncora {
   y: number
   /** Mai vuoto: un'ancora che non accetta nulla non serve. */
   accetta: SchemaTipoAggancio[]
+  /**
+   * Dove si AFFERRA questo attacco sulla tela dell'editor, quando è diverso da dove il tubo ci
+   * arriva. Assente per ogni simbolo tranne la giunzione: si afferra sull'ancora stessa.
+   *
+   * È una nozione di sola INTERFACCIA. Il documento non la legge mai: `posizioneAncora`
+   * (renderSvg.ts) resta l'unica fonte su dove sta un capo di tubo, e questo modulo ha già
+   * pagato due volte per averne avute due. Se la presa fosse sbagliata si vedrebbe subito sulla
+   * tela; se lo fosse l'ancora, finirebbe nel .docx del cliente.
+   */
+  presa?: { x: number; y: number }
+  /**
+   * Lato su cui appoggiare la maniglia. Assente: lo deduce `latoDi` (SchemaNodeSymbol.tsx) dal
+   * bordo più vicino all'ancora. Va dichiarato ogni volta che si dichiara una `presa`, perché
+   * la deduzione guarda l'ANCORA e la presa sta altrove — e diventa addirittura degenere
+   * quando più ancore coincidono, come le quattro della giunzione, tutte al centro del riquadro.
+   */
+  lato?: SchemaLatoAncora
 }
 
 /** Capo di una tubazione: non più solo il nodo, ma il punto preciso su cui si innesta. */
