@@ -67,7 +67,7 @@ import type {
 } from '@/services/schemaImpianto/types'
 import { DivisorioAnteprima } from './DivisorioAnteprima'
 import { ManigliaRidimensiona } from './ManigliaRidimensiona'
-import type { PreferenzeEditor } from './preferenzeEditor'
+import { LARGHEZZA_MINIMA_ANTEPRIMA, type PreferenzeEditor } from './preferenzeEditor'
 import { SchemaEdgeTubazione, type SchemaEdgeData } from './SchemaEdgeTubazione'
 import { SchemaNodeSymbol, type SchemaNodeData } from './SchemaNodeSymbol'
 import { TIPO_ARCO_FLOW, TIPO_NODO_FLOW, capiDegliArchi, flowALayout, fondiDatiArchi, layoutAFlow } from './conversioneFlow'
@@ -750,11 +750,12 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
 
       <Stack direction="row" sx={{ flex: 1, minHeight: 360 }}>
       {/* La tela è un foglio, non una finestra sul tema scuro. react-flow lascia trasparente la
-          propria pane (`--xy-background-color-default`), quindi senza questo fondo si vedrebbe il
+          propria radice (`--xy-background-color-default`), quindi senza questo fondo si vedrebbe il
           Paper del dialog: bianco come l'anteprima qui accanto e come il documento consegnato, così
           ciò che si disegna e ciò che si stampa hanno lo stesso aspetto.
-          I comandi di zoom di react-flow sono bianchi su bordo #eee e sul foglio sparirebbero: il
-          bordo qui sotto li ridà all'occhio senza toccare il foglio di stile della libreria. */}
+          I comandi di zoom di react-flow sono, per impostazione predefinita, bianchi su bordo #eee
+          e sul foglio sparirebbero: il bordo qui sotto li ridà all'occhio senza toccare il foglio
+          di stile della libreria. */}
       <Box
         sx={{
           flex: 1,
@@ -784,13 +785,13 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
           onlyRenderVisibleElements
           fitView
           // Senza questo, `fitView` non inquadra affatto tutto il disegno: il minimo di
-          // default di react-flow è 0.5, ma uno schema tipico (~1250 unità di larghezza) in
-          // un riquadro da ~530px — quanto resta accanto all'anteprima, la cui larghezza il
-          // committente decide col divisorio, quindi la tela può essere anche più stretta —
-          // richiede circa
-          // 0.36. Lo zoom resta bloccato a 0.5, la tela mostra solo la fascia centrale e le
-          // prime ~95 unità a sinistra diventano irraggiungibili: nessuna panoramica le
-          // riporta dentro, perché è «Fit View» stesso a ricentrare lì.
+          // default di react-flow è 0.5, ma uno schema tipico (~1250 unità di larghezza) in un
+          // riquadro che nel caso peggiore scende anche solo a ~530px — quanto resta accanto
+          // all'anteprima quando il committente la allarga col divisorio, che quindi può
+          // restringere la tela anche parecchio — richiede circa 0.36. Lo zoom resta bloccato a
+          // 0.5, la tela mostra solo la fascia centrale e le prime ~95 unità a sinistra
+          // diventano irraggiungibili: nessuna panoramica le riporta dentro, perché è «Fit
+          // View» stesso a ricentrare lì.
           //
           // Insieme a `onlyRenderVisibleElements` questo cancellava dal DOM i nodi appena
           // aggiunti: `aggiungiNodo` li mette tutti a x=40, dentro quella fascia cieca, e
@@ -827,8 +828,9 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
               disegno: qui la griglia deve guidare l'occhio, non farsi leggere. Misurato in
               pagina: su fondo bianco #c9ced6 dava un contrasto di 1,58:1 (praticamente
               invisibile), #aeb6c2 sale a 2,04:1; e a size predefinita il puntino ha raggio 0,5
-              (0,30px, sotto il pixel), size={1.6} lo porta a 0,8 (~2,5 volte l'area). Insieme
-              danno una griglia che si vede senza competere col disegno. */}
+              (0,30px allo zoom ~0,6, a cui è stato misurato — sotto il pixel), size={1.6} lo
+              porta a 0,8 (~2,5 volte l'area). Insieme danno una griglia che si vede senza
+              competere col disegno. */}
           <Background gap={10} size={1.6} color="#aeb6c2" />
           <Controls />
           <ViewportPortal>
@@ -838,13 +840,13 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
         </ReactFlow>
       </Box>
 
-      {anteprima && <DivisorioAnteprima onCambia={(anteprima) => onCambiaPreferenze({ anteprima })} />}
+      {anteprima && <DivisorioAnteprima onCambia={(quota) => onCambiaPreferenze({ anteprima: quota })} />}
 
       {anteprima && (
         <Stack
           sx={{
             width: `${preferenze.anteprima}%`,
-            minWidth: 280,
+            minWidth: LARGHEZZA_MINIMA_ANTEPRIMA,
             borderTop: 1,
             borderRight: 1,
             borderBottom: 1,

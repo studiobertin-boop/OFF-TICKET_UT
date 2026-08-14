@@ -65,12 +65,29 @@ describe('percentualeAnteprima', () => {
     expect(percentualeAnteprima(1200, 1000, 900)).toBe(30)
   })
 
+  // Il limite inferiore non è fisso al 15%: su questa riga da 1000px i 280px di
+  // LARGHEZZA_MINIMA_ANTEPRIMA valgono il 28%, più del 15%, quindi è quello a vincere (Important
+  // 1: prima di questa correzione il divisorio si fermava a 280px resi mentre la preferenza
+  // scendeva fino al 15%, una zona morta di ~77px in cui trascinare non aveva alcun effetto).
   it('trascinando oltre il bordo destro non fa sparire l\'anteprima', () => {
-    expect(percentualeAnteprima(1200, 1000, 1250)).toBe(15)
+    expect(percentualeAnteprima(1200, 1000, 1250)).toBeCloseTo(28)
   })
 
   it('trascinando oltre il bordo sinistro non fa sparire la tela', () => {
     expect(percentualeAnteprima(1200, 1000, 100)).toBe(70)
+  })
+
+  // Riga stretta (700px): i 280px di LARGHEZZA_MINIMA_ANTEPRIMA valgono il 40%, più del 15%
+  // fisso — qui deve vincere il minimo in pixel. Un'implementazione che clampasse sempre al 15%
+  // fisso (il vecchio comportamento, prima dell'Important 1) darebbe 15 invece di 40.
+  it('su una riga stretta il minimo in pixel vince sul 15% fisso', () => {
+    expect(percentualeAnteprima(700, 700, 693)).toBe(40)
+  })
+
+  // Riga larga (4000px): i 280px valgono solo il 7%, meno del 15% fisso — qui deve vincere il
+  // 15%, esattamente come nel comportamento di sempre.
+  it('su una riga larga vince il 15% fisso', () => {
+    expect(percentualeAnteprima(4000, 4000, 3990)).toBe(15)
   })
 })
 
@@ -103,8 +120,9 @@ describe('scostamentoManiglia', () => {
     expect(scostamentoManiglia(878, 576, 1000, 800, 80, 50)).toEqual({ dx: 22, dy: 24 })
   })
 
-  // Stesso schermo, finestra diversa (60% x 90%, angolo a (960, 855)) e uno scostamento diverso
-  // sui due assi (10 e 35): un secondo punto di misura, indipendente dal primo.
+  // Un altro schermo (1200x900, non più 1000x800) e un'altra finestra (60% x 90%, angolo a
+  // (960, 855)) con uno scostamento diverso sui due assi (10 e 35): un secondo punto di
+  // misura, indipendente dal primo.
   it('vale anche con un\'altra finestra e un altro punto di presa', () => {
     expect(scostamentoManiglia(950, 820, 1200, 900, 60, 90)).toEqual({ dx: 10, dy: 35 })
   })

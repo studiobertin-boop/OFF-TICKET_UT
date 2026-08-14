@@ -36,13 +36,24 @@ const LIMITI = {
   anteprima: [15, 70],
 } as const
 
+/**
+ * Larghezza minima dell'anteprima, in pixel: sotto questa soglia il contenuto (il PNG del
+ * documento) diventa illeggibile. È la stessa quota che il componente applica come `minWidth`
+ * al riquadro reso — condivisa qui e non duplicata, perché una tela larga ~1350px e una larga
+ * ~600px hanno percentuali di conversione diversissime per questi stessi pixel, e le due copie
+ * andavano fuori sincrono (vedi `percentualeAnteprima`).
+ */
+export const LARGHEZZA_MINIMA_ANTEPRIMA = 280
+
 const CHIAVE = 'schema-impianto-preferenze-editor'
 
 /**
- * Riporta un valore qualunque dentro i suoi limiti. La difesa non è contro il nostro codice ma
- * contro il contenuto del browser: la chiave sopravvive agli aggiornamenti dell'applicazione,
- * quindi può contenere il formato di una versione precedente, un valore scritto a mano dagli
- * strumenti per sviluppatori, o un numero che era legittimo quando i limiti erano altri.
+ * Riporta un valore qualunque dentro i suoi limiti. Per `leggiPreferenze` la difesa è contro il
+ * contenuto del browser: la chiave sopravvive agli aggiornamenti dell'applicazione, quindi può
+ * contenere il formato di una versione precedente, un valore scritto a mano dagli strumenti per
+ * sviluppatori, o un numero che era legittimo quando i limiti erano altri. Per gli altri due
+ * chiamanti (`percentualeAnteprima`, `dimensioneFinestra`) fa invece da clamp del gesto in corso
+ * su un'aritmetica nostra, non da difesa contro dati esterni.
  */
 function entroLimiti(valore: unknown, [minimo, massimo]: readonly [number, number], predefinito: number): number {
   if (typeof valore !== 'number' || !Number.isFinite(valore)) return predefinito
@@ -94,10 +105,20 @@ export function scriviPreferenze(preferenze: PreferenzeEditor): void {
 /**
  * Quanta parte della riga resta all'anteprima portando il divisorio sotto il puntatore.
  * `bordoDestro` e `larghezzaRiga` vengono dal riquadro della riga tela+anteprima.
+ *
+ * Il limite inferiore del 15% (`LIMITI.anteprima`) è espresso in percentuale, ma il componente
+ * applica anche un minimo assoluto in pixel (`LARGHEZZA_MINIMA_ANTEPRIMA`) al riquadro reso: su
+ * una riga stretta il 15% può valere meno di quei pixel, e la larghezza resa resterebbe
+ * inchiodata al minimo assoluto mentre questa funzione continuerebbe a restituire quote più
+ * basse — il divisorio si fermerebbe mentre il puntatore prosegue. Il minimo effettivo è quindi
+ * il maggiore fra i due, convertendo i pixel in percentuale di QUESTA riga.
  */
 export function percentualeAnteprima(bordoDestro: number, larghezzaRiga: number, xPuntatore: number): number {
   const quota = ((bordoDestro - xPuntatore) / larghezzaRiga) * 100
-  return entroLimiti(quota, LIMITI.anteprima, PREFERENZE_PREDEFINITE.anteprima)
+  const [minimoPercentuale, massimo] = LIMITI.anteprima
+  const minimoInPixel = Number.isFinite(larghezzaRiga) && larghezzaRiga > 0 ? (LARGHEZZA_MINIMA_ANTEPRIMA / larghezzaRiga) * 100 : 0
+  const minimoEffettivo = Math.min(massimo, Math.max(minimoPercentuale, minimoInPixel))
+  return entroLimiti(quota, [minimoEffettivo, massimo], PREFERENZE_PREDEFINITE.anteprima)
 }
 
 /**
@@ -142,7 +163,8 @@ export function dimensioneFinestra(
  * una certa percentuale la finestra resa è più piccola di quella richiesta (misurato: il 100% su
  * uno schermo da 1500px rende un Paper di 1436px). In quel regime l'angolo qui calcolato dalle
  * percentuali sta più in là di quello davvero disegnato, e la compensazione non è più esatta.
- * Nell'uso normale, sotto quella soglia, lo è.
+ * Nell'uso normale, sotto quella soglia, lo è. In pratica, partendo dal 100%, bisogna muovere il
+ * puntatore di ~64px (32px per lato) prima che la finestra visibile inizi davvero a rimpicciolire.
  */
 export function scostamentoManiglia(
   x: number,
