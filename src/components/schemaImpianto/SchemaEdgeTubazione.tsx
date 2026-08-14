@@ -55,8 +55,11 @@ export interface SchemaEdgeData extends Record<string, unknown> {
   /**
    * Legate a questo arco specifico da `useGomiti` (vedi `edgesConGomiti` lì dentro): il
    * componente dell'arco non conosce la cronologia, sa solo chiedere di aggiornarla.
+   * `pDa`/`pA` sono gli stessi capi risolti da `capiDellArco` che disegnano la polilinea —
+   * `useGomiti` li usa per il secondo magnete (`agganciaPosizioneGomito`), le quote esatte dei
+   * capi oltre alla griglia (D2.2 della spec).
    */
-  onSpostaGomito?: (indice: number, posizione: { x: number; y: number }, concluso: boolean) => void
+  onSpostaGomito?: (pDa: Punto, pA: Punto, indice: number, posizione: { x: number; y: number }, concluso: boolean) => void
   onRimuoviGomito?: (indice: number) => void
   /**
    * Legate a questo arco specifico da `useSegniTubo` (vedi `edgesConSegni` lì dentro): il
@@ -81,7 +84,11 @@ export interface SchemaEdgeData extends Record<string, unknown> {
 interface SchemaGomitoProps {
   indice: number
   punto: { x: number; y: number }
-  onSposta?: (indice: number, posizione: { x: number; y: number }, concluso: boolean) => void
+  /** Capi dell'arco (`capiDellArco`), inoltrati a `onSposta` per il secondo magnete
+   *  (`agganciaPosizioneGomito`, useGomiti.ts): le quote esatte dei capi oltre alla griglia. */
+  pDa: Punto
+  pA: Punto
+  onSposta?: (pDa: Punto, pA: Punto, indice: number, posizione: { x: number; y: number }, concluso: boolean) => void
   onRimuovi?: (indice: number) => void
 }
 
@@ -92,26 +99,26 @@ interface SchemaGomitoProps {
  * «si è mosso» e chiusura (rilascio/annullamento) sono `useGestoPuntatore.ts`, lo stesso
  * pattern di `SchemaSegno` e dell'area di trascinamento del tratto qui sotto.
  */
-function SchemaGomito({ indice, punto, onSposta, onRimuovi }: SchemaGomitoProps) {
+function SchemaGomito({ indice, punto, pDa, pA, onSposta, onRimuovi }: SchemaGomitoProps) {
   const { screenToFlowPosition } = useReactFlow()
   const { suInizio, suMovimento, suFine, suAnnullamento } = useGestoPuntatore<HTMLDivElement, { x: number; y: number }>()
 
   const suPointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       suMovimento(e, screenToFlowPosition({ x: e.clientX, y: e.clientY }), (posizione) =>
-        onSposta?.(indice, posizione, false)
+        onSposta?.(pDa, pA, indice, posizione, false)
       )
     },
-    [indice, onSposta, screenToFlowPosition, suMovimento]
+    [indice, onSposta, pA, pDa, screenToFlowPosition, suMovimento]
   )
 
   const suPointerUp = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       suFine(e, screenToFlowPosition({ x: e.clientX, y: e.clientY }), (posizione) =>
-        onSposta?.(indice, posizione, true)
+        onSposta?.(pDa, pA, indice, posizione, true)
       )
     },
-    [indice, onSposta, screenToFlowPosition, suFine]
+    [indice, onSposta, pA, pDa, screenToFlowPosition, suFine]
   )
 
   // Puntatore annullato a metà gesto (una gesture del sistema operativo, un tocco che diventa
@@ -122,9 +129,9 @@ function SchemaGomito({ indice, punto, onSposta, onRimuovi }: SchemaGomitoProps)
   // su quella dell'evento di annullamento, che non è un movimento.
   const suPointerCancel = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      suAnnullamento(e, (posizione) => onSposta?.(indice, posizione, true))
+      suAnnullamento(e, (posizione) => onSposta?.(pDa, pA, indice, posizione, true))
     },
-    [indice, onSposta, suAnnullamento]
+    [indice, onSposta, pA, pDa, suAnnullamento]
   )
 
   const suDoppioClic = useCallback(
@@ -365,6 +372,8 @@ export function SchemaEdgeTubazione({
             key={`${id}-gomito-${indice}`}
             indice={indice}
             punto={punto}
+            pDa={capi.da}
+            pA={capi.a}
             onSposta={edgeData?.onSpostaGomito}
             onRimuovi={edgeData?.onRimuoviGomito}
           />

@@ -7,7 +7,9 @@
  */
 import { useCallback, useMemo, useRef, type MouseEvent as ReactMouseEvent } from 'react'
 import { useReactFlow, type Edge, type Node } from '@xyflow/react'
+import { agganciaQuota } from '@/services/schemaImpianto/griglia'
 import { posizioneAncora } from '@/services/schemaImpianto/renderSvg'
+import type { Punto } from '@/services/schemaImpianto/tratti'
 import type { SchemaEdgeData } from './SchemaEdgeTubazione'
 import type { SchemaNodeData } from './SchemaNodeSymbol'
 
@@ -53,6 +55,23 @@ function indiceInserimento(
     }
   }
   return indiceMigliore
+}
+
+/**
+ * Secondo magnete (D2.2 della spec) applicato al gomito: la posizione grezza arriva già
+ * agganciata alla griglia dallo `snapGrid` della tela (`screenToFlowPosition`, dentro
+ * `SchemaEdgeTubazione`), ma solo alla griglia. Qui si aggiunge la seconda famiglia di
+ * candidati — le quote esatte dei due capi del tubo, `agganciaQuota` (griglia.ts) — un asse
+ * alla volta: l'ascissa aggancia alle ascisse dei capi, l'ordinata alle loro ordinate. Il
+ * gomito si muove su entrambi gli assi, a differenza del tratto (`trascinaTratto`, tratti.ts)
+ * che ne sposta uno solo: mescolare le quote fra i due assi vincolerebbe una coordinata al
+ * valore dell'altra.
+ */
+export function agganciaPosizioneGomito(posizione: Punto, pDa: Punto, pA: Punto): Punto {
+  return {
+    x: agganciaQuota(posizione.x, [pDa.x, pA.x]),
+    y: agganciaQuota(posizione.y, [pDa.y, pA.y]),
+  }
 }
 
 /**
@@ -111,9 +130,10 @@ export function useGomiti<T extends StatoConNodiEdArchi>(
   const trascinamentoGomitoAvviato = useRef(false)
 
   const spostaGomito = useCallback(
-    (arcoId: string, indice: number, posizione: { x: number; y: number }, concluso: boolean) => {
+    (arcoId: string, pDa: Punto, pA: Punto, indice: number, posizioneGrezza: Punto, concluso: boolean) => {
       const primoEventoDelGesto = !trascinamentoGomitoAvviato.current
       trascinamentoGomitoAvviato.current = !concluso
+      const posizione = agganciaPosizioneGomito(posizioneGrezza, pDa, pA)
       const aggiorna = primoEventoDelGesto ? applica : aggiornaSenzaCronologia
       aggiorna((s) => ({
         ...s,
@@ -154,8 +174,8 @@ export function useGomiti<T extends StatoConNodiEdArchi>(
         ...e,
         data: {
           ...(e.data as SchemaEdgeData),
-          onSpostaGomito: (indice: number, posizione: { x: number; y: number }, concluso: boolean) =>
-            spostaGomito(e.id, indice, posizione, concluso),
+          onSpostaGomito: (pDa: Punto, pA: Punto, indice: number, posizione: Punto, concluso: boolean) =>
+            spostaGomito(e.id, pDa, pA, indice, posizione, concluso),
           onRimuoviGomito: (indice: number) => rimuoviGomito(e.id, indice),
         } satisfies SchemaEdgeData,
       })),
