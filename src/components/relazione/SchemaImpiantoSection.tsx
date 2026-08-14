@@ -79,7 +79,15 @@ export function SchemaImpiantoSection({
   // ridimensionamento. Una copia per parte significherebbe finestra e gesti che si contraddicono.
   const [preferenze, setPreferenze] = useState<PreferenzeEditor>(leggiPreferenze)
   const cambiaPreferenze = useCallback((parziale: Partial<PreferenzeEditor>) => {
-    setPreferenze((precedenti) => ({ ...precedenti, ...parziale }))
+    setPreferenze((precedenti) => {
+      // Tenendo la maniglia (o il divisorio) contro un limite, ogni pointermove ricalcola lo
+      // stesso valore già clampato: senza questo confronto ogni frame produrrebbe comunque un
+      // oggetto nuovo, quindi un render e — via l'effetto qui sotto — una scrittura su
+      // localStorage, per l'intera durata in cui il puntatore resta fermo contro il bordo.
+      const chiavi = Object.keys(parziale) as (keyof PreferenzeEditor)[]
+      const invariata = chiavi.every((chiave) => precedenti[chiave] === parziale[chiave])
+      return invariata ? precedenti : { ...precedenti, ...parziale }
+    })
   }, [])
   // La persistenza sta in un effetto e non dentro l'updater di setPreferenze: quell'updater deve
   // restare puro (React può invocarlo più volte per lo stesso aggiornamento, come fa in
@@ -383,7 +391,12 @@ export function SchemaImpiantoSection({
       {/* La finestra non ha più una taglia fissa: le dimensioni arrivano dalle preferenze, e il
           DialogContent si limita a riempire ciò che resta fra titolo e bordo. Il Paper di MUI è
           già una colonna flex, quindi `flex: 1` più `minHeight: 0` bastano a farlo cedere
-          l'altezza all'editor invece di gonfiarsi oltre la finestra. */}
+          l'altezza all'editor invece di gonfiarsi oltre la finestra.
+          L'editor ha un'altezza minima incomprimibile (barra strumenti + i 360px della riga
+          tela+anteprima + barra inferiore, sotto titolo e divisori): alle percentuali basse che
+          la maniglia consente quel minimo può superare l'altezza del Paper. `overflow: 'auto'`
+          tiene raggiungibile a scorrimento la barra inferiore — «Conferma schema» compreso —
+          invece di tagliarla fuori dalla vista. */}
       <Dialog
         open={editorAperto}
         onClose={() => setEditorAperto(false)}
@@ -401,7 +414,7 @@ export function SchemaImpiantoSection({
         }}
       >
         <DialogTitle>Rifinisci lo schema d’impianto</DialogTitle>
-        <DialogContent dividers sx={{ p: 0, flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        <DialogContent dividers sx={{ p: 0, flex: 1, minHeight: 0, overflow: 'auto' }}>
           {layout && (
             <SchemaEditor
               layout={layout}

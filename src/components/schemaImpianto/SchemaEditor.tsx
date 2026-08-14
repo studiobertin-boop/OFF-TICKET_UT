@@ -866,9 +866,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
         </Button>
         {/* A tutto schermo non c'è nulla da ridimensionare, e una maniglia che non fa niente
             fa credere che il gesto sia rotto. */}
-        {!preferenze.schermoIntero && (
-          <ManigliaRidimensiona onCambia={(dimensione) => onCambiaPreferenze(dimensione)} />
-        )}
+        {!preferenze.schermoIntero && <ManigliaRidimensiona onCambia={onCambiaPreferenze} />}
       </Stack>
 
       {/* Un dialog solo per due bersagli (la scritta del terminale e le annotazioni libere):
