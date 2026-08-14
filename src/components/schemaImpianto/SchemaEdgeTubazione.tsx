@@ -53,6 +53,13 @@ export interface SchemaEdgeData extends Record<string, unknown> {
    */
   capi?: CapiArco
   /**
+   * Vero mentre un TEE trascinato sta sorvolando QUESTO tubo: al rilascio si spezzerà qui
+   * (`useInserimentoTee.ts`). Lo infila `fondiDatiArchi` (conversioneFlow.ts) insieme a quote
+   * e capi. È un aiuto visivo per il gesto in corso, non un dato del disegno: non entra nel
+   * layout e il documento non lo vede.
+   */
+  evidenziato?: boolean
+  /**
    * Legate a questo arco specifico da `useGomiti` (vedi `edgesConGomiti` lì dentro): il
    * componente dell'arco non conosce la cronologia, sa solo chiedere di aggiornarla.
    * `pDa`/`pA` sono gli stessi capi risolti da `capiDellArco` che disegnano la polilinea —
@@ -322,8 +329,10 @@ export function SchemaEdgeTubazione({
         path={path}
         markerEnd={markerEnd}
         style={{
-          stroke: selected ? '#1976d2' : '#000',
-          strokeWidth: selected ? 3 : 2,
+          // L'evidenziazione vince sulla selezione: durante un gesto conta vedere DOVE il TEE
+          // si innesterà, e un tubo può benissimo essere insieme selezionato e sorvolato.
+          stroke: edgeData?.evidenziato ? '#ed6c02' : selected ? '#1976d2' : '#000',
+          strokeWidth: edgeData?.evidenziato ? 4 : selected ? 3 : 2,
           strokeDasharray: stile === 'condensa' ? '8 6' : undefined,
         }}
       />

@@ -77,6 +77,7 @@ import { TestiLiberi } from './TestiLiberi'
 import { useAllineamentoSelezione } from './useAllineamentoSelezione'
 import { useGomiti } from './useGomiti'
 import { useGuideAllineamento } from './useGuideAllineamento'
+import { useInserimentoTee } from './useInserimentoTee'
 import { useSchemaHistory } from './useSchemaHistory'
 import { useSegniTubo } from './useSegniTubo'
 import { useTestiLiberi } from './useTestiLiberi'
@@ -321,14 +322,49 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
   // fusione vera e propria vive in `fondiDatiArchi` (conversioneFlow.ts), funzione pura e non
   // qui dentro, perché è lì che si provano le invarianti «ogni arco porta `quote`» e «ogni arco
   // porta i propri `capi`».
+
+  // Inserire un TEE su un tubo esistente: logica isolata in un hook suo (vedi
+  // useInserimentoTee.ts), stesso motivo di useGomiti.ts. Riceve `quote` e `capi` perché deve
+  // ricostruire la STESSA polilinea che la tela disegna: agganciarsi a una forma diversa
+  // spezzerebbe il tubo dove l'utente non l'ha puntato.
+  const {
+    arcoEvidenziato,
+    iniziaTrascinamento: iniziaTrascinamentoTee,
+    seguiTrascinamento: seguiTrascinamentoTee,
+    concludiTrascinamento: concludiTrascinamentoTee,
+  } = useInserimentoTee(stato, applica, aggiornaSenzaCronologia, quote, capi)
+
   const edgesConGomiti = useMemo(
-    () => fondiDatiArchi(edgesConGomitiBase, edgesConSegni, edgesConTrascinamento, quote, capi),
-    [edgesConGomitiBase, edgesConSegni, edgesConTrascinamento, quote, capi]
+    () => fondiDatiArchi(edgesConGomitiBase, edgesConSegni, edgesConTrascinamento, quote, capi, arcoEvidenziato),
+    [edgesConGomitiBase, edgesConSegni, edgesConTrascinamento, quote, capi, arcoEvidenziato]
   )
 
   // Guide di allineamento durante il trascinamento: stato locale, non cronologia (vedi
   // useGuideAllineamento.ts), azzerate a fine gesto in onNodeDragStop qui sotto.
   const { guide, onNodeDrag, onNodeDragStop } = useGuideAllineamento(stato.nodes)
+
+  // Guide di allineamento e inserimento del TEE guardano lo stesso trascinamento: i gestori si
+  // compongono, non si sostituiscono. `onNodeDragStart` non c'era: serve all'inserimento per
+  // sapere se il gesto ha mosso il nodo — e quindi se `onNodesChange` ha già scritto la voce di
+  // cronologia su cui appoggiarsi (vedi useInserimentoTee.ts).
+  const suInizioTrascinamentoNodo = useCallback(
+    (_evento: MouseEvent | TouchEvent, nodo: Node) => iniziaTrascinamentoTee(nodo),
+    [iniziaTrascinamentoTee]
+  )
+  const suTrascinamentoNodo = useCallback(
+    (evento: MouseEvent | TouchEvent, nodo: Node, nodi: Node[]) => {
+      onNodeDrag(evento, nodo, nodi)
+      seguiTrascinamentoTee(nodo, nodi)
+    },
+    [onNodeDrag, seguiTrascinamentoTee]
+  )
+  const suFineTrascinamentoNodo = useCallback(
+    (_evento: MouseEvent | TouchEvent, nodo: Node, nodi: Node[]) => {
+      onNodeDragStop()
+      concludiTrascinamentoTee(nodo, nodi)
+    },
+    [onNodeDragStop, concludiTrascinamentoTee]
+  )
 
   // Rifiuta la connessione mentre la si sta ancora trascinando, non dopo: un capo posato su
   // un'ancora che non lo accetta non deve nemmeno agganciarsi. Ammessa se almeno uno stile
@@ -802,8 +838,9 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
           onReconnect={onReconnect}
           onEdgeDoubleClick={creaGomito}
           onNodeDoubleClick={onNodeDoubleClick}
-          onNodeDrag={onNodeDrag}
-          onNodeDragStop={onNodeDragStop}
+          onNodeDragStart={suInizioTrascinamentoNodo}
+          onNodeDrag={suTrascinamentoNodo}
+          onNodeDragStop={suFineTrascinamentoNodo}
           isValidConnection={isValidConnection}
           onSelectionChange={setSelezione}
           onlyRenderVisibleElements

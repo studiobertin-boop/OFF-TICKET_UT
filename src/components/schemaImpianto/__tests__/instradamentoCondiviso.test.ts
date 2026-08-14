@@ -54,7 +54,8 @@ function archiComeInEditor(layout: SchemaLayout): { nodes: Node[]; edges: Edge[]
     edges,
     edges,
     quoteInstradamento(layoutCorrente),
-    capiDegliArchi(layoutCorrente)
+    capiDegliArchi(layoutCorrente),
+    null
   )
   return { nodes, edges: fusi }
 }

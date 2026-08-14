@@ -37,7 +37,7 @@ describe('fondiDatiArchi', () => {
   // difetto (rotte diverse fra tela e documento) torna senza che nulla protesti.
   it('ogni arco fuso porta le quote di instradamento', () => {
     const { conGomiti, conSegni, conTrascinamento } = treElenchi()
-    const fusi = fondiDatiArchi(conGomiti, conSegni, conTrascinamento, QUOTE, CAPI)
+    const fusi = fondiDatiArchi(conGomiti, conSegni, conTrascinamento, QUOTE, CAPI, null)
 
     expect(fusi).toHaveLength(2)
     for (const arco of fusi) {
@@ -52,7 +52,7 @@ describe('fondiDatiArchi', () => {
   // `instradamentoCondiviso.test.ts`, che li confronta con `posizioneAncora` su un layout vero.
   it('ogni arco fuso porta i propri capi', () => {
     const { conGomiti, conSegni, conTrascinamento } = treElenchi()
-    const fusi = fondiDatiArchi(conGomiti, conSegni, conTrascinamento, QUOTE, CAPI)
+    const fusi = fondiDatiArchi(conGomiti, conSegni, conTrascinamento, QUOTE, CAPI, null)
 
     expect(fusi).toHaveLength(2)
     for (const arco of fusi) {
@@ -63,7 +63,7 @@ describe('fondiDatiArchi', () => {
   it('i callback dei tre hook sopravvivono alla fusione', () => {
     const { conGomiti, conSegni, conTrascinamento, onSpostaGomito, onSpostaSegno, onTrascinaTratto } =
       treElenchi()
-    const fusi = fondiDatiArchi(conGomiti, conSegni, conTrascinamento, QUOTE, CAPI)
+    const fusi = fondiDatiArchi(conGomiti, conSegni, conTrascinamento, QUOTE, CAPI, null)
 
     for (const arco of fusi) {
       const data = arco.data as SchemaEdgeData
@@ -71,5 +71,17 @@ describe('fondiDatiArchi', () => {
       expect(data.onSpostaSegno).toBe(onSpostaSegno)
       expect(data.onTrascinaTratto).toBe(onTrascinaTratto)
     }
+  })
+
+  it('marca come evidenziato solo l’arco sorvolato dal TEE', () => {
+    const { conGomiti, conSegni, conTrascinamento } = treElenchi()
+    const fusi = fondiDatiArchi(conGomiti, conSegni, conTrascinamento, QUOTE, CAPI, 'a2')
+    expect(fusi.map((e) => (e.data as SchemaEdgeData).evidenziato)).toEqual([false, true])
+  })
+
+  it('senza TEE sorvolante nessun arco è evidenziato', () => {
+    const { conGomiti, conSegni, conTrascinamento } = treElenchi()
+    const fusi = fondiDatiArchi(conGomiti, conSegni, conTrascinamento, QUOTE, CAPI, null)
+    expect(fusi.every((e) => (e.data as SchemaEdgeData).evidenziato === false)).toBe(true)
   })
 })

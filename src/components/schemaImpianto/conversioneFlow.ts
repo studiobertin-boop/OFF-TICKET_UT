@@ -158,20 +158,23 @@ export function polilineaDellArco(capi: CapiArco, data: SchemaEdgeData | undefin
  * Fonde i tre elenchi di archi che `useGomiti`, `useSegniTubo` e `useTrascinamentoTratto`
  * derivano ognuno da `stato.edges` con dati aggiuntivi diversi (rispettivamente
  * `onSpostaGomito`/`onRimuoviGomito`, `onSpostaSegno`/`onRimuoviSegno`, `onTrascinaTratto`),
- * e vi infila le due cose che un arco non può ricavarsi da solo: le quote di instradamento del
- * disegno intero (`quoteInstradamento`, layout.ts) e i propri capi presi dalle ancore
- * (`capiDegliArchi` qui sopra). Estratta come funzione pura — invece di restare dentro
- * l'`useMemo` di `SchemaEditor` — perché è l'unico punto dove si possono provare le due
- * invarianti che proteggono dai ripieghi: ogni arco che esce da qui porta `quote` (senza,
- * la tela tornerebbe a disegnare l'angolo singolo) e `capi` (senza, tornerebbe alle
- * coordinate degli handle, sfalsate di 5 unità rispetto al documento).
+ * e vi infila le tre cose che un arco non può ricavarsi da solo: le quote di instradamento del
+ * disegno intero (`quoteInstradamento`, layout.ts), i propri capi presi dalle ancore
+ * (`capiDegliArchi` qui sopra) e se sia l'arco che un TEE trascinato sta sorvolando
+ * (`useInserimentoTee.ts`). Estratta come funzione pura — invece di restare dentro
+ * l'`useMemo` di `SchemaEditor` — perché è l'unico punto dove si possono provare le invarianti
+ * che proteggono dai ripieghi: ogni arco che esce da qui porta `quote` (senza, la tela
+ * tornerebbe a disegnare l'angolo singolo) e `capi` (senza, tornerebbe alle coordinate degli
+ * handle, sfalsate di 5 unità rispetto al documento).
  */
 export function fondiDatiArchi(
   edgesConGomitiBase: Edge[],
   edgesConSegni: Edge[],
   edgesConTrascinamento: Edge[],
   quote: QuoteInstradamento,
-  capiPerArco: Map<string, CapiArco>
+  capiPerArco: Map<string, CapiArco>,
+  /** L'arco che un TEE trascinato sta sorvolando (`useInserimentoTee.ts`), o `null`. */
+  arcoEvidenziato: string | null
 ): Edge[] {
   return edgesConGomitiBase.map((e, i) => ({
     ...e,
@@ -181,6 +184,7 @@ export function fondiDatiArchi(
       ...edgesConTrascinamento[i]?.data,
       quote,
       capi: capiPerArco.get(e.id),
+      evidenziato: e.id === arcoEvidenziato,
     } as SchemaEdgeData,
   }))
 }
