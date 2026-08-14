@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { chiaveSimbolo } from '../types'
-import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloUtenze, valvolaIntercettazione, riduttorePressione, testoMultiRiga } from '../symbols'
+import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloUtenze, valvolaIntercettazione, riduttorePressione, testoMultiRiga, DIAMETRO_GIUNZIONE } from '../symbols'
 import { capoValido } from '../agganci'
 
 describe('chiaveSimbolo', () => {
@@ -230,29 +230,35 @@ describe('giunzione', () => {
     expect(ancore.every((a) => a.accetta.length === 1 && a.accetta[0] === 'aria')).toBe(true)
   })
 
-  it('gli attacchi stanno sui bordi del riquadro, il pallino al centro', () => {
+  it('le quattro ancore stanno tutte al centro: i tubi convergono in un punto solo', () => {
     const { larghezza, altezza } = REGISTRO_SIMBOLI.giunzione.dimensioni
-    const per = (id: string) => REGISTRO_SIMBOLI.giunzione.ancore.find((a) => a.id === id)!
-    expect(per('sx')).toMatchObject({ x: 0, y: altezza / 2 })
-    expect(per('dx')).toMatchObject({ x: larghezza, y: altezza / 2 })
-    expect(per('alto')).toMatchObject({ x: larghezza / 2, y: 0 })
-    expect(per('basso')).toMatchObject({ x: larghezza / 2, y: altezza })
-    // Il centro del pallino va ricavato dalle dimensioni del registro, non scritto a mano:
-    // se l'ingombro cambia, il test deve seguirlo senza bisogno di essere riscritto.
+    // Il centro va ricavato dalle dimensioni del registro, non scritto a mano: se l'ingombro
+    // cambia, il test deve seguirlo senza bisogno di essere riscritto.
+    for (const ancora of REGISTRO_SIMBOLI.giunzione.ancore) {
+      expect(ancora).toMatchObject({ x: larghezza / 2, y: altezza / 2 })
+    }
     const svg = simboloGiunzione(nodo)
-    const cx = Number(/cx="([\d.]+)"/.exec(svg)![1])
-    const cy = Number(/cy="([\d.]+)"/.exec(svg)![1])
-    expect(cx).toBe(larghezza / 2)
-    expect(cy).toBe(altezza / 2)
+    expect(Number(/cx="([\d.]+)"/.exec(svg)![1])).toBe(larghezza / 2)
+    expect(Number(/cy="([\d.]+)"/.exec(svg)![1])).toBe(altezza / 2)
   })
 
-  it('il pallino tocca esattamente le ancore: né un buco né una sporgenza fuori dal riquadro', () => {
-    // Il raggio è metà della larghezza per costruzione (vedi simboloGiunzione): un'uguaglianza,
-    // non una tolleranza, perché qualunque scarto lascerebbe un buco (raggio più piccolo) o
-    // farebbe sporgere il pallino fuori dal riquadro (raggio più grande).
-    const { larghezza } = REGISTRO_SIMBOLI.giunzione.dimensioni
+  it('i punti di presa restano sulle mezzerie dei lati: il TEE si afferra come prima', () => {
+    const { larghezza, altezza } = REGISTRO_SIMBOLI.giunzione.dimensioni
+    const per = (id: string) => REGISTRO_SIMBOLI.giunzione.ancore.find((a) => a.id === id)!
+    expect(per('sx').presa).toEqual({ x: 0, y: altezza / 2 })
+    expect(per('dx').presa).toEqual({ x: larghezza, y: altezza / 2 })
+    expect(per('alto').presa).toEqual({ x: larghezza / 2, y: 0 })
+    expect(per('basso').presa).toEqual({ x: larghezza / 2, y: altezza })
+  })
+
+  it('il pallino ha il diametro dei punti di ancoraggio delle apparecchiature, e contiene le ancore', () => {
+    // Il vincolo vecchio — raggio uguale a metà larghezza, per toccare le ancore sui bordi —
+    // non esiste più: le ancore stanno nel CENTRO del pallino, quindi non c'è buco a nessun
+    // raggio, ed è precisamente ciò che permette al pallino di rimpicciolire (osservazione 4).
     const raggio = Number(/r="([\d.]+)"/.exec(simboloGiunzione(nodo))![1])
-    expect(raggio).toBe(larghezza / 2)
+    expect(raggio).toBe(DIAMETRO_GIUNZIONE / 2)
+    expect(DIAMETRO_GIUNZIONE).toBe(10)
+    expect(raggio).toBeLessThan(REGISTRO_SIMBOLI.giunzione.dimensioni.larghezza / 2)
   })
 })
 

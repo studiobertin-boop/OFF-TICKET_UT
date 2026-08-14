@@ -58,4 +58,15 @@ describe('il registro dei simboli', () => {
     const conPresa = Object.values(REGISTRO_SIMBOLI).flatMap((d) => d.ancore.filter((a) => a.presa))
     expect(conPresa.every((a) => Boolean(a.lato))).toBe(true)
   })
+
+  // Il caso che il lato esplicito esiste per risolvere: le quattro ancore coincidono, quindi
+  // la deduzione le appoggerebbe tutte allo stesso lato e i quattro handle finirebbero
+  // sovrapposti — con `connectionMode` Strict, tre attacchi su quattro diventerebbero
+  // irraggiungibili.
+  it('i quattro attacchi della giunzione finiscono su quattro lati diversi', () => {
+    const dim = REGISTRO_SIMBOLI.giunzione.dimensioni
+    const lati = REGISTRO_SIMBOLI.giunzione.ancore.map((a) => latoDi(a, dim))
+    expect(new Set(lati).size).toBe(4)
+    expect(lati).toEqual([Position.Left, Position.Right, Position.Top, Position.Bottom])
+  })
 })

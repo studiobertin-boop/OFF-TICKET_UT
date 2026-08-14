@@ -384,19 +384,29 @@ export function simboloPaccoBombole(nodo: SchemaNodo): string {
 }
 
 /**
+ * Diametro del pallino della giunzione: lo stesso dei punti di ancoraggio delle
+ * apparecchiature sulla tela (`LATO_HANDLE`, SchemaNodeSymbol.tsx), come chiesto dal
+ * committente. Il numero è ripetuto qui invece di essere importato perché questo è un
+ * servizio, che il documento usa e che non deve dipendere dai componenti: il legame è
+ * scritto, non cablato.
+ */
+export const DIAMETRO_GIUNZIONE = 10
+
+/**
  * Giunzione (TEE): un punto pieno, senza monconi. Fino al Blocco B disegnava tre tratti verso
  * sinistra, destra e basso, che restavano visibili anche quando nessuna tubazione ci arrivava
  * e fissavano il ramo di diramazione verso il basso; il committente ha chiesto un attacco
  * libero da qualunque lato, e la forma a T (o a croce, o a gomito) la disegnano ora le
  * tubazioni che ci arrivano davvero.
  *
- * Il raggio è esattamente metà della larghezza del riquadro: il pallino tocca così le quattro
- * ancore, che stanno sui bordi, senza lasciare un buco fra la fine di un tubo e la giunzione.
- * Un raggio più piccolo lo lascerebbe, un raggio più grande sporgerebbe fuori dal riquadro.
+ * Il pallino sta al centro del riquadro, dove stanno anche le quattro ancore: i tubi
+ * convergono tutti lì, quindi fra la fine di un tubo e la giunzione non c'è buco a nessun
+ * raggio. È questo a permettergli di essere piccolo — fino al Blocco D2 il raggio era metà
+ * della larghezza del riquadro, l'unico valore che toccasse le ancore quando stavano sui bordi.
  */
 export function simboloGiunzione(_nodo: SchemaNodo): string {
   const { larghezza, altezza } = DIMENSIONI.giunzione
-  return `<circle cx="${larghezza / 2}" cy="${altezza / 2}" r="${larghezza / 2}" fill="#000" />`
+  return `<circle cx="${larghezza / 2}" cy="${altezza / 2}" r="${DIAMETRO_GIUNZIONE / 2}" fill="#000" />`
 }
 
 /**
@@ -534,11 +544,20 @@ export const REGISTRO_SIMBOLI: Record<ChiaveSimbolo, DefinizioneSimbolo> = {
     dimensioni: DIMENSIONI.giunzione,
     // Quattro attacchi sempre disponibili, uno per lato: non c'è un «davanti», quindi non
     // c'è nulla da ruotare. Gli id sono i nomi dei quattro lati: sx/dx/alto/basso.
+    //
+    // Le ANCORE stanno tutte al centro: i tubi convergono in un punto solo, e fra tubo e
+    // giunzione non resta buco a nessun raggio — è ciò che permette al pallino di scendere a
+    // `DIAMETRO_GIUNZIONE` (osservazione 4 del committente). I PUNTI DI PRESA restano sulle
+    // mezzerie dei lati, dove le ancore stavano fino al Blocco D2: il TEE si afferra e si
+    // collega esattamente come prima, con le maniglie larghe invece che sovrapposte.
+    //
+    // Il `lato` è dichiarato perché con quattro ancore coincidenti la deduzione di `latoDi`
+    // (SchemaNodeSymbol.tsx) è degenere: le appoggerebbe tutte e quattro a sinistra.
     ancore: [
-      { id: 'sx', x: 0, y: 12, accetta: ['aria'] },
-      { id: 'dx', x: 24, y: 12, accetta: ['aria'] },
-      { id: 'alto', x: 12, y: 0, accetta: ['aria'] },
-      { id: 'basso', x: 12, y: 24, accetta: ['aria'] },
+      { id: 'sx', x: 12, y: 12, accetta: ['aria'], presa: { x: 0, y: 12 }, lato: 'sx' },
+      { id: 'dx', x: 12, y: 12, accetta: ['aria'], presa: { x: 24, y: 12 }, lato: 'dx' },
+      { id: 'alto', x: 12, y: 12, accetta: ['aria'], presa: { x: 12, y: 0 }, lato: 'alto' },
+      { id: 'basso', x: 12, y: 12, accetta: ['aria'], presa: { x: 12, y: 24 }, lato: 'basso' },
     ],
     disegna: simboloGiunzione,
   },
