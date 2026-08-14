@@ -16,6 +16,7 @@ export interface CreateRequestInput {
   indirizzo_impianto?: string | null
   impianto_uguale_sede_legale?: boolean
   pratica_padre_id?: string | null
+  motivo_revisione?: string | null
 }
 
 export interface ClientDm329Practice {
@@ -44,6 +45,7 @@ export interface UpdateRequestInput {
   indirizzo_impianto?: string | null
   impianto_uguale_sede_legale?: boolean
   pratica_padre_id?: string | null
+  motivo_revisione?: string | null
 }
 
 export interface RequestFilters {

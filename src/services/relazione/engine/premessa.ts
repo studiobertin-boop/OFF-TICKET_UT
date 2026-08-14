@@ -69,7 +69,7 @@ export function buildPremessa(input: PremessaInput): PremessaModel {
   const descrizioneAttivita =
     additionalInfo.descrizioneAttivita?.trim() || customer.descrizione_attivita || ''
 
-  const motivoRevisione = additionalInfo.motivoRevisione?.trim() ?? ''
+  const motivoRevisione = pratica.motivoRevisione?.trim() ?? ''
 
   // In copertina l'indirizzo va su due righe; nella prosa di §1 su una sola. Il sito
   // produttivo dichiarato a mano è testo libero e non si può spezzare in modo affidabile:

@@ -168,6 +168,7 @@ export const NewRequest = () => {
           denominazione_sala: praticaValue.value.denominazione_sala,
           indirizzo_impianto: praticaValue.value.indirizzo_impianto,
           impianto_uguale_sede_legale: praticaValue.value.impianto_uguale_sede_legale,
+          motivo_revisione: praticaValue.value.motivo_revisione,
         })
       } else if (selectedType.name === 'DM329-Integrazioni' && integrazioneValue.value) {
         Object.assign(payload, {

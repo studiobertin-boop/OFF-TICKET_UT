@@ -606,6 +606,7 @@ export const TechnicalDetails = () => {
               denominazioneSala: request?.denominazione_sala,
               impiantoUgualeSedeLegale: request?.impianto_uguale_sede_legale,
               indirizzoImpianto: request?.indirizzo_impianto,
+              motivoRevisione: request?.motivo_revisione,
             }}
             initialAdditionalInfo={technicalData.additional_info as AdditionalInfo | undefined}
             fileName={nomeFileRelazione(codicePratica, customerName)}

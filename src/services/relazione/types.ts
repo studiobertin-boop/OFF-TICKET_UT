@@ -27,11 +27,6 @@ export interface AdditionalInfo {
    */
   dataEmissione?: string
   /**
-   * Motivo della revisione, testo libero. Vale solo dalla prima revisione in poi: senza,
-   * il capoverso di §1 non viene stampato affatto.
-   */
-  motivoRevisione?: string
-  /**
    * Giri per compressore: { C1: 'fissi' | 'variabili' }.
    *
    * Ripiego: il dato autorevole è `specs.giri` della voce di catalogo, riportato nella scheda.
@@ -60,6 +55,13 @@ export interface PraticaInfo {
   denominazioneSala?: string | null
   impiantoUgualeSedeLegale?: boolean | null
   indirizzoImpianto?: string | null
+  /**
+   * Motivo della revisione, per il capoverso di §1. Si scrive nella pagina di modifica del
+   * codice pratica, non più nel form «Dati per la relazione tecnica»: era un dato della
+   * pratica travestito da dato della scheda. Vale solo dalla prima revisione in poi — senza,
+   * il capoverso non viene stampato affatto.
+   */
+  motivoRevisione?: string | null
 }
 
 export interface PremessaModel {

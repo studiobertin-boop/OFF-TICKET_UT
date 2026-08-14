@@ -145,6 +145,12 @@ export interface Request {
   impianto_uguale_sede_legale?: boolean
   pratica_padre_id?: string | null
   /**
+   * Motivo della revisione, per il capoverso di §1 della relazione DM329. Alla prima
+   * emissione (progressivo 0) è precompilato con "Prima emissione" ma resta modificabile;
+   * dalla prima revisione in poi parte vuoto ed è il tecnico a scriverlo.
+   */
+  motivo_revisione?: string | null
+  /**
    * Scheda dati DM329 agganciata, nel solo pezzo che serve a dirne il grado di compilazione.
    * Assente sulle pratiche che non ne hanno una e su quelle che chi guarda non può leggere.
    */

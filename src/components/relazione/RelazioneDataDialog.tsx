@@ -136,7 +136,6 @@ export default function RelazioneDataDialog({
 
   const [descrizioneAttivita, setDescrizioneAttivita] = useState('')
   const [dataEmissione, setDataEmissione] = useState('')
-  const [motivoRevisione, setMotivoRevisione] = useState('')
   const [giri, setGiri] = useState<Record<string, TipoGiri>>({})
   const [spessimetrica, setSpessimetrica] = useState<string[]>([])
   const [collegamenti, setCollegamenti] = useState<Record<string, string[]>>({})
@@ -173,7 +172,6 @@ export default function RelazioneDataDialog({
     // La relazione si emette il giorno in cui la si genera: la data si propone già fatta.
     // Quella salvata vince, perché rigenerando una relazione vecchia si vuole la sua data.
     setDataEmissione(info.dataEmissione || oggiISO())
-    setMotivoRevisione(info.motivoRevisione ?? '')
     setGiri(info.compressoriGiri ?? {})
     setSpessimetrica(info.spessimetrica ?? [])
     setCollegamenti(info.collegamentiCompressoriSerbatoi ?? {})
@@ -240,14 +238,11 @@ export default function RelazioneDataDialog({
     () => ({
       descrizioneAttivita: descrizioneAttivita.trim(),
       dataEmissione,
-      // Alla prima emissione il motivo non viene chiesto: quel che fosse rimasto in un
-      // salvataggio precedente non deve rientrare dalla finestra.
-      motivoRevisione: eRevisione ? motivoRevisione.trim() : '',
       compressoriGiri: giri,
       spessimetrica,
       collegamentiCompressoriSerbatoi: collegamenti,
     }),
-    [descrizioneAttivita, dataEmissione, motivoRevisione, eRevisione, giri, spessimetrica, collegamenti]
+    [descrizioneAttivita, dataEmissione, giri, spessimetrica, collegamenti]
   )
 
   /**
@@ -476,13 +471,14 @@ export default function RelazioneDataDialog({
             spiegazione={
               'La data finisce nella colonna DATA della tabella delle revisioni, in copertina, ed è ' +
               'condivisa con il campo data del form Dichiarazioni. Il motivo compare in §1: ' +
-              '«L’attuale revisione del documento è conseguente a: …»; lasciandolo vuoto, il ' +
-              'capoverso non viene stampato.'
+              '«L’attuale revisione del documento è conseguente a: …»; vuoto, il capoverso non ' +
+              'viene stampato. Si scrive nella pagina di modifica del codice pratica, non qui.'
             }
           >
             {/* Data e motivo su una riga: la data è larga quanto una data, e accanto resta
-                posto per una frase. Il motivo compare solo dalla prima revisione in poi, e
-                quando manca la data resta da sola senza lasciare un buco. */}
+                posto per una frase. Il motivo è di sola lettura — si scrive nella pagina di
+                modifica del codice pratica, dove la relazione lo va a leggere — e compare solo
+                dalla prima revisione in poi; quando manca la data resta da sola senza un buco. */}
             <Stack direction="row" spacing={1.5} useFlexGap sx={{ flexWrap: 'wrap' }}>
               <TextField
                 label="Data di emissione"
@@ -498,8 +494,8 @@ export default function RelazioneDataDialog({
                 <TextField
                   label="Motivo della revisione"
                   size="small"
-                  value={motivoRevisione}
-                  onChange={(e) => setMotivoRevisione(e.target.value)}
+                  value={pratica.motivoRevisione?.trim() || '(non compilato nel codice pratica)'}
+                  InputProps={{ readOnly: true }}
                   multiline
                   sx={{ flex: '1 1 320px', minWidth: 0 }}
                 />

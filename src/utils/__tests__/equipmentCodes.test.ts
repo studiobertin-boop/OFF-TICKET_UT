@@ -315,21 +315,19 @@ describe('pruneAdditionalInfo', () => {
   const codes = new Set(['C1', 'S1', 'S2'])
 
   test('conserva i campi che non riferiscono apparecchiature', () => {
-    // La potatura riguarda i riferimenti a codici: data di emissione, motivo della
-    // revisione e descrizione attività non ne hanno, e devono attraversarla intatti —
-    // passa di qui tutto ciò che il form salva.
+    // La potatura riguarda i riferimenti a codici: data di emissione e descrizione
+    // attività non ne hanno, e devono attraversarla intatte — passa di qui tutto ciò
+    // che il form salva.
     const { info } = pruneAdditionalInfo(
       {
         descrizioneAttivita: 'lavorazioni meccaniche',
         dataEmissione: '2026-08-10',
-        motivoRevisione: 'sostituzione della valvola S1.1',
         compressoriGiri: { C9: 'fissi' },
       },
       codes
     )
     expect(info.descrizioneAttivita).toBe('lavorazioni meccaniche')
     expect(info.dataEmissione).toBe('2026-08-10')
-    expect(info.motivoRevisione).toBe('sostituzione della valvola S1.1')
   })
 
   test('rimuove i giri di compressori inesistenti', () => {

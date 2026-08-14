@@ -35,6 +35,7 @@ export const CodicePraticaDialog = ({ request, customer, sedeLegale, hasCode, ti
           progressivo: request.progressivo ?? undefined,
           anno: request.anno ?? undefined,
           impianto_uguale_sede_legale: request.impianto_uguale_sede_legale ?? undefined,
+          motivo_revisione: request.motivo_revisione ?? undefined,
         }
       : undefined
   const initialPadreId = hasCode && isIntegrazione ? request.pratica_padre_id ?? undefined : undefined
@@ -73,6 +74,7 @@ export const CodicePraticaDialog = ({ request, customer, sedeLegale, hasCode, ti
             denominazione_sala: praticaVal.value.denominazione_sala,
             indirizzo_impianto: praticaVal.value.indirizzo_impianto,
             impianto_uguale_sede_legale: praticaVal.value.impianto_uguale_sede_legale,
+            motivo_revisione: praticaVal.value.motivo_revisione,
           },
         })
       }

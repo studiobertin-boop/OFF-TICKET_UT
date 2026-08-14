@@ -15,7 +15,6 @@ export const additionalInfoSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'La data di emissione non è una data valida')
     .or(z.literal(''))
     .default(''),
-  motivoRevisione: z.string().default(''),
   compressoriGiri: z.record(z.string(), tipoGiriSchema).default({}),
   spessimetrica: z.array(z.string()).default([]),
   collegamentiCompressoriSerbatoi: z.record(z.string(), z.array(z.string())).default({}),

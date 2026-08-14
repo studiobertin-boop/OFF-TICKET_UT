@@ -88,20 +88,20 @@ describe('buildPremessa — ubicazione impianto', () => {
 })
 
 describe('buildPremessa — revisione e spessimetriche', () => {
-  const conMotivo = makeAdditionalInfo({ motivoRevisione: 'sostituzione della valvola S1.1' })
+  const conMotivo = makePratica({ motivoRevisione: 'sostituzione della valvola S1.1' })
 
   test('è una revisione quando il progressivo supera lo zero e il motivo è scritto', () => {
     const prima = buildPremessa({
       customer: makeCustomer(),
-      pratica: makePratica({ progressivo: 0 }),
-      additionalInfo: conMotivo,
+      pratica: { ...conMotivo, progressivo: 0 },
+      additionalInfo,
     })
     expect(prima.haRevisione).toBe(false)
 
     const revisione = buildPremessa({
       customer: makeCustomer(),
-      pratica: makePratica({ progressivo: 2 }),
-      additionalInfo: conMotivo,
+      pratica: { ...conMotivo, progressivo: 2 },
+      additionalInfo,
     })
     expect(revisione.haRevisione).toBe(true)
     expect(revisione.motivoRevisione).toBe('sostituzione della valvola S1.1')
@@ -111,8 +111,8 @@ describe('buildPremessa — revisione e spessimetriche', () => {
     for (const motivoRevisione of ['', '   ', undefined]) {
       const premessa = buildPremessa({
         customer: makeCustomer(),
-        pratica: makePratica({ progressivo: 2 }),
-        additionalInfo: makeAdditionalInfo({ motivoRevisione }),
+        pratica: makePratica({ progressivo: 2, motivoRevisione }),
+        additionalInfo,
       })
       expect(premessa.haRevisione).toBe(false)
       expect(premessa.motivoRevisione).toBe('')
