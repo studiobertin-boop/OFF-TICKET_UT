@@ -9,6 +9,7 @@
  * palette e dal dialog di scrittura, e `TestiLiberi.tsx` rende le annotazioni sulla tela.
  */
 import { useCallback, useRef } from 'react'
+import { allineaAllaGriglia } from '@/services/schemaImpianto/griglia'
 import type { SchemaTestoLibero } from '@/services/schemaImpianto/types'
 
 interface StatoConTesti {
@@ -40,12 +41,26 @@ export function testoAggiunto(
   return [...testi, { id: idLibero(testi), x: posizione.x, y: posizione.y, contenuto }]
 }
 
+/**
+ * L'annotazione si posa sui punti della griglia. Si allinea qui e non nel componente perché
+ * qui i test la raggiungono. La posizione che arriva da `TestiLiberi.tsx` è già assoluta —
+ * puntatore meno lo scostamento di presa, congelato al pointerdown, non uno spostamento
+ * sommato allo stato precedente — quindi allinearla qui è idempotente: nessun residuo si
+ * accumula, per quanto lento sia il trascinamento. Prima, questa funzione non allineava
+ * nulla: misurato in pagina, un'annotazione a y=573,75 spostata di 60 finiva a y=513,75
+ * invece di posarsi sul punto di griglia più vicino, y=510.
+ *
+ * Nessuna quota preferita, a differenza del tratto (`agganciaQuota`, griglia.ts):
+ * un'annotazione non deve restare allineata a nulla, va dove il committente la mette.
+ */
 export function testiConSpostamento(
   testi: SchemaTestoLibero[],
   id: string,
   posizione: { x: number; y: number }
 ): SchemaTestoLibero[] {
-  return testi.map((t) => (t.id === id ? { ...t, x: posizione.x, y: posizione.y } : t))
+  return testi.map((t) =>
+    t.id === id ? { ...t, x: allineaAllaGriglia(posizione.x), y: allineaAllaGriglia(posizione.y) } : t
+  )
 }
 
 export function testiConContenuto(testi: SchemaTestoLibero[], id: string, contenuto: string): SchemaTestoLibero[] {

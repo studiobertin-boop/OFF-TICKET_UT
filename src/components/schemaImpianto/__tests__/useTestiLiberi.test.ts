@@ -35,6 +35,15 @@ describe('testiConSpostamento', () => {
   it('un id sconosciuto non cambia nulla', () => {
     expect(testiConSpostamento(due, 'T9', { x: 0, y: 0 })).toEqual(due)
   })
+
+  // Il difetto misurato in pagina: la posizione si spostava di un multiplo di 10 ma
+  // conservava per sempre lo scarto di partenza (573,75 → 513,75).
+  it('posa l’annotazione sulla griglia anche partendo da una posizione fuori griglia', () => {
+    const testi = [{ id: 'T1', x: 40, y: 573.75, contenuto: 'nota' }]
+    expect(testiConSpostamento(testi, 'T1', { x: 150, y: 513.75 })).toEqual([
+      { id: 'T1', x: 150, y: 510, contenuto: 'nota' },
+    ])
+  })
 })
 
 describe('testiConContenuto', () => {
