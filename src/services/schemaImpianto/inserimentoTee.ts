@@ -100,6 +100,9 @@ function quoteDeiVertici(punti: Punto[]): number[] {
   let percorsa = 0
   for (const l of lunghezze) {
     percorsa += l
+    // Due capi coincidenti danno totale nullo: senza la guardia sarebbe NaN. Si ferma qui,
+    // non ai confronti a valle — falsi con NaN per proprietà del confronto, non per garanzia
+    // di questo modulo.
     ts.push(totale === 0 ? 0 : percorsa / totale)
   }
   return ts
