@@ -58,14 +58,19 @@ function indiceInserimento(
 }
 
 /**
- * Secondo magnete (D2.2 della spec) applicato al gomito: la posizione grezza arriva già
- * agganciata alla griglia dallo `snapGrid` della tela (`screenToFlowPosition`, dentro
- * `SchemaEdgeTubazione`), ma solo alla griglia. Qui si aggiunge la seconda famiglia di
- * candidati — le quote esatte dei due capi del tubo, `agganciaQuota` (griglia.ts) — un asse
- * alla volta: l'ascissa aggancia alle ascisse dei capi, l'ordinata alle loro ordinate. Il
- * gomito si muove su entrambi gli assi, a differenza del tratto (`trascinaTratto`, tratti.ts)
- * che ne sposta uno solo: mescolare le quote fra i due assi vincolerebbe una coordinata al
- * valore dell'altra.
+ * Secondo magnete (D2.2 della spec) applicato al gomito: aggancia la posizione del puntatore,
+ * un asse alla volta, alla griglia O alle quote esatte dei due capi del tubo — qualunque sia
+ * più vicina (`agganciaQuota`, griglia.ts). L'ascissa aggancia alle ascisse dei capi, l'ordinata
+ * alle loro ordinate; il gomito si muove su entrambi gli assi, a differenza del tratto
+ * (`trascinaTratto`, tratti.ts) che ne sposta uno solo, e mescolare le quote fra i due assi
+ * vincolerebbe una coordinata al valore dell'altra.
+ *
+ * Il chiamante DEVE passare la posizione GREZZA del puntatore, non quella già agganciata dallo
+ * `snapGrid` della tela: su un valore già multiplo di 10, `allineaAllaGriglia` è l'identità e
+ * nessuna distanza da una quota di un capo fuori griglia può mai essere minore di zero, quindi
+ * quella quota non vince mai — è per questo che `SchemaGomito` (SchemaEdgeTubazione.tsx) chiama
+ * `screenToFlowPosition` con `{ snapToGrid: false }`. Togliere quell'opzione per "semplificare"
+ * spegnerebbe questo magnete in silenzio, senza che questa funzione cambi affatto.
  */
 export function agganciaPosizioneGomito(posizione: Punto, pDa: Punto, pA: Punto): Punto {
   return {

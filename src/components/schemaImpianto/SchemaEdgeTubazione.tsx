@@ -56,8 +56,9 @@ export interface SchemaEdgeData extends Record<string, unknown> {
    * Legate a questo arco specifico da `useGomiti` (vedi `edgesConGomiti` lì dentro): il
    * componente dell'arco non conosce la cronologia, sa solo chiedere di aggiornarla.
    * `pDa`/`pA` sono gli stessi capi risolti da `capiDellArco` che disegnano la polilinea —
-   * `useGomiti` li usa per il secondo magnete (`agganciaPosizioneGomito`), le quote esatte dei
-   * capi oltre alla griglia (D2.2 della spec).
+   * `useGomiti` li usa per il secondo magnete (`agganciaPosizioneGomito`, useGomiti.ts), che ha
+   * bisogno della posizione GREZZA del puntatore, non agganciata alla griglia della tela: vedi
+   * il commento su `agganciaPosizioneGomito` per il perché.
    */
   onSpostaGomito?: (pDa: Punto, pA: Punto, indice: number, posizione: { x: number; y: number }, concluso: boolean) => void
   onRimuoviGomito?: (indice: number) => void
@@ -81,11 +82,12 @@ export interface SchemaEdgeData extends Record<string, unknown> {
   onTrascinaTratto?: (pDa: Punto, pA: Punto, indiceTratto: number, puntoLibero: Punto, concluso: boolean) => void
 }
 
-interface SchemaGomitoProps {
+export interface SchemaGomitoProps {
   indice: number
   punto: { x: number; y: number }
   /** Capi dell'arco (`capiDellArco`), inoltrati a `onSposta` per il secondo magnete
-   *  (`agganciaPosizioneGomito`, useGomiti.ts): le quote esatte dei capi oltre alla griglia. */
+   *  (`agganciaPosizioneGomito`, useGomiti.ts): vedi lì per il perché la posizione va chiesta
+   *  grezza, non agganciata alla griglia della tela. */
   pDa: Punto
   pA: Punto
   onSposta?: (pDa: Punto, pA: Punto, indice: number, posizione: { x: number; y: number }, concluso: boolean) => void
@@ -99,13 +101,17 @@ interface SchemaGomitoProps {
  * «si è mosso» e chiusura (rilascio/annullamento) sono `useGestoPuntatore.ts`, lo stesso
  * pattern di `SchemaSegno` e dell'area di trascinamento del tratto qui sotto.
  */
-function SchemaGomito({ indice, punto, pDa, pA, onSposta, onRimuovi }: SchemaGomitoProps) {
+export function SchemaGomito({ indice, punto, pDa, pA, onSposta, onRimuovi }: SchemaGomitoProps) {
   const { screenToFlowPosition } = useReactFlow()
   const { suInizio, suMovimento, suFine, suAnnullamento } = useGestoPuntatore<HTMLDivElement, { x: number; y: number }>()
 
+  // `{ snapToGrid: false }`: senza, `screenToFlowPosition` legge lo `snapToGrid`/`snapGrid`
+  // della tela dal negozio e restituisce sempre un multiplo di 10, su cui il secondo magnete di
+  // `agganciaPosizioneGomito` (useGomiti.ts) non può mai vincere — vedi lì per il perché. Non
+  // toglierla per "semplificare": spegnerebbe il magnete in silenzio.
   const suPointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      suMovimento(e, screenToFlowPosition({ x: e.clientX, y: e.clientY }), (posizione) =>
+      suMovimento(e, screenToFlowPosition({ x: e.clientX, y: e.clientY }, { snapToGrid: false }), (posizione) =>
         onSposta?.(pDa, pA, indice, posizione, false)
       )
     },
@@ -114,7 +120,7 @@ function SchemaGomito({ indice, punto, pDa, pA, onSposta, onRimuovi }: SchemaGom
 
   const suPointerUp = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      suFine(e, screenToFlowPosition({ x: e.clientX, y: e.clientY }), (posizione) =>
+      suFine(e, screenToFlowPosition({ x: e.clientX, y: e.clientY }, { snapToGrid: false }), (posizione) =>
         onSposta?.(pDa, pA, indice, posizione, true)
       )
     },
