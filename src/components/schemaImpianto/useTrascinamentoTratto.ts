@@ -9,12 +9,13 @@
  * al primo evento e passa sempre il delta CUMULATIVO da lì, mai l'incremento evento-per-evento
  * — vedi il commento sui ref sotto per il perché.
  *
- * Un trascinamento che finisce dov'è cominciato (delta cumulativo nullo all'evento conclusivo)
- * ripristina `punti` allo stato di prima del gesto — i gomiti congelati, non un vuoto
- * incondizionato: per un arco senza gomiti a mano quello stato È il vuoto, quindi il tubo torna
- * all'instradamento automatico (la decisione del committente); per un arco con una rotta
- * disegnata a mano il gesto non la cancella. Decisione del committente — vedi il commento su
- * `trascinaSegmento` più sotto per il perché e per il criterio.
+ * Un trascinamento che finisce dov'è cominciato (delta cumulativo nullo) ripristina `punti`
+ * allo stato di prima del gesto — i gomiti congelati, non un vuoto incondizionato — e lo fa a
+ * OGNI evento a delta nullo, non solo a quello conclusivo: per un arco senza gomiti a mano
+ * quello stato È il vuoto, quindi il tubo torna all'instradamento automatico (la decisione del
+ * committente); per un arco con una rotta disegnata a mano il gesto non la cancella. Decisione
+ * del committente — vedi il commento su `trascinaSegmento` più sotto per il perché e per il
+ * criterio.
  */
 import { useCallback, useMemo, useRef } from 'react'
 import type { Edge, Node } from '@xyflow/react'
@@ -66,8 +67,13 @@ export function useTrascinamentoTratto<T extends StatoConNodiEdArchi>(
   // dalla rotta nativa che l'utente vede.
   quote: QuoteInstradamento
 ) {
-  // Stesso principio di useGomiti.ts: un gesto entra in cronologia una volta sola. Qui non è
-  // il primo evento in assoluto a scriverla (vedi `cronologiaScrittaRef` sotto, e il perché).
+  // Entra in cronologia il primo evento che sposta DAVVERO qualcosa (delta non nullo), non il
+  // primo evento e basta: il primo evento di ogni gesto ha SEMPRE delta nullo per costruzione
+  // (è quello che congela `puntoPresaRef` su se stesso, sotto), quindi lo stato è ancora pulito
+  // quando arriva. È lo stesso principio di `useGomiti.ts:105-110` — il PRIMO evento entra, non
+  // l'ultimo, perché registrare tardi leggerebbe uno stato già spostato — applicato al punto in
+  // cui QUI lo stato inizia davvero a spostarsi, che non coincide col primo evento in assoluto.
+  // Un gesto che non esce mai dalla cella di presa non scrive NESSUNA voce (zero, non una).
   const trascinamentoAvviato = useRef(false)
   // Punto di presa del gesto (congelato al primo evento): il delta passato a `trascinaTratto`
   // è cumulativo da QUI, non incrementale evento-per-evento. Il puntatore arriva ai gesti già
@@ -105,16 +111,15 @@ export function useTrascinamentoTratto<T extends StatoConNodiEdArchi>(
   // tutta la durata del gesto.
   const gomitiCongelatiRef = useRef<Punto[] | undefined>(undefined)
   const indiceCongelatoRef = useRef(0)
-  // Vero se QUESTO gesto ha già scritto la propria (unica) voce di cronologia. Il primo evento
-  // di ogni gesto ha SEMPRE delta nullo per costruzione (è l'evento che congela `puntoPresaRef`
-  // su se stesso, sopra): entrare in cronologia lì, come faceva questo hook prima del gesto a
-  // vuoto, significa scrivere una voce anche per un gesto che finirà a vuoto — dove lo stato
-  // ripristinato coincide con quello da cui si era partiti, un Ctrl+Z che non mostra nulla e uno
-  // dei `PROFONDITA_CRONOLOGIA` posti (`useSchemaHistory.ts`) sprecato. Usato in
-  // `trascinaSegmento` per spostare l'ingresso in cronologia al primo evento con delta NON
-  // nullo, tenendo comunque a una sola voce per gesto: si azzera a ogni nuovo gesto (dentro
-  // `if (primoEventoDelGesto)` sotto) e si alza alla prima scrittura, cosicché gli eventi
-  // successivi — compreso quello conclusivo — restino su `aggiornaSenzaCronologia`.
+  // Vero se QUESTO gesto ha già scritto qualcosa: cioè se un evento con delta non nullo si è
+  // già presentato. Usato in `trascinaSegmento` per due cose. (1) Decidere quando entrare in
+  // cronologia: al primo evento con delta non nullo (`applica`, mentre lo stato è ancora
+  // pulito), i successivi restano su `aggiornaSenzaCronologia` — così ne entra al più una per
+  // gesto, mai una per un gesto che non si è mai mosso. (2) Decidere se un evento a delta nullo
+  // debba anche solo TOCCARE lo stato: finché non è stata fatta alcuna scrittura, un evento a
+  // delta nullo non ha nulla da ripristinare (lo stato è già quello di partenza) — lasciarlo
+  // stare evita pure il cambiamento innocuo ma superfluo `undefined` → `[]`. Si azzera a ogni
+  // nuovo gesto (dentro `if (primoEventoDelGesto)` sotto) e si alza alla prima scrittura.
   const cronologiaScrittaRef = useRef(false)
 
   const trascinaSegmento = useCallback(
@@ -146,41 +151,51 @@ export function useTrascinamentoTratto<T extends StatoConNodiEdArchi>(
       const indice = indiceCongelatoRef.current
       const deltaNullo = delta.x === 0 && delta.y === 0
 
-      // In cronologia entra il primo evento con delta NON nullo, non il primo evento e basta
-      // (che ha delta nullo per costruzione, vedi sopra): altrimenti un gesto che finirà a
-      // vuoto scriverebbe comunque una voce, che il ripristino sotto rende indistinguibile
-      // dallo stato di partenza — vedi `cronologiaScrittaRef`. Una sola voce per gesto: una
-      // volta scritta, gli eventi successivi (compreso quello conclusivo) restano su
+      // Un evento a delta nullo prima che il gesto abbia scritto qualcosa non tocca lo stato
+      // affatto: è il primo evento di ogni gesto (sempre a delta nullo, sopra), e resta tale
+      // finché il puntatore non esce dalla cella di presa — non c'è nulla da ripristinare, lo
+      // stato è già quello di partenza. Uscire qui non è solo un'ottimizzazione: prima che
+      // questo ramo esistesse, quell'evento chiamava comunque `trascinaTratto` con delta zero
+      // (via `aggiornaSenzaCronologia`, fuori da ogni cronologia) — che MATERIALIZZA la rotta
+      // automatica in gomiti a mano anche a delta zero — e l'evento successivo, quello che apre
+      // `applica`, catturava come stato "di partenza" quello già materializzato invece di
+      // quello pulito: un Ctrl+Z dopo un trascinamento vero restituiva la rotta automatica
+      // cotta in gomiti a mano, non la rotta automatica pulita — il rovescio esatto della
+      // decisione del committente che questo gesto doveva implementare, e su OGNI trascinamento
+      // (non solo quelli a vuoto), perché `applica` (`useSchemaHistory.ts:48-52`) spinge in
+      // cronologia lo stato al momento del dispatch, e quel dispatch arriva sempre dopo il
+      // primo evento, mai insieme a esso.
+      if (deltaNullo && !cronologiaScrittaRef.current) return
+
+      // In cronologia entra il primo evento con delta NON nullo: una sola voce per gesto,
+      // scritta mentre lo stato è ancora quello di partenza (vedi `cronologiaScrittaRef` e il
+      // commento sopra). I successivi — compreso quello conclusivo — restano su
       // `aggiornaSenzaCronologia`.
       const primaScritturaConSpostamento = !deltaNullo && !cronologiaScrittaRef.current
       if (primaScritturaConSpostamento) cronologiaScrittaRef.current = true
       const aggiorna = primaScritturaConSpostamento ? applica : aggiornaSenzaCronologia
 
-      // Gesto a vuoto (domanda aperta #1 del Blocco C1, decisa dal committente): un
-      // trascinamento che finisce dov'è cominciato ripristina lo stato d'inizio gesto — i
-      // gomiti congelati sopra — invece di lasciare la rotta materializzata in gomiti a mano
-      // dal primo evento. Per un arco che non aveva gomiti a mano quello stato È il vuoto,
-      // quindi il tubo torna all'instradamento automatico, seguendo di nuovo il riassestamento
-      // delle quote quando si spostano le apparecchiature; per un arco con una rotta disegnata
-      // a mano il gesto la lascia intatta invece di sostituirla con la rotta automatica — un
-      // `punti: []` incondizionato butterebbe via lavoro dell'utente che il gesto, ai suoi
-      // occhi, non ha toccato (e sposterebbe anche i segni piazzati per `t` sul tratto,
-      // ridistribuiti sulla polilinea nuova). «Dov'è cominciato» è il punto di presa congelato
-      // sopra, non «il puntatore non si è mosso»: un gesto che si sposta e torna indietro conta
-      // comunque come a vuoto, perché è il delta CUMULATIVO da lì — non lo spostamento
-      // dell'ultimo evento — a decidere. Il confronto è sul delta invece che sui punti per non
-      // duplicare l'aritmetica già fatta sopra; è esatto, senza tolleranze da tarare, perché il
-      // delta fra due punti già agganciati alla griglia (vedi il commento su `puntoPresaRef`) è
-      // 0 o un multiplo esatto di 10, mai una frazione che renda incerto lo zero. Vale solo per
-      // l'evento CONCLUSIVO: un gesto ancora in corso che transita per il punto di presa non
-      // deve ripristinare `punti` a metà, o l'arco cambierebbe forma avanti e indietro mentre
-      // l'utente lo tiene ancora premuto — non sparirebbe: `polilineaDellArco`
-      // (`conversioneFlow.ts`) ricade su `instrada` anche con `punti` vuoto, quindi l'arco resta
-      // sempre visibile, cambia solo la forma della polilinea. Vale anche quando il gesto si
-      // chiude con `pointercancel` invece che con il rilascio: `useGestoPuntatore.ts` lo tratta
-      // come un evento conclusivo a tutti gli effetti, sull'ultima posizione vista, quindi un
-      // trascinamento annullato dal sistema mentre il puntatore era già tornato sulla presa
-      // ripristina lo stato d'inizio esattamente come un rilascio nello stesso punto.
+      // Un evento a delta nullo (anche non conclusivo, una volta che il gesto ha già scritto
+      // qualcosa — il ramo sopra copre il caso "non ancora") ripristina lo stato d'inizio
+      // gesto — i gomiti congelati sopra — invece di lasciare la rotta materializzata
+      // dall'ultimo spostamento: il tubo segue davvero il cursore, e non resta "appiccicato"
+      // a dove l'evento precedente l'aveva messo quando il cursore ripassa dalla presa. Per un
+      // arco che non aveva gomiti a mano quello stato È il vuoto (domanda aperta #1 del Blocco
+      // C1, decisa dal committente): il tubo torna all'instradamento automatico. Non serve più
+      // distinguere l'evento conclusivo dagli altri — la stessa regola vale a ogni evento, e il
+      // «gesto a vuoto» è semplicemente il caso in cui l'ULTIMO evento capita ad avere delta
+      // nullo. Per un arco con una rotta disegnata a mano il gesto la lascia intatta invece di
+      // sostituirla con la rotta automatica — un `punti: []` incondizionato butterebbe via
+      // lavoro dell'utente che il gesto, ai suoi occhi, non ha toccato (e sposterebbe anche i
+      // segni piazzati per `t` sul tratto, ridistribuiti sulla polilinea nuova). Il confronto è
+      // sul delta invece che sui punti per non duplicare l'aritmetica già fatta sopra; è esatto,
+      // senza tolleranze da tarare, perché il delta fra due punti già agganciati alla griglia
+      // (vedi il commento su `puntoPresaRef`) è 0 o un multiplo esatto di 10, mai una frazione
+      // che renda incerto lo zero. Vale anche quando il gesto si chiude con `pointercancel`
+      // invece che con il rilascio: `useGestoPuntatore.ts` lo tratta come un evento conclusivo a
+      // tutti gli effetti, sull'ultima posizione vista, quindi un trascinamento annullato dal
+      // sistema mentre il puntatore era già tornato sulla presa ripristina lo stato d'inizio
+      // esattamente come un rilascio nello stesso punto.
       //
       // Resta aperto un caso che questo confronto non chiude: il punto di presa e il punto di
       // rilascio possono essere DIVERSI (delta non nullo) eppure la quota agganciata che ne
@@ -189,13 +204,12 @@ export function useTrascinamentoTratto<T extends StatoConNodiEdArchi>(
       // perché il confronto è sul delta grezzo del puntatore, non sulla quota agganciata.
       // Chiuderlo richiederebbe confrontare la polilinea risultante invece del solo delta, in un
       // file senza test automatici. Registrato come coda, non implementato qui.
-      const gestoAVuoto = concluso && deltaNullo
       aggiorna((s) => ({
         ...s,
         edges: s.edges.map((e) => {
           if (e.id !== arcoId) return e
           const data = e.data as SchemaEdgeData
-          const nuovi = gestoAVuoto ? (gomiti ?? []) : trascinaTratto(data.stile, pDa, pA, gomiti, quote, indice, delta)
+          const nuovi = deltaNullo ? (gomiti ?? []) : trascinaTratto(data.stile, pDa, pA, gomiti, quote, indice, delta)
           return { ...e, data: { ...data, punti: nuovi } satisfies SchemaEdgeData }
         }),
       }))
