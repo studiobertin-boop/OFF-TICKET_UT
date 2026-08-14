@@ -44,6 +44,12 @@ function centroDellaGiunzione(nodo: Node): Punto {
   return posizioneAncora({ ...schema, x: nodo.position.x, y: nodo.position.y }, ANCORA_IN_ARRIVO)
 }
 
+/**
+ * `A`, `B` non contano — solo `!eUnaGiunzione` decide qui. Guardia distinta da quella sul
+ * numero di nodi trascinati (`arcoSotto`): protegge il gesto quotidiano di trascinare
+ * un'apparecchiatura qualunque (un compressore, un serbatoio) sopra un tubo a cui non è
+ * collegata — senza, quel tubo verrebbe spezzato e riagganciato al simbolo sbagliato.
+ */
 function eUnaGiunzione(nodo: Node): boolean {
   return (nodo.data as SchemaNodeData | undefined)?.nodo?.tipo === 'giunzione'
 }
@@ -56,9 +62,21 @@ export function useInserimentoTee<T extends StatoConNodiEdArchi>(
   capi: Map<string, CapiArco>
 ) {
   const [arcoEvidenziato, setArcoEvidenziato] = useState<string | null>(null)
-  // Posizione del TEE all'inizio del gesto: decide, alla conclusione, se il trascinamento ha
-  // già lasciato una voce di cronologia su cui appoggiarsi. Vedi `concludiTrascinamento`.
-  const posizioneInizialeRef = useRef<Punto | null>(null)
+  // Vero se, durante QUESTO gesto, è già passato almeno un evento di posizione — decide, alla
+  // conclusione, se il trascinamento ha già lasciato una voce di cronologia su cui appoggiarsi
+  // (vedi `concludiTrascinamento`). Non è il confronto fra la posizione iniziale e quella
+  // finale: un TEE spostato e riportato sulla stessa cella di griglia avrebbe posizioni
+  // identiche agli estremi ma HA generato eventi di posizione nel mezzo (e quindi una voce di
+  // `onNodesChange`, SchemaEditor.tsx) — confondere i due criteri farebbe scrivere qui una
+  // seconda voce ridondante, lo stesso annullamento appiccicoso già corretto una volta.
+  //
+  // Esatto SOLO se `seguiTrascinamento` è agganciato a `onNodeDrag` di react-flow (Task 5): nel
+  // sorgente (`node_modules/@xyflow/system/dist/esm/index.js`, funzione `update` del gestore di
+  // trascinamento), `onNodeDrag` scatta se e solo se `hasChange` è vero — la stessa guardia che
+  // decide se aggiornare le posizioni e quindi se `onNodesChange` riceve l'evento. Un cablaggio
+  // che chiami `seguiTrascinamento` altrove (per esempio a ogni frame del gesto, non solo ai
+  // cambi di posizione) romperebbe questo criterio in silenzio.
+  const eventoDiPosizioneRef = useRef(false)
 
   /**
    * I tubi su cui questo TEE può innestarsi, con la polilinea che la tela DISEGNA
@@ -99,12 +117,14 @@ export function useInserimentoTee<T extends StatoConNodiEdArchi>(
     [candidati]
   )
 
-  const iniziaTrascinamento = useCallback((nodo: Node) => {
-    posizioneInizialeRef.current = { x: nodo.position.x, y: nodo.position.y }
+  // Non legge né congela la posizione: azzera solo il ref sopra, all'inizio di un gesto nuovo.
+  const iniziaTrascinamento = useCallback((_nodo: Node) => {
+    eventoDiPosizioneRef.current = false
   }, [])
 
   const seguiTrascinamento = useCallback(
     (nodo: Node, nodiTrascinati: Node[]) => {
+      eventoDiPosizioneRef.current = true
       setArcoEvidenziato(arcoSotto(nodo, nodiTrascinati))
     },
     [arcoSotto]
@@ -112,8 +132,8 @@ export function useInserimentoTee<T extends StatoConNodiEdArchi>(
 
   const concludiTrascinamento = useCallback(
     (nodo: Node, nodiTrascinati: Node[]) => {
-      const iniziale = posizioneInizialeRef.current
-      posizioneInizialeRef.current = null
+      const ePassatoUnEventoDiPosizione = eventoDiPosizioneRef.current
+      eventoDiPosizioneRef.current = false
       setArcoEvidenziato(null)
 
       const arcoId = arcoSotto(nodo, nodiTrascinati)
@@ -138,26 +158,32 @@ export function useInserimentoTee<T extends StatoConNodiEdArchi>(
       const ancora = ancoraDi((nodo.data as SchemaNodeData).nodo, ANCORA_IN_ARRIVO)
       const posizione = { x: centro.x - (ancora?.x ?? 0), y: centro.y - (ancora?.y ?? 0) }
 
+      // L'arco sostituito in POSIZIONE (`flatMap` sull'elenco esistente), non filtrato e
+      // riappeso in coda: l'ordine degli archi si propaga a `flowALayout` e all'ordine degli
+      // elementi nel documento, e non deve cambiare solo perché uno di essi è stato spezzato.
       const costruisci = (s: T): T => ({
         ...s,
         nodes: s.nodes.map((n) => (n.id === nodo.id ? { ...n, position: posizione } : n)),
-        edges: [
-          ...s.edges.filter((e) => e.id !== arcoId),
-          {
-            ...arco,
-            id: idPrimo,
-            target: nodo.id,
-            targetHandle: ANCORA_IN_ARRIVO,
-            data: { stile: data.stile, punti: primo.punti, segni: primo.segni } satisfies SchemaEdgeData,
-          },
-          {
-            ...arco,
-            id: idSecondo,
-            source: nodo.id,
-            sourceHandle: ANCORA_IN_PARTENZA,
-            data: { stile: data.stile, punti: secondo.punti, segni: secondo.segni } satisfies SchemaEdgeData,
-          },
-        ],
+        edges: s.edges.flatMap((e) =>
+          e.id !== arcoId
+            ? [e]
+            : [
+                {
+                  ...arco,
+                  id: idPrimo,
+                  target: nodo.id,
+                  targetHandle: ANCORA_IN_ARRIVO,
+                  data: { stile: data.stile, punti: primo.punti, segni: primo.segni } satisfies SchemaEdgeData,
+                },
+                {
+                  ...arco,
+                  id: idSecondo,
+                  source: nodo.id,
+                  sourceHandle: ANCORA_IN_PARTENZA,
+                  data: { stile: data.stile, punti: secondo.punti, segni: secondo.segni } satisfies SchemaEdgeData,
+                },
+              ]
+        ),
       })
 
       // Un solo passo di Ctrl+Z, e si ottiene NON scrivendo una seconda voce di cronologia.
@@ -168,11 +194,12 @@ export function useInserimentoTee<T extends StatoConNodiEdArchi>(
       // la posizione, perché a quel punto `stato` riflette già la posizione di rilascio, non
       // quella di partenza.
       //
-      // L'eccezione è un TEE già fermo sopra un tubo, premuto e rilasciato senza muoverlo:
-      // nessun evento di posizione, quindi nessuna voce su cui appoggiarsi, e lo spezzamento
-      // sarebbe irreversibile. Lì la voce va scritta qui, con `applica`.
-      const siEMosso = !iniziale || iniziale.x !== nodo.position.x || iniziale.y !== nodo.position.y
-      const aggiorna = siEMosso ? aggiornaSenzaCronologia : applica
+      // L'eccezione è un gesto che non ha mai generato un evento di posizione: un trascinamento
+      // che supera la soglia di clic ma resta dentro la stessa cella di griglia (la posizione
+      // agganciata non cambia mai) parte comunque — `onNodeDragStop` scatta — ma non genera
+      // alcun evento `onNodeDrag`/`onNodesChange`, quindi nessuna voce su cui appoggiarsi: lo
+      // spezzamento sarebbe irreversibile. Lì la voce va scritta qui, con `applica`.
+      const aggiorna = ePassatoUnEventoDiPosizione ? aggiornaSenzaCronologia : applica
       aggiorna(costruisci)
     },
     [arcoSotto, stato.edges, capi, applica, aggiornaSenzaCronologia]

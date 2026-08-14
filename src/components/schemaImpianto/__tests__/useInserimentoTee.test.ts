@@ -28,13 +28,19 @@ function nodoDati(id: string, tipo: SchemaNodo['tipo']): { nodo: SchemaNodo } {
   }
 }
 
-/** Il TEE parte lontano dal tubo: `position` è l'angolo del riquadro, il centro è +12/+12. */
-function statoIniziale(segni?: SchemaSegnoTubo[], punti?: { x: number; y: number }[]): Stato {
+/**
+ * Il TEE parte lontano dal tubo: `position` è l'angolo del riquadro, il centro è +12/+12. `C` è
+ * un quarto nodo — non una giunzione, non collegato all'unico arco — che serve solo al test J:
+ * a differenza di `A` (capo dell'arco), il filtro `source`/`target` di `candidati` non lo
+ * esclude, quindi è l'unico modo di provare la guardia `eUnaGiunzione` in isolamento.
+ */
+function statoIniziale(segni?: SchemaSegnoTubo[]): Stato {
   return {
     nodes: [
       { id: 'A', type: 'simbolo', position: { x: 0, y: 0 }, data: nodoDati('A', 'compressore') },
       { id: 'B', type: 'simbolo', position: { x: 300, y: 100 }, data: nodoDati('B', 'serbatoio') },
       { id: 'M-G1', type: 'simbolo', position: { x: 600, y: 600 }, data: nodoDati('M-G1', 'giunzione') },
+      { id: 'C', type: 'simbolo', position: { x: 900, y: 900 }, data: nodoDati('C', 'serbatoio') },
     ],
     edges: [
       {
@@ -44,7 +50,7 @@ function statoIniziale(segni?: SchemaSegnoTubo[], punti?: { x: number; y: number
         sourceHandle: 'alto-out',
         targetHandle: 'sx',
         type: 'tubazione',
-        data: { stile: 'standard', punti, segni } satisfies SchemaEdgeData,
+        data: { stile: 'standard', segni } satisfies SchemaEdgeData,
       },
     ],
   }
@@ -115,7 +121,12 @@ describe('useInserimentoTee', () => {
 
   it('B. al rilascio il tubo si spezza in due tratti collegati alla giunzione, che si ricentra sul tubo', () => {
     const hook = monta(statoIniziale())
-    trascina(hook, SUL_MONTANTE)
+    // Deliberatamente VICINO al montante ma non esattamente sopra (a differenza di
+    // SUL_MONTANTE, il cui centro coincide col punto ricentrato): altrimenti "non ricentrare"
+    // e "ricentrare" produrrebbero lo stesso risultato per coincidenza numerica, e questo test
+    // non distinguerebbe più le due cose (verificato: con SUL_MONTANTE la mutazione 5 dello
+    // Step 5 — nodo non ricentrato — non faceva cadere nessun test).
+    trascina(hook, { x: 133, y: 33 }) // centro (145, 45), a 5 unità dal montante — entro tolleranza
     rilascia(hook)
 
     expect(archi(hook)).toHaveLength(2)
@@ -123,9 +134,10 @@ describe('useInserimentoTee', () => {
     // La prima metà arriva alla giunzione, la seconda ne riparte: il verso del tubo si conserva.
     expect(archi(hook)[0]).toMatchObject({ source: 'A', sourceHandle: 'alto-out', target: 'M-G1' })
     expect(archi(hook)[1]).toMatchObject({ source: 'M-G1', target: 'B', targetHandle: 'sx' })
-    // Ricentrata SUL tubo: centro (150, 50) meno l'ancora (12, 12).
+    // Ricentrata SUL tubo: la proiezione di (145,45) sul montante è (150,45) (verificato
+    // eseguendo `spezzaArco`), meno l'ancora (12, 12).
     const tee = hook.result.current.stato.nodes.find((n) => n.id === 'M-G1')!
-    expect(tee.position).toEqual({ x: 138, y: 38 })
+    expect(tee.position).toEqual({ x: 138, y: 33 })
     expect(hook.result.current.arcoEvidenziato).toBeNull()
   })
 
@@ -173,9 +185,12 @@ describe('useInserimentoTee', () => {
     expect(hook.result.current.puoAnnullare).toBe(false)
   })
 
-  it('F. un TEE premuto e rilasciato senza muoverlo scrive comunque una voce di cronologia', () => {
-    // Il caso che `aggiornaSenzaCronologia` da solo renderebbe irreversibile: nessun evento di
-    // posizione, quindi `onNodesChange` non ha scritto nulla su cui appoggiarsi.
+  it('F. un trascinamento senza alcun evento di posizione scrive comunque una voce di cronologia', () => {
+    // Il caso reale è un trascinamento che supera la soglia di clic ma resta nella stessa cella
+    // di griglia — `onNodeDragStop` scatta comunque, ma nessun `onNodeDrag`/`onNodesChange` è
+    // mai passato nel mezzo. Qui lo si riproduce non chiamando affatto `seguiTrascinamento`
+    // prima di concludere: `aggiornaSenzaCronologia` da solo renderebbe lo spezzamento
+    // irreversibile, perché non c'è alcuna voce su cui appoggiarsi.
     const iniziale = statoIniziale()
     iniziale.nodes = iniziale.nodes.map((n) => (n.id === 'M-G1' ? { ...n, position: { x: 138, y: 38 } } : n))
     const hook = monta(iniziale)
@@ -206,6 +221,9 @@ describe('useInserimentoTee', () => {
     expect(hook.result.current.puoAnnullare).toBe(true)
     act(() => hook.result.current.annulla())
     expect(hook.result.current.stato.nodes.find((n) => n.id === 'M-G1')!.position).toEqual({ x: 600, y: 600 })
+    // Quella voce era del movimento, non di `concludiTrascinamento`: senza candidati l'hook non
+    // ne aggiunge una propria, quindi dopo l'unico annulla() non ne resta più nessuna.
+    expect(hook.result.current.puoAnnullare).toBe(false)
   })
 
   it('H. un tubo che ha già questo TEE per capo non è un candidato', () => {
@@ -238,12 +256,24 @@ describe('useInserimentoTee', () => {
   })
 
   it('J. un nodo che non è una giunzione non spezza niente', () => {
+    // `C` non è un capo dell'arco (a differenza di `A`, che il filtro source/target di
+    // `candidati` escluderebbe comunque): isola davvero la guardia `eUnaGiunzione`, l'unica che
+    // qui impedisce lo spezzamento — MA solo se la sua ancora 'sx' (quella che
+    // `centroDellaGiunzione` legge per QUALUNQUE tipo di nodo) cade sul tubo. Un serbatoio non
+    // ha il pallino al centro come una giunzione: la sua ancora 'sx' sta a (33,150) dal suo
+    // angolo (verificato con `posizioneAncora`), non a (12,12). `SUL_MONTANTE` (calibrato sulla
+    // giunzione) non basta: senza questa posizione dedicata la mutazione 6 non farebbe cadere
+    // questo test, perché `arcoPiuVicino` scarterebbe già `C` per la distanza, guardia o no.
+    const POSIZIONE_C_ANCORA_SX_SUL_MONTANTE = { x: 117, y: -100 }
     const hook = monta(statoIniziale())
     act(() => {
-      const compressore = hook.result.current.stato.nodes.find((n) => n.id === 'A')!
-      hook.result.current.iniziaTrascinamento(compressore)
-      hook.result.current.seguiTrascinamento(compressore, [compressore])
-      hook.result.current.concludiTrascinamento(compressore, [compressore])
+      const nodi = hook.result.current.stato.nodes.map((n) =>
+        n.id === 'C' ? { ...n, position: POSIZIONE_C_ANCORA_SX_SUL_MONTANTE } : n
+      )
+      const serbatoio = nodi.find((n) => n.id === 'C')!
+      hook.result.current.iniziaTrascinamento(serbatoio)
+      hook.result.current.seguiTrascinamento(serbatoio, [serbatoio])
+      hook.result.current.concludiTrascinamento(serbatoio, [serbatoio])
     })
     expect(hook.result.current.arcoEvidenziato).toBeNull()
     expect(archi(hook)).toHaveLength(1)
