@@ -104,7 +104,7 @@ export interface SchemaAncora {
   accetta: SchemaTipoAggancio[]
   /**
    * Dove si AFFERRA questo attacco sulla tela dell'editor, quando è diverso da dove il tubo ci
-   * arriva. Assente per ogni simbolo tranne la giunzione: si afferra sull'ancora stessa.
+   * arriva. Assente: si afferra sull'ancora stessa.
    *
    * È una nozione di sola INTERFACCIA. Il documento non la legge mai: `posizioneAncora`
    * (renderSvg.ts) resta l'unica fonte su dove sta un capo di tubo, e questo modulo ha già
@@ -116,7 +116,7 @@ export interface SchemaAncora {
    * Lato su cui appoggiare la maniglia. Assente: lo deduce `latoDi` (SchemaNodeSymbol.tsx) dal
    * bordo più vicino all'ancora. Va dichiarato ogni volta che si dichiara una `presa`, perché
    * la deduzione guarda l'ANCORA e la presa sta altrove — e diventa addirittura degenere
-   * quando più ancore coincidono, come le quattro della giunzione, tutte al centro del riquadro.
+   * quando più ancore coincidono.
    */
   lato?: SchemaLatoAncora
 }

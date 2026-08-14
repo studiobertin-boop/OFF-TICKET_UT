@@ -39,15 +39,6 @@ function latoHandle(dim: { larghezza: number; altezza: number }): number {
   return Math.min(LATO_HANDLE, Math.min(dim.larghezza, dim.altezza) / 3)
 }
 
-/**
- * Lato react-flow a cui appoggiare l'handle: quello del riquadro d'ingombro più vicino
- * all'ancora. È solo resa grafica — l'aggancio vero, cioè cosa può collegarsi dove, lo
- * decide `capoValido` dal registro simboli, non questa posizione.
- *
- * Esportata perché è anche il dato da cui dipendono le coordinate che react-flow passa
- * all'arco: il test dell'accordo (`__tests__/instradamentoCondiviso.test.ts`) la usa per
- * ricostruire quei capi — la fonte sbagliata — e provare che la tela non li segue più.
- */
 /** Traduzione fra il vocabolario del registro (un servizio, che non conosce react-flow) e
  *  quello della tela. È l'unico punto che ha diritto di conoscerli entrambi. */
 const LATO_REACT_FLOW: Record<SchemaLatoAncora, Position> = {
@@ -57,10 +48,18 @@ const LATO_REACT_FLOW: Record<SchemaLatoAncora, Position> = {
   basso: Position.Bottom,
 }
 
+/**
+ * Lato react-flow a cui appoggiare l'handle: quello del riquadro d'ingombro più vicino
+ * all'ancora. È solo resa grafica — l'aggancio vero, cioè cosa può collegarsi dove, lo
+ * decide `capoValido` dal registro simboli, non questa posizione.
+ *
+ * Esportata perché è anche il dato da cui dipendono le coordinate che react-flow passa
+ * all'arco: il test dell'accordo (`__tests__/instradamentoCondiviso.test.ts`) la usa per
+ * ricostruire quei capi — la fonte sbagliata — e provare che la tela non li segue più.
+ */
 export function latoDi(ancora: SchemaAncora, dim: { larghezza: number; altezza: number }): Position {
   // Il lato dichiarato vince: la deduzione qui sotto guarda l'ancora, ed è degenere quando più
-  // ancore coincidono — le quattro della giunzione stanno tutte al centro del riquadro, a
-  // distanza uguale da tutti e quattro i bordi, e il `reduce` le appoggerebbe tutte a sinistra.
+  // ancore coincidono.
   if (ancora.lato) return LATO_REACT_FLOW[ancora.lato]
   const distanze = [
     { lato: Position.Left, d: ancora.x },
@@ -86,9 +85,8 @@ export function SchemaNodeSymbol({ data, selected }: NodeProps) {
         // Ogni ancora ospita sia source sia target, sovrapposti: una tubazione può
         // partire o arrivare dallo stesso punto. Chi decide se il collegamento è legale
         // non è l'handle ma `isValidConnection` in SchemaEditor, via `capoValido`.
-        // Sulla PRESA, non sull'ancora: sulla giunzione le due cose divergono — i tubi arrivano
-        // al centro del pallino, ma il simbolo si afferra e si collega dalle mezzerie dei lati,
-        // dove le maniglie stanno larghe invece di sovrapporsi (`presaDi`, symbols/index.ts).
+        // Sulla PRESA, non sull'ancora: quando un simbolo dichiara una presa, il tubo arriva
+        // all'ancora ma il simbolo si afferra altrove (`presaDi`, symbols/index.ts).
         const presa = presaDi(ancora)
         const stile = { ...stileAncora, left: presa.x, top: presa.y, transform: 'translate(-50%, -50%)' }
         const lato = latoDi(ancora, dimensioni)
