@@ -10,12 +10,13 @@
  * L'anteprima resta comunque il giudice dell'aspetto finale, perché disegna anche ciò che la
  * tela non mostra affatto (tabella, legenda, nota sui diametri).
  */
-import { useCallback, useRef } from 'react'
+import { useCallback } from 'react'
 import { BaseEdge, EdgeLabelRenderer, useReactFlow, type EdgeProps } from '@xyflow/react'
 import { riduttorePressione, valvolaIntercettazione } from '@/services/schemaImpianto/symbols'
 import { ondula, percorso, puntoSuTratto, tSuTratto, type Punto, type QuoteInstradamento } from '@/services/schemaImpianto/tratti'
 import type { SchemaArcoStile, SchemaSegnoTubo, SchemaSegnoTuboTipo } from '@/services/schemaImpianto/types'
 import { capiDellArco, polilineaDellArco, type CapiArco } from './conversioneFlow'
+import { useGestoPuntatore } from './useGestoPuntatore'
 import { indiceTrattoPiuVicino } from './useTrascinamentoTratto'
 
 export interface SchemaEdgeData extends Record<string, unknown> {
@@ -87,46 +88,43 @@ interface SchemaGomitoProps {
 /**
  * Maniglia di un gomito. Usa la cattura del puntatore invece di ascoltare mousemove sulla
  * finestra: il trascinamento resta valido anche se il cursore esce per un attimo dal
- * riquadro della maniglia, senza dover montare e smontare listener globali.
+ * riquadro della maniglia, senza dover montare e smontare listener globali. Cattura, guardia
+ * «si è mosso» e chiusura (rilascio/annullamento) sono `useGestoPuntatore.ts`, lo stesso
+ * pattern di `SchemaSegno` e dell'area di trascinamento del tratto qui sotto.
  */
 function SchemaGomito({ indice, punto, onSposta, onRimuovi }: SchemaGomitoProps) {
   const { screenToFlowPosition } = useReactFlow()
-  // Un doppio clic è nativamente due cicli pointerdown/pointerup prima del dblclick: senza
-  // questo, ognuno dei due varrebbe come uno spostamento (anche a vuoto) e togliere un
-  // gomito scriverebbe tre voci di cronologia invece di una sola.
-  const mossoRef = useRef(false)
-
-  const suPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    // Ferma qui il gesto lato React: senza, il pointerdown sulla maniglia arriverebbe
-    // anche alla tubazione sottostante e diventerebbe un trascinamento dell'arco.
-    e.stopPropagation()
-    mossoRef.current = false
-    e.currentTarget.setPointerCapture(e.pointerId)
-  }, [])
+  const { suInizio, suMovimento, suFine, suAnnullamento } = useGestoPuntatore<HTMLDivElement, { x: number; y: number }>()
 
   const suPointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
-      e.stopPropagation()
-      mossoRef.current = true
-      onSposta?.(indice, screenToFlowPosition({ x: e.clientX, y: e.clientY }), false)
+      suMovimento(e, screenToFlowPosition({ x: e.clientX, y: e.clientY }), (posizione) =>
+        onSposta?.(indice, posizione, false)
+      )
     },
-    [indice, onSposta, screenToFlowPosition]
+    [indice, onSposta, screenToFlowPosition, suMovimento]
   )
 
   const suPointerUp = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
-      e.stopPropagation()
-      e.currentTarget.releasePointerCapture(e.pointerId)
-      // Nessun movimento (es. i due click di un doppio clic sulla maniglia): niente da
-      // spostare, e soprattutto niente da scrivere in cronologia per un gesto che non ha
-      // cambiato nulla.
-      if (mossoRef.current) {
-        onSposta?.(indice, screenToFlowPosition({ x: e.clientX, y: e.clientY }), true)
-      }
+      suFine(e, screenToFlowPosition({ x: e.clientX, y: e.clientY }), (posizione) =>
+        onSposta?.(indice, posizione, true)
+      )
     },
-    [indice, onSposta, screenToFlowPosition]
+    [indice, onSposta, screenToFlowPosition, suFine]
+  )
+
+  // Puntatore annullato a metà gesto (una gesture del sistema operativo, un tocco che diventa
+  // scorrimento): senza questo ramo la cattura resterebbe alzata e il PRIMO evento del
+  // trascinamento successivo del gomito — l'unico che `useGomiti.ts` scrive in cronologia —
+  // passerebbe da `aggiornaSenzaCronologia`, perché `trascinamentoGomitoAvviato` non si
+  // riarmerebbe mai. `suAnnullamento` chiude sull'ultima posizione vista durante il gesto, non
+  // su quella dell'evento di annullamento, che non è un movimento.
+  const suPointerCancel = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      suAnnullamento(e, (posizione) => onSposta?.(indice, posizione, true))
+    },
+    [indice, onSposta, suAnnullamento]
   )
 
   const suDoppioClic = useCallback(
@@ -148,9 +146,12 @@ function SchemaGomito({ indice, punto, onSposta, onRimuovi }: SchemaGomitoProps)
       // di React possa fermarlo). Il pan sposta il riferimento che screenToFlowPosition usa
       // mentre siamo a metà trascinamento, e il gomito rilasciato torna dov'era.
       className="nopan"
-      onPointerDown={suPointerDown}
+      // `suInizio` ferma qui il gesto lato React: senza, il pointerdown sulla maniglia
+      // arriverebbe anche alla tubazione sottostante e diventerebbe un trascinamento dell'arco.
+      onPointerDown={suInizio}
       onPointerMove={suPointerMove}
       onPointerUp={suPointerUp}
+      onPointerCancel={suPointerCancel}
       onDoubleClick={suDoppioClic}
       style={{
         position: 'absolute',
@@ -191,36 +192,35 @@ interface SchemaSegnoProps {
  */
 function SchemaSegno({ indice, punto, tipo, polilinea, orientamento, onSposta, onRimuovi }: SchemaSegnoProps) {
   const { screenToFlowPosition } = useReactFlow()
-  const mossoRef = useRef(false)
-
-  const suPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    e.stopPropagation()
-    mossoRef.current = false
-    e.currentTarget.setPointerCapture(e.pointerId)
-  }, [])
+  // Cattura, guardia «si è mosso» e chiusura (rilascio/annullamento) sono `useGestoPuntatore.ts`,
+  // lo stesso pattern di `SchemaGomito` qui sopra e dell'area di trascinamento del tratto sotto.
+  const { suInizio, suMovimento, suFine, suAnnullamento } = useGestoPuntatore<HTMLDivElement, number>()
 
   const suPointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
-      e.stopPropagation()
-      mossoRef.current = true
       const libero = screenToFlowPosition({ x: e.clientX, y: e.clientY })
-      onSposta?.(indice, tSuTratto(polilinea, libero), false)
+      suMovimento(e, tSuTratto(polilinea, libero), (t) => onSposta?.(indice, t, false))
     },
-    [indice, onSposta, polilinea, screenToFlowPosition]
+    [indice, onSposta, polilinea, screenToFlowPosition, suMovimento]
   )
 
   const suPointerUp = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
-      e.stopPropagation()
-      e.currentTarget.releasePointerCapture(e.pointerId)
-      if (mossoRef.current) {
-        const libero = screenToFlowPosition({ x: e.clientX, y: e.clientY })
-        onSposta?.(indice, tSuTratto(polilinea, libero), true)
-      }
+      const libero = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+      suFine(e, tSuTratto(polilinea, libero), (t) => onSposta?.(indice, t, true))
     },
-    [indice, onSposta, polilinea, screenToFlowPosition]
+    [indice, onSposta, polilinea, screenToFlowPosition, suFine]
+  )
+
+  // Puntatore annullato a metà gesto: senza questo ramo il PRIMO evento del trascinamento
+  // successivo del segno smetterebbe di entrare in cronologia (`trascinamentoSegnoAvviato` in
+  // useSegniTubo.ts non si riarmerebbe mai). Consegna la `t` dell'ultima posizione vista, non
+  // quella dell'evento di annullamento.
+  const suPointerCancel = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      suAnnullamento(e, (t) => onSposta?.(indice, t, true))
+    },
+    [indice, onSposta, suAnnullamento]
   )
 
   const suDoppioClic = useCallback(
@@ -236,9 +236,10 @@ function SchemaSegno({ indice, punto, tipo, polilinea, orientamento, onSposta, o
   return (
     <div
       className="nopan"
-      onPointerDown={suPointerDown}
+      onPointerDown={suInizio}
       onPointerMove={suPointerMove}
       onPointerUp={suPointerUp}
+      onPointerCancel={suPointerCancel}
       onDoubleClick={suDoppioClic}
       style={{
         position: 'absolute',
@@ -271,7 +272,11 @@ export function SchemaEdgeTubazione({
   markerEnd,
 }: EdgeProps) {
   const { screenToFlowPosition } = useReactFlow()
-  const mossoTrattoRef = useRef(false)
+  // Cattura, guardia «si è mosso» e chiusura (rilascio/annullamento) sono `useGestoPuntatore.ts`,
+  // lo stesso pattern di `SchemaGomito`/`SchemaSegno` sopra. Il valore per evento è
+  // {indice, libero}: l'indice del tratto più vicino nella polilinea RESA e il punto libero del
+  // puntatore, gli stessi due argomenti che `onTrascinaTratto` inoltra a `useTrascinamentoTratto`.
+  const { suInizio, suMovimento, suFine, suAnnullamento } = useGestoPuntatore<SVGPathElement, { indice: number; libero: Punto }>()
   const edgeData = data as SchemaEdgeData | undefined
   const stile = (edgeData?.stile ?? 'standard') as SchemaArcoStile
   // I capi vengono dalle ancore dei nodi (`data.capi`, vedi sopra), non da `sourceX`/`sourceY`:
@@ -322,28 +327,28 @@ export function SchemaEdgeTubazione({
         stroke="transparent"
         strokeWidth={16}
         style={{ cursor: 'move', pointerEvents: 'all' }}
-        onPointerDown={(e) => {
-          e.stopPropagation()
-          mossoTrattoRef.current = false
-          ;(e.currentTarget as SVGPathElement).setPointerCapture(e.pointerId)
-        }}
+        onPointerDown={suInizio}
         onPointerMove={(e) => {
-          if (!(e.currentTarget as SVGPathElement).hasPointerCapture(e.pointerId)) return
-          e.stopPropagation()
-          mossoTrattoRef.current = true
           const libero = screenToFlowPosition({ x: e.clientX, y: e.clientY })
-          const indice = indiceTrattoPiuVicino(polilinea, libero)
-          edgeData?.onTrascinaTratto?.(capi.da, capi.a, indice, libero, false)
+          const valore = { indice: indiceTrattoPiuVicino(polilinea, libero), libero }
+          suMovimento(e, valore, (v) => edgeData?.onTrascinaTratto?.(capi.da, capi.a, v.indice, v.libero, false))
         }}
         onPointerUp={(e) => {
-          if (!(e.currentTarget as SVGPathElement).hasPointerCapture(e.pointerId)) return
-          e.stopPropagation()
-          ;(e.currentTarget as SVGPathElement).releasePointerCapture(e.pointerId)
-          if (mossoTrattoRef.current) {
-            const libero = screenToFlowPosition({ x: e.clientX, y: e.clientY })
-            const indice = indiceTrattoPiuVicino(polilinea, libero)
-            edgeData?.onTrascinaTratto?.(capi.da, capi.a, indice, libero, true)
-          }
+          const libero = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+          const valore = { indice: indiceTrattoPiuVicino(polilinea, libero), libero }
+          suFine(e, valore, (v) => edgeData?.onTrascinaTratto?.(capi.da, capi.a, v.indice, v.libero, true))
+        }}
+        // Puntatore annullato a metà gesto: senza questo ramo la cattura resterebbe alzata e,
+        // più grave qui che altrove, `trascinamentoAvviato` (useTrascinamentoTratto.ts) non si
+        // riarmerebbe mai — quei ref sono a livello di hook, condivisi da TUTTI gli archi, quindi
+        // il prossimo trascinamento (anche su un arco diverso) verrebbe letto come proseguimento
+        // di questo e userebbe i suoi gomiti e il suo indice CONGELATI. `suAnnullamento` chiude
+        // sull'ultima coppia {indice, libero} vista durante il gesto, e proprio quella chiamata
+        // con `concluso: true` fa scattare il riarmo che `useTrascinamentoTratto` già applica da
+        // solo (`trascinamentoAvviato.current = !concluso`): gli mancava solo l'occasione di
+        // essere chiamato.
+        onPointerCancel={(e) => {
+          suAnnullamento(e, (v) => edgeData?.onTrascinaTratto?.(capi.da, capi.a, v.indice, v.libero, true))
         }}
       />
       <EdgeLabelRenderer>
