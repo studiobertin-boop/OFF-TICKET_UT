@@ -786,9 +786,9 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
           fitView
           // Senza questo, `fitView` non inquadra affatto tutto il disegno: il minimo di
           // default di react-flow è 0.5, ma uno schema tipico (~1250 unità di larghezza) in un
-          // riquadro che nel caso peggiore scende anche solo a ~530px — quanto resta accanto
-          // all'anteprima quando il committente la allarga col divisorio, che quindi può
-          // restringere la tela anche parecchio — richiede circa 0.36. Lo zoom resta bloccato a
+          // riquadro che può scendere anche a ~530px — quanto resta accanto all'anteprima quando
+          // il committente la allarga col divisorio, che quindi può restringere la tela anche
+          // parecchio — richiede circa 0.36. Lo zoom resta bloccato a
           // 0.5, la tela mostra solo la fascia centrale e le prime ~95 unità a sinistra
           // diventano irraggiungibili: nessuna panoramica le riporta dentro, perché è «Fit
           // View» stesso a ricentrare lì.

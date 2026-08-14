@@ -39,7 +39,7 @@ const LIMITI = {
 /**
  * Larghezza minima dell'anteprima, in pixel: sotto questa soglia il contenuto (il PNG del
  * documento) diventa illeggibile. È la stessa quota che il componente applica come `minWidth`
- * al riquadro reso — condivisa qui e non duplicata, perché una tela larga ~1350px e una larga
+ * al riquadro reso — condivisa qui e non duplicata, perché una riga larga ~1350px e una larga
  * ~600px hanno percentuali di conversione diversissime per questi stessi pixel, e le due copie
  * andavano fuori sincrono (vedi `percentualeAnteprima`).
  */
@@ -164,7 +164,9 @@ export function dimensioneFinestra(
  * uno schermo da 1500px rende un Paper di 1436px). In quel regime l'angolo qui calcolato dalle
  * percentuali sta più in là di quello davvero disegnato, e la compensazione non è più esatta.
  * Nell'uso normale, sotto quella soglia, lo è. In pratica, partendo dal 100%, bisogna muovere il
- * puntatore di ~64px (32px per lato) prima che la finestra visibile inizi davvero a rimpicciolire.
+ * puntatore di ~32px prima che la finestra visibile inizi davvero a rimpicciolire: la formula
+ * raddoppia lo spostamento del puntatore, quindi il deficit di 64px di larghezza (32px per lato)
+ * si copre con metà di quella corsa.
  */
 export function scostamentoManiglia(
   x: number,
