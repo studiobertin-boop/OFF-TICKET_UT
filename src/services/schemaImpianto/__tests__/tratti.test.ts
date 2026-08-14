@@ -428,8 +428,8 @@ describe('trascinaTratto', () => {
     // il docblock di `trascinaTratto`), quindi l'indice del tratto verticale si trova qui allo
     // stesso modo, con `findIndex` sulla rotta di `instrada`.
     const full = instrada(STILE_INDIFFERENTE, pDa, pA, undefined, QUOTE_INDIFFERENTE)
-    const indiceTratto = full.findIndex((p, i) => full[i + 1] && p.x === full[i + 1].x)
-    expect(indiceTratto).toBeGreaterThanOrEqual(0)
+    const indiceTratto = full.findIndex((p, i) => full[i + 1] && p.x === full[i + 1].x && p.x === 117)
+    expect(indiceTratto).toBe(1)
 
     const nuovi = trascinaTratto(
       STILE_INDIFFERENTE,
@@ -442,10 +442,39 @@ describe('trascinaTratto', () => {
     )
 
     // 117 + 116 = 233. Il punto di griglia più vicino è 230, a distanza 3; l'ascissa del
-    // capo di arrivo è 234, a distanza 1: vince il capo, e il montante finisce esattamente
-    // sotto il bocchello invece che tre unità a sinistra.
-    expect(nuovi.some((p) => p.x === 234)).toBe(true)
-    expect(nuovi.some((p) => p.x === 230)).toBe(false)
+    // capo di arrivo è 234, a distanza 1: vince il capo. La quota agganciata (234) coincide
+    // con l'ascissa di pA, quindi il lato a valle di `raccordaPreservando` si trova già
+    // allineato e non genera un gomito suo: il risultato è un solo punto, {x:234, y:0} — il
+    // montante finisce esattamente sotto il bocchello invece che tre unità a sinistra.
+    expect(nuovi).toEqual([{ x: 234, y: 0 }])
+  })
+
+  // Ramo orizzontale del ramo "preferisce un capo": stessa aritmetica del test sopra, con gli
+  // assi scambiati (gomiti a mano invece della rotta nativa, per controllare l'ordinata del
+  // tratto senza dipendere da quale stile instrada). Pin per la mutazione trovata in revisione:
+  // usare [pDa.x, pA.x] anche quando il tratto è orizzontale passa tutti gli altri test di
+  // `trascinaTratto` per coincidenza numerica (i capi coincidono, o la quota grezza cade già
+  // in griglia), ma qui i capi hanno ascisse (0, 100) lontanissime dalla quota grezza (233):
+  // con l'asse sbagliato non c'è alcuna quota preferita a distanza ≤3, quindi vince la
+  // griglia (230) invece del capo (234), e l'asserzione lo scopre.
+  it('preferisce l’ordinata di un capo quando è più vicina del punto di griglia (tratto orizzontale)', () => {
+    const pDa = { x: 0, y: 0 }
+    const pA = { x: 100, y: 234 }
+    const gomiti = [
+      { x: 0, y: 117 },
+      { x: 100, y: 117 },
+    ]
+    const full = polilineaConGomiti(pDa, gomiti, pA)
+    const indiceTratto = full.findIndex((p, i) => full[i + 1] && p.y === full[i + 1].y && p.y === 117)
+    expect(indiceTratto).toBe(1)
+
+    const nuovi = trascinaTratto(STILE_INDIFFERENTE, pDa, pA, gomiti, QUOTE_INDIFFERENTE, indiceTratto, { x: 0, y: 116 })
+
+    // 117 + 116 = 233. Il punto di griglia più vicino è 230, a distanza 3; l'ordinata del
+    // capo di arrivo è 234, a distanza 1: vince il capo. Come nel caso gemello verticale, la
+    // quota agganciata coincide con l'ordinata di pA: il lato a valle è già allineato e il
+    // risultato è un solo punto, {x:0, y:234}.
+    expect(nuovi).toEqual([{ x: 0, y: 234 }])
   })
 })
 
