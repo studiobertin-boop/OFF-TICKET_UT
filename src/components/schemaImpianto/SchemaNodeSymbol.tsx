@@ -91,7 +91,31 @@ export function SchemaNodeSymbol({ data, selected }: NodeProps) {
         viewBox={`0 0 ${larghezza} ${altezza}`}
         style={{
           display: 'block',
-          background: '#fff',
+          // Niente fondo qui: il fondo bianco che c'era prima copriva tutto l'ingombro del
+          // nodo, e siccome react-flow disegna il layer dei nodi sopra quello degli archi
+          // nascondeva le tubazioni che passano dietro. Serviva solo quando la tela era scura
+          // — senza, il tratto nero dei simboli si sarebbe visto a stento; ora che la tela è
+          // bianca (vedi il commento sulla tela in SchemaEditor.tsx) è un rettangolo opaco che
+          // non serve più a nulla, ed è stato tolto. L'anteprima (renderSvg.ts) non ha mai
+          // avuto questo problema non perché le forme dei simboli siano tutte vuote — non lo
+          // sono: la giunzione è un cerchio pieno, la punta del terminale utenze è un
+          // triangolo pieno, i testi sono pieni — ma perché renderSvg non disegna un
+          // rettangolo di fondo per ogni nodo: il solo fondo bianco del documento è un unico
+          // `<rect>` grande quanto l'intera pagina, disegnato una volta sola dietro a tutto
+          // (archi compresi), non un riquadro per apparecchiatura.
+          //
+          // `pointerEvents: 'all'` non compensa una perdita: il valore calcolato su questo
+          // `<svg>` era già `all` prima di questa modifica, per due strade indipendenti dal
+          // fondo appena tolto — `pointer-events` è una proprietà ereditata e il foglio di
+          // stile di react-flow dichiara `.react-flow__node { pointer-events: all }` sul `div`
+          // che avvolge questo componente; e comunque il `<div>` qui sopra, con `width`/
+          // `height` espliciti, è già bersaglio su tutta la sua area indipendentemente da cosa
+          // vi sia dipinto. La dichiarazione qui la rende esplicita e locale invece di lasciarla
+          // arrivare per sola eredità da una classe della libreria — una cautela, non la
+          // correzione di una regressione: misurato in pagina, 256 punti sondati dentro il
+          // riquadro di un'apparecchiatura sono stati intercettati dal nodo, nessuno sfuggito
+          // alla tela.
+          pointerEvents: 'all',
           outline: selected ? '2px solid #1976d2' : 'none',
         }}
         // Il simbolo è generato dal nostro codice a partire da dati della scheda, non da

@@ -753,9 +753,20 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
           propria radice (`--xy-background-color-default`), quindi senza questo fondo si vedrebbe il
           Paper del dialog: bianco come l'anteprima qui accanto e come il documento consegnato, così
           ciò che si disegna e ciò che si stampa hanno lo stesso aspetto.
-          I comandi di zoom di react-flow sono, per impostazione predefinita, bianchi su bordo #eee
-          e sul foglio sparirebbero: il bordo qui sotto li ridà all'occhio senza toccare il foglio
-          di stile della libreria. */}
+          I comandi di zoom di react-flow tengono `--xy-controls-button-color-default: inherit`
+          (e altrettanto `-color-hover-default`) nel foglio di stile della libreria, e l'icona
+          (`fill: currentColor`) eredita quindi il colore dal contesto attorno — qui il tema
+          scuro del dialog MUI, non il foglio bianco: da lì un'icona quasi bianca su fondo quasi
+          bianco, a riposo e ancora sotto il puntatore. Il bordo qui sotto ridà ai comandi un
+          contorno leggibile. Il colore si dà valorizzando `--xy-controls-button-color` e
+          `--xy-controls-button-color-hover`, le variabili che le regole della libreria (a
+          riposo e su `:hover`) già leggono con `var()` — non impostando `color` di persona: un
+          `color` qui avrebbe la stessa specificità (0,2,0) della regola `:hover` della libreria,
+          e in parità decide l'ordine di iniezione nel documento, che in build non è garantito.
+          Passando dalle variabili non si compete più sulla specificità: `color` resta dichiarato
+          una sola volta, nel foglio della libreria, e legge sempre il nostro valore in entrambi
+          gli stati. #37414f rende ~10,25:1 su #fefefe (fondo a riposo) e ~9,40:1 su #f4f4f4
+          (fondo in hover): in entrambi i casi ben oltre la soglia leggibile. */}
       <Box
         sx={{
           flex: 1,
@@ -764,7 +775,11 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
           borderColor: 'divider',
           bgcolor: 'common.white',
           '& .react-flow__controls': { boxShadow: '0 0 0 1px #c9ced6' },
-          '& .react-flow__controls-button': { borderBottomColor: '#c9ced6' },
+          '& .react-flow__controls-button': {
+            borderBottomColor: '#c9ced6',
+            '--xy-controls-button-color': '#37414f',
+            '--xy-controls-button-color-hover': '#37414f',
+          },
         }}
       >
         <ReactFlow
