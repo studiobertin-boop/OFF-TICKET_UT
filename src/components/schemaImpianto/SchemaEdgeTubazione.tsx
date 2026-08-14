@@ -148,11 +148,14 @@ function SchemaGomito({ indice, punto, onSposta, onRimuovi }: SchemaGomitoProps)
       className="nopan"
       // `suInizio` ferma qui il gesto lato React: la maniglia vive nel portale di
       // EdgeLabelRenderer ma resta figlia nell'albero React — stessa ragione di `suDoppioClic`
-      // qui sopra — e senza stopPropagation il pointerdown risalirebbe fino ai gestori della
-      // tela (Pane, `react-flow__pane`, che avvolge tutti i nodi e gli archi ed espone i propri
-      // onPointerMove/onPointerUp in bubbling). Non risalirebbe invece al gestore del tratto qui
-      // sotto: quel `<path>` è un fratello di EdgeLabelRenderer nell'albero React, non un
-      // antenato, e un pointerdown sulla maniglia non lo raggiungerebbe comunque.
+      // qui sopra. Sul pointerdown lo stopPropagation è cautelativo: nessun antenato (Pane
+      // compreso) monta oggi un onPointerDown in bubbling da fermare — l'unico onPointerDown*
+      // di Pane è `onPointerDownCapture`, fase di cattura, già passata quando React arriva qui.
+      // I gestori della tela davvero raggiungibili in bubbling — `onPointerMove`/`onPointerUp`
+      // del Pane, `react-flow__pane` — sono fermati da `suMovimento`/`suFine`/`suAnnullamento`
+      // (sotto), non da `suInizio`. Non risalirebbe invece al gestore del tratto qui sotto: quel
+      // `<path>` è un fratello di EdgeLabelRenderer nell'albero React, non un antenato, e un
+      // pointerdown sulla maniglia non lo raggiungerebbe comunque.
       onPointerDown={suInizio}
       onPointerMove={suPointerMove}
       onPointerUp={suPointerUp}
