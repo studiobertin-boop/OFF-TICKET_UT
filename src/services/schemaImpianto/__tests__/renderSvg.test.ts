@@ -14,8 +14,9 @@ import { layoutSchema, quoteInstradamento } from '../layout'
 import { renderSvg, righeLista, righeLegenda, posizioneAncora } from '../renderSvg'
 import { AVVICINAMENTO, raccordoOrtogonale } from '../tratti'
 import { dimensioniDi } from '../symbols'
-import type { SchemaSegnoTubo } from '../types'
+import type { SchemaNodoPosizionato, SchemaSegnoTubo } from '../types'
 import { SVG_RIFERIMENTO_SENZA_TESTI } from './fixtures/svgRiferimentoSenzaTesti'
+import { SVG_RIFERIMENTO_CON_TEE } from './fixtures/svgRiferimentoConTee'
 
 function svgMinimo(noteTubazioni?: string[]) {
   const scheda = makeScheda({
@@ -804,5 +805,56 @@ describe('testi liberi', () => {
     expect(indiceTesto).toBeGreaterThan(-1)
     expect(indiceTesto).toBeGreaterThan(indiceTubo)
     expect(indiceTesto).toBeGreaterThan(indiceNodo)
+  })
+})
+
+describe('riferimento SVG del TEE', () => {
+  function layoutConTee(): ReturnType<typeof layoutSchema> {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ ha_disoleatore: false })],
+      disoleatori: [],
+      serbatoi: [makeSerbatoio({ orientamento: 'ORIZZONTALE' })],
+      essiccatori: [],
+      scambiatori: [],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const layout = layoutSchema(
+      buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    )
+    const s1 = layout.nodi.find((n) => n.id === 'S1')!
+    const utenze = layout.nodi.find((n) => n.tipo === 'utenze')!
+    const arcoUtenze = layout.archi.find((a) => a.a.nodo === utenze.id)!
+    const pDa = posizioneAncora(s1, arcoUtenze.da.ancora)
+    const pA = posizioneAncora(utenze, arcoUtenze.a.ancora)
+
+    // Un TEE inserito a metà del tubo S1 -> UTENZE, come farebbe il gesto di trascinamento
+    // (`inserimentoTee.ts`) su un tratto esistente: due tubi lo toccano da lati opposti
+    // (sx/dx), il minimo che eserciti sia il raggio del pallino sia la convergenza dei capi
+    // al centro del riquadro 24×24.
+    const giunzione: SchemaNodoPosizionato = {
+      id: 'M-G1',
+      tipo: 'giunzione',
+      etichetta: 'Giunzione',
+      gruppo: 'LINEA_DISTRIBUZIONE',
+      valvoleSicurezza: [],
+      origine: 'manuale',
+      x: (pDa.x + pA.x) / 2 - 12,
+      y: pDa.y - 12,
+    }
+    layout.nodi.push(giunzione)
+    layout.archi = layout.archi.filter((a) => a.id !== arcoUtenze.id)
+    layout.archi.push(
+      { id: 'tee-1', da: arcoUtenze.da, a: { nodo: giunzione.id, ancora: 'sx' }, stile: 'standard' },
+      { id: 'tee-2', da: { nodo: giunzione.id, ancora: 'dx' }, a: arcoUtenze.a, stile: 'standard' }
+    )
+    return layout
+  }
+
+  // Riferimento ESTERNO al codice corrente, non un self-comparison: `renderSvg(x) === renderSvg(x)`
+  // non discrimina nulla. Fissa la geometria del TEE decisa nel Blocco D3 — pallino a diametro
+  // 10 e tubi che convergono nel centro — che senza di questo nessun test del documento vede.
+  it('un impianto con un TEE resta identico al riferimento', () => {
+    expect(renderSvg(layoutConTee())).toBe(SVG_RIFERIMENTO_CON_TEE)
   })
 })
