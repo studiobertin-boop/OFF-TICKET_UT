@@ -56,6 +56,7 @@ import {
 import toast from 'react-hot-toast'
 import { capoValido, connessioneAmmessa, stileIniziale } from '@/services/schemaImpianto/agganci'
 import type { Asse, Bordo } from '@/services/schemaImpianto/allineamento'
+import { PASSO_GRIGLIA, allineaAllaGriglia } from '@/services/schemaImpianto/griglia'
 import { ingombroTesto, quoteInstradamento } from '@/services/schemaImpianto/layout'
 import { renderSvg } from '@/services/schemaImpianto/renderSvg'
 import { dimensioniDi } from '@/services/schemaImpianto/symbols'
@@ -123,7 +124,12 @@ const DISTRIBUZIONI: { asse: Asse; etichetta: string }[] = [
   { asse: 'verticale', etichetta: 'Distribuisci verticalmente' },
 ]
 
-/** Spostamento per una pressione di freccia, in pixel di griglia: coerente con `snapGrid`. */
+/**
+ * Direzione di una pressione di freccia: la lunghezza la mette `fattore` qui sotto, un passo
+ * di griglia intero (cinque con Shift). Non si scende sotto la griglia: il committente ha
+ * chiesto che il piazzamento sia consentito solo sui suoi punti, e un passo da un'unità era
+ * il modo più rapido per uscirne senza accorgersene.
+ */
 const PASSI: Record<string, [number, number]> = {
   ArrowLeft: [-1, 0],
   ArrowRight: [1, 0],
@@ -395,7 +401,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
         const id = codiceLibero(voce.prefisso, s.nodes)
         // Sotto tutto il resto: un punto fisso finirebbe sopra un'apparecchiatura già
         // disegnata, nascondendola proprio mentre si lavora.
-        const posizione = { x: 40, y: piedeDelDisegno(s.nodes, s.testi) + 40 }
+        const posizione = { x: 40, y: allineaAllaGriglia(piedeDelDisegno(s.nodes, s.testi) + 40) }
         const nodo = {
           id,
           tipo: voce.tipo,
@@ -510,9 +516,12 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
         ...s,
         nodes: s.nodes.map((n) => {
           if (!selezionati.has(n.id)) return n
-          // Le coordinate vivono solo in position.
-          const x = n.position.x + dx
-          const y = n.position.y + dy
+          // Le coordinate vivono solo in position. Si allinea la posizione RISULTANTE e non
+          // lo spostamento: un'apparecchiatura che partisse fuori griglia — l'auto-layout ne
+          // produce, E1 e F1 nascono a y=185 — ci resterebbe a ogni passo, sommando multipli
+          // di 10 a uno scarto che non se ne va. È lo stesso difetto del tratto trascinato.
+          const x = allineaAllaGriglia(n.position.x + dx)
+          const y = allineaAllaGriglia(n.position.y + dy)
           return { ...n, position: { x, y } }
         }),
       }))
@@ -532,7 +541,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
       const passo = PASSI[e.key]
       if (passo && selezione.nodes.length > 0) {
         e.preventDefault()
-        const fattore = e.shiftKey ? 10 : 1
+        const fattore = e.shiftKey ? PASSO_GRIGLIA * 5 : PASSO_GRIGLIA
         sposta(passo[0] * fattore, passo[1] * fattore, e.repeat)
       }
     }
@@ -603,7 +612,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
     // chiusura: è la stessa cautela di `aggiungiNodo` e della generazione dell'id in
     // useTestiLiberi.ts — `stato` può essere l'istantanea di un render precedente a quello su
     // cui il reducer sta per applicare l'aggiunta, e l'annotazione nascerebbe sopra qualcosa.
-    aggiungiTesto((s) => ({ x: 40, y: piedeDelDisegno(s.nodes, s.testi) + 40 }), contenuto)
+    aggiungiTesto((s) => ({ x: 40, y: allineaAllaGriglia(piedeDelDisegno(s.nodes, s.testi) + 40) }), contenuto)
   }, [aggiungiTesto, applica, modificaTesto, scrittura])
 
   /** Elimina l'annotazione aperta nel dialog: è la sola strada per toglierne una, perché non
