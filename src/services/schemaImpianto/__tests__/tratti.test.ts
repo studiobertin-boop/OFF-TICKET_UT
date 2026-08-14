@@ -391,6 +391,62 @@ describe('trascinaTratto', () => {
       { x: 420, y: 500 },
     ])
   })
+
+  // Il difetto misurato in pagina: un tratto che parte da una quota fuori griglia ci
+  // restava per sempre, perché si sommava uno spostamento invece di posare una quota.
+  // Il montante a x=126,5 è il caso vero, rimpicciolito: in pagina era x=726,5.
+  it('posa il tratto sulla griglia anche partendo da una quota fuori griglia', () => {
+    const pDa = { x: 0, y: 0 }
+    const pA = { x: 300, y: 100 }
+    const gomiti = [
+      { x: 126.5, y: 0 },
+      { x: 126.5, y: 100 },
+    ]
+    const full = polilineaConGomiti(pDa, gomiti, pA)
+    const indiceTratto = full.findIndex((p, i) => full[i + 1] && p.x === full[i + 1].x && p.x === 126.5)
+    expect(indiceTratto).toBeGreaterThanOrEqual(0)
+
+    const nuovi = trascinaTratto(STILE_INDIFFERENTE, pDa, pA, gomiti, QUOTE_INDIFFERENTE, indiceTratto, { x: 33, y: 0 })
+
+    // 126,5 + 33 = 159,5: il punto di griglia più vicino è 160, e le ascisse dei due capi
+    // (0 e 300) sono lontanissime, quindi qui comanda la griglia.
+    expect(nuovi).toContainEqual({ x: 160, y: 0 })
+    expect(nuovi).toContainEqual({ x: 160, y: 100 })
+    expect(nuovi.some((p) => p.x === 159.5)).toBe(false)
+  })
+
+  // Il secondo magnete. Senza, nessun punto della griglia potrebbe raccordare un tubo che
+  // arriva a un'ascissa fuori griglia, ed è la situazione normale finché le ancore dei
+  // simboli stanno dove stanno.
+  it('preferisce l’ascissa di un capo quando è più vicina del punto di griglia', () => {
+    const pDa = { x: 0, y: 0 }
+    const pA = { x: 234, y: 100 }
+    // Rotta nativa 'standard' (rottaLinea), che gira a metà strada: [(0,0), (117,0), (117,100),
+    // (234,100)]. Il montante verticale nasce in x=117 — è la polilinea vera che
+    // `trascinaTratto` ricostruisce internamente con `instrada` (senza gomiti a mano
+    // `polilineaConGomiti(pDa, [], pA)` darebbe un solo angolo a x=234, una forma diversa: vedi
+    // il docblock di `trascinaTratto`), quindi l'indice del tratto verticale si trova qui allo
+    // stesso modo, con `findIndex` sulla rotta di `instrada`.
+    const full = instrada(STILE_INDIFFERENTE, pDa, pA, undefined, QUOTE_INDIFFERENTE)
+    const indiceTratto = full.findIndex((p, i) => full[i + 1] && p.x === full[i + 1].x)
+    expect(indiceTratto).toBeGreaterThanOrEqual(0)
+
+    const nuovi = trascinaTratto(
+      STILE_INDIFFERENTE,
+      pDa,
+      pA,
+      undefined,
+      QUOTE_INDIFFERENTE,
+      indiceTratto,
+      { x: 116, y: 0 }
+    )
+
+    // 117 + 116 = 233. Il punto di griglia più vicino è 230, a distanza 3; l'ascissa del
+    // capo di arrivo è 234, a distanza 1: vince il capo, e il montante finisce esattamente
+    // sotto il bocchello invece che tre unità a sinistra.
+    expect(nuovi.some((p) => p.x === 234)).toBe(true)
+    expect(nuovi.some((p) => p.x === 230)).toBe(false)
+  })
 })
 
 describe('rotte native', () => {

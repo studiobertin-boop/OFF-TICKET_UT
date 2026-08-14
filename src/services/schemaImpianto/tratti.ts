@@ -6,6 +6,7 @@
  */
 
 import type { SchemaArcoStile } from './types'
+import { agganciaQuota } from './griglia'
 
 export interface Punto {
   x: number
@@ -81,7 +82,9 @@ function raccordaPreservando(fisso: Punto, daPreservare: Punto, orizzontale: boo
  * verticale) e si ricongiungono i vicini — è il modo in cui «i gomiti ai capi si aggiustano da
  * soli»: se un capo tocca un'ancora, ne nasce uno nuovo lì vicino (l'ancora non si sposta mai);
  * se tocca già un gomito, quel gomito trasla e basta, perché `raccordaPreservando` lo trova già
- * allineato.
+ * allineato. Quella coordinata non si trasla per somma: si posa sulla posizione agganciata da
+ * `agganciaQuota` (griglia.ts), altrimenti uno scarto di partenza fuori griglia sopravvive per
+ * sempre al trascinamento.
  */
 export function trascinaTratto(
   stile: SchemaArcoStile,
@@ -98,7 +101,14 @@ export function trascinaTratto(
   if (!a || !b) return gomiti ?? []
 
   const orizzontale = a.y === b.y
-  const sposta = (p: Punto): Punto => (orizzontale ? { x: p.x, y: p.y + delta.y } : { x: p.x + delta.x, y: p.y })
+  // Si posa la quota ASSOLUTA agganciata, non si somma uno spostamento: sommare conserva
+  // per sempre lo scarto di una partenza fuori griglia — misurato in pagina, un tratto a
+  // x=726,5 trascinato di 50 finiva a 776,5. Le quote dei due capi entrano fra le posizioni
+  // buone perché le ancore dei simboli sono ancora fuori griglia, e senza di loro un tubo
+  // fra quote 260 e 234 non potrebbe mai essere raccordato dritto (agganciaQuota, griglia.ts).
+  const quotaGrezza = orizzontale ? a.y + delta.y : a.x + delta.x
+  const quotaNuova = agganciaQuota(quotaGrezza, orizzontale ? [pDa.y, pA.y] : [pDa.x, pA.x])
+  const sposta = (p: Punto): Punto => (orizzontale ? { x: p.x, y: quotaNuova } : { x: quotaNuova, y: p.y })
   const nuovoA = sposta(a)
   const nuovoB = sposta(b)
 
