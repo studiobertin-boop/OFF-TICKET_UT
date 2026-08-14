@@ -26,6 +26,7 @@ import {
   Alert,
   CircularProgress,
 } from '@mui/material'
+import { GruppoCampi } from '@/components/common'
 import { useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import type { SelectChangeEvent } from '@mui/material'
@@ -60,6 +61,29 @@ interface RelazioneDataDialogProps {
   initialAdditionalInfo?: AdditionalInfo
   fileName?: string
 }
+
+/**
+ * Larghezza delle select che raccolgono una sigla o due — collegamenti e giri.
+ *
+ * Erano larghe quanto la finestra: novecento pixel per contenere «S1, S2», una per riga.
+ * Con una misura propria stanno in fila e vanno a capo solo quando la finestra si stringe
+ * davvero, ed è lì che la finestra smette di dover essere scorsa per intero.
+ */
+const LARGHEZZA_SELECT = 232
+
+/**
+ * Etichetta che si tronca invece di sfondare il campo.
+ *
+ * «C1 · KAESER SK 19» ci sta, «C1 · ATLAS COPCO GA 30 VSD+ FF» no: MUI non accorcia da sé
+ * l'etichetta di un campo contornato, e quella in eccesso uscirebbe dal bordo.
+ */
+const ETICHETTA_TRONCATA = {
+  '& .MuiInputLabel-root': {
+    maxWidth: 'calc(100% - 28px)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+} as const
 
 export default function RelazioneDataDialog({
   open,
@@ -252,6 +276,7 @@ export default function RelazioneDataDialog({
   }, [customer, scheda, additionalInfo, pratica, schema])
 
   const bloccante = haErrori(segnalazioni)
+  const bloccanti = segnalazioni.filter((s) => s.livello === 'errore').length
 
   const handleGenera = async () => {
     // Si persiste il solo oggetto ripulito: altrimenti una voce obsoleta sopravvivrebbe a ogni
@@ -437,7 +462,7 @@ export default function RelazioneDataDialog({
     <Dialog open={open} onClose={saving ? undefined : onClose} maxWidth="md" fullWidth>
       <DialogTitle>Dati per la relazione tecnica</DialogTitle>
       <DialogContent dividers>
-        <Stack spacing={3} sx={{ mt: 1 }}>
+        <Stack spacing={2.5} sx={{ mt: 1 }}>
           {droppedRefs.length > 0 && (
             <Alert severity="warning">
               Alcuni riferimenti salvati non corrispondono più ad apparecchiature presenti nella
@@ -445,133 +470,149 @@ export default function RelazioneDataDialog({
               prima di generare la relazione.
             </Alert>
           )}
-          <TextField
-            label="Data di emissione"
-            type="date"
-            value={dataEmissione}
-            onChange={(e) => setDataEmissione(e.target.value)}
-            slotProps={{ inputLabel: { shrink: true } }}
-            sx={{ maxWidth: 240 }}
-            helperText="Finisce nella colonna DATA della tabella delle revisioni, in copertina. Condivisa con il campo data del form Dichiarazioni."
-          />
 
-          {eRevisione && (
+          <GruppoCampi
+            titolo="Intestazione del documento"
+            spiegazione={
+              'La data finisce nella colonna DATA della tabella delle revisioni, in copertina, ed è ' +
+              'condivisa con il campo data del form Dichiarazioni. Il motivo compare in §1: ' +
+              '«L’attuale revisione del documento è conseguente a: …»; lasciandolo vuoto, il ' +
+              'capoverso non viene stampato.'
+            }
+          >
+            {/* Data e motivo su una riga: la data è larga quanto una data, e accanto resta
+                posto per una frase. Il motivo compare solo dalla prima revisione in poi, e
+                quando manca la data resta da sola senza lasciare un buco. */}
+            <Stack direction="row" spacing={1.5} useFlexGap sx={{ flexWrap: 'wrap' }}>
+              <TextField
+                label="Data di emissione"
+                type="date"
+                size="small"
+                value={dataEmissione}
+                onChange={(e) => setDataEmissione(e.target.value)}
+                slotProps={{ inputLabel: { shrink: true } }}
+                sx={{ width: 180, flex: 'none' }}
+              />
+
+              {eRevisione && (
+                <TextField
+                  label="Motivo della revisione"
+                  size="small"
+                  value={motivoRevisione}
+                  onChange={(e) => setMotivoRevisione(e.target.value)}
+                  multiline
+                  sx={{ flex: '1 1 320px', minWidth: 0 }}
+                />
+              )}
+            </Stack>
+
+            {/* Questo aiuto resta in vista: non spiega una procedura, avverte che quel che
+                si scrive qui esce dalla pratica e riscrive l'anagrafica del cliente. */}
             <TextField
-              label="Motivo della revisione"
-              value={motivoRevisione}
-              onChange={(e) => setMotivoRevisione(e.target.value)}
+              label="Descrizione attività (ATECO)"
+              size="small"
+              value={descrizioneAttivita}
+              onChange={(e) => setDescrizioneAttivita(e.target.value)}
               fullWidth
+              required
               multiline
               minRows={2}
               helperText={
-                'Compare in §1: «L’attuale revisione del documento è conseguente a: …». ' +
-                'Lasciandolo vuoto, il capoverso non viene stampato.'
+                customer?.descrizione_attivita?.trim()
+                  ? "Preso dall'anagrafica cliente e inserito così com'è nella premessa. Se lo modifichi, l'anagrafica viene aggiornata."
+                  : "L'anagrafica del cliente non riporta l'attività: quanto scrivi qui finisce nella premessa e viene salvato in anagrafica."
               }
             />
-          )}
-
-          <TextField
-            label="Descrizione attività (ATECO)"
-            value={descrizioneAttivita}
-            onChange={(e) => setDescrizioneAttivita(e.target.value)}
-            fullWidth
-            required
-            multiline
-            minRows={2}
-            helperText={
-              customer?.descrizione_attivita?.trim()
-                ? "Preso dall'anagrafica cliente e inserito così com'è nella premessa. Se lo modifichi, l'anagrafica viene aggiornata."
-                : "L'anagrafica del cliente non riporta l'attività: quanto scrivi qui finisce nella premessa e viene salvato in anagrafica."
-            }
-          />
+          </GruppoCampi>
 
           {compressoriSenzaGiri.length > 0 && (
-            <>
-              <Divider />
-              <Typography variant="subtitle2">Giri dei compressori</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Il catalogo non riporta la regolazione dei giri per questi modelli. La risposta
-                viene salvata anche a catalogo, così non verrà più richiesta.
-              </Typography>
-              {compressoriSenzaGiri.map((c) => (
-                <FormControl key={c.codice} fullWidth size="small">
-                  <InputLabel id={`giri-${c.codice}`}>
-                    {`${c.codice} · ${[c.marca, c.modello].filter(Boolean).join(' ') || 'modello non indicato'}`}
-                  </InputLabel>
+            <GruppoCampi
+              titolo="Giri dei compressori"
+              spiegazione={
+                'Il catalogo non riporta la regolazione dei giri per questi modelli. La risposta ' +
+                'viene salvata anche a catalogo, così non verrà più richiesta.'
+              }
+            >
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25 }}>
+                {compressoriSenzaGiri.map((c) => {
+                  const etichetta = `${c.codice} · ${[c.marca, c.modello].filter(Boolean).join(' ') || 'modello non indicato'}`
+                  return (
+                    <FormControl key={c.codice} size="small" sx={{ width: LARGHEZZA_SELECT, ...ETICHETTA_TRONCATA }}>
+                      <InputLabel id={`giri-${c.codice}`}>{etichetta}</InputLabel>
+                      <Select
+                        labelId={`giri-${c.codice}`}
+                        label={etichetta}
+                        value={giri[c.codice] ?? ''}
+                        onChange={(e: SelectChangeEvent) => setGiroFor(c.codice, e.target.value as TipoGiri)}
+                      >
+                        {TIPO_GIRI_OPTIONS.map((o) => (
+                          <MenuItem key={o} value={o}>{TIPO_GIRI_LABELS[o]}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  )
+                })}
+              </Box>
+            </GruppoCampi>
+          )}
+
+          <GruppoCampi
+            titolo="Collegamenti compressori → serbatoi"
+            spiegazione="Serve al calcolo della portata delle valvole dei serbatoi."
+          >
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25 }}>
+              {compressoriCodes.map((code) => (
+                <FormControl key={code} size="small" sx={{ width: LARGHEZZA_SELECT, ...ETICHETTA_TRONCATA }}>
+                  <InputLabel id={`coll-${code}`}>{`${code} collegato a`}</InputLabel>
                   <Select
-                    labelId={`giri-${c.codice}`}
-                    label={`${c.codice} · ${[c.marca, c.modello].filter(Boolean).join(' ') || 'modello non indicato'}`}
-                    value={giri[c.codice] ?? ''}
-                    onChange={(e: SelectChangeEvent) => setGiroFor(c.codice, e.target.value as TipoGiri)}
+                    labelId={`coll-${code}`}
+                    multiple
+                    value={collegamenti[code] ?? []}
+                    onChange={(e: SelectChangeEvent<string[]>) =>
+                      setCollegamentoFor(
+                        code,
+                        typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value
+                      )
+                    }
+                    input={<OutlinedInput label={`${code} collegato a`} />}
+                    renderValue={renderMultiValue}
                   >
-                    {TIPO_GIRI_OPTIONS.map((o) => (
-                      <MenuItem key={o} value={o}>{TIPO_GIRI_LABELS[o]}</MenuItem>
+                    {serbatoiCodes.map((s) => (
+                      <MenuItem key={s} value={s}>
+                        <Checkbox checked={(collegamenti[code] ?? []).includes(s)} />
+                        <ListItemText primary={s} />
+                      </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
               ))}
-            </>
-          )}
+            </Box>
+          </GruppoCampi>
 
-          <Divider />
-          <Typography variant="subtitle2">
-            Collegamenti compressori → serbatoi
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Serve al calcolo della portata delle valvole dei serbatoi.
-          </Typography>
-          {compressoriCodes.map((code) => (
-            <FormControl key={code} fullWidth size="small">
-              <InputLabel id={`coll-${code}`}>{`${code} collegato a`}</InputLabel>
+          <GruppoCampi titolo="Apparecchiature con verifica spessimetrica">
+            <FormControl size="small" sx={{ width: { xs: '100%', sm: 360 } }}>
+              <InputLabel id="spess">Apparecchiature</InputLabel>
               <Select
-                labelId={`coll-${code}`}
+                labelId="spess"
                 multiple
-                value={collegamenti[code] ?? []}
+                value={spessimetrica}
                 onChange={(e: SelectChangeEvent<string[]>) =>
-                  setCollegamentoFor(
-                    code,
+                  setSpessimetrica(
                     typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value
                   )
                 }
-                input={<OutlinedInput label={`${code} collegato a`} />}
+                input={<OutlinedInput label="Apparecchiature" />}
                 renderValue={renderMultiValue}
               >
-                {serbatoiCodes.map((s) => (
-                  <MenuItem key={s} value={s}>
-                    <Checkbox checked={(collegamenti[code] ?? []).includes(s)} />
-                    <ListItemText primary={s} />
+                {spessimetricaOptions.map((code) => (
+                  <MenuItem key={code} value={code}>
+                    <Checkbox checked={spessimetrica.includes(code)} />
+                    <ListItemText primary={code} />
                   </MenuItem>
                 ))}
               </Select>
             </FormControl>
-          ))}
-
-          <Divider />
-          <Typography variant="subtitle2">
-            Apparecchiature con verifica spessimetrica
-          </Typography>
-          <FormControl fullWidth size="small">
-            <InputLabel id="spess">Apparecchiature</InputLabel>
-            <Select
-              labelId="spess"
-              multiple
-              value={spessimetrica}
-              onChange={(e: SelectChangeEvent<string[]>) =>
-                setSpessimetrica(
-                  typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value
-                )
-              }
-              input={<OutlinedInput label="Apparecchiature" />}
-              renderValue={renderMultiValue}
-            >
-              {spessimetricaOptions.map((code) => (
-                <MenuItem key={code} value={code}>
-                  <Checkbox checked={spessimetrica.includes(code)} />
-                  <ListItemText primary={code} />
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          </GruppoCampi>
 
           <Divider />
           <Typography variant="subtitle2">Schema d’impianto (§2.3)</Typography>
@@ -664,16 +705,31 @@ export default function RelazioneDataDialog({
           <Divider />
           <Typography variant="subtitle2">Controllo di completezza</Typography>
           {segnalazioni.length === 0 ? (
-            <Alert severity="success">Nessun dato mancante: la relazione è completa.</Alert>
+            <Alert severity="success" sx={{ py: 0.25 }}>Nessun dato mancante: la relazione è completa.</Alert>
           ) : (
-            <Stack spacing={1}>
+            <Stack spacing={0.75}>
+              {/* Una riga per segnalazione, con le posizioni in fondo a destra invece che
+                  sotto: su una scheda con più mancanze erano il grosso di quel che si
+                  scorreva, e la posizione si legge meglio incolonnata che a capo. */}
               {segnalazioni.map((s) => (
-                <Alert key={s.codice} severity={s.livello === 'errore' ? 'error' : 'warning'}>
-                  {s.messaggio}
+                <Alert
+                  key={s.codice}
+                  severity={s.livello === 'errore' ? 'error' : 'warning'}
+                  sx={{
+                    py: 0.25,
+                    '& .MuiAlert-message': {
+                      display: 'flex', alignItems: 'baseline', gap: 2, width: '100%', flexWrap: 'wrap',
+                    },
+                  }}
+                >
+                  <Box component="span" sx={{ minWidth: 0 }}>{s.messaggio}</Box>
                   {s.posizioni?.length ? (
-                    <Typography component="div" variant="body2" sx={{ mt: 0.5, fontWeight: 600 }}>
+                    <Box
+                      component="span"
+                      sx={{ ml: 'auto', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.78rem' }}
+                    >
                       {s.posizioni.join(' · ')}
-                    </Typography>
+                    </Box>
                   ) : null}
                 </Alert>
               ))}
@@ -682,6 +738,18 @@ export default function RelazioneDataDialog({
         </Stack>
       </DialogContent>
       <DialogActions>
+        {/* Il conteggio sta accanto al pulsante che deve decidere: è lì che serve sapere
+            quanto manca, non in cima a una lista che si è appena finito di scorrere. */}
+        {segnalazioni.length > 0 && (
+          <Typography variant="caption" color="text.secondary" sx={{ mr: 'auto', pl: 1 }}>
+            {segnalazioni.length === 1 ? '1 segnalazione' : `${segnalazioni.length} segnalazioni`}
+            {bloccanti === 0
+              ? ', nessuna bloccante'
+              : bloccanti === 1
+                ? ', 1 bloccante'
+                : `, ${bloccanti} bloccanti`}
+          </Typography>
+        )}
         <Button onClick={onClose} disabled={saving}>
           Annulla
         </Button>
