@@ -4,7 +4,9 @@ import {
   makeDatiImpianto,
   makeDisoleatore,
   makeEssiccatore,
+  makeFiltro,
   makeScheda,
+  makeSeparatore,
   makeSerbatoio,
 } from '@/services/relazione/__tests__/fixtures'
 import { buildSchemaModel } from '../buildSchemaModel'
@@ -167,9 +169,38 @@ describe('layoutSchema', () => {
       expect(layout.muro).toBeNull()
     })
 
-    it('ma un impianto con anche una sola apparecchiatura vera in linea il muro lo disegna ancora', () => {
+    it('ma un impianto con anche un solo serbatoio vero in linea il muro lo disegna ancora', () => {
       // Discrimina un'implementazione che, per far sparire il muro col terminale, finisse per
-      // non disegnarlo mai: qui c'è un essiccatore vero in linea, e il muro deve tornare.
+      // escludere dal calcolo tutto ciò che è LINEA_DISTRIBUZIONE invece del solo terminale:
+      // qui c'è un secondo serbatoio vero in linea, e il muro deve tornare. Il serbatoio è
+      // l'unica apparecchiatura che può stare davvero fuori sala (vedi il test più sotto, sugli
+      // stadi di trattamento): un essiccatore qui non proverebbe la stessa cosa.
+      const scheda = makeScheda({
+        serbatoi: [
+          makeSerbatoio({ codice: 'S1', ubicazione: 'SALA_COMPRESSORI' }),
+          makeSerbatoio({ codice: 'S2', ubicazione: 'LINEA_DISTRIBUZIONE' }),
+        ],
+        essiccatori: [],
+        scambiatori: [],
+        filtri: [],
+        dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+      })
+
+      const layout = layoutSchema(
+        buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+      )
+
+      expect(layout.muro).not.toBeNull()
+    })
+  })
+
+  describe('solo il serbatoio può stare fuori sala compressori', () => {
+    // Osservazione del committente (14-08-2026): un essiccatore in scheda faceva comparire il
+    // muro fra sala e linea, ma nella realtà essiccatore, filtro e separatore restano sempre
+    // fisicamente in sala — stanno "a valle" solo nell'ordine delle tubazioni
+    // (ordinaCatenaTrattamento in buildSchemaModel.ts), non nella stanza. Il campo `ubicazione`
+    // esiste solo sul serbatoio: è l'unica apparecchiatura per cui la scheda lo chiede.
+    it('un essiccatore da solo non basta a far comparire il muro', () => {
       const scheda = makeScheda({
         serbatoi: [makeSerbatoio({ ubicazione: 'SALA_COMPRESSORI' })],
         essiccatori: [makeEssiccatore()],
@@ -182,7 +213,24 @@ describe('layoutSchema', () => {
         buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
       )
 
-      expect(layout.muro).not.toBeNull()
+      expect(layout.muro).toBeNull()
+    })
+
+    it('nemmeno un filtro, o un separatore, bastano da soli', () => {
+      const scheda = makeScheda({
+        serbatoi: [makeSerbatoio({ ubicazione: 'SALA_COMPRESSORI' })],
+        essiccatori: [],
+        scambiatori: [],
+        filtri: [makeFiltro()],
+        separatori: [makeSeparatore()],
+        dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+      })
+
+      const layout = layoutSchema(
+        buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+      )
+
+      expect(layout.muro).toBeNull()
     })
   })
 

@@ -100,8 +100,12 @@ function buildEssiccatoreNodo(e: Essiccatore, scheda: SchedaDatiCompleta): Schem
     id: e.codice,
     tipo: 'essiccatore',
     etichetta: etichetta('Essiccatore frigorifero', e.marca, e.modello),
-    // Trattamento aria: nei riferimenti reali sta sempre a valle del serbatoio, verso le utenze.
-    gruppo: 'LINEA_DISTRIBUZIONE',
+    // Sta sempre a valle del serbatoio nella catena di trattamento (ordinaCatenaTrattamento,
+    // sotto), ma quello è l'ordine delle tubazioni, non la stanza in cui sta fisicamente: solo
+    // il serbatoio può essere ubicato fuori sala compressori (campo `ubicazione` in scheda).
+    // L'essiccatore ci resta sempre, altrimenti il muro separerebbe sala compressori e linea di
+    // distribuzione anche quando non c'è nessuna apparecchiatura vera fuori dalla sala.
+    gruppo: 'SALA_COMPRESSORI',
     valvoleSicurezza: [],
     accessorio: scamb
       ? {
@@ -123,7 +127,8 @@ function buildFiltroNodo(f: Filtro, scheda: SchedaDatiCompleta): SchemaNodo {
     tipo: 'filtro',
     etichetta: etichetta('Filtro', f.marca, f.modello),
     prefiltro: f.tipo === 'PREFILTRO',
-    gruppo: 'LINEA_DISTRIBUZIONE',
+    // Stessa ragione dell'essiccatore (vedi lì): solo il serbatoio può stare fuori sala.
+    gruppo: 'SALA_COMPRESSORI',
     valvoleSicurezza: [],
     accessorio: rec
       ? {
@@ -141,7 +146,11 @@ function buildSeparatoreNodo(sep: Separatore): SchemaNodo {
     id: sep.codice,
     tipo: 'separatore',
     etichetta: etichetta('Separatore', sep.marca, sep.modello),
-    gruppo: 'LINEA_DISTRIBUZIONE',
+    // Stessa ragione dell'essiccatore (vedi lì): solo il serbatoio può stare fuori sala. Vale
+    // anche quando questo stesso nodo fa da pozzo di raccolta condense (raccolta_condense:
+    // 'separatore' più sotto lo riusa per id: è la stessa apparecchiatura, non due) — a
+    // differenza della tanica generica, che non è un'apparecchiatura vera e resta in linea.
+    gruppo: 'SALA_COMPRESSORI',
     valvoleSicurezza: [],
     origine: 'scheda',
   }
@@ -167,6 +176,10 @@ function buildNodoRaccoltaCondense(scheda: SchedaDatiCompleta): SchemaNodo | nul
           id: 'SEP',
           tipo: 'separatore',
           etichetta: 'Separatore',
+          // A differenza di `buildSeparatoreNodo`: qui non c'è un'apparecchiatura vera in
+          // scheda, solo il pozzo generico che la dichiarazione di raccolta condense impone —
+          // stessa natura di `tanica`/'altro' qui sotto, non del separatore come stadio di
+          // trattamento.
           gruppo: 'LINEA_DISTRIBUZIONE',
           valvoleSicurezza: [],
           origine: 'scheda',
