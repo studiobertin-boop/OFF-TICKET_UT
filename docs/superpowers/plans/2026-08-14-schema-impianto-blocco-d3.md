@@ -826,10 +826,18 @@ Atteso: `exit=0`, **11** test verdi (quattro su `arcoPiuVicino`, cinque su `spez
 | 4 | In `fissaLaForma`, restituire `[]` quando non ci sono gomiti | «una metà senza vertici viene fissata con un gomito nel suo punto medio» |
 | 5 | Nei segni del `secondo`, lasciare `s.t` invece di rimapparla | «i segni vanno alla metà su cui cadono, con la t rimappata» |
 
+**Il ripristino si fa da una copia, non con `git checkout`.** Le mutazioni si applicano **prima** del commit dello Step 6: `git checkout` su un file già tracciato butterebbe via l'intera implementazione insieme alla mutazione, e su un file nuovo non tracciato fallisce e basta. Nel Task 2 di questo stesso blocco è successo davvero.
+
 ```bash
+# una copia sola, prima di cominciare
+cp src/services/schemaImpianto/inserimentoTee.ts /tmp/d3-task3-integro.ts
+
 # esempio per la mutazione 1 — ripetere per ognuna
 npx vitest run src/services/schemaImpianto/__tests__/inserimentoTee.test.ts > /tmp/d3-task3-mut1.txt 2>&1; echo "exit=$?"; grep -E "✓|×|failed|passed" /tmp/d3-task3-mut1.txt | tail -15
-git checkout src/services/schemaImpianto/inserimentoTee.ts
+cp /tmp/d3-task3-integro.ts src/services/schemaImpianto/inserimentoTee.ts
+
+# a mutazioni finite, prima del commit: l'integro deve tornare verde
+npx vitest run src/services/schemaImpianto/__tests__/inserimentoTee.test.ts > /tmp/d3-task3-ripristino.txt 2>&1; echo "exit=$?"; tail -6 /tmp/d3-task3-ripristino.txt
 ```
 
 - [ ] **Step 6: Commit**
