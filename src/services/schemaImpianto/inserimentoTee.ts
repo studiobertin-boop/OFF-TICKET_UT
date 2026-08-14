@@ -1,8 +1,8 @@
 /**
  * Inserire un TEE su un tubo esistente: le due funzioni pure sotto il gesto (osservazione 5
  * del committente). Il gesto vero — trascinare il simbolo, evidenziare il tubo sotto,
- * rilasciare — non è ancora costruito: consumerà queste funzioni da un hook fra i componenti.
- * Qui c'è solo la geometria, che si collauda senza DOM.
+ * rilasciare — sta in `useInserimentoTee.ts`, fra i componenti; qui c'è solo la geometria,
+ * che si collauda senza DOM.
  *
  * Sta fra i servizi e non fra i componenti per la stessa ragione di `griglia.ts`: un calcolo
  * dentro un componente è un calcolo che nessuno prova.
@@ -12,9 +12,9 @@ import type { SchemaSegnoTubo } from './types'
 
 /**
  * Quanto lontano dal tubo può cadere il centro del TEE perché il rilascio lo spezzi, in unità
- * del disegno. Poco meno del riquadro del simbolo (24×24): il pallino deve sovrapporsi
- * visibilmente al tubo. Senza soglia, QUALUNQUE rilascio spezzerebbe il tubo meno lontano
- * della tela, anche a mezzo disegno di distanza.
+ * del disegno. Senza soglia, QUALUNQUE rilascio spezzerebbe il tubo meno lontano della tela,
+ * anche a mezzo disegno di distanza; e il tubo candidato si evidenzia mentre lo si sorvola,
+ * quindi l'utente sa già in anticipo che cosa succederà.
  */
 export const TOLLERANZA_INSERIMENTO = 20
 

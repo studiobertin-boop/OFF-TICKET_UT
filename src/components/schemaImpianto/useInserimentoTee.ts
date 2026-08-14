@@ -45,10 +45,10 @@ function centroDellaGiunzione(nodo: Node): Punto {
 }
 
 /**
- * `A`, `B` non contano — solo `!eUnaGiunzione` decide qui. Guardia distinta da quella sul
- * numero di nodi trascinati (`arcoSotto`): protegge il gesto quotidiano di trascinare
- * un'apparecchiatura qualunque (un compressore, un serbatoio) sopra un tubo a cui non è
- * collegata — senza, quel tubo verrebbe spezzato e riagganciato al simbolo sbagliato.
+ * Guardia distinta da quella sul numero di nodi trascinati (`arcoSotto`): protegge il gesto
+ * quotidiano di trascinare un'apparecchiatura qualunque (un compressore, un serbatoio) sopra
+ * un tubo a cui non è collegata — senza, quel tubo verrebbe spezzato e riagganciato al
+ * simbolo sbagliato.
  */
 function eUnaGiunzione(nodo: Node): boolean {
   return (nodo.data as SchemaNodeData | undefined)?.nodo?.tipo === 'giunzione'
@@ -173,6 +173,10 @@ export function useInserimentoTee<T extends StatoConNodiEdArchi>(
                   id: idPrimo,
                   target: nodo.id,
                   targetHandle: ANCORA_IN_ARRIVO,
+                  // Non l'eredita da `arco`: l'id originale selezionato non esiste più, e uno
+                  // dei due spezzoni disegnato come selezionato lascerebbe la barra strumenti a
+                  // puntare a un arco fantasma.
+                  selected: false,
                   data: { stile: data.stile, punti: primo.punti, segni: primo.segni } satisfies SchemaEdgeData,
                 },
                 {
@@ -180,6 +184,7 @@ export function useInserimentoTee<T extends StatoConNodiEdArchi>(
                   id: idSecondo,
                   source: nodo.id,
                   sourceHandle: ANCORA_IN_PARTENZA,
+                  selected: false,
                   data: { stile: data.stile, punti: secondo.punti, segni: secondo.segni } satisfies SchemaEdgeData,
                 },
               ]
@@ -202,7 +207,7 @@ export function useInserimentoTee<T extends StatoConNodiEdArchi>(
       const aggiorna = ePassatoUnEventoDiPosizione ? aggiornaSenzaCronologia : applica
       aggiorna(costruisci)
     },
-    [arcoSotto, stato.edges, capi, applica, aggiornaSenzaCronologia]
+    [arcoSotto, stato.edges, capi, quote, applica, aggiornaSenzaCronologia]
   )
 
   return { arcoEvidenziato, iniziaTrascinamento, seguiTrascinamento, concludiTrascinamento }
