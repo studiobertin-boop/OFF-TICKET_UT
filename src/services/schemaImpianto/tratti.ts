@@ -82,9 +82,7 @@ function raccordaPreservando(fisso: Punto, daPreservare: Punto, orizzontale: boo
  * verticale) e si ricongiungono i vicini — è il modo in cui «i gomiti ai capi si aggiustano da
  * soli»: se un capo tocca un'ancora, ne nasce uno nuovo lì vicino (l'ancora non si sposta mai);
  * se tocca già un gomito, quel gomito trasla e basta, perché `raccordaPreservando` lo trova già
- * allineato. Quella coordinata non si trasla per somma: si posa sulla posizione agganciata da
- * `agganciaQuota` (griglia.ts), altrimenti uno scarto di partenza fuori griglia sopravvive per
- * sempre al trascinamento.
+ * allineato. Come si posa quella coordinata è nel commento del corpo della funzione, sotto.
  */
 export function trascinaTratto(
   stile: SchemaArcoStile,

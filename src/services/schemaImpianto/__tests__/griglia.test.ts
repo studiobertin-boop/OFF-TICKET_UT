@@ -11,7 +11,7 @@ describe('allineaAllaGriglia', () => {
   // Non prova la direzione dell'arrotondamento — floor, ceil e round lasciano fermo un
   // multiplo esatto allo stesso modo — ma scopre bug di segno o di scala: un'inversione di
   // segno sposterebbe -40, e una divisione per PASSO_GRIGLIA dimenticata sposterebbe anche
-  // 260 e 0.
+  // 260.
   it('lascia fermo ciò che è già sulla griglia', () => {
     expect(allineaAllaGriglia(260)).toBe(260)
     expect(allineaAllaGriglia(0)).toBe(0)
@@ -23,10 +23,9 @@ describe('allineaAllaGriglia', () => {
     expect(allineaAllaGriglia(-27)).toBe(-30)
   })
 
-  // Math.round(-0.4) è -0: senza normalizzazione questo fallirebbe, perché toBe usa
-  // Object.is e distingue -0 da 0. Fissato qui perché i prossimi task del blocco D2
-  // scrivono test su coordinate che attraversano lo zero, dove la trappola scatterebbe
-  // lontano da questa causa.
+  // Math.round(-0.4) è -0: senza normalizzazione questo fallirebbe, perché in Vitest
+  // expect(-0).toBe(0) fallisce (Object.is distingue -0 da 0). La normalizzazione evita
+  // questa trappola per chiunque scriva test su coordinate che passano per lo zero.
   it('normalizza il -0 a 0', () => {
     expect(allineaAllaGriglia(-4)).toBe(0)
   })

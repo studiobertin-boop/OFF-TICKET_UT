@@ -158,7 +158,7 @@ function SchemaGomito({ indice, punto, pDa, pA, onSposta, onRimuovi }: SchemaGom
       // qui sopra. Sul pointerdown lo stopPropagation è cautelativo: nessun antenato (Pane
       // compreso) monta oggi un onPointerDown in bubbling da fermare — l'unico onPointerDown*
       // di Pane è `onPointerDownCapture`, fase di cattura, già passata quando React arriva qui.
-      // I gestori della tela davvero raggiungibili in bubbling — `onPointerMove`/`onPointerUp`
+      // I gestori della tela davvero raggiungibili in bubbling — `onPointerUp`
       // del Pane, `react-flow__pane` — sono fermati da `suMovimento`/`suFine`/`suAnnullamento`
       // (sotto), non da `suInizio`. Non risalirebbe invece al gestore del tratto qui sotto: quel
       // `<path>` è un fratello di EdgeLabelRenderer nell'albero React, non un antenato, e un

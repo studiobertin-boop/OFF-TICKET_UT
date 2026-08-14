@@ -6,7 +6,7 @@
  * copia dello stesso pattern, non accorpata qui per restare nel perimetro di questo task, che
  * autorizzava a toccare solo `SchemaEdgeTubazione.tsx`) e sui due gesti nati nel Blocco D1
  * (`DivisorioAnteprima.tsx`, `ManigliaRidimensiona.tsx`, anch'essi non toccati: hanno già la
- * stessa cattura del puntatore, identica — vedi `DivisorioAnteprima.tsx:19-41` e
+ * stessa cattura del puntatore — vedi `DivisorioAnteprima.tsx:19-41` e
  * `ManigliaRidimensiona.tsx:35-64` — ma non la guardia «si è mosso» né il concetto di evento
  * conclusivo, perché il loro `onCambia` non distingue un evento intermedio da uno finale: non
  * scrivono mai in una cronologia, quindi non hanno nulla da attendere).
