@@ -43,12 +43,23 @@ export function testoAggiunto(
 
 /**
  * L'annotazione si posa sui punti della griglia. Si allinea qui e non nel componente perché
- * qui i test la raggiungono. La posizione che arriva da `TestiLiberi.tsx` è già assoluta —
- * puntatore meno lo scostamento di presa, congelato al pointerdown, non uno spostamento
- * sommato allo stato precedente — quindi allinearla qui è idempotente: nessun residuo si
- * accumula, per quanto lento sia il trascinamento. Prima, questa funzione non allineava
- * nulla: misurato in pagina, un'annotazione a y=573,75 spostata di 60 finiva a y=513,75
- * invece di posarsi sul punto di griglia più vicino, y=510.
+ * qui i test la raggiungono, e si allinea la posizione ASSOLUTA e non lo spostamento: il
+ * puntatore che `TestiLiberi.tsx` legge da `screenToFlowPosition` arriva già quantizzato,
+ * perché la tela monta `snapToGrid`/`snapGrid={[10, 10]}` (`SchemaEditor.tsx`), quindi la
+ * posizione che il componente calcola è una posizione di partenza NON quantizzata (l'origine
+ * dell'annotazione, fuori griglia) più uno spostamento che lo È — e senza allineare qui,
+ * quello scarto di partenza sopravvive a ogni trascinamento: misurato in pagina, un'annotazione
+ * a y=573,75 spostata di 60 finiva a y=513,75 invece di posarsi sul punto di griglia più
+ * vicino, y=510.
+ *
+ * A differenza del trascinamento del tratto (useTrascinamentoTratto.ts), qui non serve
+ * congelare lo stato d'inizio gesto: lo scostamento di presa è congelato al `pointerdown`
+ * (`TestiLiberi.tsx`, `scostamentoRef`) e non viene mai ricalcolato dalla posizione allineata
+ * scritta qui, quindi non c'è un valore già agganciato su cui il passo successivo si
+ * incastrerebbe. E siccome lo spostamento fra un evento e l'altro è sempre un multiplo esatto
+ * del passo, l'allineamento vi commuta — allinea(origine + 10k) = allinea(origine) + 10k per
+ * ogni k intero — quindi ogni evento del gesto allinea in modo indipendente e coerente con
+ * gli altri, senza bisogno di partire dal valore già scritto in stato.
  *
  * Nessuna quota preferita, a differenza del tratto (`agganciaQuota`, griglia.ts):
  * un'annotazione non deve restare allineata a nulla, va dove il committente la mette.

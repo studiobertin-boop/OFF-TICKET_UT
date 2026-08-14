@@ -37,11 +37,20 @@ describe('testiConSpostamento', () => {
   })
 
   // Il difetto misurato in pagina: la posizione si spostava di un multiplo di 10 ma
-  // conservava per sempre lo scarto di partenza (573,75 → 513,75).
-  it('posa l’annotazione sulla griglia anche partendo da una posizione fuori griglia', () => {
-    const testi = [{ id: 'T1', x: 40, y: 573.75, contenuto: 'nota' }]
-    expect(testiConSpostamento(testi, 'T1', { x: 150, y: 513.75 })).toEqual([
-      { id: 'T1', x: 150, y: 510, contenuto: 'nota' },
+  // conservava per sempre lo scarto di partenza (573,75 → 513,75). Bersaglio fuori griglia
+  // su entrambe le coordinate (156,25 e 513,75), non solo sulla y, perché un allineamento
+  // che ne dimenticasse una venga scoperto su qualunque asse la dimentichi. Un vicino
+  // anch'esso fuori griglia (33,5 / 47,25) e mai indicato come bersaglio, perché un
+  // allineamento troppo largo — che si applicasse a tutte le annotazioni invece che alla
+  // sola T1 — sposterebbe anche lui, cosa che un vicino già sulla griglia non rivelerebbe.
+  it('posa l’annotazione sulla griglia anche partendo da una posizione fuori griglia, senza toccare i vicini', () => {
+    const testi = [
+      { id: 'T1', x: 40, y: 573.75, contenuto: 'nota' },
+      { id: 'T2', x: 33.5, y: 47.25, contenuto: 'vicino fuori griglia' },
+    ]
+    expect(testiConSpostamento(testi, 'T1', { x: 156.25, y: 513.75 })).toEqual([
+      { id: 'T1', x: 160, y: 510, contenuto: 'nota' },
+      { id: 'T2', x: 33.5, y: 47.25, contenuto: 'vicino fuori griglia' },
     ])
   })
 })
