@@ -1368,6 +1368,7 @@ voce si scrive qui, o lo spezzamento sarebbe irreversibile."
 - Modify: `src/components/schemaImpianto/conversioneFlow.ts` (`fondiDatiArchi`)
 - Modify: `src/components/schemaImpianto/SchemaEditor.tsx` (i tre gestori del trascinamento nodo)
 - Test: `src/components/schemaImpianto/__tests__/fondiDatiArchi.test.ts` (esistente)
+- Test: `src/components/schemaImpianto/__tests__/instradamentoCondiviso.test.ts` (esistente — il quarto chiamante di `fondiDatiArchi`, solo l'argomento in più)
 
 **Interfaces:**
 - Consumes: `useInserimentoTee` (Task 4)
@@ -1466,6 +1467,8 @@ export function fondiDatiArchi(
 ```
 
 Il parametro è **obbligatorio**, non con valore predefinito `null`, per la stessa ragione per cui `testi` è obbligatorio in `flowALayout`: un valore predefinito lascerebbe un chiamante futuro spegnere l'evidenziazione in silenzio. E il docblock della funzione, che elenca «le due cose che un arco non può ricavarsi da solo», va aggiornato: ora sono tre.
+
+> **I chiamanti sono quattro, non due — controllati uno per uno prima di scrivere.** `SchemaEditor.tsx:325` (Step 4 qui sotto), tre chiamate in `__tests__/fondiDatiArchi.test.ts` e **una in `__tests__/instradamentoCondiviso.test.ts`**, che il resto di questo task non nomina. Vanno aggiornate tutte. Attenzione: **vitest transpila senza controllare i tipi**, quindi una chiamata dimenticata continuerebbe a passare i test con `evidenziato: false` ovunque — è `tsc --noEmit` (Step 5) a intercettarla, e va eseguito.
 
 - [ ] **Step 4: Cablare l'hook nell'editor**
 
