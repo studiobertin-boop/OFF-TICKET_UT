@@ -125,10 +125,10 @@ const DISTRIBUZIONI: { asse: Asse; etichetta: string }[] = [
 ]
 
 /**
- * Direzione di una pressione di freccia: la lunghezza la mette `fattore` qui sotto, un passo
- * di griglia intero (cinque con Shift). Non si scende sotto la griglia: il committente ha
- * chiesto che il piazzamento sia consentito solo sui suoi punti, e un passo da un'unità era
- * il modo più rapido per uscirne senza accorgersene.
+ * Direzione di una pressione di freccia: la lunghezza la mette `fattore` nel gestore `suTasto`
+ * (`useEffect` qui sotto), un passo di griglia intero (cinque con Shift). Non si scende sotto
+ * la griglia: il committente ha chiesto che il piazzamento sia consentito solo sui suoi punti,
+ * e un passo da un'unità era il modo più rapido per uscirne senza accorgersene.
  */
 const PASSI: Record<string, [number, number]> = {
   ArrowLeft: [-1, 0],

@@ -46,20 +46,26 @@ export function testoAggiunto(
  * qui i test la raggiungono, e si allinea la posizione ASSOLUTA e non lo spostamento: il
  * puntatore che `TestiLiberi.tsx` legge da `screenToFlowPosition` arriva già quantizzato,
  * perché la tela monta `snapToGrid`/`snapGrid={[10, 10]}` (`SchemaEditor.tsx`), quindi la
- * posizione che il componente calcola è una posizione di partenza NON quantizzata (l'origine
- * dell'annotazione, fuori griglia) più uno spostamento che lo È — e senza allineare qui,
- * quello scarto di partenza sopravvive a ogni trascinamento: misurato in pagina, un'annotazione
- * a y=573,75 spostata di 60 finiva a y=513,75 invece di posarsi sul punto di griglia più
- * vicino, y=510.
+ * posizione che il componente calcola è un'origine (`testo.x`/`testo.y`) più uno spostamento
+ * che è quantizzato. Oggi l'origine nasce già allineata — l'unica creatrice di annotazioni è
+ * `aggiungiTesto` qui sotto, e chi le chiama (`SchemaEditor.tsx`) le fa nascere sulla griglia
+ * (Task 4, blocco D2) — ma l'allineamento resta comunque qui: è il punto dove la proprietà si
+ * mantiene a ogni trascinamento, indipendentemente da chi crea l'annotazione, non un rimedio
+ * legato a un'origine fuori griglia che oggi non esiste più. Prima che le annotazioni nascessero
+ * allineate, un'origine fuori griglia sopravviveva a ogni trascinamento senza questo allineamento:
+ * misurato in pagina, un'annotazione a y=573,75 spostata di 60 finiva a y=513,75 invece di
+ * posarsi sul punto di griglia più vicino, y=510.
  *
  * A differenza del trascinamento del tratto (useTrascinamentoTratto.ts), qui non serve
  * congelare lo stato d'inizio gesto: lo scostamento di presa è congelato al `pointerdown`
- * (`TestiLiberi.tsx`, `scostamentoRef`) e non viene mai ricalcolato dalla posizione allineata
- * scritta qui, quindi non c'è un valore già agganciato su cui il passo successivo si
- * incastrerebbe. E siccome lo spostamento fra un evento e l'altro è sempre un multiplo esatto
- * del passo, l'allineamento vi commuta — allinea(origine + 10k) = allinea(origine) + 10k per
- * ogni k intero — quindi ogni evento del gesto allinea in modo indipendente e coerente con
- * gli altri, senza bisogno di partire dal valore già scritto in stato.
+ * (`TestiLiberi.tsx`, `scostamentoRef`) e durante il gesto non viene mai ricalcolato dalla
+ * posizione allineata scritta qui (si ricalcola solo al `pointerdown` successivo, da
+ * `testo.x`/`testo.y` — ma quello è l'inizio di un gesto nuovo), quindi durante un trascinamento
+ * non c'è un valore già agganciato su cui il passo successivo si incastrerebbe. E siccome lo
+ * spostamento fra un evento e l'altro è sempre un multiplo esatto del passo, l'allineamento vi
+ * commuta — allinea(origine + 10k) = allinea(origine) + 10k per ogni k intero — quindi ogni
+ * evento del gesto allinea in modo indipendente e coerente con gli altri, senza bisogno di
+ * partire dal valore già scritto in stato.
  *
  * Nessuna quota preferita, a differenza del tratto (`agganciaQuota`, griglia.ts):
  * un'annotazione non deve restare allineata a nulla, va dove il committente la mette.
