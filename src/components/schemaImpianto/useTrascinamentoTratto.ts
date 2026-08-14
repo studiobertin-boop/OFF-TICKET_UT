@@ -181,19 +181,12 @@ export function useTrascinamentoTratto<T extends StatoConNodiEdArchi>(
       const aggiorna = primaScritturaConSpostamento ? applica : aggiornaSenzaCronologia
 
       // Un evento a delta nullo (anche non conclusivo, una volta che il gesto ha già scritto
-      // qualcosa — il ramo sopra copre il caso "non ancora") ripristina lo stato d'inizio
-      // gesto — i gomiti congelati sopra — invece di chiamare `trascinaTratto` con delta zero:
-      // a delta zero, con gomiti e indice congelati, quella chiamata ridisegna sempre la rotta
-      // di partenza (dipende solo da valori congelati, mai dal risultato dell'evento precedente:
-      // verificato eseguendo il codice), **non** una rotta ferma allo spostamento precedente —
-      // ma la ridisegna MATERIALIZZANDOLA in punti espliciti, e quel cambio di rappresentazione
-      // resta anche quando la polilinea disegnata è identica. Un arco così materializzato non è
-      // più equivalente ai gomiti congelati (`undefined`/`[]` per un arco auto-instradato): si
-      // stacca dal riassestamento delle quote quando le apparecchiature si spostano — la stessa
-      // ragione per cui esiste questo intero task — ed è ciò che `flowALayout`
-      // (`conversioneFlow.ts:71`) persisterebbe nel layout salvato se un salvataggio cogliesse
-      // questo stato transitorio. Per un arco che non aveva gomiti a mano quello stato È il
-      // vuoto (domanda aperta #1 del Blocco C1, decisa dal committente): il tubo torna
+      // qualcosa — il ramo sopra copre il caso "non ancora") ripristina i gomiti congelati
+      // sopra, invece di chiamare `trascinaTratto` con delta zero: l'alternativa produce
+      // comunque una materializzazione in punti espliciti, e un arco materializzato si stacca
+      // dal riassestamento automatico delle quote — `instrada` con gomiti non vuoti ignora
+      // stile e quote (`tratti.ts:341`). Per un arco che non aveva gomiti a mano quello stato È
+      // il vuoto (domanda aperta #1 del Blocco C1, decisa dal committente): il tubo torna
       // all'instradamento automatico. Non serve più
       // distinguere l'evento conclusivo dagli altri — la stessa regola vale a ogni evento, e il
       // «gesto a vuoto» è semplicemente il caso in cui l'ULTIMO evento capita ad avere delta
