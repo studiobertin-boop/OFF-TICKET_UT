@@ -824,8 +824,12 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
           ]}
         >
           {/* Il grigio predefinito di xyflow (#91919a) è tarato su fondo chiaro ma compete col
-              disegno: qui la griglia deve guidare l'occhio, non farsi leggere. */}
-          <Background gap={10} color="#c9ced6" />
+              disegno: qui la griglia deve guidare l'occhio, non farsi leggere. Misurato in
+              pagina: su fondo bianco #c9ced6 dava un contrasto di 1,58:1 (praticamente
+              invisibile), #aeb6c2 sale a 2,04:1; e a size predefinita il puntino ha raggio 0,5
+              (0,30px, sotto il pixel), size={1.6} lo porta a 0,8 (~2,5 volte l'area). Insieme
+              danno una griglia che si vede senza competere col disegno. */}
+          <Background gap={10} size={1.6} color="#aeb6c2" />
           <Controls />
           <ViewportPortal>
             <GuideAllineamento guide={guide} />
@@ -866,7 +870,9 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
         </Button>
         {/* A tutto schermo non c'è nulla da ridimensionare, e una maniglia che non fa niente
             fa credere che il gesto sia rotto. */}
-        {!preferenze.schermoIntero && <ManigliaRidimensiona onCambia={onCambiaPreferenze} />}
+        {!preferenze.schermoIntero && (
+          <ManigliaRidimensiona onCambia={onCambiaPreferenze} larghezza={preferenze.larghezza} altezza={preferenze.altezza} />
+        )}
       </Stack>
 
       {/* Un dialog solo per due bersagli (la scritta del terminale e le annotazioni libere):

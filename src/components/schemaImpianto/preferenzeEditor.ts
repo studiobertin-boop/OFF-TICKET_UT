@@ -126,3 +126,33 @@ export function dimensioneFinestra(
     ),
   }
 }
+
+/**
+ * Scostamento fra l'angolo in basso a destra della finestra corrente e il punto (x, y) in cui si
+ * è afferrata la maniglia. La maniglia sta nella barra inferiore del dialog e non sull'angolo del
+ * Paper, quindi il suo centro non coincide con l'angolo che `dimensioneFinestra` userebbe: senza
+ * questa compensazione il primo movimento fa scattare la finestra alla dimensione che avrebbe se
+ * il puntatore fosse esattamente sull'angolo, invece che su quel punto.
+ *
+ * Il chiamante misura questo scostamento una volta sola, al pointerdown, e lo somma a `(x, y)` a
+ * ogni pointermove prima di chiamare `dimensioneFinestra`: sommare (x+dx, y+dy) restituisce
+ * esattamente l'angolo vero, qualunque sia il punto di presa, com'è collaudato di sotto.
+ *
+ * Non è esatto in ogni regime: il Paper di MUI ha un margine fisso di 32px per lato, quindi oltre
+ * una certa percentuale la finestra resa è più piccola di quella richiesta (misurato: il 100% su
+ * uno schermo da 1500px rende un Paper di 1436px). In quel regime l'angolo qui calcolato dalle
+ * percentuali sta più in là di quello davvero disegnato, e la compensazione non è più esatta.
+ * Nell'uso normale, sotto quella soglia, lo è.
+ */
+export function scostamentoManiglia(
+  x: number,
+  y: number,
+  larghezzaSchermo: number,
+  altezzaSchermo: number,
+  larghezza: number,
+  altezza: number,
+): { dx: number; dy: number } {
+  const angoloX = larghezzaSchermo / 2 + (larghezzaSchermo * larghezza) / 200
+  const angoloY = altezzaSchermo / 2 + (altezzaSchermo * altezza) / 200
+  return { dx: angoloX - x, dy: angoloY - y }
+}

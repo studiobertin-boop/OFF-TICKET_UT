@@ -4,6 +4,7 @@ import {
   dimensioneFinestra,
   leggiPreferenze,
   percentualeAnteprima,
+  scostamentoManiglia,
   scriviPreferenze,
 } from '../preferenzeEditor'
 
@@ -90,5 +91,39 @@ describe('dimensioneFinestra', () => {
 
   it('non lascia crescere la finestra oltre lo schermo', () => {
     expect(dimensioneFinestra(2000, 2000, 1000, 800)).toEqual({ larghezza: 100, altezza: 100 })
+  })
+})
+
+describe('scostamentoManiglia', () => {
+  // Schermo 1000x800, finestra all'80% di larghezza e 50% di altezza: l'angolo vero è a
+  // (900, 600) (stessi numeri del primo caso di dimensioneFinestra, letti alla rovescia).
+  // La maniglia sta 22px a sinistra e 24px sopra quell'angolo: valori diversi apposta, come
+  // misurato in pagina, così un'implementazione che scambiasse ascissa e ordinata cadrebbe qui.
+  it('misura quanto la maniglia è spostata dall\'angolo vero della finestra', () => {
+    expect(scostamentoManiglia(878, 576, 1000, 800, 80, 50)).toEqual({ dx: 22, dy: 24 })
+  })
+
+  // Stesso schermo, finestra diversa (60% x 90%, angolo a (960, 855)) e uno scostamento diverso
+  // sui due assi (10 e 35): un secondo punto di misura, indipendente dal primo.
+  it('vale anche con un\'altra finestra e un altro punto di presa', () => {
+    expect(scostamentoManiglia(950, 820, 1200, 900, 60, 90)).toEqual({ dx: 10, dy: 35 })
+  })
+
+  // L'invariante che dice "non salta": sommando lo scostamento al punto di presa si ottiene
+  // sempre l'angolo vero, qualunque sia il punto in cui si è afferrata la maniglia — quindi
+  // dimensioneFinestra(x+dx, y+dy, ...) restituisce esattamente le percentuali di partenza.
+  it('compensa esattamente: dimensioneFinestra(x+dx, y+dy, ...) torna alle percentuali di partenza', () => {
+    const larghezzaSchermo = 1000
+    const altezzaSchermo = 800
+    const larghezza = 80
+    const altezza = 50
+    for (const [x, y] of [
+      [700, 500],
+      [123, 456],
+      [900, 600], // proprio sull'angolo: scostamento nullo, deve restare esatto anche qui
+    ]) {
+      const { dx, dy } = scostamentoManiglia(x, y, larghezzaSchermo, altezzaSchermo, larghezza, altezza)
+      expect(dimensioneFinestra(x + dx, y + dy, larghezzaSchermo, altezzaSchermo)).toEqual({ larghezza, altezza })
+    }
   })
 })
