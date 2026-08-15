@@ -311,7 +311,7 @@ export function ingombroTesto(testo: SchemaTestoLibero): { destra: number; basso
  * vuoto in più fra disegno e tabella in OGNI schema con muro (non solo quelli al limite), e uno
  * spostamento delle quote di instradamento — `quoteInstradamento` legge proprio questa `altezza` —
  * cioè delle tubazioni, sul documento consegnato. La prova che il fondo resta comunque dentro
- * l'SVG vero è un test su `renderSvg`, non su questa funzione (`renderSvg.test.ts`).
+ * l'SVG vero è un test su `renderSvg`, non su questa funzione (`layout.test.ts`).
  *
  * `layout.testi` legge in modo difensivo (`?? []`) benché `SchemaLayout.testi` sia obbligatorio a
  * livello di tipo (`types.ts`): il produttore che davvero lo dimenticava era `flowALayout`
