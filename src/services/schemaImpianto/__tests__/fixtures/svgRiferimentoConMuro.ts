@@ -38,7 +38,7 @@
  * "generato l'ultima volta dal commit" con l'hash del commit che introduce il cambiamento voluto —
  * il motivo del cambiamento va nel messaggio di quel commit, non ripetuto qui.
  *
- * Generato la prima volta al codice del commit 5cfe586 ("feat(schema): il muro non si disegna
+ * Generato l'ultima volta dal commit 5cfe586 ("feat(schema): il muro non si disegna
  * piu' da solo"), Task 5 del Blocco D4: la logica del muro e dei suoi varchi (spessore,
  * larghezza dei varchi, fusione dei varchi vicini) in `symbols/index.ts` non è cambiata da lì fino
  * al commit di apertura del Task 6 (`git log --oneline 5cfe586..HEAD -- src/services/schemaImpianto`
