@@ -639,4 +639,53 @@ describe('instrada con un lato imposto', () => {
     expect(punti.some((p) => p.y === QUOTE.yCorsiaCondense)).toBe(false)
     expect(punti[punti.length - 1]).toEqual({ x: 382, y: 405 })
   })
+
+  // Giro di fix 1 — buco di copertura del revisore: `rottaImboccata` ha sette rami e i nove
+  // casi sopra ne esercitano solo quattro, tutti quelli in cui il lato imposto è VERTICALE dalla
+  // parte che conta. I tre casi sotto stanno sugli stessi due capi (272,182)-(382,405) apposta,
+  // per confrontare i numeri a colpo d'occhio con quelli sopra, ed esercitano i tre rami mancanti
+  // — tutti quelli in cui il lato che conta è LATERALE.
+
+  // Solo il capo di partenza impone, e impone un lato laterale: è il ramo "solo `da` impone"
+  // (lo stesso di 'un lato imposto in partenza vincola il primo segmento', sopra), ma il suo
+  // braccio FALSO — quel test usa 'basso' (verticale) ed esercita solo il braccio vero.
+  it('un lato laterale imposto in partenza vincola il primo segmento in orizzontale', () => {
+    const punti = instrada('standard', { x: 272, y: 182 }, { x: 382, y: 405 }, undefined, QUOTE, { da: 'sx' })
+    expect(punti).toEqual([
+      { x: 272, y: 182 },
+      { x: 382, y: 182 },
+      { x: 382, y: 405 },
+    ])
+  })
+
+  // Assi diversi con l'ordine speculare a 'due lati imposti su assi diversi danno un angolo
+  // solo' (che usa `{ da: 'basso', a: 'sx' }`): qui è `da` a essere laterale e `a` verticale,
+  // il braccio opposto della stessa ternaria.
+  it('assi diversi con il capo di partenza laterale danno lo stesso angolo, per il ramo opposto', () => {
+    const punti = instrada('standard', { x: 272, y: 182 }, { x: 382, y: 405 }, undefined, QUOTE, {
+      da: 'sx',
+      a: 'alto',
+    })
+    expect(punti).toEqual([
+      { x: 272, y: 182 },
+      { x: 382, y: 182 },
+      { x: 382, y: 405 },
+    ])
+  })
+
+  // Entrambi i capi impongono un lato laterale: stesso asse, ma quello orizzontale — il ramo
+  // `xMedia`, mai raggiunto da 'due lati imposti sullo stesso asse danno una piega a metà', che
+  // copre solo la variante verticale (`yMedia`).
+  it('due lati laterali sullo stesso asse danno una piega all’ascissa mediana', () => {
+    const punti = instrada('standard', { x: 272, y: 182 }, { x: 382, y: 405 }, undefined, QUOTE, {
+      da: 'sx',
+      a: 'dx',
+    })
+    expect(punti).toEqual([
+      { x: 272, y: 182 },
+      { x: 327, y: 182 },
+      { x: 327, y: 405 },
+      { x: 382, y: 405 },
+    ])
+  })
 })
