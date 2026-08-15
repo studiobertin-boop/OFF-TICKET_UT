@@ -304,6 +304,29 @@ describe('riduttorePressione', () => {
     const verticale = riduttorePressione(50, 50, 'verticale')
     expect(orizzontale).not.toBe(verticale)
   })
+
+  // Il riduttore non ha una copertura sua: costruisce sopra la valvola, quindi la eredita. Se un
+  // giorno smettesse di farlo, questo test lo dice prima che lo dica il documento del cliente.
+  it('il riduttore di pressione eredita la copertura della valvola', () => {
+    expect(riduttorePressione(100, 50)).toContain('fill="#fff"')
+  })
+})
+
+describe('copertura della valvola di intercettazione', () => {
+  // Osservazione 6 del committente: «la linea attraversa la valvola invece di interrompersi».
+  // Il rettangolo bianco va PRIMA dei tratti, o coprirebbe la farfalla invece del tubo, ed e'
+  // esattamente grande quanto la farfalla: ogni unita' in piu' e' disegno altrui cancellato.
+  it('la valvola di intercettazione copre il tubo con un rettangolo bianco, prima dei tratti', () => {
+    const svg = valvolaIntercettazione(100, 50)
+    expect(svg.indexOf('fill="#fff"')).toBeLessThan(svg.indexOf('<path'))
+    expect(svg).toContain('<rect x="91" y="42" width="18" height="16" fill="#fff" stroke="none" />')
+  })
+
+  it('il rettangolo bianco ruota con la farfalla sul montante', () => {
+    expect(valvolaIntercettazione(100, 50, 'verticale')).toContain(
+      '<rect x="92" y="41" width="16" height="18" fill="#fff" stroke="none" />'
+    )
+  })
 })
 
 describe('campioneTubazione', () => {

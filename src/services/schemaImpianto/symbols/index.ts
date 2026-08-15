@@ -136,7 +136,15 @@ export function valvolaIntercettazione(
     orientamento === 'orizzontale'
       ? `M ${x - l} ${y - h} L ${x - l} ${y + h} L ${x} ${y} Z M ${x + l} ${y - h} L ${x + l} ${y + h} L ${x} ${y} Z`
       : `M ${x - h} ${y - l} L ${x + h} ${y - l} L ${x} ${y} Z M ${x - h} ${y + l} L ${x + h} ${y + l} L ${x} ${y} Z`
-  return traccia(d)
+  // Il tubo passa SOTTO la valvola e il disegno tecnico vuole che si interrompa: invece di
+  // spezzare la polilinea a una lunghezza d'arco data — matematica fragile sui flessibili, che
+  // non sono polilinee ma onde di curve quadratiche — la si copre con un rettangolo bianco
+  // grande esattamente quanto la farfalla. Va PRIMA dei tratti, o coprirebbe la farfalla stessa.
+  // Copre tutto cio' che ha sotto, non solo il tubo: e' il motivo per cui non e' un'unita' piu'
+  // grande dell'ingombro.
+  const [larghezza, altezza] = orientamento === 'orizzontale' ? [l, h] : [h, l]
+  const copertura = `<rect x="${x - larghezza}" y="${y - altezza}" width="${larghezza * 2}" height="${altezza * 2}" fill="#fff" stroke="none" />`
+  return copertura + traccia(d)
 }
 
 /**
