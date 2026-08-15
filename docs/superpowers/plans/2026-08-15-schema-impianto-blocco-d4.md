@@ -838,6 +838,20 @@ cambiate, e nessuna tubazione si e' mossa.
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
+> **Misurato il 15-08-2026: la prima lettura del banco (Step 5 sopra) era cieca, e la scomparsa del muro è stata poi osservata davvero.** Nota che porta i numeri alla diagnosi strutturale del Task 1 qui sopra («il banco deve inforcare la catena al primo stadio che tocca»).
+>
+> La prima esecuzione di questo Step 5 costruiva il layout **una sola volta**, con l'attuale `layoutSchema` (già senza muro dal Task 3 del piano di implementazione), e passava **lo stesso oggetto** sia a `renderSvg` sia a `renderSvgPrima`. Il muro non arrivava mai a nessuno dei due lati: la scomparsa del muro — il cambiamento più pervasivo del blocco — non era misurata da nulla, e nemmeno il confronto sulle dimensioni di pagina era una domanda vera (due renderer sullo stesso input, ovviamente uguali). Il commit `5cfe586` porta ancora, nel suo messaggio, la conseguenza di quella misura cieca («Differenze sul documento… nessuna oltre al rettangolo bianco già noto») — non riscritta all'indietro apposta, perché cancellarla renderebbe la storia meno vera, non più pulita.
+>
+> Il banco è stato rimontato con le due catene **separate fino in fondo** — modello (`buildSchemaModel`), layout (`layoutSchema`) e render (`renderSvg`), ognuna dalla propria versione (`schemaImpianto/` per "dopo", `schemaImpianto-base/` per "prima") — e **provato discriminante prima di fidarsene**: un confronto diretto fra le due pipeline vere, non mutate, e una sostituzione di stringa sull'uscita di `renderSvg` con guardia che avrebbe fallito se non avesse morso. Su entrambi i casi verificati (5 e 8, gli unici due — fra gli otto originali — con un'apparecchiatura esplicita in `LINEA_DISTRIBUZIONE`), entrambe le prove hanno confermato che le due pipeline producono output davvero diversi.
+>
+> **Esito vero, letto riga per riga (`diff --strip-trailing-cr` su SVG spezzati un elemento per riga):**
+> - **Caso 5** (due compressori, un serbatoio in linea — un attraversamento): spariscono **2 tronconi** (`<rect>`, spessore 14) e **1 tratteggio** (`<path stroke-width="1">` a 45°). Compaiono 3 `<rect fill="#fff" stroke="none">`, il rettangolo bianco del Task 3, già noto. Nient'altro: 87 righe totali su entrambi i lati (3 tolte, 3 messe).
+> - **Caso 8** (tre compressori sullo stesso serbatoio in linea — tre attraversamenti): spariscono **4 tronconi** e **1 tratteggio**. Compaiono 4 `<rect fill="#fff" stroke="none">`, sempre il rettangolo bianco del Task 3. Nient'altro: 101 righe "prima", 100 "dopo" (5 tolte, 4 messe).
+> - **Dimensioni di pagina: invariate su entrambi i lati.** Caso 5: `width="1000" height="796" viewBox="0 0 1000 796"` identico prima/dopo. Caso 8: `width="1220" height="830" viewBox="0 0 1220 830"` identico prima/dopo. Confermato anche a livello di codice: `dimensioniLayout` (layout.ts) calcola `maxX`/`maxY` solo da `layout.nodi` e `layout.testi`, e non legge mai `layout.muro`.
+> - **Nessuna tubazione si è mossa.** Nessuna riga di diff contiene `marker-end="url(#freccia)"` (la firma di un tratto di tubazione). I varchi spariscono **insieme** ai tronconi — non hanno una voce propria nel diff, perché sono gli spazi vuoti fra un troncone e l'altro, e quello spazio sparisce quando sparisce il muro intero — ma i tubi che li attraversavano restano bit-identici fra le due versioni.
+>
+> Nessun cambiamento di codice è scaturito da questa misura: la conclusione sul comportamento (solo il muro sparisce, nient'altro si muove) era già giusta, semplicemente non era ancora stata osservata da nulla.
+
 ---
 
 ### Task 6: Il riferimento committato copre anche il muro
