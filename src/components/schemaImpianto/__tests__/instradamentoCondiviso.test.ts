@@ -265,8 +265,9 @@ describe('accordo fra la tela dell’editor e il documento', () => {
    *
    * E per lo stesso motivo per cui serve `dalDocumento` VERSUS l'SVG vero due test più sopra: un
    * confronto che passasse solo dal modello `dalDocumento` non si accorgerebbe se le `render*` di
-   * `renderSvg.ts` smettessero di passare i lati a `instrada` — è la mutazione verificata nel
-   * report di questo task, e senza `tracciati`/`renderSvg` qui sotto la suite restava verde.
+   * `renderSvg.ts` smettessero di passare i lati a `instrada` — verificato con la mutazione
+   * (sostituire i lati risolti con `{}` in quelle tre funzioni), non dedotto: senza il confronto
+   * con `tracciati`/`renderSvg` qui sotto, quella mutazione lasciava la suite verde.
    */
   it('un ramo che arriva su una giunzione dal lato imposto: tela e documento concordano sulla rotta imboccata', () => {
     const layout = layoutConGiunzione()
