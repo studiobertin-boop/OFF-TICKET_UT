@@ -1,4 +1,5 @@
 import { supabase } from '../supabase'
+import { DURATA_LINK_FIRMATO_S } from '@/utils/scaricaFile'
 import type {
   AssegnazionePagina,
   DocumentoFinaleDichiarazioni,
@@ -260,6 +261,20 @@ export const dichiarazioniDocumentiApi = {
     const { data, error } = await supabase.storage.from(BUCKET_DICHIARAZIONI).download(filePath)
     if (error) throw new Error(`Errore nello scaricamento: ${error.message}`)
     return data
+  },
+
+  /**
+   * Link firmato per far scaricare il file al browser: vedi `utils/scaricaFile`, che spiega
+   * perché conviene anche qui, dove il file è un PDF che di suo passerebbe.
+   */
+  urlFirmato: async (filePath: string, nome: string): Promise<string> => {
+    const { data, error } = await supabase.storage
+      .from(BUCKET_DICHIARAZIONI)
+      .createSignedUrl(filePath, DURATA_LINK_FIRMATO_S, { download: nome })
+    if (error || !data) {
+      throw new Error(`Errore nella preparazione dello scaricamento: ${error?.message ?? 'link non creato'}`)
+    }
+    return data.signedUrl
   },
 
   /** La nota «dichiarazioni scadute il …», se i documenti sono stati cancellati. */

@@ -1,22 +1,20 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFormContext, useWatch } from 'react-hook-form'
 import { useQuery } from '@tanstack/react-query'
-import { Box, Button, Chip, CircularProgress, Tooltip, Typography } from '@mui/material'
+import { Box, Button, Chip, CircularProgress, Divider, Tooltip, Typography } from '@mui/material'
 import {
   ArrowBack as ArrowBackIcon,
   Assessment as AssessmentIcon,
   CheckCircle as CheckCircleIcon,
-  Description as DescriptionIcon,
   Download as DownloadIcon,
-  Gavel as GavelIcon,
-  Inventory2 as Inventory2Icon,
   Refresh as RefreshIcon,
   Share as ShareIcon,
 } from '@mui/icons-material'
-import { AzioneIcona, AzionePronta } from '@/components/common'
+import { AzioneIcona, ChipAzione } from '@/components/common'
 import { eCompleta, percentuale, type Completezza } from '@/utils/schedaCompleteness'
 import { calcolaEsitiPerCodice, codiciConAdempimento } from '@/utils/dm329Classification'
 import { fascicoloDocumentiApi } from '@/services/api/fascicoloDocumenti'
+import { useAperturaApparecchiatura } from './AperturaApparecchiatura'
 import type { SchedaDatiCompleta } from '@/types/technicalSheet'
 
 /**
@@ -63,10 +61,18 @@ export interface TechnicalSheetHeaderProps {
  * Deve essere figlia diretta del corpo pagina: dentro un wrapper alto quanto sé stessa
  * si stacca al primo scorrimento.
  *
- * Le azioni sono tutte in fila e tutte visibili, ciascuna ridotta alla propria icona finché
- * il mouse non ci passa sopra (vedi `AzioneIcona`). Non c'è più un «Completa scheda»: lo
- * stato della pratica si governa dallo stepper del dettaglio, dove stanno già tutti gli
- * altri passaggi.
+ * La barra si legge in due metà, e la divisione è di sostanza:
+ *
+ * - a sinistra, dopo il chip della compilazione, i **traguardi** della pratica — un chip per
+ *   fascicolo di apparecchiatura, poi R (relazione), D (dichiarazioni), F (documentazione
+ *   completa). Ripetono la forma del chip di compilazione perché dicono la stessa cosa:
+ *   questo pezzo c'è o non c'è. In fila si leggono come un avanzamento, che è l'unico modo
+ *   per accorgersi a colpo d'occhio di cosa resta da fare;
+ * - a destra le **azioni** sulla pratica — assegnare la scheda, aprire i dati CIVA — ciascuna
+ *   ridotta alla propria icona finché il mouse non ci passa sopra (vedi `AzioneIcona`).
+ *
+ * Non c'è più un «Completa scheda»: lo stato della pratica si governa dallo stepper del
+ * dettaglio, dove stanno già tutti gli altri passaggi.
  */
 export const TechnicalSheetHeader = ({
   customerName,
@@ -124,6 +130,10 @@ export const TechnicalSheetHeader = ({
     ...fascicoliMancanti.map((c) => `fascicolo di ${c}`),
   ].filter(Boolean) as string[]
   const tuttoPronto = mancano.length === 0
+
+  // I chip dei fascicoli aprono la finestra dell'apparecchiatura, che vive nella tabella:
+  // il ponte è `AperturaApparecchiaturaProvider`, messo dal form attorno a barra e tabella.
+  const apertura = useAperturaApparecchiatura()
 
   const barra = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -197,10 +207,74 @@ export const TechnicalSheetHeader = ({
               label={pieno ? 'Compilata' : `${percentuale(completezza)}% compilata`}
             />
           </Tooltip>
+
+          {/* I traguardi della pratica: i fascicoli delle apparecchiature che comportano un
+              adempimento, poi i due documenti che si generano da qui, infine il pacco completo.
+              Le sbarrette separano tre cose diverse — quanto è compilata la scheda, cosa è già
+              stato prodotto, cosa si porta via — che senza un segno si leggerebbero come
+              un'unica fila indistinta. */}
+          {canGenerateDocs && (
+            <>
+              <Divider orientation="vertical" flexItem sx={{ my: 0.5 }} />
+
+              {codiciRichiesti.map((codice) => {
+                const pronto = codiciConFascicoloPronto?.has(codice) ?? false
+                return (
+                  <ChipAzione
+                    key={codice}
+                    sigla={codice}
+                    testo={pronto ? `Fascicolo di ${codice} — pronto` : `Fascicolo di ${codice}`}
+                    fatto={pronto}
+                    onClick={() => apertura?.apri(codice)}
+                  />
+                )
+              })}
+
+              <ChipAzione
+                sigla="R"
+                testo={relazionePronta ? 'Relazione pronta' : 'Genera relazione'}
+                fatto={relazionePronta}
+                onClick={onRelazione}
+                voci={
+                  relazionePronta
+                    ? [
+                        { icona: <DownloadIcon fontSize="small" />, testo: 'Scarica relazione', onClick: onScaricaRelazione },
+                        { icona: <RefreshIcon fontSize="small" />, testo: 'Rigenera relazione', onClick: onRelazione },
+                      ]
+                    : undefined
+                }
+              />
+
+              <ChipAzione
+                sigla="D"
+                testo={dichiarazioniPronte ? 'Dichiarazioni pronte' : 'Genera dichiarazioni'}
+                fatto={dichiarazioniPronte}
+                onClick={onDichiarazioni}
+                voci={
+                  dichiarazioniPronte
+                    ? [
+                        { icona: <DownloadIcon fontSize="small" />, testo: 'Scarica dichiarazioni', onClick: onScaricaDichiarazioni },
+                        { icona: <RefreshIcon fontSize="small" />, testo: 'Rigenera dichiarazioni', onClick: onDichiarazioni },
+                      ]
+                    : undefined
+                }
+              />
+
+              <Divider orientation="vertical" flexItem sx={{ my: 0.5 }} />
+
+              <ChipAzione
+                sigla="F"
+                testo={tuttoPronto ? 'Scarica documentazione completa' : `Mancano: ${mancano.join(', ')}`}
+                fatto={tuttoPronto}
+                onClick={onScaricaCompleta}
+                disabled={!tuttoPronto}
+              />
+            </>
+          )}
         </Box>
 
         {/* Le azioni vanno a capo invece di sfondare: dove il mouse non c'è le etichette
-            stanno tutte aperte, e quattro parole in fila non entrano in una finestra stretta.
+            stanno tutte aperte, e le parole in fila non entrano in una finestra stretta.
             La barra si rimisura da sé, quindi una seconda riga non nasconde nulla sotto. */}
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end', ml: 'auto' }}>
           {autoSaving && (
@@ -221,53 +295,6 @@ export const TechnicalSheetHeader = ({
 
           {canGenerateDocs && (
             <AzioneIcona icona={<AssessmentIcon fontSize="small" />} testo="Visualizza dati CIVA" onClick={onCivaSummary} />
-          )}
-
-          {canGenerateDocs && (
-            relazionePronta ? (
-              <AzionePronta
-                icona={<DownloadIcon fontSize="small" />}
-                testo="Relazione pronta"
-                voci={[
-                  { icona: <DownloadIcon fontSize="small" />, testo: 'Scarica relazione', onClick: onScaricaRelazione },
-                  { icona: <RefreshIcon fontSize="small" />, testo: 'Rigenera relazione', onClick: onRelazione },
-                ]}
-              />
-            ) : (
-              <AzioneIcona icona={<DescriptionIcon fontSize="small" />} testo="Genera relazione" onClick={onRelazione} />
-            )
-          )}
-
-          {canGenerateDocs && (
-            dichiarazioniPronte ? (
-              <>
-                <AzioneIcona
-                  icona={<DownloadIcon fontSize="small" />}
-                  testo="Dichiarazioni pronte — scarica"
-                  onClick={onScaricaDichiarazioni}
-                  colore="success"
-                  pieno
-                />
-                <AzioneIcona
-                  icona={<RefreshIcon fontSize="small" />}
-                  testo="Rigenera dichiarazioni"
-                  onClick={onDichiarazioni}
-                />
-              </>
-            ) : (
-              <AzioneIcona icona={<GavelIcon fontSize="small" />} testo="Genera dichiarazioni" onClick={onDichiarazioni} />
-            )
-          )}
-
-          {canGenerateDocs && (
-            <AzioneIcona
-              icona={<Inventory2Icon fontSize="small" />}
-              testo={tuttoPronto ? 'Scarica documentazione completa' : `Mancano: ${mancano.join(', ')}`}
-              onClick={onScaricaCompleta}
-              colore="success"
-              pieno={tuttoPronto}
-              disabled={!tuttoPronto}
-            />
           )}
         </Box>
       </Box>

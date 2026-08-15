@@ -1,4 +1,5 @@
 import { supabase } from '../supabase'
+import { DURATA_LINK_FIRMATO_S } from '@/utils/scaricaFile'
 
 /**
  * Documenti della relazione tecnica: bucket `relazioni` per i byte, `relazione_documenti`
@@ -106,6 +107,20 @@ export const relazioneDocumentiApi = {
     const { data, error } = await supabase.storage.from(BUCKET_RELAZIONI).download(filePath)
     if (error) throw new Error(`Errore nello scaricamento: ${error.message}`)
     return data
+  },
+
+  /**
+   * Link firmato per far scaricare il file al browser: vedi `utils/scaricaFile`, che spiega
+   * perché sui .docx questa strada è l'unica che arriva in fondo.
+   */
+  urlFirmato: async (filePath: string, nome: string): Promise<string> => {
+    const { data, error } = await supabase.storage
+      .from(BUCKET_RELAZIONI)
+      .createSignedUrl(filePath, DURATA_LINK_FIRMATO_S, { download: nome })
+    if (error || !data) {
+      throw new Error(`Errore nella preparazione dello scaricamento: ${error?.message ?? 'link non creato'}`)
+    }
+    return data.signedUrl
   },
 
   /** La nota «relazione scaduta il …», se il file è stato cancellato dalla passata notturna. */

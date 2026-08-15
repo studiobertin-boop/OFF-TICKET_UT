@@ -65,6 +65,15 @@ export function validateRelazione(model: RelazioneModel): Segnalazione[] {
         'ubicato presso la sede legale.',
     })
   }
+  if (Number(premessa.numeroRevisione) > 0 && !premessa.motivoRevisione.trim()) {
+    out.push({
+      livello: 'avviso',
+      codice: 'motivo-revisione-assente',
+      messaggio:
+        'Motivo della revisione non compilato nel codice pratica: il capoverso di §1 sulla ' +
+        'revisione non verrà stampato.',
+    })
+  }
 
   // --- Apparecchiature --------------------------------------------------------------
   if (esiti.length === 0) {

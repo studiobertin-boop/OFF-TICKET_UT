@@ -32,10 +32,9 @@ describe('integrazione template ↔ engine', () => {
       additionalInfo: makeAdditionalInfo({
         spessimetrica: ['S1'],
         dataEmissione: '2026-08-10',
-        motivoRevisione: 'sostituzione della valvola S1.1',
       }),
       customer: makeCustomer({ ragione_sociale: 'ACME S.r.l.' }),
-      pratica: makePratica({ progressivo: 1 }),
+      pratica: makePratica({ progressivo: 1, motivoRevisione: 'sostituzione della valvola S1.1' }),
     })
 
     const out = renderRelazioneDocx(template, model)

@@ -28,7 +28,15 @@ export interface Dm329PraticaValue {
   denominazione_sala: string
   progressivo: number
   anno: number
+  motivo_revisione: string
 }
+
+/** Motivo di default alla prima emissione: sempre modificabile, mai imposto. */
+const MOTIVO_PRIMA_EMISSIONE = 'Prima emissione'
+
+/** Motivo di default per il progressivo dato: "Prima emissione" a zero, vuoto da lì in poi. */
+const motivoDiDefault = (progressivo: number): string =>
+  progressivo === 0 ? MOTIVO_PRIMA_EMISSIONE : ''
 
 interface Props {
   customer: Customer
@@ -43,11 +51,16 @@ interface Props {
 /**
  * Sezione dedicata del form Nuova Richiesta DM329: indirizzo impianto (con flag = sede legale),
  * scelta della sala (sale esistenti del cliente + Nuova sala), denominazione, progressivo/anno,
- * e anteprima del codice pratica. I valori sono gestiti in stato locale e sollevati via onChange.
+ * motivo della revisione, e anteprima del codice pratica. I valori sono gestiti in stato
+ * locale e sollevati via onChange.
  *
  * La presenza di `initial` distingue la modalità modifica (pratica già codificata) dalla
  * creazione: in modifica la denominazione sala è scrivibile, in creazione resta ereditata
  * dalla sala scelta salvo che si scelga "Nuova sala".
+ *
+ * Il motivo della revisione segue il progressivo — «Prima emissione» quando vale zero, vuoto
+ * da lì in poi — finché l'operatore non lo tocca lui stesso: è la stessa relazione tecnica DM329
+ * a leggerlo da qui (tabella `requests`, non più dal form «Dati per la relazione tecnica»).
  */
 export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, onChange, initial }: Props) => {
   const { data: overview = [] } = useClientDm329Overview(customer.id)
@@ -62,6 +75,10 @@ export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, o
   const [denominazione, setDenominazione] = useState(initial?.denominazione_sala ?? '')
   const [progressivo, setProgressivo] = useState(initial?.progressivo ?? 0)
   const [anno, setAnno] = useState<number>(initial?.anno ?? new Date().getFullYear())
+  // Se la pratica ha già un motivo salvato lo eredita; altrimenti segue il progressivo di
+  // partenza — «Prima emissione» a zero, vuoto altrimenti, come ogni volta che il progressivo
+  // cambia (vedi motivoDiDefault).
+  const [motivoRevisione, setMotivoRevisione] = useState(initial?.motivo_revisione ?? motivoDiDefault(initial?.progressivo ?? 0))
 
   // Modalità modifica: al mount NON azzerare i valori prefillati, e non sovrascrivere
   // progressivo/denominazione finché l'operatore non cambia attivamente la sala.
@@ -71,6 +88,9 @@ export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, o
   // L'operatore ha scritto a mano la denominazione: i default della sala non devono più
   // sovrascriverla (l'effetto sotto rigira anche solo perché `overview` viene rifetchata).
   const userEditedDenominazione = useRef(false)
+  // Come sopra, per il motivo della revisione: una volta che l'operatore lo tocca, il
+  // progressivo che cambia non deve più riscriverlo sopra la testa.
+  const userEditedMotivo = useRef(false)
 
   const indirizzoWatch = useWatch({ control, name: 'indirizzo_impianto' }) as string | undefined
 
@@ -115,6 +135,7 @@ export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, o
     setSalaScelta('')
     setDenominazione('')
     setProgressivo(0)
+    if (!userEditedMotivo.current) setMotivoRevisione(motivoDiDefault(0))
     setValue('indirizzo_impianto', '')
   }, [customer.id, setValue])
 
@@ -126,10 +147,13 @@ export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, o
     if (isNewSala) {
       if (!userEditedDenominazione.current) setDenominazione('')
       setProgressivo(0)
+      if (!userEditedMotivo.current) setMotivoRevisione(motivoDiDefault(0))
     } else {
       const s = sale.find(x => x.lettera === salaScelta)
+      const nuovoProgressivo = (s?.maxProg ?? -1) + 1
       if (!userEditedDenominazione.current) setDenominazione(s?.denominazione || '')
-      setProgressivo((s?.maxProg ?? -1) + 1)
+      setProgressivo(nuovoProgressivo)
+      if (!userEditedMotivo.current) setMotivoRevisione(motivoDiDefault(nuovoProgressivo))
     }
   }, [salaScelta, isNewSala, sale, isModifica])
 
@@ -161,11 +185,12 @@ export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, o
         denominazione_sala: denominazione,
         progressivo,
         anno,
+        motivo_revisione: motivoRevisione.trim(),
       },
       valid
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flagUgualeSede, indirizzoEffettivo, salaLettera, denominazione, progressivo, anno, valid])
+  }, [flagUgualeSede, indirizzoEffettivo, salaLettera, denominazione, progressivo, anno, motivoRevisione, valid])
 
   return (
     <Box sx={{ mt: 3 }}>
@@ -235,6 +260,7 @@ export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, o
               userPickedSala.current = true
               // Cambio sala volontario: i default della nuova sala tornano ad avere la precedenza.
               userEditedDenominazione.current = false
+              userEditedMotivo.current = false
               setSalaScelta(e.target.value)
             }}
             fullWidth
@@ -276,7 +302,11 @@ export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, o
             label="Progressivo"
             type="number"
             value={progressivo}
-            onChange={e => setProgressivo(Math.max(0, Math.min(99, Number(e.target.value) || 0)))}
+            onChange={e => {
+              const v = Math.max(0, Math.min(99, Number(e.target.value) || 0))
+              setProgressivo(v)
+              if (!userEditedMotivo.current) setMotivoRevisione(motivoDiDefault(v))
+            }}
             fullWidth
             inputProps={{ min: 0, max: 99 }}
             helperText={isNewSala ? 'Iniziale = 00' : 'Aggiornamento'}
@@ -291,6 +321,22 @@ export const DM329PraticaSection = ({ customer, sedeLegale, control, setValue, o
             onChange={e => setAnno(Number(e.target.value) || anno)}
             fullWidth
             inputProps={{ min: 2000, max: 2100 }}
+          />
+        </Grid>
+
+        <Grid item xs={12}>
+          <TextField
+            label="Motivo della revisione"
+            value={motivoRevisione}
+            onChange={e => { userEditedMotivo.current = true; setMotivoRevisione(e.target.value) }}
+            fullWidth
+            multiline
+            minRows={2}
+            helperText={
+              progressivo === 0
+                ? 'Prima emissione: precompilato, ma resta modificabile.'
+                : 'Compare in §1 della relazione DM329: «L’attuale revisione del documento è conseguente a: …». Vuoto, il capoverso non viene stampato.'
+            }
           />
         </Grid>
 

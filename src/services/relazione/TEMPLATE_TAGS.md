@@ -55,10 +55,11 @@ dichiarato rende il file illeggibile a Word) e che le fusioni di §5.2 siano pre
 - `{premessa.ragioneSociale}`, `{premessa.sedeLegale}` (una riga),
   `{premessa.descrizioneAttivita}`, `{premessa.ubicazione}`
 - Revisione: `{#premessa.haRevisione}…{/premessa.haRevisione}`, col motivo in
-  `{premessa.motivoRevisione}`. Il motivo lo scrive il tecnico nel form «Dati per la
-  relazione tecnica»: resta una valutazione sua, ma non è più un segnaposto da compilare in
-  Word. La sezione è vera solo se il progressivo supera lo zero **e** il motivo è scritto:
-  senza, il capoverso non compare.
+  `{premessa.motivoRevisione}`. Il motivo lo scrive il tecnico nella pagina di modifica del
+  codice pratica (non più nel form «Dati per la relazione tecnica», che lo mostra ma non lo
+  modifica più): resta una valutazione sua, ma non è più un segnaposto da compilare in Word.
+  La sezione è vera solo se il progressivo supera lo zero **e** il motivo è scritto: senza,
+  il capoverso non compare.
 - Spessimetriche: `{#premessa.haSpessimetrica}…{/premessa.haSpessimetrica}`
 
 ## §2 Descrizione dell'impianto
