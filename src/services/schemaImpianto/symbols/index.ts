@@ -19,6 +19,14 @@ import { chiaveSimbolo } from '../types'
 
 export const TRATTO = 2
 /**
+ * Tratteggio delle linee condense, unica fonte per il documento e per la tela dell'editor.
+ * Fino al Blocco D4 il numero era scritto due volte con due valori diversi ('10 7' qui, '8 6' in
+ * SchemaEdgeTubazione.tsx): finche' la tela era nera la differenza non si notava, su fondo bianco
+ * il confronto con l'anteprima e' immediato. Non e' il tratteggio del codolo del terminale utenze
+ * (`simboloUtenze`), che porta lo stesso numero per coincidenza e vuol dire un'altra cosa.
+ */
+export const TRATTEGGIO_CONDENSE = '10 7'
+/**
  * Esportato perché non lo usa solo l'SVG: l'editor rende le annotazioni libere in HTML sulla
  * tela (TestiLiberi.tsx) e deve usare lo STESSO carattere del documento, non una seconda
  * dichiarazione uguale che nessuno terrebbe allineata a questa.
@@ -128,7 +136,15 @@ export function valvolaIntercettazione(
     orientamento === 'orizzontale'
       ? `M ${x - l} ${y - h} L ${x - l} ${y + h} L ${x} ${y} Z M ${x + l} ${y - h} L ${x + l} ${y + h} L ${x} ${y} Z`
       : `M ${x - h} ${y - l} L ${x + h} ${y - l} L ${x} ${y} Z M ${x - h} ${y + l} L ${x + h} ${y + l} L ${x} ${y} Z`
-  return traccia(d)
+  // Il tubo passa SOTTO la valvola e il disegno tecnico vuole che si interrompa: invece di
+  // spezzare la polilinea a una lunghezza d'arco data — matematica fragile sui flessibili, che
+  // non sono polilinee ma onde di curve quadratiche — la si copre con un rettangolo bianco
+  // grande esattamente quanto la farfalla. Va PRIMA dei tratti, o coprirebbe la farfalla stessa.
+  // Copre tutto cio' che ha sotto, non solo il tubo: e' il motivo per cui non e' un'unita' piu'
+  // grande dell'ingombro.
+  const [larghezza, altezza] = orientamento === 'orizzontale' ? [l, h] : [h, l]
+  const copertura = `<rect x="${x - larghezza}" y="${y - altezza}" width="${larghezza * 2}" height="${altezza * 2}" fill="#fff" stroke="none" />`
+  return copertura + traccia(d)
 }
 
 /**
@@ -178,7 +194,7 @@ export function campioneTubazione(stile: SchemaArcoStile): string {
   if (stile === 'flessibile') {
     return `<path d="${ondula(capi)}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
   }
-  const tratteggio = stile === 'condensa' ? ' stroke-dasharray="10 7"' : ''
+  const tratteggio = stile === 'condensa' ? ` stroke-dasharray="${TRATTEGGIO_CONDENSE}"` : ''
   return `<path d="M ${-meta} 0 L ${meta} 0" fill="none" stroke="#000" stroke-width="${TRATTO}"${tratteggio} />`
 }
 
@@ -678,12 +694,19 @@ export function simboloDi(nodo: SchemaNodo): string {
 }
 
 /**
+ * Larghezza del muro disegnato da `simboloMuro`. Esportata perché il Blocco D4 la serve anche
+ * fuori di qui: `MuroSeparazione.tsx` la usa per l'area di presa e il contorno di selezione
+ * sulla tela, che devono corrispondere all'ingombro vero e non a una seconda cifra scritta a
+ * mano — la stessa ragione per cui `TRATTEGGIO_CONDENSE` è esportata.
+ */
+export const SPESSORE_MURO = 14
+
+/**
  * Muro di separazione sala compressori / stabilimento: muratura tratteggiata a 45°, interrotta
  * da un varco per ogni tubazione che lo attraversa. Varchi troppo vicini vengono fusi in uno
  * solo, o fra i due resterebbe un moncone di muro largo pochi pixel.
  */
 export function simboloMuro(x: number, yMin: number, yMax: number, varchi: number[]): string {
-  const spessore = 14
   const larghezzaVarco = 44
 
   const aperture: [number, number][] = []
@@ -707,14 +730,14 @@ export function simboloMuro(x: number, yMin: number, yMax: number, varchi: numbe
   const segmenti = tronconi
     .map(
       ([a, b]) =>
-        `<rect x="${x}" y="${a}" width="${spessore}" height="${b - a}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
+        `<rect x="${x}" y="${a}" width="${SPESSORE_MURO}" height="${b - a}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
     )
     .join('')
 
   const tratti = tronconi
     .flatMap(([a, b]) => {
       const righe: string[] = []
-      for (let y = a; y + 12 < b; y += 12) righe.push(`M ${x} ${y + 12} L ${x + spessore} ${y}`)
+      for (let y = a; y + 12 < b; y += 12) righe.push(`M ${x} ${y + 12} L ${x + SPESSORE_MURO} ${y}`)
       return righe
     })
     .join(' ')

@@ -3,9 +3,9 @@
  *
  * La scheda resta autorevole su *cosa* esiste, il layout salvato su *dove* sta: alla
  * riapertura le due cose vanno rimesse d'accordo senza buttare il lavoro di disposizione.
- * Il muro non si salva — è derivato dalle posizioni e si ricalcola.
+ * Del muro si salva la sola ascissa: l'altezza resta derivata dalle posizioni.
  */
-import { calcolaMuro, layoutSchema, DIMENSIONI_NODO, pozzoCondense } from './layout'
+import { layoutSchema, muroDaAscissa, DIMENSIONI_NODO, pozzoCondense } from './layout'
 import { dimensioniDi } from './symbols'
 import type { SchemaArco, SchemaLayout, SchemaModel, SchemaNodo, SchemaNodoPosizionato, SchemaTestoLibero } from './types'
 
@@ -18,6 +18,14 @@ export interface LayoutSalvato {
   /** Assente sui layout salvati prima del Blocco C2: un campo nuovo e opzionale, non un cambio
    *  di formato — per questo non alza `VERSIONE` (vedi `deserializzaLayout`). */
   testi?: SchemaTestoLibero[]
+  /**
+   * Ascissa del muro di separazione. Assente: nessun muro — il caso di ogni salvataggio scritto
+   * prima del Blocco D4, e di ogni pratica finche' il committente non lo aggiunge. Campo nuovo e
+   * opzionale, non un cambio di formato: per questo non alza `VERSIONE`, che invece butterebbe
+   * via l'intero layout salvato. Del muro si salva SOLO l'ascissa: l'altezza si ricava al disegno
+   * (`muroDaAscissa`, layout.ts).
+   */
+  muroX?: number
 }
 
 export function serializzaLayout(layout: SchemaLayout): LayoutSalvato {
@@ -29,6 +37,7 @@ export function serializzaLayout(layout: SchemaLayout): LayoutSalvato {
     nodi: structuredClone(layout.nodi),
     archi: structuredClone(layout.archi),
     testi: structuredClone(layout.testi ?? []),
+    ...(layout.muro ? { muroX: layout.muro.x } : {}),
   }
 }
 
@@ -36,7 +45,7 @@ export function serializzaLayout(layout: SchemaLayout): LayoutSalvato {
  * Vero se `salvato` è abbastanza riconoscibile da poter essere usato: a monte Zod lo accetta
  * come `z.any()`, quindi qui deve reggersi da solo. Un `tipo` che il registro simboli non
  * conosce (ritirato, o un JSON modificato a mano) altrimenti arriva intonso fino a
- * `calcolaMuro`/`definizioneDi`, che si aspettano di trovarlo sempre — e in produzione lo
+ * `muroDaAscissa`/`definizioneDi`, che si aspettano di trovarlo sempre — e in produzione lo
  * schianto sarebbe una schermata bianca all'apertura del dialog invece del ripiego
  * sull'auto-layout.
  */
@@ -48,7 +57,12 @@ function contenutoRiconoscibile(salvato: LayoutSalvato): boolean {
 export function deserializzaLayout(salvato: LayoutSalvato | null | undefined): SchemaLayout | null {
   if (!salvato || salvato.versione !== VERSIONE) return null
   if (!contenutoRiconoscibile(salvato)) return null
-  return { nodi: salvato.nodi, archi: salvato.archi, muro: calcolaMuro(salvato.nodi), testi: salvato.testi ?? [] }
+  return {
+    nodi: salvato.nodi,
+    archi: salvato.archi,
+    muro: typeof salvato.muroX === 'number' ? muroDaAscissa(salvato.muroX, salvato.nodi) : null,
+    testi: salvato.testi ?? [],
+  }
 }
 
 /**
@@ -153,14 +167,22 @@ function posizioneTerminale(
 }
 
 /**
- * `testi` resta opzionale qui, benché `SchemaLayout.testi` sia obbligatorio: questa funzione
- * riceve anche `LayoutSalvato` così com'è (`serializzaLayout` lo scrive sempre popolato, ma il
- * tipo lo dichiara opzionale per restare leggibile su un salvataggio scritto prima del Blocco
- * C2), non solo `SchemaLayout` già normalizzati. `Pick<SchemaLayout, 'nodi' | 'archi' | 'testi'>`
- * imporrebbe `testi` obbligatorio e romperebbe ogni chiamata con un `LayoutSalvato` vero.
+ * Riceve ciò che restituisce `deserializzaLayout` — un `SchemaLayout`, con `muro` e non
+ * `muroX` — perché è quello che le passa davvero `layoutIniziale`, l'unica strada che la
+ * produzione percorre. Prima della revisione finale il parametro dichiarava `muroX?: number`
+ * come se ricevesse un `LayoutSalvato`: TypeScript non lo segnalava (il campo era opzionale, e
+ * `ripristinato` è una variabile, non un letterale — niente controllo delle proprietà in
+ * eccesso), ma a runtime il muro salvato non veniva mai letto. Vedi revisione finale, rilievo
+ * Critico.
+ *
+ * `testi` resta opzionale, benché `SchemaLayout.testi` sia obbligatorio: `deserializzaLayout`
+ * lo normalizza sempre a `[]`, ma qualche test costruisce ancora un salvato "grezzo" senza
+ * passare da lì (un `LayoutSalvato` scritto prima del Blocco C2 non ce l'ha).
+ * `Pick<SchemaLayout, 'nodi' | 'archi' | 'testi'>` imporrebbe `testi` obbligatorio e romperebbe
+ * quelle chiamate.
  */
 export function riconcilia(
-  salvato: Pick<SchemaLayout, 'nodi' | 'archi'> & { testi?: SchemaTestoLibero[] },
+  salvato: Pick<SchemaLayout, 'nodi' | 'archi'> & { testi?: SchemaTestoLibero[]; muro?: SchemaLayout['muro'] },
   modello: SchemaModel
 ): EsitoRiconciliazione {
   const inScheda = new Set(modello.nodi.map((n) => n.id))
@@ -249,5 +271,13 @@ export function riconcilia(
   // conosce e non ha titolo per cancellarli o correggerli.
   const testi = salvato.testi ?? []
 
-  return { layout: { nodi, archi, muro: calcolaMuro(nodi), testi }, aggiunti, aggiuntiDaScheda, rimossi }
+  // Il muro e' manuale per definizione (lo aggiunge il committente dalla barra), quindi sta
+  // nella stessa categoria dei testi qui sopra: si ricostruisce dalla sola ascissa salvata, sui
+  // nodi appena riconciliati (cosi' l'altezza segue le posizioni di adesso, non quelle salvate),
+  // e non sparisce mai per un confronto con la scheda che non lo riguarda. Si legge
+  // `salvato.muro?.x`, non una `muroX` che il chiamante vero (`layoutIniziale`) non passa mai:
+  // vedi il commento sulla firma di questa funzione.
+  const muro = salvato.muro ? muroDaAscissa(salvato.muro.x, nodi) : null
+
+  return { layout: { nodi, archi, muro, testi }, aggiunti, aggiuntiDaScheda, rimossi }
 }

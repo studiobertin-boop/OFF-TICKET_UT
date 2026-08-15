@@ -7,7 +7,7 @@
  * destra. Funzione pura: nessun DOM, testabile in Node.
  */
 import { ordinaCatenaTrattamento } from './buildSchemaModel'
-import { DIMENSIONI_NODO, INTERLINEA_TESTO, TESTO_LIBERO, dimensioniDi } from './symbols'
+import { DIMENSIONI_NODO, INTERLINEA_TESTO, SPESSORE_MURO, TESTO_LIBERO, dimensioniDi } from './symbols'
 import type { QuoteInstradamento } from './tratti'
 import type {
   SchemaLayout,
@@ -73,18 +73,37 @@ function posiziona(nodo: SchemaNodo, x: number, y: number): SchemaNodoPosizionat
 }
 
 /**
- * Muro di separazione fra sala compressori e linea distribuzione, ricavato dalle posizioni
- * correnti dei nodi: si disegna solo se esistono davvero apparecchiature da entrambe le parti,
- * e la sua x segue il bordo destro della sala compressori — così, spostando le apparecchiature
- * (nell'editor o rigenerando il layout), il muro si ricalcola invece di restare dov'era.
+ * Inviluppo verticale delle apparecchiature che un muro separa, allargato sopra e sotto dello
+ * stesso margine usato sopra le apparecchiature nel resto del disegno. Il terminale utenze non
+ * conta: e' un raccordo, non qualcosa da separare (stesso motivo per cui `ordinaCatenaTrattamento`
+ * e `pozzoCondense` lo ignorano). Uno solo per `calcolaMuro` e `muroDaAscissa`, o «cosa il muro
+ * deve separare» tornerebbe ad avere due definizioni.
  *
- * L'estensione verticale non può appoggiarsi alle quote interne del layout automatico
- * (`yBase`, `yCondense` in `layoutSchema`: valide solo per la disposizione appena calcolata),
- * perché questa funzione riceve anche nodi già spostati a mano nell'editor, di cui quelle quote
- * non esistono più. Si usa quindi l'inviluppo verticale delle sole apparecchiature dei due
- * gruppi separati dal muro (compressori/serbatoi da un lato, catena e pozzo condense
- * dall'altro), allargato dello stesso margine (`MARGINE_SUPERIORE`) usato sopra le
- * apparecchiature nel resto del disegno: il muro segue sempre ciò che deve dividere.
+ * `yMin` non scende mai sotto zero: la pagina comincia a `y=0` (`renderSvg`, viewBox), e il muro è
+ * una decorazione che attraversa il disegno, non ciò che decide dove comincia la pagina. Senza
+ * questo fermo, un'apparecchiatura a meno di `MARGINE_SUPERIORE / 2` dal bordo superiore (per
+ * esempio trascinata a `y=20`, con un margine di 55) produceva un `yMin` negativo e la cima del
+ * muro finiva tagliata fuori dal viewBox — a differenza del fondo (vedi il commento su
+ * `dimensioniLayout` più sotto), qui non c'è una tabella sotto che assorba lo sforo: il `viewBox`
+ * comincia davvero a zero, e nulla aggiunto più in basso rimedia a qualcosa che sta sopra il bordo
+ * superiore. Fix condiviso apposta fra `calcolaMuro` e `muroDaAscissa` (revisione finale del
+ * Blocco D4, dopo il rilievo Importante su `dimensioniLayout`): entrambe soffrivano lo stesso
+ * difetto perché entrambe passano da qui.
+ */
+function inviluppoVerticale(nodi: SchemaNodoPosizionato[]): { yMin: number; yMax: number } | null {
+  const rilevanti = nodi.filter((n) => n.tipo !== 'utenze')
+  if (rilevanti.length === 0) return null
+  return {
+    yMin: Math.max(0, Math.min(...rilevanti.map((n) => n.y)) - MARGINE_SUPERIORE / 2),
+    yMax: Math.max(...rilevanti.map((n) => n.y + DIMENSIONI_NODO[n.tipo].altezza)) + MARGINE_SUPERIORE / 2,
+  }
+}
+
+/**
+ * Ascissa proposta per il muro di separazione: segue il bordo destro della sala compressori,
+ * null se manca un'apparecchiatura da un lato. Il layout automatico non la usa — nasce sempre
+ * senza muro — la chiama solo il pulsante «Muro» della barra dell'editor (`ascissaProposta`,
+ * useMuro.ts). L'altezza viene da `inviluppoVerticale`, condivisa con `muroDaAscissa`.
  */
 export function calcolaMuro(nodi: SchemaNodoPosizionato[]): SchemaMuroSeparazione | null {
   // Il terminale utenze porta `gruppo: 'LINEA_DISTRIBUZIONE'` — sta davvero a valle — ma non è
@@ -97,15 +116,24 @@ export function calcolaMuro(nodi: SchemaNodoPosizionato[]): SchemaMuroSeparazion
   const inLinea = nodi.filter((n) => n.gruppo === 'LINEA_DISTRIBUZIONE' && n.tipo !== 'utenze')
   if (inSala.length === 0 || inLinea.length === 0) return null
 
-  const rilevanti = [...inSala, ...inLinea]
-  const yTop = Math.min(...rilevanti.map((n) => n.y))
-  const yBottom = Math.max(...rilevanti.map((n) => n.y + DIMENSIONI_NODO[n.tipo].altezza))
+  const inviluppo = inviluppoVerticale([...inSala, ...inLinea])
+  if (!inviluppo) return null
 
   return {
     x: Math.max(...inSala.map((n) => n.x + DIMENSIONI_NODO[n.tipo].larghezza)) + PASSO_ORIZZONTALE / 2,
-    yMin: yTop - MARGINE_SUPERIORE / 2,
-    yMax: yBottom + MARGINE_SUPERIORE / 2,
+    ...inviluppo,
   }
+}
+
+/**
+ * Il muro dalla sola ascissa salvata. Dal Blocco D4 il muro e' un oggetto che il committente
+ * aggiunge e sposta, ma la sua altezza continua ad adattarsi al disegno: si salva la sola `x`, e
+ * l'estensione verticale si ricava qui a ogni ricostruzione. Salvare anche l'altezza sarebbe una
+ * seconda fonte di verita', destinata a divergere al primo nodo spostato.
+ */
+export function muroDaAscissa(x: number, nodi: SchemaNodoPosizionato[]): SchemaMuroSeparazione | null {
+  const inviluppo = inviluppoVerticale(nodi)
+  return inviluppo ? { x, ...inviluppo } : null
 }
 
 /**
@@ -184,7 +212,10 @@ export function layoutSchema(model: SchemaModel): SchemaLayout {
   // senza — è così che si è scoperto che `flowALayout` (`conversioneFlow.ts`) lo dimenticava,
   // un percorso di produzione (la conferma nell'editor) che avrebbe perso in silenzio le
   // annotazioni di un disegno riaperto ora che l'editor permette di posarne.
-  return { nodi, archi: model.archi, muro: calcolaMuro(nodi), testi: [] }
+  //
+  // Dal Blocco D4 il muro e' un oggetto del committente, non un derivato: nasce solo quando lo
+  // aggiunge dalla barra.
+  return { nodi, archi: model.archi, muro: null, testi: [] }
 }
 
 /**
@@ -261,6 +292,27 @@ export function ingombroTesto(testo: SchemaTestoLibero): { destra: number; basso
  * tela e finirebbe tagliata nel PNG. Tiene conto anche dei testi liberi, per lo stesso motivo:
  * un'annotazione trascinata oltre l'ultima apparecchiatura non deve finire tagliata nel PNG.
  *
+ * Tiene conto anche del muro sull'asse orizzontale, spessore compreso (`SPESSORE_MURO`): finché
+ * nasceva da sé fra i due gruppi restava sempre dentro l'inviluppo dei nodi, ma dal Blocco D4 il
+ * committente lo trascina dove vuole, e un muro posato a destra di tutto il disegno finiva nel
+ * markup ma fuori dal viewBox — visibile sulla tela dell'editor, assente nell'anteprima e nel
+ * .docx (revisione finale, rilievo Importante).
+ *
+ * Sull'asse verticale il fondo del muro NON è fra i candidati di `maxY`, di proposito: sarebbe il
+ * gemello del fix sopra (`inviluppoVerticale` allarga il muro di `MARGINE_SUPERIORE / 2`, 55,
+ * mentre qui la pagina si allarga di solo `MARGINE`, 40), ma qui il gemello è stato provato e
+ * scartato in revisione finale (secondo rilievo). Chi consuma un `renderSvg` vero non vede mai
+ * questo scarto: `renderSvg` disegna sempre la tabella "Lista apparecchiature" sotto il disegno
+ * (un muro esiste solo se c'è almeno un'apparecchiatura per gruppo, quindi la tabella ha sempre
+ * almeno 2 righe, ≥182 unità di margine) — più del disavanzo massimo possibile fra il fondo del
+ * muro e questo `maxY` (al più `MARGINE_SUPERIORE/2 − MARGINE` = 15 unità, perché l'insieme di nodi
+ * che allarga il muro è sempre un sottoinsieme di quello che allarga `maxY` qui). Includerlo
+ * comunque avrebbe due costi reali per un difetto che non si manifesta mai: 55 unità di spazio
+ * vuoto in più fra disegno e tabella in OGNI schema con muro (non solo quelli al limite), e uno
+ * spostamento delle quote di instradamento — `quoteInstradamento` legge proprio questa `altezza` —
+ * cioè delle tubazioni, sul documento consegnato. La prova che il fondo resta comunque dentro
+ * l'SVG vero è un test su `renderSvg`, non su questa funzione (`layout.test.ts`).
+ *
  * `layout.testi` legge in modo difensivo (`?? []`) benché `SchemaLayout.testi` sia obbligatorio a
  * livello di tipo (`types.ts`): il produttore che davvero lo dimenticava era `flowALayout`
  * (`conversioneFlow.ts`), corretto insieme a questo campo — non i test o i salvataggi pre-Blocco
@@ -271,11 +323,14 @@ export function ingombroTesto(testo: SchemaTestoLibero): { destra: number; basso
  */
 export function dimensioniLayout(layout: SchemaLayout): { larghezza: number; altezza: number } {
   const testi = layout.testi ?? []
-  if (layout.nodi.length === 0 && testi.length === 0) return { larghezza: MARGINE * 2, altezza: MARGINE * 2 }
+  if (layout.nodi.length === 0 && testi.length === 0 && !layout.muro) {
+    return { larghezza: MARGINE * 2, altezza: MARGINE * 2 }
+  }
   const ingombriTesti = testi.map(ingombroTesto)
   const maxX = Math.max(
     ...layout.nodi.map((n) => n.x + dimensioniDi(n).larghezza),
-    ...ingombriTesti.map((i) => i.destra)
+    ...ingombriTesti.map((i) => i.destra),
+    ...(layout.muro ? [layout.muro.x + SPESSORE_MURO] : [])
   )
   const maxY = Math.max(
     ...layout.nodi.map((n) => n.y + dimensioniDi(n).altezza),

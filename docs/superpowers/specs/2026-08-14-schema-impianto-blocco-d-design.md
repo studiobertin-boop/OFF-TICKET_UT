@@ -373,7 +373,17 @@ Regole di conservazione, perché lo spezzamento non deve perdere lavoro fatto a 
 Sotto ci sono due funzioni pure e collaudabili — *qual è l'arco più vicino a questo
 punto, entro una tolleranza* e *spezza questo arco in questo punto* — più il gesto,
 che si verifica in pagina. La scelta di quale delle quattro ancore usare per ciascuna
-metà è **cosmetica**, perché ora sono tutte al centro: non va complicata.
+metà **non è cosmetica** e va dedotta dall'asse del tratto tagliato: taglio orizzontale
+→ `sx`/`dx`, taglio verticale → `alto`/`basso`.
+
+> *Corretto il 15-08-2026.* Questa riga diceva che la scelta dell'ancora era cosmetica
+> «perché ora sono tutte al centro». Era vero finché l'ancora era inerte, e ha smesso di
+> esserlo con la correzione dell'imbocco che è seguita alla prova del committente: da
+> allora il lato **dichiarato** dell'ancora (esplicito in `symbols/index.ts`, non più
+> dedotto dalla posizione) è ciò con cui `rottaImboccata` decide da che parte la
+> tubazione entra nella giunzione. Assegnare ancore laterali a un tubo verticale, o
+> viceversa, dichiarerebbe un asse diverso da quello su cui il tubo correva davvero.
+> Implementato in `latiDelleMeta`, `useInserimentoTee.ts`.
 
 Trappole già pagate, da non ripagare: `addEdge` di react-flow **scarta i duplicati**;
 `onlyRenderVisibleElements` toglie dal DOM i nodi fuori vista; il layer del portale

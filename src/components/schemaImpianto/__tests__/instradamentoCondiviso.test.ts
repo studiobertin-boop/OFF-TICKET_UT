@@ -83,7 +83,7 @@ function layoutConGiunzione(): SchemaLayout {
  */
 function archiComeInEditor(layout: SchemaLayout): { nodes: Node[]; edges: Edge[] } {
   const { nodes, edges, testi } = layoutAFlow(layout)
-  const layoutCorrente = flowALayout(nodes, edges, testi)
+  const layoutCorrente = flowALayout(nodes, edges, testi, null)
   const fusi = fondiDatiArchi(
     edges,
     edges,

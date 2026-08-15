@@ -33,14 +33,21 @@ export interface TestiLiberiProps {
   testi: SchemaTestoLibero[]
   /** `spostaTesto` di useTestiLiberi: `concluso` distingue l'ultimo evento del gesto. */
   onSposta: (id: string, posizione: { x: number; y: number }, concluso: boolean) => void
-  /** Riapre in scrittura l'annotazione: è anche l'unica strada per eliminarla. */
+  /** Riapre in scrittura l'annotazione: da lì si può anche eliminarla, come da sempre. */
   onModifica: (id: string) => void
+  /** L'id dell'annotazione selezionata sulla tela (Canc la cancella, in SchemaEditor.tsx), o
+   *  `null` se nessuna lo è. */
+  selezionato: string | null
+  /** Segnala a `SchemaEditor` che questa annotazione è quella appena scelta. */
+  onSeleziona: (id: string) => void
 }
 
 interface TestoLiberoProps {
   testo: SchemaTestoLibero
   onSposta: TestiLiberiProps['onSposta']
   onModifica: TestiLiberiProps['onModifica']
+  selezionato: boolean
+  onSeleziona: TestiLiberiProps['onSeleziona']
 }
 
 /**
@@ -48,7 +55,7 @@ interface TestoLiberoProps {
  * (SchemaEdgeTubazione.tsx): cattura del puntatore invece di listener globali, così il gesto
  * regge anche se il cursore esce per un attimo dal blocco di testo.
  */
-function TestoLibero({ testo, onSposta, onModifica }: TestoLiberoProps) {
+function TestoLibero({ testo, onSposta, onModifica, selezionato, onSeleziona }: TestoLiberoProps) {
   const { screenToFlowPosition } = useReactFlow()
   // Un doppio clic è nativamente due cicli pointerdown/pointerup prima del dblclick: senza
   // questa guardia ognuno dei due varrebbe come uno spostamento (a vuoto) e riaprire in
@@ -74,12 +81,16 @@ function TestoLibero({ testo, onSposta, onModifica }: TestoLiberoProps) {
   const suPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       e.stopPropagation()
+      // Al pointerdown e non al click: il click lo mangia il trascinamento (stesso motivo per
+      // cui MuroSeparazione.tsx seleziona da `suPointerDown`), e un clic che non seleziona MAI
+      // renderebbe la selezione raggiungibile solo lasciando l'annotazione ferma per errore.
+      onSeleziona(testo.id)
       mossoRef.current = false
       const puntatore = screenToFlowPosition({ x: e.clientX, y: e.clientY })
       scostamentoRef.current = { x: puntatore.x - testo.x, y: puntatore.y - testo.y }
       e.currentTarget.setPointerCapture(e.pointerId)
     },
-    [screenToFlowPosition, testo.x, testo.y]
+    [onSeleziona, screenToFlowPosition, testo.x, testo.y]
   )
 
   const suPointerMove = useCallback(
@@ -148,7 +159,7 @@ function TestoLibero({ testo, onSposta, onModifica }: TestoLiberoProps) {
       // screenToFlowPosition usa a metà trascinamento — l'annotazione rilasciata tornerebbe
       // dov'era. Stesso motivo per cui ce l'ha `SchemaGomito`.
       className="nopan"
-      title="Trascina per spostare, doppio clic per riscrivere o eliminare"
+      title="Trascina per spostare, si cancella col tasto Canc, doppio clic per riscrivere o eliminare"
       onPointerDown={suPointerDown}
       onPointerMove={suPointerMove}
       onPointerUp={suPointerUp}
@@ -175,6 +186,11 @@ function TestoLibero({ testo, onSposta, onModifica }: TestoLiberoProps) {
         // riaprire. Stessa ragione per cui lo fa `SchemaGomito`.
         pointerEvents: 'all',
         userSelect: 'none',
+        // `outline`, non `border`: non occupa spazio di layout, quindi non sposta il testo di un
+        // pixel rispetto a quando non è selezionata — stesso principio del contorno tratteggiato
+        // di MuroSeparazione.tsx, che sporge oltre l'ingombro vero invece di sostituirlo.
+        outline: selezionato ? '1px dashed #1976d2' : 'none',
+        outlineOffset: 3,
       }}
     >
       {testo.contenuto}
@@ -189,11 +205,18 @@ function TestoLibero({ testo, onSposta, onModifica }: TestoLiberoProps) {
  * una scritta posata su un simbolo resta leggibile, esattamente come nel documento, dove
  * `renderTestiLiberi` disegna dopo nodi e tubazioni.
  */
-export function TestiLiberi({ testi, onSposta, onModifica }: TestiLiberiProps) {
+export function TestiLiberi({ testi, onSposta, onModifica, selezionato, onSeleziona }: TestiLiberiProps) {
   return (
     <>
       {testi.map((testo) => (
-        <TestoLibero key={testo.id} testo={testo} onSposta={onSposta} onModifica={onModifica} />
+        <TestoLibero
+          key={testo.id}
+          testo={testo}
+          onSposta={onSposta}
+          onModifica={onModifica}
+          selezionato={selezionato === testo.id}
+          onSeleziona={onSeleziona}
+        />
       ))}
     </>
   )

@@ -10,13 +10,14 @@ import {
   makeValvola,
 } from '@/services/relazione/__tests__/fixtures'
 import { buildSchemaModel } from '../buildSchemaModel'
-import { layoutSchema, quoteInstradamento } from '../layout'
-import { renderSvg, righeLista, righeLegenda, posizioneAncora } from '../renderSvg'
+import { calcolaMuro, layoutSchema, quoteInstradamento } from '../layout'
+import { renderSvg, righeLista, righeLegenda, posizioneAncora, varchiDelMuro } from '../renderSvg'
 import { AVVICINAMENTO, raccordoOrtogonale } from '../tratti'
 import { dimensioniDi } from '../symbols'
 import type { SchemaNodoPosizionato, SchemaSegnoTubo } from '../types'
 import { SVG_RIFERIMENTO_SENZA_TESTI } from './fixtures/svgRiferimentoSenzaTesti'
 import { SVG_RIFERIMENTO_CON_TEE } from './fixtures/svgRiferimentoConTee'
+import { SVG_RIFERIMENTO_CON_MURO } from './fixtures/svgRiferimentoConMuro'
 
 function svgMinimo(noteTubazioni?: string[]) {
   const scheda = makeScheda({
@@ -32,6 +33,28 @@ function svgMinimo(noteTubazioni?: string[]) {
     buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
   )
   return renderSvg(layout, { noteTubazioni })
+}
+
+/**
+ * Impianto con `muro` valorizzato e almeno due tubazioni che ne scavalcano l'ascissa: la mandata
+ * del compressore verso il serbatoio in linea, e la linea condense del disoleatore verso la
+ * tanica. Dal Blocco D4 `layoutSchema` non disegna più il muro da sé (lo aggiunge solo il
+ * committente): questi test provano il render dei varchi dato un muro, non se `layoutSchema` lo
+ * proponga, quindi glielo si attacca con `calcolaMuro`, la stessa regola che propone l'ascissa
+ * al pulsante della barra (`ascissaProposta`, useMuro.ts).
+ */
+function layoutConMuro() {
+  const scheda = makeScheda({
+    serbatoi: [makeSerbatoio({ ubicazione: 'LINEA_DISTRIBUZIONE' })],
+    essiccatori: [],
+    scambiatori: [],
+    filtri: [],
+    dati_impianto: makeDatiImpianto({ raccolta_condense: 'tanica' }),
+  })
+  const layout = layoutSchema(
+    buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+  )
+  return { ...layout, muro: calcolaMuro(layout.nodi) }
 }
 
 describe('renderSvg', () => {
@@ -423,6 +446,9 @@ describe('varchi nel muro', () => {
     const layout = layoutSchema(
       buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
     )
+    // Dal Blocco D4 `layoutSchema` non attacca più il muro da sé: qui si prova il render dei
+    // varchi dato un muro, quindi lo si ricava con la stessa regola che proponeva prima.
+    layout.muro = calcolaMuro(layout.nodi)
     expect(layout.muro).not.toBeNull()
 
     const svg = renderSvg(layout)
@@ -451,6 +477,9 @@ describe('varchi nel muro', () => {
     const layout = layoutSchema(
       buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
     )
+    // Dal Blocco D4 `layoutSchema` non attacca più il muro da sé: qui si prova il render dei
+    // varchi dato un muro, quindi lo si ricava con la stessa regola che proponeva prima.
+    layout.muro = calcolaMuro(layout.nodi)
 
     expect(layout.muro).not.toBeNull()
     const svg = renderSvg(layout)
@@ -467,6 +496,28 @@ describe('varchi nel muro', () => {
 
     expect(altezze.length).toBeGreaterThan(0)
     expect(coperto).toBeLessThan(altezzaMuro)
+  })
+
+  // `varchiDelMuro` esiste perche' la tela dell'editor apra i varchi con la funzione del
+  // documento e non con una copia: e' la stessa `renderArchi` che rende l'SVG, di cui si tiene
+  // solo l'altra meta' del risultato.
+  it('varchiDelMuro riporta le quote a cui i tubi attraversano il muro', () => {
+    const layout = layoutConMuro()
+    const varchi = varchiDelMuro(layout)
+    expect(varchi.length).toBeGreaterThan(0)
+    // Il varco non e' solo calcolato: e' davvero aperto nel muro disegnato. Il troncone di
+    // muratura pieno subito dopo un varco comincia a `varco + larghezzaVarco/2` (22): è la
+    // prova che `simboloMuro` (symbols/index.ts) ha davvero letto questa quota per aprirci un
+    // buco, non solo che `varchiDelMuro` l'ha calcolata.
+    for (const y of varchi) expect(renderSvg(layout)).toContain(`y="${y + 22}"`)
+  })
+
+  // Riferimento ESTERNO al codice corrente, non un self-comparison. Copre l'unico elemento che
+  // gli altri due non toccano: il muro, e con lui i varchi che le tubazioni gli aprono. Dal
+  // Blocco D4 il muro e' modificabile a mano, quindi e' l'elemento piu' esposto del disegno, e
+  // senza questo pin la sua scomparsa da un impianto passerebbe inosservata.
+  it('un impianto col muro resta identico al riferimento', () => {
+    expect(renderSvg(layoutConMuro())).toBe(SVG_RIFERIMENTO_CON_MURO)
   })
 })
 

@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { makeCompressore, makeDatiImpianto, makeEssiccatore, makeScheda, makeSeparatore, makeSerbatoio, makeValvola } from '@/services/relazione/__tests__/fixtures'
 import { buildSchemaModel } from '../buildSchemaModel'
-import { layoutSchema, DIMENSIONI_NODO } from '../layout'
+import { layoutSchema, muroDaAscissa, DIMENSIONI_NODO } from '../layout'
 import { serializzaLayout, deserializzaLayout, riconcilia, layoutIniziale, layoutDaPersistere } from '../persistenza'
 import { dimensioniDi } from '../symbols'
+import type { SchemaLayout, SchemaModel } from '../types'
 
 function modelloDiProva(codiciCompressore: string[]) {
   const scheda = makeScheda({
@@ -27,6 +28,32 @@ function modelloConDatiVariabili(overridesCompressore: Partial<ReturnType<typeof
   return buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
 }
 
+/** Layout scritto a mano con apparecchiature in ENTRAMBI i gruppi: senza questo, un test sul
+ *  muro passerebbe anche con la vecchia `calcolaMuro`, che su un solo gruppo restituiva già
+ *  `null` — per la ragione sbagliata (vedi Step 1 del brief). */
+function layoutMinimo(): SchemaLayout {
+  return {
+    nodi: [
+      {
+        id: 'C1', tipo: 'compressore', etichetta: 'Compressore', gruppo: 'SALA_COMPRESSORI',
+        valvoleSicurezza: [], origine: 'scheda', x: 40, y: 200,
+      },
+      {
+        id: 'E1', tipo: 'essiccatore', etichetta: 'Essiccatore', gruppo: 'LINEA_DISTRIBUZIONE',
+        valvoleSicurezza: [], origine: 'scheda', x: 500, y: 200,
+      },
+    ],
+    archi: [],
+    muro: null,
+    testi: [],
+  }
+}
+
+/** Lo stesso modello di `layoutMinimo`, senza posizioni: la scheda che lo riconosce ancora. */
+function modelloMinimo(): SchemaModel {
+  return { nodi: layoutMinimo().nodi.map(({ x, y, ...n }) => n), archi: [] }
+}
+
 describe('serializzazione', () => {
   it('l’andata e ritorno conserva nodi, archi e posizioni', () => {
     const layout = layoutSchema(modelloDiProva(['C1']))
@@ -47,8 +74,8 @@ describe('serializzazione', () => {
 
   it('rifiuta un salvato con un tipo di nodo sconosciuto invece di rompersi più avanti', () => {
     // A monte Zod accetta il contenuto come z.any(): un tipo ritirato o una modifica manuale
-    // del JSON arriverebbero fin qui. Senza il controllo, `calcolaMuro` (chiamato subito
-    // sotto) esplode leggendo `DIMENSIONI_NODO[tipoInventato]`, che è `undefined`.
+    // del JSON arriverebbero fin qui. Senza il controllo, un tipo sconosciuto arriva intonso
+    // a `definizioneDi`.
     const salvato = serializzaLayout(layoutSchema(modelloDiProva(['C1'])))
     salvato.nodi[0] = { ...salvato.nodi[0], tipo: 'tipo-inventato' as never }
 
@@ -60,12 +87,38 @@ describe('serializzazione', () => {
     expect(deserializzaLayout({ versione: 1, nodi: [], archi: null } as never)).toBeNull()
   })
 
-  it('ricalcola il muro invece di fidarsi di un valore salvato', () => {
-    const layout = layoutSchema(modelloDiProva(['C1']))
+  // Dal Blocco D4 il muro e' un oggetto del committente: si salva la sua ascissa, e l'altezza si
+  // ricava al disegno. Un salvataggio scritto prima non ha `muroX` e si riapre senza muro — che
+  // e' cio' che il committente ha chiesto («di default non va disegnato»), non una perdita.
+  it('salva del muro la sola ascissa', () => {
+    const layout = { ...layoutMinimo(), muro: { x: 333, yMin: 10, yMax: 900 } }
     const salvato = serializzaLayout(layout)
-    const tornato = deserializzaLayout(salvato)!
+    expect(salvato.muroX).toBe(333)
+    // Case-insensitive: un campo tipo `muroYMin` non contiene la sottostringa 'yMin' esatta
+    // (la Y è maiuscola), ma sarebbe comunque l'altezza a fuggire nel salvato.
+    expect(JSON.stringify(salvato).toLowerCase()).not.toContain('ymin')
+  })
 
-    expect(tornato.muro).toEqual(layout.muro)
+  it('ricostruisce il muro dall ascissa salvata, con l altezza di adesso', () => {
+    const salvato = { ...serializzaLayout(layoutMinimo()), muroX: 333 }
+    const riletto = deserializzaLayout(salvato)
+    expect(riletto.muro).toEqual(muroDaAscissa(333, salvato.nodi))
+    expect(riletto.muro.x).toBe(333)
+  })
+
+  it('un salvataggio senza ascissa del muro si riapre senza muro', () => {
+    expect(deserializzaLayout(serializzaLayout(layoutMinimo())).muro).toBeNull()
+  })
+
+  // Il muro e' manuale per definizione, quindi sta nella stessa categoria dei nodi 'manuale' e
+  // delle annotazioni: la scheda dati non lo conosce e non ha titolo per cancellarlo.
+  //
+  // `riconcilia` riceve un `muro` (come fa `deserializzaLayout`), non un `muroX`: passargli un
+  // `LayoutSalvato` grezzo costruito a mano proverebbe una forma di chiamata che la produzione
+  // non usa (vedi revisione finale, rilievo Critico — il test su questo vive in `layoutIniziale`).
+  it('la riconciliazione con la scheda non porta via il muro', () => {
+    const salvato = { ...layoutMinimo(), muro: { x: 333, yMin: 10, yMax: 900 } }
+    expect(riconcilia(salvato, modelloMinimo()).layout.muro!.x).toBe(333)
   })
 
   it('restituisce una copia difensiva: mutare il layout originale non tocca il salvato', () => {
@@ -238,6 +291,46 @@ describe('layoutIniziale', () => {
     const atteso = riconcilia(salvato, modello)
 
     expect(esito).toEqual(atteso)
+  })
+
+  // Revisione finale, rilievo Critico: `layoutIniziale` passa a `riconcilia` ciò che
+  // restituisce `deserializzaLayout` — un `SchemaLayout`, che porta `muro`, non `muroX`. Un
+  // test che chiama `riconcilia` direttamente con un `LayoutSalvato` costruito a mano (come
+  // faceva questo prima della revisione) non attraversa mai `deserializzaLayout`, quindi non
+  // vede la porta che la produzione usa davvero: da qui il test va su `layoutIniziale`.
+  it('un muro salvato torna a esistere alla riapertura, non solo scritto nel salvataggio', () => {
+    const layout = { ...layoutMinimo(), muro: { x: 333, yMin: 10, yMax: 900 } }
+    const salvato = serializzaLayout(layout)
+
+    const esito = layoutIniziale(salvato, modelloMinimo())
+
+    expect(esito.layout.muro).not.toBeNull()
+    expect(esito.layout.muro!.x).toBe(333)
+  })
+
+  // Il giro che si chiude davvero a ogni conferma in produzione: `layoutDaPersistere` scrive
+  // ciò che l'editor tiene in memoria, `layoutIniziale` lo rilegge alla riapertura successiva.
+  // Insieme, non uno alla volta: muro, nodi, archi e testi devono sopravvivere tutti alla
+  // stessa transazione.
+  it('layoutIniziale(layoutDaPersistere(...)) conserva insieme muro, nodi, archi e testi', () => {
+    const modello = modelloDiProva(['C1'])
+    const base = layoutSchema(modello)
+    const testo = { id: 'T1', x: 50, y: 60, contenuto: 'Nota' }
+    const layout = { ...base, muro: { x: 333, yMin: 10, yMax: 900 }, testi: [testo] }
+
+    const salvato = layoutDaPersistere(layout, true, undefined)
+    const esito = layoutIniziale(salvato, modello)
+
+    expect(esito.layout.muro).toEqual(muroDaAscissa(333, esito.layout.nodi))
+    expect(esito.layout.muro!.x).toBe(333)
+    expect(esito.layout.nodi.map((n) => n.id).sort()).toEqual(layout.nodi.map((n) => n.id).sort())
+    for (const n of layout.nodi) {
+      const trovato = esito.layout.nodi.find((m) => m.id === n.id)!
+      expect(trovato.x).toBe(n.x)
+      expect(trovato.y).toBe(n.y)
+    }
+    expect(esito.layout.archi).toEqual(layout.archi)
+    expect(esito.layout.testi).toEqual([testo])
   })
 })
 

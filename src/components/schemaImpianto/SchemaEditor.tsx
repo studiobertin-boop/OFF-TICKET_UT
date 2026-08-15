@@ -58,16 +58,18 @@ import { capoValido, connessioneAmmessa, stileIniziale } from '@/services/schema
 import type { Asse, Bordo } from '@/services/schemaImpianto/allineamento'
 import { PASSO_GRIGLIA, allineaAllaGriglia } from '@/services/schemaImpianto/griglia'
 import { ingombroTesto, quoteInstradamento } from '@/services/schemaImpianto/layout'
-import { renderSvg } from '@/services/schemaImpianto/renderSvg'
+import { renderSvg, varchiDelMuro } from '@/services/schemaImpianto/renderSvg'
 import { dimensioniDi } from '@/services/schemaImpianto/symbols'
 import type {
   SchemaArcoStile,
   SchemaLayout,
+  SchemaNodoPosizionato,
   SchemaNodoTipo,
   SchemaTestoLibero,
 } from '@/services/schemaImpianto/types'
 import { DivisorioAnteprima } from './DivisorioAnteprima'
 import { ManigliaRidimensiona } from './ManigliaRidimensiona'
+import { MuroSeparazione } from './MuroSeparazione'
 import { LARGHEZZA_MINIMA_ANTEPRIMA, type PreferenzeEditor } from './preferenzeEditor'
 import { SchemaEdgeTubazione, type SchemaEdgeData } from './SchemaEdgeTubazione'
 import { SchemaNodeSymbol, type SchemaNodeData } from './SchemaNodeSymbol'
@@ -78,6 +80,7 @@ import { useAllineamentoSelezione } from './useAllineamentoSelezione'
 import { useGomiti } from './useGomiti'
 import { useGuideAllineamento } from './useGuideAllineamento'
 import { useInserimentoTee } from './useInserimentoTee'
+import { ascissaProposta, useMuro } from './useMuro'
 import { useSchemaHistory } from './useSchemaHistory'
 import { useSegniTubo } from './useSegniTubo'
 import { useTestiLiberi } from './useTestiLiberi'
@@ -138,6 +141,13 @@ const PASSI: Record<string, [number, number]> = {
   ArrowDown: [0, 1],
 }
 
+/**
+ * Muro e annotazioni non sono nodi di react-flow: la selezione della tela (`onSelectionChange`,
+ * `selezione` qui sotto) non li vede, e serve una nozione loro. Un `id` per il testo — ce ne
+ * possono essere più d'uno — nessun campo per il muro, che è unico.
+ */
+type SelezioneLibera = { tipo: 'muro' } | { tipo: 'testo'; id: string } | null
+
 interface StatoEditor {
   nodes: Node[]
   edges: Edge[]
@@ -146,6 +156,11 @@ interface StatoEditor {
   // (TestiLiberi.tsx) e si maneggiano con `useTestiLiberi`. Stando nello stesso stato, la
   // cronologia le copre gratis, perché lavora sull'intero stato.
   testi: SchemaTestoLibero[]
+  // Sola ascissa, non `SchemaMuroSeparazione`: l'altezza del muro non è un dato che l'utente
+  // sceglie, si ricava dal disegno corrente (`muroDaAscissa`, layout.ts) a ogni ricostruzione
+  // di `layoutCorrente`. Tenerla anche qui sarebbe una seconda fonte, destinata a divergere al
+  // primo nodo spostato — stessa ragione per cui `SchemaLayout.muro` salva solo `x`.
+  muroX: number | null
 }
 
 export interface SchemaEditorProps {
@@ -162,6 +177,15 @@ export interface SchemaEditorProps {
    */
   preferenze: PreferenzeEditor
   onCambiaPreferenze: (parziale: Partial<PreferenzeEditor>) => void
+}
+
+/**
+ * I nodi di react-flow ricondotti a `SchemaNodoPosizionato`, come fa già `flowALayout`
+ * (conversioneFlow.ts) per l'intero layout: qui serve solo per proporre dove nasce un muro
+ * nuovo (`ascissaProposta`, useMuro.ts), che lavora su quel tipo e non conosce react-flow.
+ */
+function nodiDi(s: { nodes: Node[] }): SchemaNodoPosizionato[] {
+  return s.nodes.map((n) => ({ ...(n.data as SchemaNodeData).nodo, x: n.position.x, y: n.position.y }))
 }
 
 /**
@@ -199,10 +223,18 @@ export function codiceLibero(prefisso: string, nodes: Node[]): string {
 }
 
 function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, preferenze, onCambiaPreferenze }: SchemaEditorProps) {
-  const iniziale = useMemo(() => layoutAFlow(layout), [layout])
+  // `layout.muro?.x ?? null`, non `layout.muro`: lo stato porta la sola ascissa (vedi il commento
+  // su `StatoEditor.muroX`), e senza questa lettura una pratica riaperta perderebbe in silenzio
+  // il muro salvato — tornerebbe sempre a `null`, come prima che questo stato esistesse.
+  const iniziale = useMemo(() => ({ ...layoutAFlow(layout), muroX: layout.muro?.x ?? null }), [layout])
   const storia = useSchemaHistory<StatoEditor>(iniziale)
   const { stato, applica, aggiornaSenzaCronologia, annulla, puoAnnullare } = storia
   const [selezione, setSelezione] = useState<{ nodes: Node[]; edges: Edge[] }>({ nodes: [], edges: [] })
+  // Muro e annotazioni non sono nodi di react-flow, quindi `deleteKeyCode` non li vede e la
+  // selezione della tela non li comprende: qui accanto vive la loro. In `useState` e non in
+  // `StatoEditor`, che e' cio' su cui lavora la cronologia — selezionare non deve diventare un
+  // passo di Ctrl+Z.
+  const [selezioneLibera, setSelezioneLibera] = useState<SelezioneLibera>(null)
   const [anteprimaAperta, setAnteprimaAperta] = useState(true)
 
   // Il dialog di scrittura, uno solo per due bersagli.
@@ -224,8 +256,17 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
   // che dentro ognuno dei calcoli qui sotto, è quel che tiene quote, capi e anteprima sullo
   // STESSO layout: sono i tre ingressi della geometria condivisa con il documento.
   const layoutCorrente = useMemo(
-    () => flowALayout(stato.nodes, stato.edges, stato.testi),
-    [stato.nodes, stato.edges, stato.testi]
+    () => flowALayout(stato.nodes, stato.edges, stato.testi, stato.muroX),
+    [stato.nodes, stato.edges, stato.testi, stato.muroX]
+  )
+
+  // Quote a cui le tubazioni attraversano il muro: la STESSA `renderArchi` che disegna il
+  // documento (`varchiDelMuro`, renderSvg.ts), non una sua imitazione — è la ragione per cui il
+  // varco si apre sulla tela dove si apre nel .docx. Vuoto senza muro: `varchiDelMuro` rifarebbe
+  // comunque tutto l'instradamento per un risultato che poi non si disegna.
+  const varchiMuro = useMemo(
+    () => (layoutCorrente.muro ? varchiDelMuro(layoutCorrente) : []),
+    [layoutCorrente]
   )
 
   // Quote di instradamento (collettore della mandata flessibile, corsia delle condense):
@@ -314,6 +355,11 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
     applica,
     aggiornaSenzaCronologia
   )
+
+  // Aggiungere e spostare il muro di separazione: logica isolata in un hook suo (vedi
+  // useMuro.ts), stesso motivo di useGomiti.ts qui sopra. Come per le annotazioni, non riceve
+  // `stato`: il muro si rende da `layoutCorrente.muro` qui sotto, nel portale della viewport.
+  const { aggiungiMuro, spostaMuro, rimuoviMuro } = useMuro<StatoEditor>(applica, aggiornaSenzaCronologia)
 
   // `edgesConGomitiBase`, `edgesConSegni` ed `edgesConTrascinamento` derivano TUTTI e tre da
   // `stato.edges` con dati aggiuntivi diversi (rispettivamente `onSpostaGomito`/
@@ -518,6 +564,55 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
     [applica, selezione.edges, stato.edges, stato.nodes]
   )
 
+  // Direzione «react-flow spegne la libera»: clic su un nodo/arco (o selezione a rettangolo)
+  // azzera `selezioneLibera`. L'altra direzione vive in `selezionaLibero`/`deselezionaReactFlow`
+  // qui sotto — il pointerdown del muro/di un'annotazione ferma la propagazione (vedi lì), quindi
+  // questo handler non li vede mai e non può essere lui a spegnerli.
+  const onSelectionChange = useCallback((s: { nodes: Node[]; edges: Edge[] }) => {
+    setSelezione(s)
+    if (s.nodes.length > 0 || s.edges.length > 0) setSelezioneLibera(null)
+  }, [])
+
+  // Direzione «la libera spegne react-flow». Il pointerdown del muro e di un'annotazione ferma
+  // la propagazione (useGestoPuntatore.ts, TestiLiberi.tsx): il click della pane di react-flow
+  // non scatta e `onSelectionChange` sopra non si accorge di nulla, quindi selezionare il muro o
+  // un testo NON fa decadere da sé una selezione di react-flow già accesa — senza questa
+  // chiamata esplicita un Canc con l'ordine nodo→muro cancellava entrambi, perché due listener
+  // diversi (questo su `window`, quello di react-flow su `document`) leggevano ciascuno la
+  // propria selezione, non condivisa.
+  //
+  // `aggiornaSenzaCronologia`, non `applica`: deselezionare non deve diventare un passo di
+  // Ctrl+Z, per lo stesso motivo per cui `selezioneLibera` sta fuori da `StatoEditor`.
+  const deselezionaReactFlow = useCallback(() => {
+    // Guardia contro la ricorsione con la direzione sopra: senza, ogni chiamata scriverebbe
+    // comunque su `stato` (anche a selezione già vuota), `onSelectionChange` la vedrebbe come un
+    // cambiamento e ripartirebbe un giro a vuoto a ogni clic sul muro/su un'annotazione.
+    if (selezione.nodes.length === 0 && selezione.edges.length === 0) return
+    aggiornaSenzaCronologia((s) => ({
+      ...s,
+      nodes: s.nodes.map((n) => (n.selected ? { ...n, selected: false } : n)),
+      edges: s.edges.map((e) => (e.selected ? { ...e, selected: false } : e)),
+    }))
+  }, [aggiornaSenzaCronologia, selezione.edges.length, selezione.nodes.length])
+
+  const selezionaLibero = useCallback(
+    (nuova: SelezioneLibera) => {
+      setSelezioneLibera(nuova)
+      deselezionaReactFlow()
+    },
+    [deselezionaReactFlow]
+  )
+
+  // La selezione libera può restare stantia: l'annotazione selezionata sparisce dal suo dialogo
+  // (`eliminaTestoAperto`) o il muro da un Ctrl+Z che disfa l'aggiunta, e senza questo effetto un
+  // Canc successivo consumerebbe una voce di cronologia per un'operazione ormai a vuoto.
+  useEffect(() => {
+    if (!selezioneLibera) return
+    const esiste =
+      selezioneLibera.tipo === 'muro' ? stato.muroX !== null : stato.testi.some((t) => t.id === selezioneLibera.id)
+    if (!esiste) setSelezioneLibera(null)
+  }, [selezioneLibera, stato.muroX, stato.testi])
+
   const eliminaSelezione = useCallback(() => {
     const nodi = new Set(selezione.nodes.map((n) => n.id))
     const archi = new Set(selezione.edges.map((e) => e.id))
@@ -565,13 +660,28 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
     [applica, aggiornaSenzaCronologia, selezione.nodes]
   )
 
+  // `scrittura !== null`, non l'intero oggetto: cambia identità a ogni carattere digitato (il
+  // valore del campo vive lì), e in dipendenza dell'effetto qui sotto sganciava e riagganciava
+  // questo listener a ogni tasto premuto nel campo di scrittura.
+  const scritturaAperta = scrittura !== null
+
   // Ctrl+Z e frecce sull'intera finestra: l'editor occupa tutto il dialog, e chiedere
   // all'utente di mettere prima a fuoco la tela per annullare o spostare sarebbe un tranello.
   useEffect(() => {
     const suTasto = (e: KeyboardEvent) => {
+      // Ridondante oggi (il Dialog di scrittura più sotto ferma già ogni tasto, Esc compreso, sul
+      // proprio root): resta per tenere l'invariante esplicito qui, non affidato in silenzio a un
+      // dettaglio implementativo di un altro componente.
+      if (scritturaAperta) return
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault()
         annulla()
+        return
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selezioneLibera) {
+        if (selezioneLibera.tipo === 'muro') rimuoviMuro()
+        else rimuoviTesto(selezioneLibera.id)
+        setSelezioneLibera(null)
         return
       }
       const passo = PASSI[e.key]
@@ -583,7 +693,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
     }
     window.addEventListener('keydown', suTasto)
     return () => window.removeEventListener('keydown', suTasto)
-  }, [annulla, selezione.nodes, sposta])
+  }, [annulla, rimuoviMuro, rimuoviTesto, scritturaAperta, selezione.nodes, selezioneLibera, sposta])
 
   const stileSelezionato =
     selezione.edges.length > 0
@@ -651,9 +761,10 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
     aggiungiTesto((s) => ({ x: 40, y: allineaAllaGriglia(piedeDelDisegno(s.nodes, s.testi) + 40) }), contenuto)
   }, [aggiungiTesto, applica, modificaTesto, scrittura])
 
-  /** Elimina l'annotazione aperta nel dialog: è la sola strada per toglierne una, perché non
-   *  essendo nodi di react-flow le annotazioni non entrano nella selezione della tela e il
-   *  pulsante «Elimina» della barra non le vede. */
+  /** Elimina l'annotazione aperta nel dialog: la via più vecchia delle due che esistono — l'altra
+   *  è selezionarla sulla tela e premere Canc (`selezioneLibera` qui sopra). Il pulsante «Elimina»
+   *  della barra resta cieco a entrambe, perché lavora solo sulla selezione di react-flow e le
+   *  annotazioni non sono nodi. */
   const eliminaTestoAperto = useCallback(() => {
     if (!scrittura || scrittura.bersaglio !== 'testo' || scrittura.id === null) return
     const { id } = scrittura
@@ -765,7 +876,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
         {/* Il dialog si apre subito e l'annotazione nasce solo alla conferma: scritta e
             posizione entrano insieme, così sulla tela non compare mai un'annotazione vuota —
             invisibile, e quindi impossibile da riafferrare o togliere. */}
-        <Tooltip title="Una scritta libera sul disegno: si trascina dove serve, doppio clic per riscriverla o eliminarla">
+        <Tooltip title="Una scritta libera sul disegno: si trascina dove serve, si cancella col tasto Canc, doppio clic per riscriverla o eliminarla">
           <Button
             size="small"
             startIcon={<AddIcon />}
@@ -773,6 +884,20 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
           >
             Testo
           </Button>
+        </Tooltip>
+        {/* Disabilitato col muro già presente: è uno solo, e due sovrapposti sarebbero
+            indistinguibili sulla tela (e sul documento, che li disegna con la stessa funzione). */}
+        <Tooltip title="Il muro fra sala compressori e linea di distribuzione: si trascina in orizzontale, si cancella col tasto Canc">
+          <span>
+            <Button
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => aggiungiMuro((s) => ascissaProposta(nodiDi(s)))}
+              disabled={stato.muroX !== null}
+            >
+              Muro
+            </Button>
+          </span>
         </Tooltip>
 
         <Divider orientation="vertical" flexItem />
@@ -842,7 +967,8 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
           onNodeDrag={suTrascinamentoNodo}
           onNodeDragStop={suFineTrascinamentoNodo}
           isValidConnection={isValidConnection}
-          onSelectionChange={setSelezione}
+          onSelectionChange={onSelectionChange}
+          onPaneClick={() => setSelezioneLibera(null)}
           onlyRenderVisibleElements
           fitView
           // Senza questo, `fitView` non inquadra affatto tutto il disegno: il minimo di
@@ -896,7 +1022,22 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
           <Controls />
           <ViewportPortal>
             <GuideAllineamento guide={guide} />
-            <TestiLiberi testi={stato.testi} onSposta={spostaTesto} onModifica={apriTesto} />
+            <TestiLiberi
+              testi={stato.testi}
+              onSposta={spostaTesto}
+              onModifica={apriTesto}
+              selezionato={selezioneLibera?.tipo === 'testo' ? selezioneLibera.id : null}
+              onSeleziona={(id) => selezionaLibero({ tipo: 'testo', id })}
+            />
+            {layoutCorrente.muro && (
+              <MuroSeparazione
+                muro={layoutCorrente.muro}
+                varchi={varchiMuro}
+                selezionato={selezioneLibera?.tipo === 'muro'}
+                onSposta={spostaMuro}
+                onSeleziona={() => selezionaLibero({ tipo: 'muro' })}
+              />
+            )}
           </ViewportPortal>
         </ReactFlow>
       </Box>

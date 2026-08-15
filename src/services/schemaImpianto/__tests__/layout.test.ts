@@ -12,19 +12,33 @@ import {
 import { buildSchemaModel } from '../buildSchemaModel'
 import {
   calcolaMuro,
+  muroDaAscissa,
   DIMENSIONI_NODO,
   MARGINE_SUPERIORE,
   dimensioniLayout,
   layoutSchema,
   quoteInstradamento,
 } from '../layout'
-import { dimensioniDi } from '../symbols'
+import { renderSvg } from '../renderSvg'
+import { dimensioniDi, SPESSORE_MURO } from '../symbols'
 import type { SchemaLayout } from '../types'
 
 function nodo(layout: SchemaLayout, id: string) {
   const trovato = layout.nodi.find((n) => n.id === id)
   if (!trovato) throw new Error(`Nodo ${id} assente dal layout`)
   return trovato
+}
+
+/** Modello con apparecchiature in entrambi i gruppi: sala compressori e linea distribuzione. */
+function modelloConSalaELinea() {
+  const scheda = makeScheda({
+    serbatoi: [
+      makeSerbatoio({ codice: 'S1', ubicazione: 'SALA_COMPRESSORI' }),
+      makeSerbatoio({ codice: 'S2', ubicazione: 'LINEA_DISTRIBUZIONE' }),
+    ],
+    dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+  })
+  return buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
 }
 
 function schedaTrePiuUno() {
@@ -112,7 +126,19 @@ describe('layoutSchema', () => {
     expect(tanica.y).toBeGreaterThan(baseSerbatoio)
   })
 
-  it('non disegna il muro quando tutte le apparecchiature stanno in sala compressori', () => {
+  // Osservazione 8 del committente: «di default non va disegnato, lo aggiungo solo se serve».
+  // Da qui in poi ogni pratica nasce senza muro — la conseguenza piu' visibile del Blocco D4.
+  it('l auto-layout non disegna piu il muro', () => {
+    expect(layoutSchema(modelloConSalaELinea()).muro).toBeNull()
+  })
+
+  // I test che seguono provavano queste regole passando da `layoutSchema(...).muro`: dal
+  // Blocco D4 quella strada restituisce sempre `null` (vedi il test sopra), quindi ora
+  // interrogano `calcolaMuro` sui nodi che l'auto-layout produce — la stessa funzione che
+  // propone l'ascissa al pulsante della barra (`ascissaProposta`, useMuro.ts). La regola di
+  // dominio (quali gruppi il muro separa) resta la stessa, solo non gira più in automatico ad
+  // ogni disegno.
+  it('non c’è muro quando tutte le apparecchiature stanno in sala compressori', () => {
     const scheda = makeScheda({
       serbatoi: [makeSerbatoio({ ubicazione: 'SALA_COMPRESSORI' })],
       essiccatori: [],
@@ -125,32 +151,23 @@ describe('layoutSchema', () => {
       buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
     )
 
-    expect(layout.muro).toBeNull()
+    expect(calcolaMuro(layout.nodi)).toBeNull()
   })
 
-  it('disegna il muro fra i due gruppi quando c’è anche solo un’apparecchiatura in linea', () => {
-    const scheda = makeScheda({
-      serbatoi: [
-        makeSerbatoio({ codice: 'S1', ubicazione: 'SALA_COMPRESSORI' }),
-        makeSerbatoio({ codice: 'S2', ubicazione: 'LINEA_DISTRIBUZIONE' }),
-      ],
-      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
-    })
+  it('c’è un muro possibile fra i due gruppi quando c’è anche solo un’apparecchiatura in linea', () => {
+    const layout = layoutSchema(modelloConSalaELinea())
+    const muro = calcolaMuro(layout.nodi)
 
-    const layout = layoutSchema(
-      buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
-    )
-
-    expect(layout.muro).not.toBeNull()
+    expect(muro).not.toBeNull()
     // Il muro sta a destra di tutto ciò che è in sala compressori.
     const inSala = layout.nodi.filter((n) => n.gruppo === 'SALA_COMPRESSORI')
     for (const n of inSala) {
-      expect(layout.muro!.x).toBeGreaterThan(n.x)
+      expect(muro!.x).toBeGreaterThan(n.x)
     }
   })
 
   describe('il terminale utenze non conta ai fini del muro', () => {
-    it('un impianto di soli compressori e serbatoi in sala, col solo terminale in linea, non ha muro', () => {
+    it('un impianto di soli compressori e serbatoi in sala, col solo terminale in linea, non ha un muro possibile', () => {
       const scheda = makeScheda({
         serbatoi: [makeSerbatoio({ ubicazione: 'SALA_COMPRESSORI' })],
         essiccatori: [],
@@ -166,31 +183,18 @@ describe('layoutSchema', () => {
       // Il terminale c'è (la linea finisce da qualche parte), ma da solo non è un motivo per
       // separare la sala compressori da una "linea distribuzione" che di fatto non esiste.
       expect(layout.nodi.some((n) => n.tipo === 'utenze')).toBe(true)
-      expect(layout.muro).toBeNull()
+      expect(calcolaMuro(layout.nodi)).toBeNull()
     })
 
-    it('ma un impianto con anche un solo serbatoio vero in linea il muro lo disegna ancora', () => {
+    it('ma un impianto con anche un solo serbatoio vero in linea un muro possibile torna', () => {
       // Discrimina un'implementazione che, per far sparire il muro col terminale, finisse per
       // escludere dal calcolo tutto ciò che è LINEA_DISTRIBUZIONE invece del solo terminale:
       // qui c'è un secondo serbatoio vero in linea, e il muro deve tornare. Il serbatoio è
       // l'unica apparecchiatura che può stare davvero fuori sala (vedi il test più sotto, sugli
       // stadi di trattamento): un essiccatore qui non proverebbe la stessa cosa.
-      const scheda = makeScheda({
-        serbatoi: [
-          makeSerbatoio({ codice: 'S1', ubicazione: 'SALA_COMPRESSORI' }),
-          makeSerbatoio({ codice: 'S2', ubicazione: 'LINEA_DISTRIBUZIONE' }),
-        ],
-        essiccatori: [],
-        scambiatori: [],
-        filtri: [],
-        dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
-      })
+      const layout = layoutSchema(modelloConSalaELinea())
 
-      const layout = layoutSchema(
-        buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
-      )
-
-      expect(layout.muro).not.toBeNull()
+      expect(calcolaMuro(layout.nodi)).not.toBeNull()
     })
   })
 
@@ -200,7 +204,7 @@ describe('layoutSchema', () => {
     // fisicamente in sala — stanno "a valle" solo nell'ordine delle tubazioni
     // (ordinaCatenaTrattamento in buildSchemaModel.ts), non nella stanza. Il campo `ubicazione`
     // esiste solo sul serbatoio: è l'unica apparecchiatura per cui la scheda lo chiede.
-    it('un essiccatore da solo non basta a far comparire il muro', () => {
+    it('un essiccatore da solo non basta a far comparire un muro possibile', () => {
       const scheda = makeScheda({
         serbatoi: [makeSerbatoio({ ubicazione: 'SALA_COMPRESSORI' })],
         essiccatori: [makeEssiccatore()],
@@ -213,7 +217,7 @@ describe('layoutSchema', () => {
         buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
       )
 
-      expect(layout.muro).toBeNull()
+      expect(calcolaMuro(layout.nodi)).toBeNull()
     })
 
     it('nemmeno un filtro, o un separatore, bastano da soli', () => {
@@ -230,7 +234,7 @@ describe('layoutSchema', () => {
         buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
       )
 
-      expect(layout.muro).toBeNull()
+      expect(calcolaMuro(layout.nodi)).toBeNull()
     })
   })
 
@@ -300,6 +304,42 @@ describe('layoutSchema', () => {
     })
   })
 
+  describe('muroDaAscissa', () => {
+    const base = { tipo: 'compressore' as const, etichetta: '', valvoleSicurezza: [], origine: 'scheda' as const }
+
+    // Dal Blocco D4 il muro e' un oggetto del committente e di lui si salva la sola ascissa:
+    // l'altezza continua ad adattarsi al disegno, e salvarla sarebbe una seconda fonte di verita'.
+    it('tiene l ascissa data e ricava l altezza dall inviluppo, col margine di calcolaMuro', () => {
+      const compressore = { ...base, id: 'C1', gruppo: 'SALA_COMPRESSORI' as const, tipo: 'compressore' as const, x: 40, y: 200 }
+      const serbatoio = { ...base, id: 'S1', gruppo: 'LINEA_DISTRIBUZIONE' as const, tipo: 'serbatoio' as const, x: 400, y: 100 }
+      const muro = muroDaAscissa(333, [compressore, serbatoio])
+      expect(muro!.x).toBe(333)
+      expect(muro!.yMin).toBe(100 - MARGINE_SUPERIORE / 2)
+      // Il fondo dell'inviluppo è il più basso dei due bordi: qui è quello del serbatoio
+      // (100 + 260 = 360), non quello del compressore (200 + 150 = 350).
+      expect(muro!.yMax).toBe(
+        Math.max(
+          200 + DIMENSIONI_NODO.compressore.altezza,
+          100 + DIMENSIONI_NODO.serbatoio.altezza
+        ) + MARGINE_SUPERIORE / 2
+      )
+    })
+
+    // Il terminale utenze e' un raccordo, non un'apparecchiatura da separare: stessa esclusione di
+    // calcolaMuro, e per la stessa ragione — due regole diverse sarebbero di nuovo due fonti.
+    it('non lascia che il terminale utenze allarghi l inviluppo', () => {
+      const compressore = { ...base, id: 'C1', gruppo: 'SALA_COMPRESSORI' as const, tipo: 'compressore' as const, x: 40, y: 200 }
+      const utenze = { ...base, id: 'UTENZE', gruppo: 'LINEA_DISTRIBUZIONE' as const, tipo: 'utenze' as const, x: 900, y: 900 }
+      expect(muroDaAscissa(333, [compressore, utenze])).toEqual(muroDaAscissa(333, [compressore]))
+    })
+
+    // Un disegno senza apparecchiature non ha inviluppo: un muro alto zero, o alto quanto il
+    // margine, sarebbe un segno nel vuoto.
+    it('non produce un muro se non c e nulla da separare', () => {
+      expect(muroDaAscissa(333, [])).toBeNull()
+    })
+  })
+
   it('scala in larghezza al crescere delle apparecchiature, senza sovrapporle', () => {
     const conUno = layoutSchema(
       buildSchemaModel({
@@ -338,6 +378,58 @@ describe('layoutSchema', () => {
       expect(n.x).toBeGreaterThanOrEqual(0)
       expect(n.y).toBeGreaterThanOrEqual(0)
     }
+  })
+
+  // Revisione finale, rilievo Importante: `maxX` leggeva solo `layout.nodi` e `layout.testi`,
+  // mai `layout.muro`. Finché il muro nasceva da solo fra i due gruppi restava sempre dentro la
+  // pagina; dal Blocco D4 il committente lo trascina dove vuole, e un muro oltre l'ultima
+  // apparecchiatura finiva nel markup ma fuori dal viewBox — visibile sulla tela dell'editor,
+  // assente nell'anteprima e nel .docx.
+  it('un muro posato a destra di tutto il disegno resta dentro la larghezza della pagina', () => {
+    const layout = layoutSchema(
+      buildSchemaModel({
+        scheda: schedaTrePiuUno(),
+        collegamentiCompressoriSerbatoi: { C1: ['S1'], C2: ['S1'], C3: ['S1'] },
+      })
+    )
+    const senzaMuro = dimensioniLayout(layout)
+    // Ben oltre il bordo destro di adesso: se `dimensioniLayout` ignorasse il muro, la
+    // larghezza non cambierebbe affatto e il confronto sotto cadrebbe di sicuro.
+    const muro = muroDaAscissa(senzaMuro.larghezza + 200, layout.nodi)
+    const conMuro = dimensioniLayout({ ...layout, muro })
+
+    expect(conMuro.larghezza).toBeGreaterThanOrEqual(muro!.x + SPESSORE_MURO)
+  })
+
+  // Perché il fondo del muro non è (più) un candidato di `maxY`, e perché questo test fissa
+  // l'SVG di `renderSvg` invece di `dimensioniLayout`: vedi il commento su `dimensioniLayout`
+  // (`layout.ts`), dove sta la decisione. Qui è un canarino sulla PRESENZA della tabella sotto
+  // il disegno, non sulla sua altezza: un margine ridotto (righe più basse) lo lascia verde,
+  // perché il margine strutturale resta ampiamente sovrabbondante rispetto ai 15 unità in
+  // gioco — a farlo cadere è solo l'assenza della tabella, non il suo restringersi.
+  it('in un impianto col muro, il fondo del muro sta dentro l’altezza dichiarata dall’SVG di renderSvg', () => {
+    const layout = layoutSchema(modelloConSalaELinea())
+    const muro = calcolaMuro(layout.nodi)
+    expect(muro).not.toBeNull()
+
+    const svg = renderSvg({ ...layout, muro })
+    const altezzaDichiarata = Number(/height="([\d.]+)"/.exec(svg)![1])
+
+    expect(altezzaDichiarata).toBeGreaterThanOrEqual(muro!.yMax)
+  })
+
+  // Stesso difetto, sull'altro bordo: `inviluppoVerticale` sottrae `MARGINE_SUPERIORE / 2` (55)
+  // dalla quota più alta senza mai fermarsi a zero. La pagina comincia sempre a `y=0`: un muro il
+  // cui inviluppo sale più in alto del nodo più alto di 55 (per esempio un'apparecchiatura
+  // trascinata a `y=20`, come nel rilievo del committente) produce un `yMin` negativo, e la sua
+  // cima finisce tagliata fuori dal viewBox.
+  it('la cima del muro non sale sopra il bordo della pagina: yMin non è mai negativo', () => {
+    const layout = layoutSchema(modelloConSalaELinea())
+    const spostato = layout.nodi.map((n) => (n.tipo === 'compressore' ? { ...n, y: 20 } : n))
+    const muro = calcolaMuro(spostato)
+    expect(muro).not.toBeNull()
+
+    expect(muro!.yMin).toBeGreaterThanOrEqual(0)
   })
 
   it('la tela si allarga per contenere un testo libero che sporge oltre le apparecchiature', () => {

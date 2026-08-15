@@ -207,6 +207,23 @@ function arrotonda(valore: number): number {
 }
 
 /**
+ * Quote alle quali una polilinea attraversa la verticale `x`. Servono ad aprire i varchi del
+ * muro: ricavarle dalla rotta effettiva, invece di fissarle nel layout, tiene muro e tubazioni
+ * d'accordo anche dopo che l'utente ha spostato un nodo nell'editor. Spostata qui da
+ * `renderSvg.ts`: è geometria pura di un tratto, come `raccordoOrtogonale` e le altre funzioni
+ * di questo file, non resa grafica.
+ */
+export function quoteAttraversamento(punti: Punto[], x: number): number[] {
+  const quote: number[] = []
+  for (let i = 1; i < punti.length; i++) {
+    const a = punti[i - 1]
+    const b = punti[i]
+    if (a.y === b.y && Math.min(a.x, b.x) <= x && x <= Math.max(a.x, b.x)) quote.push(a.y)
+  }
+  return quote
+}
+
+/**
  * Punto lungo una polilinea GIÀ RISOLTA (compresi i gomiti automatici di
  * `polilineaConGomiti`) a una frazione `t` della lunghezza totale — non del numero di
  * segmenti, o un tratto lungo poco sposterebbe il segno quanto uno lungo molto. Ritorna anche
