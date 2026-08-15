@@ -42,8 +42,9 @@ function layoutCompleto(): SchemaLayout {
 /**
  * `layoutCompleto` con in più una giunzione: un ramo (S1 lato `dx` → giunzione lato `alto`)
  * arriva senza gomiti a mano, col capo di partenza spostato lateralmente rispetto al centro
- * della giunzione — la configurazione misurata in pagina che, senza il lato imposto, fa girare
- * la rotta a metà strada (`rottaLinea`) invece di entrare verticalmente e formare la T.
+ * della giunzione — la stessa configurazione misurata in pagina, con numeri propri, che senza
+ * il lato imposto fa girare la rotta a metà strada (`rottaLinea`) invece di entrare
+ * verticalmente e formare la T.
  */
 function layoutConGiunzione(): SchemaLayout {
   const layout = layoutCompleto()
@@ -56,8 +57,10 @@ function layoutConGiunzione(): SchemaLayout {
     gruppo: 'LINEA_DISTRIBUZIONE',
     valvoleSicurezza: [],
     origine: 'manuale',
-    // Centro spostato di 140 in x e 160 in y rispetto a `pDa`: fuori dalla sua verticale, così
-    // la rotta nativa e quella imboccata dal lato `alto` producono poligonali diverse.
+    // Centro del pallino spostato di 140 in x e 160 in y rispetto a `pDa`: fuori dalla sua
+    // verticale, così la rotta nativa e quella imboccata dal lato `alto` producono poligonali
+    // diverse. `x`/`y` qui sono l'angolo del riquadro 24×24, non il centro: il `- 12` compensa
+    // l'ancora della giunzione, che sta a (12,12), perché lo scarto voluto cada sul pallino.
     x: pDa.x + 140 - 12,
     y: pDa.y + 160 - 12,
   }
@@ -145,8 +148,8 @@ function dalDocumento(layout: SchemaLayout, arcoId: string): Punto[] {
 /**
  * `d` di ogni `<path>` composto solo da comandi M/L nell'SVG reso — le tubazioni non ondulate
  * (`renderMandataLinea`, `renderLineaCondense`), che disegnano con `percorso`. I flessibili
- * escono da `ondula` con comandi Q e non compaiono qui: non serve distinguerli, la ricerca
- * successiva li esclude a monte scegliendo un arco non ondulato.
+ * escono da `ondula` con comandi Q e non compaiono qui: non serve distinguerli, le ricerche a
+ * valle li escludono a monte scegliendo un arco non ondulato.
  */
 function tracciatiLineari(svg: string): string[] {
   return [...svg.matchAll(/d="(M [\d.-]+ [\d.-]+(?: L [\d.-]+ [\d.-]+)+)"/g)].map((m) => m[1])
@@ -263,8 +266,10 @@ describe('accordo fra la tela dell’editor e il documento', () => {
    * termine di paragone, `attesa`, è la rotta calcolata passando esplicitamente `latoImposto` a
    * `instrada`: è quello a rendere il confronto discriminante.
    *
-   * E per lo stesso motivo per cui serve `dalDocumento` VERSUS l'SVG vero due test più sopra: un
-   * confronto che passasse solo dal modello `dalDocumento` non si accorgerebbe se le `render*` di
+   * E per lo stesso motivo per cui serve `dalDocumento` VERSUS l'SVG vero nel test «per un arco
+   * non ondulato, la polilinea della tela combacia col tracciato VERO reso da renderSvg» più
+   * sopra: un confronto che passasse solo dal modello `dalDocumento` non si accorgerebbe se le
+   * `render*` di
    * `renderSvg.ts` smettessero di passare i lati a `instrada` — verificato con la mutazione
    * (sostituire i lati risolti con `{}` in quelle tre funzioni), non dedotto: senza il confronto
    * con `tracciati`/`renderSvg` qui sotto, quella mutazione lasciava la suite verde.

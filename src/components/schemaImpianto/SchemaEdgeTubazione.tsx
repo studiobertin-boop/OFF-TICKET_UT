@@ -13,7 +13,15 @@
 import { useCallback } from 'react'
 import { BaseEdge, EdgeLabelRenderer, useReactFlow, type EdgeProps } from '@xyflow/react'
 import { riduttorePressione, valvolaIntercettazione } from '@/services/schemaImpianto/symbols'
-import { ondula, percorso, puntoSuTratto, tSuTratto, type Punto, type QuoteInstradamento } from '@/services/schemaImpianto/tratti'
+import {
+  ondula,
+  percorso,
+  puntoSuTratto,
+  tSuTratto,
+  type LatiImposti,
+  type Punto,
+  type QuoteInstradamento,
+} from '@/services/schemaImpianto/tratti'
 import type { SchemaArcoStile, SchemaSegnoTubo, SchemaSegnoTuboTipo } from '@/services/schemaImpianto/types'
 import { capiDellArco, polilineaDellArco, type CapiArco } from './conversioneFlow'
 import { useGestoPuntatore } from './useGestoPuntatore'
@@ -84,9 +92,17 @@ export interface SchemaEdgeData extends Record<string, unknown> {
    * `instrada` proprio per restare sugli stessi indici: numerarla diversamente sposterebbe un
    * tratto diverso da quello afferrato (era il difetto del giro di riparazione 1). Per lo stesso
    * motivo `pDa`/`pA` sono i capi risolti da `capiDellArco` — gli stessi da cui nasce la
-   * polilinea disegnata — e non le coordinate degli handle.
+   * polilinea disegnata — e non le coordinate degli handle; e per lo stesso motivo `lati` è
+   * `capi.lati`, non ricalcolato qui.
    */
-  onTrascinaTratto?: (pDa: Punto, pA: Punto, indiceTratto: number, puntoLibero: Punto, concluso: boolean) => void
+  onTrascinaTratto?: (
+    pDa: Punto,
+    pA: Punto,
+    indiceTratto: number,
+    puntoLibero: Punto,
+    concluso: boolean,
+    lati?: LatiImposti
+  ) => void
 }
 
 export interface SchemaGomitoProps {
@@ -361,12 +377,14 @@ export function SchemaEdgeTubazione({
         onPointerMove={(e) => {
           const libero = screenToFlowPosition({ x: e.clientX, y: e.clientY })
           const valore = { indice: indiceTrattoPiuVicino(polilinea, libero), libero }
-          suMovimento(e, valore, (v) => edgeData?.onTrascinaTratto?.(capi.da, capi.a, v.indice, v.libero, false))
+          suMovimento(e, valore, (v) =>
+            edgeData?.onTrascinaTratto?.(capi.da, capi.a, v.indice, v.libero, false, capi.lati)
+          )
         }}
         onPointerUp={(e) => {
           const libero = screenToFlowPosition({ x: e.clientX, y: e.clientY })
           const valore = { indice: indiceTrattoPiuVicino(polilinea, libero), libero }
-          suFine(e, valore, (v) => edgeData?.onTrascinaTratto?.(capi.da, capi.a, v.indice, v.libero, true))
+          suFine(e, valore, (v) => edgeData?.onTrascinaTratto?.(capi.da, capi.a, v.indice, v.libero, true, capi.lati))
         }}
         // Puntatore annullato a metà gesto: senza questo ramo la cattura resterebbe alzata e,
         // più grave qui che altrove, `trascinamentoAvviato` (useTrascinamentoTratto.ts) non si
@@ -378,7 +396,7 @@ export function SchemaEdgeTubazione({
         // solo (`trascinamentoAvviato.current = !concluso`): gli mancava solo l'occasione di
         // essere chiamato.
         onPointerCancel={(e) => {
-          suAnnullamento(e, (v) => edgeData?.onTrascinaTratto?.(capi.da, capi.a, v.indice, v.libero, true))
+          suAnnullamento(e, (v) => edgeData?.onTrascinaTratto?.(capi.da, capi.a, v.indice, v.libero, true, capi.lati))
         }}
       />
       <EdgeLabelRenderer>

@@ -18,7 +18,7 @@
  */
 import { useCallback, useMemo, useRef } from 'react'
 import type { Edge, Node } from '@xyflow/react'
-import { trascinaTratto, type Punto, type QuoteInstradamento } from '@/services/schemaImpianto/tratti'
+import { trascinaTratto, type LatiImposti, type Punto, type QuoteInstradamento } from '@/services/schemaImpianto/tratti'
 import type { SchemaEdgeData } from './SchemaEdgeTubazione'
 
 interface StatoConNodiEdArchi {
@@ -107,7 +107,15 @@ export function useTrascinamentoTratto<T extends StatoConNodiEdArchi>(
   const cronologiaScrittaRef = useRef(false)
 
   const trascinaSegmento = useCallback(
-    (arcoId: string, pDa: Punto, pA: Punto, indiceTratto: number, puntoLibero: Punto, concluso: boolean) => {
+    (
+      arcoId: string,
+      pDa: Punto,
+      pA: Punto,
+      indiceTratto: number,
+      puntoLibero: Punto,
+      concluso: boolean,
+      lati?: LatiImposti
+    ) => {
       const primoEventoDelGesto = !trascinamentoAvviato.current
       if (primoEventoDelGesto) {
         // Il congelamento sta QUI, fuori dall'updater passato ad `applica`/
@@ -180,7 +188,9 @@ export function useTrascinamentoTratto<T extends StatoConNodiEdArchi>(
         edges: s.edges.map((e) => {
           if (e.id !== arcoId) return e
           const data = e.data as SchemaEdgeData
-          const nuovi = deltaNullo ? (gomiti ?? []) : trascinaTratto(data.stile, pDa, pA, gomiti, quote, indice, delta)
+          const nuovi = deltaNullo
+            ? (gomiti ?? [])
+            : trascinaTratto(data.stile, pDa, pA, gomiti, quote, indice, delta, lati)
           return { ...e, data: { ...data, punti: nuovi } satisfies SchemaEdgeData }
         }),
       }))
@@ -194,8 +204,14 @@ export function useTrascinamentoTratto<T extends StatoConNodiEdArchi>(
         ...e,
         data: {
           ...(e.data as SchemaEdgeData),
-          onTrascinaTratto: (pDa: Punto, pA: Punto, indiceTratto: number, puntoLibero: Punto, concluso: boolean) =>
-            trascinaSegmento(e.id, pDa, pA, indiceTratto, puntoLibero, concluso),
+          onTrascinaTratto: (
+            pDa: Punto,
+            pA: Punto,
+            indiceTratto: number,
+            puntoLibero: Punto,
+            concluso: boolean,
+            lati?: LatiImposti
+          ) => trascinaSegmento(e.id, pDa, pA, indiceTratto, puntoLibero, concluso, lati),
         } satisfies SchemaEdgeData,
       })),
     [stato.edges, trascinaSegmento]

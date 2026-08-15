@@ -91,9 +91,15 @@ export function trascinaTratto(
   gomiti: Punto[] | undefined,
   quote: QuoteInstradamento,
   indiceTratto: number,
-  delta: Punto
+  delta: Punto,
+  /** I lati imposti ai due capi (`latoImposto`, symbols/index.ts), quando i capi lo impongono:
+   *  arrivano fin qui per la stessa ragione di `stile` e `quote` — senza, la ricostruzione
+   *  torna alla rotta nativa dello stile e l'indice numera un tratto diverso da quello che
+   *  l'utente vede e afferra (`rottaImboccata`, tratti.ts, produce un numero di tratti diverso
+   *  dalla rotta nativa quando un capo è una giunzione). */
+  lati?: LatiImposti
 ): Punto[] {
-  const full = instrada(stile, pDa, pA, gomiti, quote)
+  const full = instrada(stile, pDa, pA, gomiti, quote, lati)
   const a = full[indiceTratto]
   const b = full[indiceTratto + 1]
   if (!a || !b) return gomiti ?? []

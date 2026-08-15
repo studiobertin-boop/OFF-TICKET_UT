@@ -476,6 +476,39 @@ describe('trascinaTratto', () => {
     // risultato è un solo punto, {x:0, y:234}.
     expect(nuovi).toEqual([{ x: 0, y: 234 }])
   })
+
+  // Stessa classe di difetto del giro di riparazione 1 (test più sopra), questa volta sui lati
+  // imposti invece che sui gomiti a mano: un capo giunzione (lato `alto`) fa disegnare la rotta
+  // IMBOCCATA — due tratti — invece della rotta nativa `rottaLinea` — tre tratti, che gira a
+  // metà strada. Se `trascinaTratto` ricostruisse senza `lati`, l'indice 1 (il tratto verticale
+  // VISTO e afferrato dall'utente, sulla rotta imboccata) numererebbe il tratto sbagliato sulla
+  // rotta nativa a tre tratti — il montante finirebbe spostato, non quello che l'utente vede.
+  it('un capo con lato imposto: il tratto afferrato è quello della rotta imboccata, non della rotta nativa', () => {
+    const pDa = { x: 272, y: 182 }
+    const pA = { x: 382, y: 405 }
+    const quote = { yCollettore: 0, yCorsiaCondense: 500 }
+    const lati = { a: 'alto' as const }
+
+    // Rotta imboccata: [(272,182), (382,182), (382,405)]. Il tratto verticale — quello afferrato
+    // — è l'indice 1.
+    const full = instrada('standard', pDa, pA, undefined, quote, lati)
+    expect(full).toEqual([
+      { x: 272, y: 182 },
+      { x: 382, y: 182 },
+      { x: 382, y: 405 },
+    ])
+    const indiceTratto = 1
+
+    const nuovi = trascinaTratto('standard', pDa, pA, undefined, quote, indiceTratto, { x: 20, y: 0 }, lati)
+
+    // 382 + 20 = 402: il punto di griglia più vicino (400, distanza 2) vince sui capi (272 e
+    // 382, distanze 130 e 20). Con i lati ricostruiti correttamente il montante trasla a x=400
+    // su entrambi i capi del tratto.
+    expect(nuovi).toEqual([
+      { x: 400, y: 182 },
+      { x: 400, y: 405 },
+    ])
+  })
 })
 
 describe('rotte native', () => {
