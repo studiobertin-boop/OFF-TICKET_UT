@@ -30,7 +30,7 @@
  * "generato l'ultima volta dal commit" con l'hash del commit che introduce il cambiamento voluto —
  * il motivo del cambiamento va nel messaggio di quel commit, non ripetuto qui.
  *
- * Generato l'ultima volta dal commit f13a090 ("feat(schema): la linea si interrompe dentro
+ * Generato l'ultima volta dal commit 86a3767 ("feat(schema): la linea si interrompe dentro
  * valvole e riduttori"), Task 3 del Blocco D4: il rettangolo bianco che copre la farfalla della
  * valvola di intercettazione (`<rect ... fill="#fff" />` prima del `<path>` della farfalla, sia
  * nel disegno sia nella riga di legenda).
