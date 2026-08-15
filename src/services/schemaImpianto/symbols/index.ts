@@ -697,7 +697,7 @@ export function simboloDi(nodo: SchemaNodo): string {
  * Larghezza del muro disegnato da `simboloMuro`. Esportata perché il Blocco D4 la serve anche
  * fuori di qui: `MuroSeparazione.tsx` la usa per l'area di presa e il contorno di selezione
  * sulla tela, che devono corrispondere all'ingombro vero e non a una seconda cifra scritta a
- * mano — la stessa ragione per cui `TRATTEGGIO_CONDENSE` due righe sopra è esportata.
+ * mano — la stessa ragione per cui `TRATTEGGIO_CONDENSE` è esportata.
  */
 export const SPESSORE_MURO = 14
 

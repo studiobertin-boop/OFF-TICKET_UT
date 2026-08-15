@@ -339,11 +339,11 @@ export function renderSvg(layout: SchemaLayout, options: RenderSvgOptions = {}):
 }
 
 /**
- * Le quote a cui le tubazioni attraversano il muro, per chi dovrà disegnarlo sulla tela
- * dell'editor senza rendere tutto l'SVG. E' la stessa `renderArchi` del documento, di cui si
- * tiene l'altra metà del risultato: una copia della sua logica di instradamento aprirebbe sulla
- * tela varchi in punti diversi da quelli del .docx consegnato. Nessun chiamante ancora: arriva
- * in un task successivo del Blocco D4.
+ * Le quote a cui le tubazioni attraversano il muro, per disegnarlo sulla tela dell'editor senza
+ * rendere tutto l'SVG. E' la stessa `renderArchi` del documento, di cui si tiene l'altra metà del
+ * risultato: una copia della sua logica di instradamento aprirebbe sulla tela varchi in punti
+ * diversi da quelli del .docx consegnato. Chiamata da `SchemaEditor` (`varchiMuro`,
+ * SchemaEditor.tsx), che la passa a `MuroSeparazione` insieme al muro da disegnare.
  */
 export function varchiDelMuro(layout: SchemaLayout): number[] {
   return renderArchi(layout, quoteInstradamento(layout)).varchi
