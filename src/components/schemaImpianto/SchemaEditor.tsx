@@ -141,6 +141,13 @@ const PASSI: Record<string, [number, number]> = {
   ArrowDown: [0, 1],
 }
 
+/**
+ * Muro e annotazioni non sono nodi di react-flow: la selezione della tela (`onSelectionChange`,
+ * `selezione` qui sotto) non li vede, e serve una nozione loro. Un `id` per il testo — ce ne
+ * possono essere più d'uno — nessun campo per il muro, che è unico.
+ */
+type SelezioneLibera = { tipo: 'muro' } | { tipo: 'testo'; id: string } | null
+
 interface StatoEditor {
   nodes: Node[]
   edges: Edge[]
@@ -223,6 +230,11 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
   const storia = useSchemaHistory<StatoEditor>(iniziale)
   const { stato, applica, aggiornaSenzaCronologia, annulla, puoAnnullare } = storia
   const [selezione, setSelezione] = useState<{ nodes: Node[]; edges: Edge[] }>({ nodes: [], edges: [] })
+  // Muro e annotazioni non sono nodi di react-flow, quindi `deleteKeyCode` non li vede e la
+  // selezione della tela non li comprende: qui accanto vive la loro. In `useState` e non in
+  // `StatoEditor`, che e' cio' su cui lavora la cronologia — selezionare non deve diventare un
+  // passo di Ctrl+Z.
+  const [selezioneLibera, setSelezioneLibera] = useState<SelezioneLibera>(null)
   const [anteprimaAperta, setAnteprimaAperta] = useState(true)
 
   // Il dialog di scrittura, uno solo per due bersagli.
@@ -347,7 +359,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
   // Aggiungere e spostare il muro di separazione: logica isolata in un hook suo (vedi
   // useMuro.ts), stesso motivo di useGomiti.ts qui sopra. Come per le annotazioni, non riceve
   // `stato`: il muro si rende da `layoutCorrente.muro` qui sotto, nel portale della viewport.
-  const { aggiungiMuro, spostaMuro } = useMuro<StatoEditor>(applica, aggiornaSenzaCronologia)
+  const { aggiungiMuro, spostaMuro, rimuoviMuro } = useMuro<StatoEditor>(applica, aggiornaSenzaCronologia)
 
   // `edgesConGomitiBase`, `edgesConSegni` ed `edgesConTrascinamento` derivano TUTTI e tre da
   // `stato.edges` con dati aggiuntivi diversi (rispettivamente `onSpostaGomito`/
@@ -552,6 +564,14 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
     [applica, selezione.edges, stato.edges, stato.nodes]
   )
 
+  // Un verso solo: react-flow che seleziona qualcosa spegne la selezione libera, mai il
+  // contrario. Cosi' non esiste il caso in cui un Canc cancella sia un nodo/arco sia il muro o
+  // un'annotazione — le due selezioni non convivono mai con qualcosa dentro entrambe.
+  const onSelectionChange = useCallback((s: { nodes: Node[]; edges: Edge[] }) => {
+    setSelezione(s)
+    if (s.nodes.length > 0 || s.edges.length > 0) setSelezioneLibera(null)
+  }, [])
+
   const eliminaSelezione = useCallback(() => {
     const nodi = new Set(selezione.nodes.map((n) => n.id))
     const archi = new Set(selezione.edges.map((e) => e.id))
@@ -603,9 +623,28 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
   // all'utente di mettere prima a fuoco la tela per annullare o spostare sarebbe un tranello.
   useEffect(() => {
     const suTasto = (e: KeyboardEvent) => {
+      // Prima di Ctrl+Z, non dopo. Il dialog di scrittura (onKeyDown più sotto) ferma già la
+      // propagazione di ogni tasto tranne Esc sul proprio root, quindi finché il fuoco resta
+      // dentro — cioè sempre, a dialog aperto, per via del focus trap del Modal MUI — questo
+      // listener su `window` non riceve nulla comunque: provato in pagina, con l'annotazione
+      // aperta e selezionata (il pointerdown del doppio clic la seleziona prima di aprire il
+      // dialog), sia Backspace sia Ctrl+Z restano dentro il campo — il primo cancella un
+      // carattere, il secondo lo recupera con l'undo nativo del campo — SENZA questa guardia,
+      // non solo con essa: la sua vera funzione è ridondanza esplicita, indipendente da
+      // quell'altro componente, non l'unica barriera. Messa prima e non dopo perché è la
+      // stessa scelta già fatta lì (vedi il commento sul `<Dialog onKeyDown>`): mentre si
+      // scrive un'annotazione, Ctrl+Z appartiene al campo, mai al disegno — un Annulla che
+      // sparisse un nodo mentre si sta scrivendo sarebbe la sorpresa peggiore delle due.
+      if (scrittura) return
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault()
         annulla()
+        return
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selezioneLibera) {
+        if (selezioneLibera.tipo === 'muro') rimuoviMuro()
+        else rimuoviTesto(selezioneLibera.id)
+        setSelezioneLibera(null)
         return
       }
       const passo = PASSI[e.key]
@@ -617,7 +656,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
     }
     window.addEventListener('keydown', suTasto)
     return () => window.removeEventListener('keydown', suTasto)
-  }, [annulla, selezione.nodes, sposta])
+  }, [annulla, rimuoviMuro, rimuoviTesto, scrittura, selezione.nodes, selezioneLibera, sposta])
 
   const stileSelezionato =
     selezione.edges.length > 0
@@ -685,9 +724,10 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
     aggiungiTesto((s) => ({ x: 40, y: allineaAllaGriglia(piedeDelDisegno(s.nodes, s.testi) + 40) }), contenuto)
   }, [aggiungiTesto, applica, modificaTesto, scrittura])
 
-  /** Elimina l'annotazione aperta nel dialog: è la sola strada per toglierne una, perché non
-   *  essendo nodi di react-flow le annotazioni non entrano nella selezione della tela e il
-   *  pulsante «Elimina» della barra non le vede. */
+  /** Elimina l'annotazione aperta nel dialog: la via più vecchia delle due che esistono — l'altra
+   *  è selezionarla sulla tela e premere Canc (`selezioneLibera` qui sopra). Il pulsante «Elimina»
+   *  della barra resta cieco a entrambe, perché lavora solo sulla selezione di react-flow e le
+   *  annotazioni non sono nodi. */
   const eliminaTestoAperto = useCallback(() => {
     if (!scrittura || scrittura.bersaglio !== 'testo' || scrittura.id === null) return
     const { id } = scrittura
@@ -799,7 +839,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
         {/* Il dialog si apre subito e l'annotazione nasce solo alla conferma: scritta e
             posizione entrano insieme, così sulla tela non compare mai un'annotazione vuota —
             invisibile, e quindi impossibile da riafferrare o togliere. */}
-        <Tooltip title="Una scritta libera sul disegno: si trascina dove serve, doppio clic per riscriverla o eliminarla">
+        <Tooltip title="Una scritta libera sul disegno: si trascina dove serve, si cancella col tasto Canc, doppio clic per riscriverla o eliminarla">
           <Button
             size="small"
             startIcon={<AddIcon />}
@@ -890,7 +930,8 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
           onNodeDrag={suTrascinamentoNodo}
           onNodeDragStop={suFineTrascinamentoNodo}
           isValidConnection={isValidConnection}
-          onSelectionChange={setSelezione}
+          onSelectionChange={onSelectionChange}
+          onPaneClick={() => setSelezioneLibera(null)}
           onlyRenderVisibleElements
           fitView
           // Senza questo, `fitView` non inquadra affatto tutto il disegno: il minimo di
@@ -944,17 +985,20 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
           <Controls />
           <ViewportPortal>
             <GuideAllineamento guide={guide} />
-            <TestiLiberi testi={stato.testi} onSposta={spostaTesto} onModifica={apriTesto} />
-            {/* `selezionato`/`onSeleziona` restano inerti qui: nessuna selezione del muro esiste
-                ancora nell'editor, e sarà un task successivo a collegarli — il componente li
-                supporta già, per non dover riaprire questo cablaggio quando arriveranno. */}
+            <TestiLiberi
+              testi={stato.testi}
+              onSposta={spostaTesto}
+              onModifica={apriTesto}
+              selezionato={selezioneLibera?.tipo === 'testo' ? selezioneLibera.id : null}
+              onSeleziona={(id) => setSelezioneLibera({ tipo: 'testo', id })}
+            />
             {layoutCorrente.muro && (
               <MuroSeparazione
                 muro={layoutCorrente.muro}
                 varchi={varchiMuro}
-                selezionato={false}
+                selezionato={selezioneLibera?.tipo === 'muro'}
                 onSposta={spostaMuro}
-                onSeleziona={() => {}}
+                onSeleziona={() => setSelezioneLibera({ tipo: 'muro' })}
               />
             )}
           </ViewportPortal>
