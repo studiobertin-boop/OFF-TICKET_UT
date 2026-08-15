@@ -78,7 +78,9 @@ Valori e regole che valgono per **ogni** task di questo piano. Copiati dalla spe
 
 La spec chiede «**un unico** ri-basamento del riferimento SVG, letto differenza per differenza», perché i due cambiamenti condividono la stessa verifica. Questo piano ne fa **due** — uno dopo il rettangolo bianco (Task 3), uno dopo il muro manuale (Task 5) — e la ragione è che va nella direzione più severa, non in quella più comoda: due diff piccoli, ognuno con **una sola** classe di differenza attesa, si leggono davvero uno per uno; un diff unico con due classi di differenze intrecciate è esattamente la situazione in cui una terza differenza non attesa scivola dentro perché «sarà l'altra modifica». Il banco resta uno solo e montato una volta sola, che è la parte costosa.
 
-Conseguenza pratica: **ogni task di questo piano finisce con la suite verde**, incluso il riferimento committato. Non ci sono commit intermedi con test rossi in cronologia.
+Conseguenza pratica: **ogni task di questo piano finisce coi test committati verdi**, incluso il riferimento committato. Non ci sono commit intermedi con test rossi in cronologia.
+
+> **Il banco è un'eccezione, e di proposito.** Dal Task 3 al Task 5 il banco (`banco.temp.test.ts`, non tracciato) è **rosso**: è lo strumento che misura un cambiamento voluto, non una rete che deve restare verde. Un task che lo trovasse verde dove il piano lo dà per rosso avrebbe un problema — il contrario, no. *Corretto il 15-08-2026: le prime stesure degli Step 7 del Task 3 e Step 5 del Task 5 dicevano «0 falliti» per la suite intera, che è impossibile finché il banco è montato.*
 
 ---
 
@@ -413,7 +415,9 @@ Entrambi i riferimenti hanno una valvola (in `svgRiferimentoSenzaTesti.ts` è la
 npx vitest run src/services/schemaImpianto/__tests__/renderSvg.test.ts 2>&1 | tail -10
 ```
 
-Rigenerare **dal codice nuovo**, non ritoccando a mano il vecchio: rendere gli stessi layout dei due test (`layoutConTesti([])` e `layoutConTee()` in `renderSvg.test.ts`), spezzare un elemento per riga, sostituire gli array. La riga «Generato l'ultima volta dal commit …» va aggiornata con l'hash di **questo** commit: si committa, poi si corregge quella riga nelle due fixture e si fa `git commit --amend`.
+Rigenerare **dal codice nuovo**, non ritoccando a mano il vecchio: rendere gli stessi layout dei due test (`layoutConTesti([])` e `layoutConTee()` in `renderSvg.test.ts`), spezzare un elemento per riga, sostituire gli array.
+
+La riga «Generato l'ultima volta dal commit …» va aggiornata con l'hash del commit che contiene il cambiamento, **in un commit di seguito**. *Corretto il 15-08-2026: la prima stesura diceva «si committa, poi si corregge quella riga e si fa `git commit --amend`», che chiede una cosa impossibile — l'amend cambia l'hash, quindi la fixture citerebbe per costruzione un commit che non esiste più. È successo davvero, e l'hash pre-amend era raggiungibile solo dal reflog: l'intestazione della fixture rimanda al messaggio di quel commit, quindi l'istruzione era morta.*
 
 - [ ] **Step 7: Suite intera e commit**
 
@@ -783,7 +787,7 @@ Nessuna tubazione, nessun simbolo, nessuna riga di tabella o legenda deve muover
 
 - [ ] **Step 6: Ri-basare i due riferimenti, e smontare il banco**
 
-Stessa disciplina del Task 3: rigenerare dal codice nuovo, un elemento per riga, aggiornare la riga «Generato l'ultima volta dal commit …».
+Stessa disciplina del Task 3: rigenerare dal codice nuovo, un elemento per riga, e aggiornare la riga «Generato l'ultima volta dal commit …» **in un commit di seguito** — vedi la nota sull'hash nel Task 3, Step 6: un `--amend` cambia l'hash e la fixture finirebbe a citare un commit che non esiste più.
 
 L'intestazione di `svgRiferimentoSenzaTesti.ts` dice: «Non intercetta quindi un cambiamento che tocchi solo il muro di separazione o le linee condense: nessuno dei due compare in questo disegno.» Resta **vera** e va lasciata così: sarà il Task 6 a coprire il muro, con una fixture sua.
 
