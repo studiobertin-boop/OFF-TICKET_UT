@@ -129,23 +129,34 @@ I layout si scrivono riusando le fixture già presenti in `renderSvg.test.ts` (`
 
 ```ts
 import { describe, expect, it } from 'vitest'
+import { buildSchemaModel } from '../buildSchemaModel'
+import { layoutSchema } from '../layout'
 import { renderSvg } from '../renderSvg'
 // La copia dei servizi alla base del blocco, estratta in `schemaImpianto-base/` allo Step 1.
-import { renderSvg as renderSvgPrima } from '../../schemaImpianto-base/renderSvg'
-import type { SchemaLayout } from '../types'
+import { buildSchemaModel as buildPrima } from '../../schemaImpianto-base/buildSchemaModel'
+import { layoutSchema as layoutPrima } from '../../schemaImpianto-base/layout'
+import { renderSvg as renderPrima } from '../../schemaImpianto-base/renderSvg'
 
-const CASI: { nome: string; layout: SchemaLayout }[] = [
-  /* gli otto layout della tabella qui sopra */
+const CASI: { nome: string; scheda: /* la scheda dati del caso */ }[] = [
+  /* gli otto casi della tabella qui sopra */
 ]
 
 describe('banco di confronto D4', () => {
   for (const caso of CASI) {
     it(`${caso.nome}`, () => {
-      expect(renderSvg(caso.layout)).toBe(renderSvgPrima(caso.layout))
+      // OGNI lato costruisce il layout col PROPRIO `layoutSchema`, non con quello attuale
+      // condiviso: vedi la nota qui sotto.
+      expect(renderSvg(layoutSchema(buildSchemaModel(caso.scheda)))).toBe(
+        renderPrima(layoutPrima(buildPrima(caso.scheda)))
+      )
     })
   }
 })
 ```
+
+> **Perché ogni lato costruisce il proprio layout, e non se ne condivide uno.** *Corretto il 15-08-2026, dopo che è successo davvero.* La prima stesura di questo piano faceva rendere ai due `renderSvg` **lo stesso** oggetto `SchemaLayout`, forma ereditata dal banco del Blocco D3 — dove era corretta, perché lì il cambiamento viveva tutto dentro `renderSvg`. Nel D4 metà del cambiamento vive **a monte**, in `layoutSchema`: appena questa smette di produrre il muro, un layout condiviso arriva **già privo di muro a entrambi i lati**, e il banco misura zero differenze proprio sul cambiamento più pervasivo del blocco — quello che la spec dice esplicitamente che «passerebbe inosservato affidandosi al solo riferimento committato». Uno strumento che non vede la cosa che deve misurare non dà un esito più forte: non dà nessun esito. Ne segue anche che ogni verifica fatta su quel confronto — comprese le dimensioni di pagina — non risponde alla domanda che conta.
+>
+> **Regola generale, da portarsi dietro:** il banco deve inforcare la catena **al primo stadio che il blocco tocca**, non all'ultimo. Se il blocco cambia il modello, si parte dalla scheda; se cambia il layout, si parte dal modello; se cambia solo il disegno, si parte dal layout.
 
 - [ ] **Step 3: Verificare che gli otto casi partano verdi**
 
