@@ -28,6 +28,18 @@ function nodo(layout: SchemaLayout, id: string) {
   return trovato
 }
 
+/** Modello con apparecchiature in entrambi i gruppi: sala compressori e linea distribuzione. */
+function modelloConSalaELinea() {
+  const scheda = makeScheda({
+    serbatoi: [
+      makeSerbatoio({ codice: 'S1', ubicazione: 'SALA_COMPRESSORI' }),
+      makeSerbatoio({ codice: 'S2', ubicazione: 'LINEA_DISTRIBUZIONE' }),
+    ],
+    dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+  })
+  return buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+}
+
 function schedaTrePiuUno() {
   return makeScheda({
     compressori: [
@@ -113,7 +125,18 @@ describe('layoutSchema', () => {
     expect(tanica.y).toBeGreaterThan(baseSerbatoio)
   })
 
-  it('non disegna il muro quando tutte le apparecchiature stanno in sala compressori', () => {
+  // Osservazione 8 del committente: «di default non va disegnato, lo aggiungo solo se serve».
+  // Da qui in poi ogni pratica nasce senza muro — la conseguenza piu' visibile del Blocco D4.
+  it('l auto-layout non disegna piu il muro', () => {
+    expect(layoutSchema(modelloConSalaELinea()).muro).toBeNull()
+  })
+
+  // I test che seguono provavano queste regole passando da `layoutSchema(...).muro`: dal
+  // Blocco D4 quella strada restituisce sempre `null` (vedi il test sopra), quindi ora
+  // interrogano `calcolaMuro` sui nodi che l'auto-layout produce — la stessa funzione che
+  // proporra' l'ascissa al pulsante della barra (Task 7). La regola di dominio (quali gruppi
+  // il muro separa) resta la stessa, solo non gira più in automatico ad ogni disegno.
+  it('non c’è muro quando tutte le apparecchiature stanno in sala compressori', () => {
     const scheda = makeScheda({
       serbatoi: [makeSerbatoio({ ubicazione: 'SALA_COMPRESSORI' })],
       essiccatori: [],
@@ -126,32 +149,23 @@ describe('layoutSchema', () => {
       buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
     )
 
-    expect(layout.muro).toBeNull()
+    expect(calcolaMuro(layout.nodi)).toBeNull()
   })
 
-  it('disegna il muro fra i due gruppi quando c’è anche solo un’apparecchiatura in linea', () => {
-    const scheda = makeScheda({
-      serbatoi: [
-        makeSerbatoio({ codice: 'S1', ubicazione: 'SALA_COMPRESSORI' }),
-        makeSerbatoio({ codice: 'S2', ubicazione: 'LINEA_DISTRIBUZIONE' }),
-      ],
-      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
-    })
+  it('c’è un muro possibile fra i due gruppi quando c’è anche solo un’apparecchiatura in linea', () => {
+    const layout = layoutSchema(modelloConSalaELinea())
+    const muro = calcolaMuro(layout.nodi)
 
-    const layout = layoutSchema(
-      buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
-    )
-
-    expect(layout.muro).not.toBeNull()
+    expect(muro).not.toBeNull()
     // Il muro sta a destra di tutto ciò che è in sala compressori.
     const inSala = layout.nodi.filter((n) => n.gruppo === 'SALA_COMPRESSORI')
     for (const n of inSala) {
-      expect(layout.muro!.x).toBeGreaterThan(n.x)
+      expect(muro!.x).toBeGreaterThan(n.x)
     }
   })
 
   describe('il terminale utenze non conta ai fini del muro', () => {
-    it('un impianto di soli compressori e serbatoi in sala, col solo terminale in linea, non ha muro', () => {
+    it('un impianto di soli compressori e serbatoi in sala, col solo terminale in linea, non ha un muro possibile', () => {
       const scheda = makeScheda({
         serbatoi: [makeSerbatoio({ ubicazione: 'SALA_COMPRESSORI' })],
         essiccatori: [],
@@ -167,31 +181,18 @@ describe('layoutSchema', () => {
       // Il terminale c'è (la linea finisce da qualche parte), ma da solo non è un motivo per
       // separare la sala compressori da una "linea distribuzione" che di fatto non esiste.
       expect(layout.nodi.some((n) => n.tipo === 'utenze')).toBe(true)
-      expect(layout.muro).toBeNull()
+      expect(calcolaMuro(layout.nodi)).toBeNull()
     })
 
-    it('ma un impianto con anche un solo serbatoio vero in linea il muro lo disegna ancora', () => {
+    it('ma un impianto con anche un solo serbatoio vero in linea un muro possibile torna', () => {
       // Discrimina un'implementazione che, per far sparire il muro col terminale, finisse per
       // escludere dal calcolo tutto ciò che è LINEA_DISTRIBUZIONE invece del solo terminale:
       // qui c'è un secondo serbatoio vero in linea, e il muro deve tornare. Il serbatoio è
       // l'unica apparecchiatura che può stare davvero fuori sala (vedi il test più sotto, sugli
       // stadi di trattamento): un essiccatore qui non proverebbe la stessa cosa.
-      const scheda = makeScheda({
-        serbatoi: [
-          makeSerbatoio({ codice: 'S1', ubicazione: 'SALA_COMPRESSORI' }),
-          makeSerbatoio({ codice: 'S2', ubicazione: 'LINEA_DISTRIBUZIONE' }),
-        ],
-        essiccatori: [],
-        scambiatori: [],
-        filtri: [],
-        dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
-      })
+      const layout = layoutSchema(modelloConSalaELinea())
 
-      const layout = layoutSchema(
-        buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
-      )
-
-      expect(layout.muro).not.toBeNull()
+      expect(calcolaMuro(layout.nodi)).not.toBeNull()
     })
   })
 
@@ -201,7 +202,7 @@ describe('layoutSchema', () => {
     // fisicamente in sala — stanno "a valle" solo nell'ordine delle tubazioni
     // (ordinaCatenaTrattamento in buildSchemaModel.ts), non nella stanza. Il campo `ubicazione`
     // esiste solo sul serbatoio: è l'unica apparecchiatura per cui la scheda lo chiede.
-    it('un essiccatore da solo non basta a far comparire il muro', () => {
+    it('un essiccatore da solo non basta a far comparire un muro possibile', () => {
       const scheda = makeScheda({
         serbatoi: [makeSerbatoio({ ubicazione: 'SALA_COMPRESSORI' })],
         essiccatori: [makeEssiccatore()],
@@ -214,7 +215,7 @@ describe('layoutSchema', () => {
         buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
       )
 
-      expect(layout.muro).toBeNull()
+      expect(calcolaMuro(layout.nodi)).toBeNull()
     })
 
     it('nemmeno un filtro, o un separatore, bastano da soli', () => {
@@ -231,7 +232,7 @@ describe('layoutSchema', () => {
         buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
       )
 
-      expect(layout.muro).toBeNull()
+      expect(calcolaMuro(layout.nodi)).toBeNull()
     })
   })
 

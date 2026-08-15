@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { makeCompressore, makeDatiImpianto, makeEssiccatore, makeScheda, makeSeparatore, makeSerbatoio, makeValvola } from '@/services/relazione/__tests__/fixtures'
 import { buildSchemaModel } from '../buildSchemaModel'
-import { layoutSchema, DIMENSIONI_NODO } from '../layout'
+import { layoutSchema, muroDaAscissa, DIMENSIONI_NODO } from '../layout'
 import { serializzaLayout, deserializzaLayout, riconcilia, layoutIniziale, layoutDaPersistere } from '../persistenza'
 import { dimensioniDi } from '../symbols'
+import type { SchemaLayout, SchemaModel } from '../types'
 
 function modelloDiProva(codiciCompressore: string[]) {
   const scheda = makeScheda({
@@ -25,6 +26,32 @@ function modelloConDatiVariabili(overridesCompressore: Partial<ReturnType<typeof
     dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
   })
   return buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+}
+
+/** Layout scritto a mano con apparecchiature in ENTRAMBI i gruppi: senza questo, un test sul
+ *  muro passerebbe anche con la vecchia `calcolaMuro`, che su un solo gruppo restituiva già
+ *  `null` — per la ragione sbagliata (vedi Step 1 del brief). */
+function layoutMinimo(): SchemaLayout {
+  return {
+    nodi: [
+      {
+        id: 'C1', tipo: 'compressore', etichetta: 'Compressore', gruppo: 'SALA_COMPRESSORI',
+        valvoleSicurezza: [], origine: 'scheda', x: 40, y: 200,
+      },
+      {
+        id: 'E1', tipo: 'essiccatore', etichetta: 'Essiccatore', gruppo: 'LINEA_DISTRIBUZIONE',
+        valvoleSicurezza: [], origine: 'scheda', x: 500, y: 200,
+      },
+    ],
+    archi: [],
+    muro: null,
+    testi: [],
+  }
+}
+
+/** Lo stesso modello di `layoutMinimo`, senza posizioni: la scheda che lo riconosce ancora. */
+function modelloMinimo(): SchemaModel {
+  return { nodi: layoutMinimo().nodi.map(({ x, y, ...n }) => n), archi: [] }
 }
 
 describe('serializzazione', () => {
@@ -60,12 +87,34 @@ describe('serializzazione', () => {
     expect(deserializzaLayout({ versione: 1, nodi: [], archi: null } as never)).toBeNull()
   })
 
-  it('ricalcola il muro invece di fidarsi di un valore salvato', () => {
-    const layout = layoutSchema(modelloDiProva(['C1']))
+  // Dal Blocco D4 il muro e' un oggetto del committente: si salva la sua ascissa, e l'altezza si
+  // ricava al disegno. Un salvataggio scritto prima non ha `muroX` e si riapre senza muro — che
+  // e' cio' che il committente ha chiesto («di default non va disegnato»), non una perdita.
+  it('salva del muro la sola ascissa', () => {
+    const layout = { ...layoutMinimo(), muro: { x: 333, yMin: 10, yMax: 900 } }
     const salvato = serializzaLayout(layout)
-    const tornato = deserializzaLayout(salvato)!
+    expect(salvato.muroX).toBe(333)
+    // Case-insensitive: un campo tipo `muroYMin` non contiene la sottostringa 'yMin' esatta
+    // (la Y è maiuscola), ma sarebbe comunque l'altezza a fuggire nel salvato.
+    expect(JSON.stringify(salvato).toLowerCase()).not.toContain('ymin')
+  })
 
-    expect(tornato.muro).toEqual(layout.muro)
+  it('ricostruisce il muro dall ascissa salvata, con l altezza di adesso', () => {
+    const salvato = { ...serializzaLayout(layoutMinimo()), muroX: 333 }
+    const riletto = deserializzaLayout(salvato)
+    expect(riletto.muro).toEqual(muroDaAscissa(333, salvato.nodi))
+    expect(riletto.muro.x).toBe(333)
+  })
+
+  it('un salvataggio senza ascissa del muro si riapre senza muro', () => {
+    expect(deserializzaLayout(serializzaLayout(layoutMinimo())).muro).toBeNull()
+  })
+
+  // Il muro e' manuale per definizione, quindi sta nella stessa categoria dei nodi 'manuale' e
+  // delle annotazioni: la scheda dati non lo conosce e non ha titolo per cancellarlo.
+  it('la riconciliazione con la scheda non porta via il muro', () => {
+    const salvato = { ...serializzaLayout(layoutMinimo()), muroX: 333 }
+    expect(riconcilia(salvato, modelloMinimo()).layout.muro.x).toBe(333)
   })
 
   it('restituisce una copia difensiva: mutare il layout originale non tocca il salvato', () => {

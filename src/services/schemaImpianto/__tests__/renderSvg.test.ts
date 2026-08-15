@@ -10,7 +10,7 @@ import {
   makeValvola,
 } from '@/services/relazione/__tests__/fixtures'
 import { buildSchemaModel } from '../buildSchemaModel'
-import { layoutSchema, quoteInstradamento } from '../layout'
+import { calcolaMuro, layoutSchema, quoteInstradamento } from '../layout'
 import { renderSvg, righeLista, righeLegenda, posizioneAncora, varchiDelMuro } from '../renderSvg'
 import { AVVICINAMENTO, raccordoOrtogonale } from '../tratti'
 import { dimensioniDi } from '../symbols'
@@ -37,7 +37,10 @@ function svgMinimo(noteTubazioni?: string[]) {
 /**
  * Impianto con `muro` valorizzato e almeno due tubazioni che ne scavalcano l'ascissa: la mandata
  * del compressore verso il serbatoio in linea, e la linea condense del disoleatore verso la
- * tanica.
+ * tanica. Dal Blocco D4 `layoutSchema` non disegna più il muro da sé (lo aggiunge solo il
+ * committente): questi test provano il render dei varchi dato un muro, non se `layoutSchema` lo
+ * proponga, quindi glielo si attacca con `calcolaMuro`, la stessa regola che oggi proporrà
+ * l'ascissa al pulsante della barra (Task 7).
  */
 function layoutConMuro() {
   const scheda = makeScheda({
@@ -47,9 +50,10 @@ function layoutConMuro() {
     filtri: [],
     dati_impianto: makeDatiImpianto({ raccolta_condense: 'tanica' }),
   })
-  return layoutSchema(
+  const layout = layoutSchema(
     buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
   )
+  return { ...layout, muro: calcolaMuro(layout.nodi) }
 }
 
 describe('renderSvg', () => {
@@ -441,6 +445,9 @@ describe('varchi nel muro', () => {
     const layout = layoutSchema(
       buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
     )
+    // Dal Blocco D4 `layoutSchema` non attacca più il muro da sé: qui si prova il render dei
+    // varchi dato un muro, quindi lo si ricava con la stessa regola che proponeva prima.
+    layout.muro = calcolaMuro(layout.nodi)
     expect(layout.muro).not.toBeNull()
 
     const svg = renderSvg(layout)
@@ -469,6 +476,9 @@ describe('varchi nel muro', () => {
     const layout = layoutSchema(
       buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
     )
+    // Dal Blocco D4 `layoutSchema` non attacca più il muro da sé: qui si prova il render dei
+    // varchi dato un muro, quindi lo si ricava con la stessa regola che proponeva prima.
+    layout.muro = calcolaMuro(layout.nodi)
 
     expect(layout.muro).not.toBeNull()
     const svg = renderSvg(layout)

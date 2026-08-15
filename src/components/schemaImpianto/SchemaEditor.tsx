@@ -224,7 +224,8 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
   // che dentro ognuno dei calcoli qui sotto, è quel che tiene quote, capi e anteprima sullo
   // STESSO layout: sono i tre ingressi della geometria condivisa con il documento.
   const layoutCorrente = useMemo(
-    () => flowALayout(stato.nodes, stato.edges, stato.testi),
+    // Il muro non ha ancora uno stato nell'editor: si passa `null` finché il Task 8 non lo dà.
+    () => flowALayout(stato.nodes, stato.edges, stato.testi, null),
     [stato.nodes, stato.edges, stato.testi]
   )
 

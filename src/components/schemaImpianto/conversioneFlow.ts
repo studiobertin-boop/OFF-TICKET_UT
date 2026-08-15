@@ -4,7 +4,7 @@
  * `SchemaLayout` che il render statico sa già disegnare.
  */
 import type { Edge, Node } from '@xyflow/react'
-import { calcolaMuro } from '@/services/schemaImpianto/layout'
+import { muroDaAscissa } from '@/services/schemaImpianto/layout'
 import { posizioneAncora } from '@/services/schemaImpianto/renderSvg'
 import { latoImposto } from '@/services/schemaImpianto/symbols'
 import {
@@ -54,14 +54,14 @@ export function layoutAFlow(
 }
 
 /**
- * Ricostruisce il modello dalle entità di react-flow. Il muro non è modificabile
- * nell'editor, ma la sua posizione sì: si ricalcola dalle posizioni correnti dei nodi,
- * altrimenti resterebbe ancorato a dov'era prima che l'utente spostasse le apparecchiature.
+ * Ricostruisce il modello dalle entità di react-flow. Il muro arriva dallo stato dell'editor
+ * come sola ascissa, e riprende qui l'altezza dal disegno corrente.
  */
 export function flowALayout(
   nodes: Node[],
   edges: Edge[],
-  testi: SchemaTestoLibero[]
+  testi: SchemaTestoLibero[],
+  muroX: number | null
 ): SchemaLayout {
   const nodi: SchemaNodoPosizionato[] = nodes.map((n) => ({
     ...(n.data as SchemaNodeData).nodo,
@@ -78,7 +78,9 @@ export function flowALayout(
       punti: (e.data as SchemaEdgeData | undefined)?.punti,
       segni: (e.data as SchemaEdgeData | undefined)?.segni,
     })),
-    muro: calcolaMuro(nodi),
+    // Il quarto parametro è obbligatorio per la stessa ragione di `testi` due righe sotto: un
+    // default `null` lascerebbe perdere in silenzio il muro a un chiamante che lo dimentica.
+    muro: muroX === null ? null : muroDaAscissa(muroX, nodi),
     // I testi non sono nodi di react-flow: non stanno in `nodes`/`edges`, quindi viaggiano come
     // terzo parametro esplicito, per copia di riferimento e senza trasformazioni — il ponte
     // esiste solo perché lo stato dell'editor e il layout hanno forme diverse, non perché le
@@ -87,7 +89,8 @@ export function flowALayout(
     // il difetto per cui esiste `SchemaLayout.testi` obbligatorio. Il solo chiamante di
     // produzione è `SchemaEditor` (`layoutCorrente`, dallo stato `testi` che sopravvive a
     // cronologia e undo), dove ora si creano dal pulsante «Testo» della palette e si trascinano
-    // sulla tela (TestiLiberi.tsx).
+    // sulla tela (TestiLiberi.tsx). Passa sempre `null` per il muro: il Task 8 gli darà lo
+    // stato vero.
     testi,
   }
 }

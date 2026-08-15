@@ -90,9 +90,9 @@ function inviluppoVerticale(nodi: SchemaNodoPosizionato[]): { yMin: number; yMax
 
 /**
  * Ascissa proposta per il muro di separazione: segue il bordo destro della sala compressori, e
- * resta null se manca un'apparecchiatura da uno dei due lati. Il layout automatico
- * (`layoutSchema`, sotto) la usa ancora per disegnare il muro; dal Task 7 la stessa regola
- * proporra' un punto di partenza anche al pulsante della barra. L'altezza viene da
+ * resta null se manca un'apparecchiatura da uno dei due lati. Dal Blocco D4 il layout automatico
+ * non la usa più: `layoutSchema` nasce sempre senza muro, e questa proposta serve solo al
+ * pulsante della barra che il Task 7 aggiungerà (`useMuro.ts`). L'altezza viene da
  * `inviluppoVerticale`, condivisa con `muroDaAscissa`.
  */
 export function calcolaMuro(nodi: SchemaNodoPosizionato[]): SchemaMuroSeparazione | null {
@@ -202,7 +202,10 @@ export function layoutSchema(model: SchemaModel): SchemaLayout {
   // senza — è così che si è scoperto che `flowALayout` (`conversioneFlow.ts`) lo dimenticava,
   // un percorso di produzione (la conferma nell'editor) che avrebbe perso in silenzio le
   // annotazioni di un disegno riaperto ora che l'editor permette di posarne.
-  return { nodi, archi: model.archi, muro: calcolaMuro(nodi), testi: [] }
+  //
+  // Dal Blocco D4 il muro e' un oggetto del committente, non un derivato: nasce solo quando lo
+  // aggiunge dalla barra.
+  return { nodi, archi: model.archi, muro: null, testi: [] }
 }
 
 /**
