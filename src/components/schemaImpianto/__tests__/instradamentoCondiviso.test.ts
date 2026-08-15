@@ -271,8 +271,7 @@ describe('accordo fra la tela dell’editor e il documento', () => {
    * sopra: un confronto che passasse solo dal modello `dalDocumento` non si accorgerebbe se le
    * `render*` di
    * `renderSvg.ts` smettessero di passare i lati a `instrada` — verificato con la mutazione
-   * (sostituire i lati risolti con `{}` in quelle tre funzioni), non dedotto: senza il confronto
-   * con `tracciati`/`renderSvg` qui sotto, quella mutazione lasciava la suite verde.
+   * (sostituire i lati risolti con `{}` in quelle tre funzioni), non dedotto.
    */
   it('un ramo che arriva su una giunzione dal lato imposto: tela e documento concordano sulla rotta imboccata', () => {
     const layout = layoutConGiunzione()

@@ -255,6 +255,25 @@ describe('useInserimentoTee', () => {
     expect(archi(hook)).toHaveLength(1)
   })
 
+  it('K. l’ancora segue l’asse del tratto tagliato: un montante verticale dà alto/basso, non sx/dx', () => {
+    // Prima di questa correzione l'ancora era fissa (sx in arrivo, dx in partenza) qualunque
+    // fosse l'asse del tubo tagliato — una scelta cosmetica finché le quattro ancore della
+    // giunzione restavano tutte nello stesso punto (`posizioneAncora`). Da quando l'ancora
+    // sceglie anche il LATO IMPOSTO (`latoImposto`, symbols/index.ts) — e quindi l'asse con cui
+    // `rottaImboccata` (tratti.ts) fa entrare la metà — sx/dx su un tubo VERTICALE dichiara un
+    // asse sbagliato: questo test cade se `useInserimentoTee` tornasse a quelle due costanti
+    // fisse invece di leggere `orizzontale` da `spezzaArco`.
+    const hook = monta(statoIniziale())
+    // SUL_MONTANTE cade esattamente sul tratto verticale x=150 della rotta nativa `rottaLinea`
+    // fra A(0,0) e B(300,100) — lo stesso tratto del test B, qui per verificare l'ancora
+    // assegnata invece della posizione ricentrata.
+    trascina(hook, SUL_MONTANTE)
+    rilascia(hook)
+
+    expect(archi(hook)[0]).toMatchObject({ target: 'M-G1', targetHandle: 'alto' })
+    expect(archi(hook)[1]).toMatchObject({ source: 'M-G1', sourceHandle: 'basso' })
+  })
+
   it('J. un nodo che non è una giunzione non spezza niente', () => {
     // `C` non è un capo dell'arco (a differenza di `A`, che il filtro source/target di
     // `candidati` escluderebbe comunque): isola davvero la guardia `eUnaGiunzione`, l'unica che

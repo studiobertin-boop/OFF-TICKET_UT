@@ -68,8 +68,7 @@ function raccordaPreservando(fisso: Punto, daPreservare: Punto, orizzontale: boo
 /**
  * Nuovi gomiti dopo aver trascinato in blocco il tratto dritto fra `full[indiceTratto]` e
  * `full[indiceTratto+1]`, numerazione della polilinea COMPLETA che l'utente vede — quella che
- * produce `instrada` per questo arco (rotta nativa dello stile se senza gomiti a mano,
- * `polilineaConGomiti` se ce ne sono già) — di `delta`. Riceve `stile` e `quote` proprio per
+ * produce `instrada` per questo arco — di `delta`. Riceve `stile` e `quote` proprio per
  * ricostruirla con `instrada`, non con `polilineaConGomiti` direttamente: numerare una
  * polilinea diversa da quella che il componente ha disegnato (e su cui l'utente ha afferrato
  * il tratto con `indiceTrattoPiuVicino`) sposta un tratto diverso da quello agganciato: è
@@ -348,6 +347,10 @@ function verticale(lato: SchemaLatoAncora): boolean {
  * archi dell'auto-layout fra apparecchiature. Ed è ciò che fa formare la T: senza, la spezzata
  * gira a metà strada e l'ultimo tratto corre sovrapposto al tubo che attraversa la giunzione —
  * misurato in pagina, montante a 55 unità di lato dal pallino.
+ *
+ * Un'eccezione: se i due capi sono già allineati sull'asse OPPOSTO a quello imposto, `dedup`
+ * riduce il risultato a una retta che imbocca la giunzione dal lato non scelto — disegno comunque
+ * sensato, ma non il lato richiesto.
  */
 function rottaImboccata(pDa: Punto, pA: Punto, lati: LatiImposti): Punto[] {
   const vDa = lati.da ? verticale(lati.da) : undefined

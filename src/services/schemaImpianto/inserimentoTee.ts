@@ -57,7 +57,9 @@ export interface MetaArco {
 /**
  * Spezza un arco nel punto della sua polilinea più vicino a `puntoLibero` — dove il committente
  * ha rilasciato il TEE. Restituisce anche quel punto (`centro`): è lì che va ricentrata la
- * giunzione, così le due metà si incontrano esattamente sul tubo.
+ * giunzione, così le due metà si incontrano esattamente sul tubo. E restituisce l'asse del
+ * tratto tagliato (`orizzontale`, la stessa proiezione di `puntoSuTratto` che ha già calcolato
+ * `centro`): decide da che lato le due metà imboccano la giunzione (`useInserimentoTee.ts`).
  *
  * Conserva ciò che è stato fatto a mano: i gomiti e i segni vanno alla metà su cui cadono
  * geometricamente. Lo stile non compare qui perché non si divide — il chiamante lo copia
@@ -67,14 +69,15 @@ export function spezzaArco(
   polilinea: Punto[],
   segni: SchemaSegnoTubo[],
   puntoLibero: Punto
-): { centro: Punto; primo: MetaArco; secondo: MetaArco } {
+): { centro: Punto; orizzontale: boolean; primo: MetaArco; secondo: MetaArco } {
   const tTaglio = tSuTratto(polilinea, puntoLibero)
-  const centro = puntoSuTratto(polilinea, tTaglio).punto
+  const { punto: centro, orizzontale } = puntoSuTratto(polilinea, tTaglio)
   const ts = quoteDeiVertici(polilinea)
   const interni = polilinea.slice(1, -1).map((p, i) => ({ p, t: ts[i + 1] }))
 
   return {
     centro,
+    orizzontale,
     primo: {
       punti: fissaLaForma(polilinea[0], interni.filter((v) => v.t < tTaglio).map((v) => v.p), centro),
       segni: tTaglio <= 0 ? [] : segni.filter((s) => s.t <= tTaglio).map((s) => ({ ...s, t: s.t / tTaglio })),
@@ -110,10 +113,10 @@ function quoteDeiVertici(punti: Punto[]): number[] {
 
 /**
  * I gomiti che fissano la forma di una metà. **Mai vuoti**: `instrada` (tratti.ts) ignora la
- * rotta nativa solo quando i gomiti non lo sono, quindi una metà con `punti: []` tornerebbe
- * alla rotta nativa del suo stile — per il flessibile una salita fino al collettore, per le
- * condense un passaggio dalla corsia: tutt'altra forma da quella su cui il committente ha
- * appena posato il TEE.
+ * rotta nativa dello stile solo quando i gomiti non lo sono, ma ogni metà ha una giunzione a un
+ * capo — quindi un lato sempre imposto — e con `punti: []` prenderebbe comunque la rotta
+ * IMBOCCATA (`rottaImboccata`, tratti.ts), mai quella nativa: una forma diversa, in generale, da
+ * quella su cui il committente ha appena posato il TEE.
  *
  * Quando fra i due capi non cade nessun vertice il tratto è dritto per costruzione — il taglio
  * è caduto dentro un segmento — e basta un gomito nel punto medio: sta esattamente sulla

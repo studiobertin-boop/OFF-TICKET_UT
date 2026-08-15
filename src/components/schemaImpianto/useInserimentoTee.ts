@@ -17,6 +17,7 @@ import {
 import { posizioneAncora } from '@/services/schemaImpianto/renderSvg'
 import { ancoraDi } from '@/services/schemaImpianto/symbols'
 import type { Punto, QuoteInstradamento } from '@/services/schemaImpianto/tratti'
+import type { SchemaLatoAncora } from '@/services/schemaImpianto/types'
 import { polilineaDellArco, type CapiArco } from './conversioneFlow'
 import type { SchemaEdgeData } from './SchemaEdgeTubazione'
 import type { SchemaNodeData } from './SchemaNodeSymbol'
@@ -29,19 +30,34 @@ interface StatoConNodiEdArchi {
 type Aggiorna<T> = (prossimo: T | ((corrente: T) => T)) => void
 
 /**
- * Quale delle quattro ancore della giunzione usare per le due metà. È una scelta COSMETICA:
- * dal Blocco D3 stanno tutte al centro del pallino e danno lo stesso punto (`posizioneAncora`),
- * quindi non c'è nulla da decidere in base alla direzione del tubo.
+ * Ancora usata solo per LEGGERE una posizione sulla giunzione (il centro del pallino, lo scarto
+ * del riquadro): dal Blocco D3 le quattro ancore stanno tutte al centro e danno lo stesso punto
+ * (`posizioneAncora`), quindi qualunque id va bene qui. Diversa da `latiDelleMeta` più sotto, che
+ * SCEGLIE un lato per assegnarlo a una metà del tubo — lì l'id conta, perché decide l'asse con
+ * cui quella metà imbocca la giunzione.
  */
-const ANCORA_IN_ARRIVO = 'sx'
-const ANCORA_IN_PARTENZA = 'dx'
+const ANCORA_QUALSIASI = 'sx'
 
 /** Il centro del pallino di una giunzione posizionata. Passa da `posizioneAncora` — la stessa
  *  funzione del documento — invece di sommare a mano metà riquadro: dal Blocco D3 le quattro
  *  ancore stanno al centro, quindi quel punto È il centro, e non ne esiste una seconda fonte. */
 function centroDellaGiunzione(nodo: Node): Punto {
   const { nodo: schema } = nodo.data as SchemaNodeData
-  return posizioneAncora({ ...schema, x: nodo.position.x, y: nodo.position.y }, ANCORA_IN_ARRIVO)
+  return posizioneAncora({ ...schema, x: nodo.position.x, y: nodo.position.y }, ANCORA_QUALSIASI)
+}
+
+/**
+ * I due lati della giunzione da assegnare alle due metà del tubo spezzato, dedotti dall'asse del
+ * tratto TAGLIATO (`orizzontale`, restituito da `spezzaArco`/`puntoSuTratto`): un taglio
+ * orizzontale fa entrare le due metà di fianco (sx/dx), uno verticale dall'alto e dal basso
+ * (alto/basso). Non è più una scelta cosmetica come lo era finché le quattro ancore restavano
+ * intercambiabili: da quando l'ancora sceglie anche il LATO IMPOSTO (`latoImposto`,
+ * symbols/index.ts) — e quindi l'asse con cui `rottaImboccata` (tratti.ts) fa entrare la metà
+ * nella giunzione — assegnare ancore laterali a un tubo verticale (o viceversa) dichiarerebbe un
+ * asse diverso da quello su cui il tubo correva davvero.
+ */
+function latiDelleMeta(orizzontale: boolean): { arrivo: SchemaLatoAncora; partenza: SchemaLatoAncora } {
+  return orizzontale ? { arrivo: 'sx', partenza: 'dx' } : { arrivo: 'alto', partenza: 'basso' }
 }
 
 /**
@@ -149,13 +165,14 @@ export function useInserimentoTee<T extends StatoConNodiEdArchi>(
       // Le quote infilate qui come in `candidati`, e per la stessa ragione: la polilinea su cui
       // si taglia dev'essere la STESSA su cui si è deciso quale tubo evidenziare, o si
       // spezzerebbe un tubo in un punto diverso da quello mostrato.
-      const { centro, primo, secondo } = spezzaArco(
+      const { centro, orizzontale, primo, secondo } = spezzaArco(
         polilineaDellArco(capiArco, { ...data, quote }),
         data.segni ?? [],
         centroDellaGiunzione(nodo)
       )
       const [idPrimo, idSecondo] = idDelleMeta(arcoId, new Set(stato.edges.map((e) => e.id)))
-      const ancora = ancoraDi((nodo.data as SchemaNodeData).nodo, ANCORA_IN_ARRIVO)
+      const { arrivo: ancoraArrivo, partenza: ancoraPartenza } = latiDelleMeta(orizzontale)
+      const ancora = ancoraDi((nodo.data as SchemaNodeData).nodo, ANCORA_QUALSIASI)
       const posizione = { x: centro.x - (ancora?.x ?? 0), y: centro.y - (ancora?.y ?? 0) }
 
       // L'arco sostituito in POSIZIONE (`flatMap` sull'elenco esistente), non filtrato e
@@ -172,7 +189,7 @@ export function useInserimentoTee<T extends StatoConNodiEdArchi>(
                   ...arco,
                   id: idPrimo,
                   target: nodo.id,
-                  targetHandle: ANCORA_IN_ARRIVO,
+                  targetHandle: ancoraArrivo,
                   // Non l'eredita da `arco`: l'id originale selezionato non esiste più, e uno
                   // dei due spezzoni disegnato come selezionato lascerebbe la barra strumenti a
                   // puntare a un arco fantasma.
@@ -183,7 +200,7 @@ export function useInserimentoTee<T extends StatoConNodiEdArchi>(
                   ...arco,
                   id: idSecondo,
                   source: nodo.id,
-                  sourceHandle: ANCORA_IN_PARTENZA,
+                  sourceHandle: ancoraPartenza,
                   selected: false,
                   data: { stile: data.stile, punti: secondo.punti, segni: secondo.segni } satisfies SchemaEdgeData,
                 },

@@ -673,11 +673,10 @@ describe('instrada con un lato imposto', () => {
     expect(punti[punti.length - 1]).toEqual({ x: 382, y: 405 })
   })
 
-  // Giro di fix 1 — buco di copertura del revisore: `rottaImboccata` ha sette rami e i nove
-  // casi sopra ne esercitano solo quattro, tutti quelli in cui il lato imposto è VERTICALE dalla
-  // parte che conta. I tre casi sotto stanno sugli stessi due capi (272,182)-(382,405) apposta,
-  // per confrontare i numeri a colpo d'occhio con quelli sopra, ed esercitano i tre rami mancanti
-  // — tutti quelli in cui il lato che conta è LATERALE.
+  // Giro di fix 1 — buco di copertura del revisore: `rottaImboccata` ha otto rami e i nove casi
+  // sopra ne esercitano solo cinque. I tre casi sotto stanno sugli stessi due capi
+  // (272,182)-(382,405) apposta, per confrontare i numeri a colpo d'occhio con quelli sopra, ed
+  // esercitano i tre rami mancanti.
 
   // Solo il capo di partenza impone, e impone un lato laterale: è il ramo "solo `da` impone"
   // (lo stesso di 'un lato imposto in partenza vincola il primo segmento', sopra), ma il suo
