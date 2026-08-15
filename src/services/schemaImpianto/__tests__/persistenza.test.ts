@@ -112,9 +112,13 @@ describe('serializzazione', () => {
 
   // Il muro e' manuale per definizione, quindi sta nella stessa categoria dei nodi 'manuale' e
   // delle annotazioni: la scheda dati non lo conosce e non ha titolo per cancellarlo.
+  //
+  // `riconcilia` riceve un `muro` (come fa `deserializzaLayout`), non un `muroX`: passargli un
+  // `LayoutSalvato` grezzo costruito a mano proverebbe una forma di chiamata che la produzione
+  // non usa (vedi revisione finale, rilievo Critico — il test su questo vive in `layoutIniziale`).
   it('la riconciliazione con la scheda non porta via il muro', () => {
-    const salvato = { ...serializzaLayout(layoutMinimo()), muroX: 333 }
-    expect(riconcilia(salvato, modelloMinimo()).layout.muro.x).toBe(333)
+    const salvato = { ...layoutMinimo(), muro: { x: 333, yMin: 10, yMax: 900 } }
+    expect(riconcilia(salvato, modelloMinimo()).layout.muro!.x).toBe(333)
   })
 
   it('restituisce una copia difensiva: mutare il layout originale non tocca il salvato', () => {
@@ -287,6 +291,46 @@ describe('layoutIniziale', () => {
     const atteso = riconcilia(salvato, modello)
 
     expect(esito).toEqual(atteso)
+  })
+
+  // Revisione finale, rilievo Critico: `layoutIniziale` passa a `riconcilia` ciò che
+  // restituisce `deserializzaLayout` — un `SchemaLayout`, che porta `muro`, non `muroX`. Un
+  // test che chiama `riconcilia` direttamente con un `LayoutSalvato` costruito a mano (come
+  // faceva questo prima della revisione) non attraversa mai `deserializzaLayout`, quindi non
+  // vede la porta che la produzione usa davvero: da qui il test va su `layoutIniziale`.
+  it('un muro salvato torna a esistere alla riapertura, non solo scritto nel salvataggio', () => {
+    const layout = { ...layoutMinimo(), muro: { x: 333, yMin: 10, yMax: 900 } }
+    const salvato = serializzaLayout(layout)
+
+    const esito = layoutIniziale(salvato, modelloMinimo())
+
+    expect(esito.layout.muro).not.toBeNull()
+    expect(esito.layout.muro!.x).toBe(333)
+  })
+
+  // Il giro che si chiude davvero a ogni conferma in produzione: `layoutDaPersistere` scrive
+  // ciò che l'editor tiene in memoria, `layoutIniziale` lo rilegge alla riapertura successiva.
+  // Insieme, non uno alla volta: muro, nodi, archi e testi devono sopravvivere tutti alla
+  // stessa transazione.
+  it('layoutIniziale(layoutDaPersistere(...)) conserva insieme muro, nodi, archi e testi', () => {
+    const modello = modelloDiProva(['C1'])
+    const base = layoutSchema(modello)
+    const testo = { id: 'T1', x: 50, y: 60, contenuto: 'Nota' }
+    const layout = { ...base, muro: { x: 333, yMin: 10, yMax: 900 }, testi: [testo] }
+
+    const salvato = layoutDaPersistere(layout, true, undefined)
+    const esito = layoutIniziale(salvato, modello)
+
+    expect(esito.layout.muro).toEqual(muroDaAscissa(333, esito.layout.nodi))
+    expect(esito.layout.muro!.x).toBe(333)
+    expect(esito.layout.nodi.map((n) => n.id).sort()).toEqual(layout.nodi.map((n) => n.id).sort())
+    for (const n of layout.nodi) {
+      const trovato = esito.layout.nodi.find((m) => m.id === n.id)!
+      expect(trovato.x).toBe(n.x)
+      expect(trovato.y).toBe(n.y)
+    }
+    expect(esito.layout.archi).toEqual(layout.archi)
+    expect(esito.layout.testi).toEqual([testo])
   })
 })
 

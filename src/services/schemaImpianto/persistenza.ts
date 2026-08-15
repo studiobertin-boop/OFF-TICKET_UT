@@ -167,14 +167,22 @@ function posizioneTerminale(
 }
 
 /**
- * `testi` resta opzionale qui, benché `SchemaLayout.testi` sia obbligatorio: questa funzione
- * riceve anche `LayoutSalvato` così com'è (`serializzaLayout` lo scrive sempre popolato, ma il
- * tipo lo dichiara opzionale per restare leggibile su un salvataggio scritto prima del Blocco
- * C2), non solo `SchemaLayout` già normalizzati. `Pick<SchemaLayout, 'nodi' | 'archi' | 'testi'>`
- * imporrebbe `testi` obbligatorio e romperebbe ogni chiamata con un `LayoutSalvato` vero.
+ * Riceve ciò che restituisce `deserializzaLayout` — un `SchemaLayout`, con `muro` e non
+ * `muroX` — perché è quello che le passa davvero `layoutIniziale`, l'unica strada che la
+ * produzione percorre. Prima della revisione finale il parametro dichiarava `muroX?: number`
+ * come se ricevesse un `LayoutSalvato`: TypeScript non lo segnalava (il campo era opzionale, e
+ * `ripristinato` è una variabile, non un letterale — niente controllo delle proprietà in
+ * eccesso), ma a runtime il muro salvato non veniva mai letto. Vedi revisione finale, rilievo
+ * Critico.
+ *
+ * `testi` resta opzionale, benché `SchemaLayout.testi` sia obbligatorio: `deserializzaLayout`
+ * lo normalizza sempre a `[]`, ma qualche test costruisce ancora un salvato "grezzo" senza
+ * passare da lì (un `LayoutSalvato` scritto prima del Blocco C2 non ce l'ha).
+ * `Pick<SchemaLayout, 'nodi' | 'archi' | 'testi'>` imporrebbe `testi` obbligatorio e romperebbe
+ * quelle chiamate.
  */
 export function riconcilia(
-  salvato: Pick<SchemaLayout, 'nodi' | 'archi'> & { testi?: SchemaTestoLibero[]; muroX?: number },
+  salvato: Pick<SchemaLayout, 'nodi' | 'archi'> & { testi?: SchemaTestoLibero[]; muro?: SchemaLayout['muro'] },
   modello: SchemaModel
 ): EsitoRiconciliazione {
   const inScheda = new Set(modello.nodi.map((n) => n.id))
@@ -266,8 +274,10 @@ export function riconcilia(
   // Il muro e' manuale per definizione (lo aggiunge il committente dalla barra), quindi sta
   // nella stessa categoria dei testi qui sopra: si ricostruisce dalla sola ascissa salvata, sui
   // nodi appena riconciliati (cosi' l'altezza segue le posizioni di adesso, non quelle salvate),
-  // e non sparisce mai per un confronto con la scheda che non lo riguarda.
-  const muro = typeof salvato.muroX === 'number' ? muroDaAscissa(salvato.muroX, nodi) : null
+  // e non sparisce mai per un confronto con la scheda che non lo riguarda. Si legge
+  // `salvato.muro?.x`, non una `muroX` che il chiamante vero (`layoutIniziale`) non passa mai:
+  // vedi il commento sulla firma di questa funzione.
+  const muro = salvato.muro ? muroDaAscissa(salvato.muro.x, nodi) : null
 
   return { layout: { nodi, archi, muro, testi }, aggiunti, aggiuntiDaScheda, rimossi }
 }
