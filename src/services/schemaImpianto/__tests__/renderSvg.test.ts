@@ -11,7 +11,7 @@ import {
 } from '@/services/relazione/__tests__/fixtures'
 import { buildSchemaModel } from '../buildSchemaModel'
 import { layoutSchema, quoteInstradamento } from '../layout'
-import { renderSvg, righeLista, righeLegenda, posizioneAncora } from '../renderSvg'
+import { renderSvg, righeLista, righeLegenda, posizioneAncora, varchiDelMuro } from '../renderSvg'
 import { AVVICINAMENTO, raccordoOrtogonale } from '../tratti'
 import { dimensioniDi } from '../symbols'
 import type { SchemaNodoPosizionato, SchemaSegnoTubo } from '../types'
@@ -32,6 +32,24 @@ function svgMinimo(noteTubazioni?: string[]) {
     buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
   )
   return renderSvg(layout, { noteTubazioni })
+}
+
+/**
+ * Impianto con `muro` valorizzato e almeno due tubazioni che ne scavalcano l'ascissa: la mandata
+ * del compressore verso il serbatoio in linea, e la linea condense del disoleatore verso la
+ * tanica.
+ */
+function layoutConMuro() {
+  const scheda = makeScheda({
+    serbatoi: [makeSerbatoio({ ubicazione: 'LINEA_DISTRIBUZIONE' })],
+    essiccatori: [],
+    scambiatori: [],
+    filtri: [],
+    dati_impianto: makeDatiImpianto({ raccolta_condense: 'tanica' }),
+  })
+  return layoutSchema(
+    buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+  )
 }
 
 describe('renderSvg', () => {
@@ -467,6 +485,20 @@ describe('varchi nel muro', () => {
 
     expect(altezze.length).toBeGreaterThan(0)
     expect(coperto).toBeLessThan(altezzaMuro)
+  })
+
+  // `varchiDelMuro` esiste perche' la tela dell'editor apra i varchi con la funzione del
+  // documento e non con una copia: e' la stessa `renderArchi` che rende l'SVG, di cui si tiene
+  // solo l'altra meta' del risultato.
+  it('varchiDelMuro riporta le quote a cui i tubi attraversano il muro', () => {
+    const layout = layoutConMuro()
+    const varchi = varchiDelMuro(layout)
+    expect(varchi.length).toBeGreaterThan(0)
+    // Il varco non e' solo calcolato: e' davvero aperto nel muro disegnato. Il troncone di
+    // muratura pieno subito dopo un varco comincia a `varco + larghezzaVarco/2` (22): è la
+    // prova che `simboloMuro` (symbols/index.ts) ha davvero letto questa quota per aprirci un
+    // buco, non solo che `varchiDelMuro` l'ha calcolata.
+    for (const y of varchi) expect(renderSvg(layout)).toContain(`y="${y + 22}"`)
   })
 })
 

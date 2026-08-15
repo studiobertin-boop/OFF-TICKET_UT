@@ -4,6 +4,7 @@ import {
   AMPIEZZA_ONDA,
   PASSO_ONDA,
   puntoSuTratto,
+  quoteAttraversamento,
   tSuTratto,
   polilineaConGomiti,
   trascinaTratto,
@@ -719,5 +720,19 @@ describe('instrada con un lato imposto', () => {
       { x: 327, y: 405 },
       { x: 382, y: 405 },
     ])
+  })
+})
+
+// Trasferita qui da renderSvg.ts nel Blocco D4: la tela dell'editor deve aprire i varchi con la
+// STESSA funzione del documento, e per importarla non puo' dipendere dal modulo che rende l'SVG.
+describe('quoteAttraversamento', () => {
+  it('trova le quote dei tratti orizzontali che scavalcano la verticale', () => {
+    const punti = [{ x: 0, y: 10 }, { x: 100, y: 10 }, { x: 100, y: 90 }, { x: 200, y: 90 }]
+    expect(quoteAttraversamento(punti, 50)).toEqual([10])
+    expect(quoteAttraversamento(punti, 150)).toEqual([90])
+  })
+
+  it('non conta un tratto verticale, che il muro non lo attraversa mai', () => {
+    expect(quoteAttraversamento([{ x: 50, y: 0 }, { x: 50, y: 100 }], 50)).toEqual([])
   })
 })

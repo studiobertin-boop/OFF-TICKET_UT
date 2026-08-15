@@ -73,18 +73,27 @@ function posiziona(nodo: SchemaNodo, x: number, y: number): SchemaNodoPosizionat
 }
 
 /**
- * Muro di separazione fra sala compressori e linea distribuzione, ricavato dalle posizioni
- * correnti dei nodi: si disegna solo se esistono davvero apparecchiature da entrambe le parti,
- * e la sua x segue il bordo destro della sala compressori — così, spostando le apparecchiature
- * (nell'editor o rigenerando il layout), il muro si ricalcola invece di restare dov'era.
- *
- * L'estensione verticale non può appoggiarsi alle quote interne del layout automatico
- * (`yBase`, `yCondense` in `layoutSchema`: valide solo per la disposizione appena calcolata),
- * perché questa funzione riceve anche nodi già spostati a mano nell'editor, di cui quelle quote
- * non esistono più. Si usa quindi l'inviluppo verticale delle sole apparecchiature dei due
- * gruppi separati dal muro (compressori/serbatoi da un lato, catena e pozzo condense
- * dall'altro), allargato dello stesso margine (`MARGINE_SUPERIORE`) usato sopra le
- * apparecchiature nel resto del disegno: il muro segue sempre ciò che deve dividere.
+ * Inviluppo verticale delle apparecchiature che un muro separa, allargato sopra e sotto dello
+ * stesso margine usato sopra le apparecchiature nel resto del disegno. Il terminale utenze non
+ * conta: e' un raccordo, non qualcosa da separare (stesso motivo per cui `ordinaCatenaTrattamento`
+ * e `pozzoCondense` lo ignorano). Uno solo per `calcolaMuro` e `muroDaAscissa`, o «cosa il muro
+ * deve separare» tornerebbe ad avere due definizioni.
+ */
+function inviluppoVerticale(nodi: SchemaNodoPosizionato[]): { yMin: number; yMax: number } | null {
+  const rilevanti = nodi.filter((n) => n.tipo !== 'utenze')
+  if (rilevanti.length === 0) return null
+  return {
+    yMin: Math.min(...rilevanti.map((n) => n.y)) - MARGINE_SUPERIORE / 2,
+    yMax: Math.max(...rilevanti.map((n) => n.y + DIMENSIONI_NODO[n.tipo].altezza)) + MARGINE_SUPERIORE / 2,
+  }
+}
+
+/**
+ * Ascissa proposta per il muro di separazione: segue il bordo destro della sala compressori, e
+ * resta null se manca un'apparecchiatura da uno dei due lati. Il layout automatico
+ * (`layoutSchema`, sotto) la usa ancora per disegnare il muro; dal Task 7 la stessa regola
+ * proporra' un punto di partenza anche al pulsante della barra. L'altezza viene da
+ * `inviluppoVerticale`, condivisa con `muroDaAscissa`.
  */
 export function calcolaMuro(nodi: SchemaNodoPosizionato[]): SchemaMuroSeparazione | null {
   // Il terminale utenze porta `gruppo: 'LINEA_DISTRIBUZIONE'` — sta davvero a valle — ma non è
@@ -97,15 +106,24 @@ export function calcolaMuro(nodi: SchemaNodoPosizionato[]): SchemaMuroSeparazion
   const inLinea = nodi.filter((n) => n.gruppo === 'LINEA_DISTRIBUZIONE' && n.tipo !== 'utenze')
   if (inSala.length === 0 || inLinea.length === 0) return null
 
-  const rilevanti = [...inSala, ...inLinea]
-  const yTop = Math.min(...rilevanti.map((n) => n.y))
-  const yBottom = Math.max(...rilevanti.map((n) => n.y + DIMENSIONI_NODO[n.tipo].altezza))
+  const inviluppo = inviluppoVerticale([...inSala, ...inLinea])
+  if (!inviluppo) return null
 
   return {
     x: Math.max(...inSala.map((n) => n.x + DIMENSIONI_NODO[n.tipo].larghezza)) + PASSO_ORIZZONTALE / 2,
-    yMin: yTop - MARGINE_SUPERIORE / 2,
-    yMax: yBottom + MARGINE_SUPERIORE / 2,
+    ...inviluppo,
   }
+}
+
+/**
+ * Il muro dalla sola ascissa salvata. Dal Blocco D4 il muro e' un oggetto che il committente
+ * aggiunge e sposta, ma la sua altezza continua ad adattarsi al disegno: si salva la sola `x`, e
+ * l'estensione verticale si ricava qui a ogni ricostruzione. Salvare anche l'altezza sarebbe una
+ * seconda fonte di verita', destinata a divergere al primo nodo spostato.
+ */
+export function muroDaAscissa(x: number, nodi: SchemaNodoPosizionato[]): SchemaMuroSeparazione | null {
+  const inviluppo = inviluppoVerticale(nodi)
+  return inviluppo ? { x, ...inviluppo } : null
 }
 
 /**

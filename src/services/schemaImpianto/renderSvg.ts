@@ -27,6 +27,7 @@ import {
   ondula,
   percorso,
   puntoSuTratto,
+  quoteAttraversamento,
   type Punto,
   type QuoteInstradamento,
 } from './tratti'
@@ -57,21 +58,6 @@ export function posizioneAncora(nodo: SchemaNodoPosizionato, ancoraId: string): 
     return { x: corpo.x + corpo.larghezza / 2, y: corpo.y + corpo.altezza / 2 }
   }
   return { x: nodo.x + ancora.x, y: nodo.y + ancora.y }
-}
-
-/**
- * Quote alle quali una polilinea attraversa la verticale `x`. Servono ad aprire i varchi del
- * muro: ricavarle dalla rotta effettiva, invece di fissarle nel layout, tiene muro e tubazioni
- * d'accordo anche dopo che l'utente ha spostato un nodo nell'editor.
- */
-function quoteAttraversamento(punti: Punto[], x: number): number[] {
-  const quote: number[] = []
-  for (let i = 1; i < punti.length; i++) {
-    const a = punti[i - 1]
-    const b = punti[i]
-    if (a.y === b.y && Math.min(a.x, b.x) <= x && x <= Math.max(a.x, b.x)) quote.push(a.y)
-  }
-  return quote
 }
 
 export interface RenderSvgOptions {
@@ -350,4 +336,15 @@ export function renderSvg(layout: SchemaLayout, options: RenderSvgOptions = {}):
     renderTabella(righe, larghezzaTotale, yTabella),
     '</svg>',
   ].join('')
+}
+
+/**
+ * Le quote a cui le tubazioni attraversano il muro, per chi dovrà disegnarlo sulla tela
+ * dell'editor senza rendere tutto l'SVG. E' la stessa `renderArchi` del documento, di cui si
+ * tiene l'altra metà del risultato: una copia della sua logica di instradamento aprirebbe sulla
+ * tela varchi in punti diversi da quelli del .docx consegnato. Nessun chiamante ancora: arriva
+ * in un task successivo del Blocco D4.
+ */
+export function varchiDelMuro(layout: SchemaLayout): number[] {
+  return renderArchi(layout, quoteInstradamento(layout)).varchi
 }

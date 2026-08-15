@@ -12,6 +12,7 @@ import {
 import { buildSchemaModel } from '../buildSchemaModel'
 import {
   calcolaMuro,
+  muroDaAscissa,
   DIMENSIONI_NODO,
   MARGINE_SUPERIORE,
   dimensioniLayout,
@@ -297,6 +298,42 @@ describe('layoutSchema', () => {
       // applica identico ai due lati dell'inviluppo dei nodi.
       expect(muro!.yMin).toBe(yTop - MARGINE_SUPERIORE / 2)
       expect(muro!.yMax).toBe(yBottom + MARGINE_SUPERIORE / 2)
+    })
+  })
+
+  describe('muroDaAscissa', () => {
+    const base = { tipo: 'compressore' as const, etichetta: '', valvoleSicurezza: [], origine: 'scheda' as const }
+
+    // Dal Blocco D4 il muro e' un oggetto del committente e di lui si salva la sola ascissa:
+    // l'altezza continua ad adattarsi al disegno, e salvarla sarebbe una seconda fonte di verita'.
+    it('tiene l ascissa data e ricava l altezza dall inviluppo, col margine di calcolaMuro', () => {
+      const compressore = { ...base, id: 'C1', gruppo: 'SALA_COMPRESSORI' as const, tipo: 'compressore' as const, x: 40, y: 200 }
+      const serbatoio = { ...base, id: 'S1', gruppo: 'LINEA_DISTRIBUZIONE' as const, tipo: 'serbatoio' as const, x: 400, y: 100 }
+      const muro = muroDaAscissa(333, [compressore, serbatoio])
+      expect(muro!.x).toBe(333)
+      expect(muro!.yMin).toBe(100 - MARGINE_SUPERIORE / 2)
+      // Il fondo dell'inviluppo è il più basso dei due bordi: qui è quello del serbatoio
+      // (100 + 260 = 360), non quello del compressore (200 + 150 = 350).
+      expect(muro!.yMax).toBe(
+        Math.max(
+          200 + DIMENSIONI_NODO.compressore.altezza,
+          100 + DIMENSIONI_NODO.serbatoio.altezza
+        ) + MARGINE_SUPERIORE / 2
+      )
+    })
+
+    // Il terminale utenze e' un raccordo, non un'apparecchiatura da separare: stessa esclusione di
+    // calcolaMuro, e per la stessa ragione — due regole diverse sarebbero di nuovo due fonti.
+    it('non lascia che il terminale utenze allarghi l inviluppo', () => {
+      const compressore = { ...base, id: 'C1', gruppo: 'SALA_COMPRESSORI' as const, tipo: 'compressore' as const, x: 40, y: 200 }
+      const utenze = { ...base, id: 'UTENZE', gruppo: 'LINEA_DISTRIBUZIONE' as const, tipo: 'utenze' as const, x: 900, y: 900 }
+      expect(muroDaAscissa(333, [compressore, utenze])).toEqual(muroDaAscissa(333, [compressore]))
+    })
+
+    // Un disegno senza apparecchiature non ha inviluppo: un muro alto zero, o alto quanto il
+    // margine, sarebbe un segno nel vuoto.
+    it('non produce un muro se non c e nulla da separare', () => {
+      expect(muroDaAscissa(333, [])).toBeNull()
     })
   })
 
