@@ -58,16 +58,18 @@ import { capoValido, connessioneAmmessa, stileIniziale } from '@/services/schema
 import type { Asse, Bordo } from '@/services/schemaImpianto/allineamento'
 import { PASSO_GRIGLIA, allineaAllaGriglia } from '@/services/schemaImpianto/griglia'
 import { ingombroTesto, quoteInstradamento } from '@/services/schemaImpianto/layout'
-import { renderSvg } from '@/services/schemaImpianto/renderSvg'
+import { renderSvg, varchiDelMuro } from '@/services/schemaImpianto/renderSvg'
 import { dimensioniDi } from '@/services/schemaImpianto/symbols'
 import type {
   SchemaArcoStile,
   SchemaLayout,
+  SchemaNodoPosizionato,
   SchemaNodoTipo,
   SchemaTestoLibero,
 } from '@/services/schemaImpianto/types'
 import { DivisorioAnteprima } from './DivisorioAnteprima'
 import { ManigliaRidimensiona } from './ManigliaRidimensiona'
+import { MuroSeparazione } from './MuroSeparazione'
 import { LARGHEZZA_MINIMA_ANTEPRIMA, type PreferenzeEditor } from './preferenzeEditor'
 import { SchemaEdgeTubazione, type SchemaEdgeData } from './SchemaEdgeTubazione'
 import { SchemaNodeSymbol, type SchemaNodeData } from './SchemaNodeSymbol'
@@ -78,6 +80,7 @@ import { useAllineamentoSelezione } from './useAllineamentoSelezione'
 import { useGomiti } from './useGomiti'
 import { useGuideAllineamento } from './useGuideAllineamento'
 import { useInserimentoTee } from './useInserimentoTee'
+import { ascissaProposta, useMuro } from './useMuro'
 import { useSchemaHistory } from './useSchemaHistory'
 import { useSegniTubo } from './useSegniTubo'
 import { useTestiLiberi } from './useTestiLiberi'
@@ -146,6 +149,11 @@ interface StatoEditor {
   // (TestiLiberi.tsx) e si maneggiano con `useTestiLiberi`. Stando nello stesso stato, la
   // cronologia le copre gratis, perché lavora sull'intero stato.
   testi: SchemaTestoLibero[]
+  // Sola ascissa, non `SchemaMuroSeparazione`: l'altezza del muro non è un dato che l'utente
+  // sceglie, si ricava dal disegno corrente (`muroDaAscissa`, layout.ts) a ogni ricostruzione
+  // di `layoutCorrente`. Tenerla anche qui sarebbe una seconda fonte, destinata a divergere al
+  // primo nodo spostato — stessa ragione per cui `SchemaLayout.muro` salva solo `x`.
+  muroX: number | null
 }
 
 export interface SchemaEditorProps {
@@ -175,6 +183,15 @@ export interface SchemaEditorProps {
  * quota fissa una nuova apparecchiatura o annotazione poteva nascere sopra un terminale alto,
  * come già corretto per `layout.ts` e `persistenza.ts` (Task 4).
  */
+/**
+ * I nodi di react-flow ricondotti a `SchemaNodoPosizionato`, come fa già `flowALayout`
+ * (conversioneFlow.ts) per l'intero layout: qui serve solo per proporre dove nasce un muro
+ * nuovo (`ascissaProposta`, useMuro.ts), che lavora su quel tipo e non conosce react-flow.
+ */
+function nodiDi(s: { nodes: Node[] }): SchemaNodoPosizionato[] {
+  return s.nodes.map((n) => ({ ...(n.data as SchemaNodeData).nodo, x: n.position.x, y: n.position.y }))
+}
+
 function piedeDelDisegno(nodes: Node[], testi: SchemaTestoLibero[]): number {
   const quote = [
     ...nodes.map((n) => n.position.y + dimensioniDi((n.data as SchemaNodeData).nodo).altezza),
@@ -199,7 +216,10 @@ export function codiceLibero(prefisso: string, nodes: Node[]): string {
 }
 
 function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, preferenze, onCambiaPreferenze }: SchemaEditorProps) {
-  const iniziale = useMemo(() => layoutAFlow(layout), [layout])
+  // `layout.muro?.x ?? null`, non `layout.muro`: lo stato porta la sola ascissa (vedi il commento
+  // su `StatoEditor.muroX`), e senza questa lettura una pratica riaperta perderebbe in silenzio
+  // il muro salvato — tornerebbe sempre a `null`, come prima che questo stato esistesse.
+  const iniziale = useMemo(() => ({ ...layoutAFlow(layout), muroX: layout.muro?.x ?? null }), [layout])
   const storia = useSchemaHistory<StatoEditor>(iniziale)
   const { stato, applica, aggiornaSenzaCronologia, annulla, puoAnnullare } = storia
   const [selezione, setSelezione] = useState<{ nodes: Node[]; edges: Edge[] }>({ nodes: [], edges: [] })
@@ -224,9 +244,17 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
   // che dentro ognuno dei calcoli qui sotto, è quel che tiene quote, capi e anteprima sullo
   // STESSO layout: sono i tre ingressi della geometria condivisa con il documento.
   const layoutCorrente = useMemo(
-    // Il muro non ha ancora uno stato nell'editor: si passa `null` finché il Task 8 non lo dà.
-    () => flowALayout(stato.nodes, stato.edges, stato.testi, null),
-    [stato.nodes, stato.edges, stato.testi]
+    () => flowALayout(stato.nodes, stato.edges, stato.testi, stato.muroX),
+    [stato.nodes, stato.edges, stato.testi, stato.muroX]
+  )
+
+  // Quote a cui le tubazioni attraversano il muro: la STESSA `renderArchi` che disegna il
+  // documento (`varchiDelMuro`, renderSvg.ts), non una sua imitazione — è la ragione per cui il
+  // varco si apre sulla tela dove si apre nel .docx. Vuoto senza muro: `varchiDelMuro` rifarebbe
+  // comunque tutto l'instradamento per un risultato che poi non si disegna.
+  const varchiMuro = useMemo(
+    () => (layoutCorrente.muro ? varchiDelMuro(layoutCorrente) : []),
+    [layoutCorrente]
   )
 
   // Quote di instradamento (collettore della mandata flessibile, corsia delle condense):
@@ -315,6 +343,11 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
     applica,
     aggiornaSenzaCronologia
   )
+
+  // Aggiungere e spostare il muro di separazione: logica isolata in un hook suo (vedi
+  // useMuro.ts), stesso motivo di useGomiti.ts qui sopra. Come per le annotazioni, non riceve
+  // `stato`: il muro si rende da `layoutCorrente.muro` qui sotto, nel portale della viewport.
+  const { aggiungiMuro, spostaMuro } = useMuro<StatoEditor>(applica, aggiornaSenzaCronologia)
 
   // `edgesConGomitiBase`, `edgesConSegni` ed `edgesConTrascinamento` derivano TUTTI e tre da
   // `stato.edges` con dati aggiuntivi diversi (rispettivamente `onSpostaGomito`/
@@ -775,6 +808,20 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
             Testo
           </Button>
         </Tooltip>
+        {/* Disabilitato col muro già presente: è uno solo, e due sovrapposti sarebbero
+            indistinguibili sulla tela (e sul documento, che li disegna con la stessa funzione). */}
+        <Tooltip title="Il muro fra sala compressori e linea di distribuzione: si trascina in orizzontale, si cancella col tasto Canc">
+          <span>
+            <Button
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => aggiungiMuro((s) => ascissaProposta(nodiDi(s)))}
+              disabled={stato.muroX !== null}
+            >
+              Muro
+            </Button>
+          </span>
+        </Tooltip>
 
         <Divider orientation="vertical" flexItem />
 
@@ -898,6 +945,18 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
           <ViewportPortal>
             <GuideAllineamento guide={guide} />
             <TestiLiberi testi={stato.testi} onSposta={spostaTesto} onModifica={apriTesto} />
+            {/* `selezionato`/`onSeleziona` restano inerti qui: nessuna selezione del muro esiste
+                ancora nell'editor, e sarà un task successivo a collegarli — il componente li
+                supporta già, per non dover riaprire questo cablaggio quando arriveranno. */}
+            {layoutCorrente.muro && (
+              <MuroSeparazione
+                muro={layoutCorrente.muro}
+                varchi={varchiMuro}
+                selezionato={false}
+                onSposta={spostaMuro}
+                onSeleziona={() => {}}
+              />
+            )}
           </ViewportPortal>
         </ReactFlow>
       </Box>

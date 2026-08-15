@@ -89,11 +89,10 @@ function inviluppoVerticale(nodi: SchemaNodoPosizionato[]): { yMin: number; yMax
 }
 
 /**
- * Ascissa proposta per il muro di separazione: segue il bordo destro della sala compressori, e
- * resta null se manca un'apparecchiatura da uno dei due lati. Dal Blocco D4 il layout automatico
- * non la usa più: `layoutSchema` nasce sempre senza muro, e questa proposta serve solo al
- * pulsante della barra che il Task 7 aggiungerà (`useMuro.ts`). L'altezza viene da
- * `inviluppoVerticale`, condivisa con `muroDaAscissa`.
+ * Ascissa proposta per il muro di separazione: segue il bordo destro della sala compressori,
+ * null se manca un'apparecchiatura da un lato. Il layout automatico non la usa — nasce sempre
+ * senza muro — la chiama solo il pulsante «Muro» della barra dell'editor (`ascissaProposta`,
+ * useMuro.ts). L'altezza viene da `inviluppoVerticale`, condivisa con `muroDaAscissa`.
  */
 export function calcolaMuro(nodi: SchemaNodoPosizionato[]): SchemaMuroSeparazione | null {
   // Il terminale utenze porta `gruppo: 'LINEA_DISTRIBUZIONE'` — sta davvero a valle — ma non è

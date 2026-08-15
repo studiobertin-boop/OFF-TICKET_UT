@@ -89,8 +89,8 @@ export function flowALayout(
     // il difetto per cui esiste `SchemaLayout.testi` obbligatorio. Il solo chiamante di
     // produzione è `SchemaEditor` (`layoutCorrente`, dallo stato `testi` che sopravvive a
     // cronologia e undo), dove ora si creano dal pulsante «Testo» della palette e si trascinano
-    // sulla tela (TestiLiberi.tsx). Passa sempre `null` per il muro: il Task 8 gli darà lo
-    // stato vero.
+    // sulla tela (TestiLiberi.tsx). Il muro segue lo stesso schema: nasce dal pulsante «Muro»
+    // e si trascina in orizzontale sulla tela (MuroSeparazione.tsx).
     testi,
   }
 }

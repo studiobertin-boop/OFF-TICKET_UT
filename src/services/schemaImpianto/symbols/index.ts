@@ -694,12 +694,19 @@ export function simboloDi(nodo: SchemaNodo): string {
 }
 
 /**
+ * Larghezza del muro disegnato da `simboloMuro`. Esportata perché il Blocco D4 la serve anche
+ * fuori di qui: `MuroSeparazione.tsx` la usa per l'area di presa e il contorno di selezione
+ * sulla tela, che devono corrispondere all'ingombro vero e non a una seconda cifra scritta a
+ * mano — la stessa ragione per cui `TRATTEGGIO_CONDENSE` due righe sopra è esportata.
+ */
+export const SPESSORE_MURO = 14
+
+/**
  * Muro di separazione sala compressori / stabilimento: muratura tratteggiata a 45°, interrotta
  * da un varco per ogni tubazione che lo attraversa. Varchi troppo vicini vengono fusi in uno
  * solo, o fra i due resterebbe un moncone di muro largo pochi pixel.
  */
 export function simboloMuro(x: number, yMin: number, yMax: number, varchi: number[]): string {
-  const spessore = 14
   const larghezzaVarco = 44
 
   const aperture: [number, number][] = []
@@ -723,14 +730,14 @@ export function simboloMuro(x: number, yMin: number, yMax: number, varchi: numbe
   const segmenti = tronconi
     .map(
       ([a, b]) =>
-        `<rect x="${x}" y="${a}" width="${spessore}" height="${b - a}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
+        `<rect x="${x}" y="${a}" width="${SPESSORE_MURO}" height="${b - a}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
     )
     .join('')
 
   const tratti = tronconi
     .flatMap(([a, b]) => {
       const righe: string[] = []
-      for (let y = a; y + 12 < b; y += 12) righe.push(`M ${x} ${y + 12} L ${x + spessore} ${y}`)
+      for (let y = a; y + 12 < b; y += 12) righe.push(`M ${x} ${y + 12} L ${x + SPESSORE_MURO} ${y}`)
       return righe
     })
     .join(' ')
