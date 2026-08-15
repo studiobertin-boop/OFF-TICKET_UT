@@ -5,7 +5,7 @@
  * senza chiudere un ciclo, e perché è geometria pura, verificabile senza DOM.
  */
 
-import type { SchemaArcoStile } from './types'
+import type { SchemaArcoStile, SchemaLatoAncora } from './types'
 import { agganciaQuota } from './griglia'
 
 export interface Punto {
@@ -320,23 +320,79 @@ export function rottaCondensa(pDa: Punto, pA: Punto, yCorsia: number): Punto[] {
   ]
 }
 
+/** Da che lato una tubazione deve imboccare i suoi due capi, quando quei capi lo impongono. */
+export interface LatiImposti {
+  da?: SchemaLatoAncora
+  a?: SchemaLatoAncora
+}
+
+/** Asse lungo cui corre il segmento che imbocca un lato: non conta il verso, che lo decide
+ *  da sé la posizione dell'altro capo. */
+function verticale(lato: SchemaLatoAncora): boolean {
+  return lato === 'alto' || lato === 'basso'
+}
+
+/**
+ * Rotta che rispetta i lati imposti ai capi. Sostituisce la rotta nativa dello stile quando
+ * almeno un capo impone un lato — cioè quando un capo è una giunzione (`latoImposto`,
+ * symbols/index.ts).
+ *
+ * Non è una perdita rispetto alle rotte native: un arco che tocca una giunzione è un ramo
+ * tracciato a mano, mentre il collettore del flessibile e la corsia delle condense servono agli
+ * archi dell'auto-layout fra apparecchiature. Ed è ciò che fa formare la T: senza, la spezzata
+ * gira a metà strada e l'ultimo tratto corre sovrapposto al tubo che attraversa la giunzione —
+ * misurato in pagina, montante a 55 unità di lato dal pallino.
+ */
+function rottaImboccata(pDa: Punto, pA: Punto, lati: LatiImposti): Punto[] {
+  const vDa = lati.da ? verticale(lati.da) : undefined
+  const vA = lati.a ? verticale(lati.a) : undefined
+
+  // Un capo solo impone: basta un angolo, posato in modo che il segmento imboccante corra
+  // sull'asse richiesto.
+  if (vDa === undefined) return dedup([pDa, vA ? { x: pA.x, y: pDa.y } : { x: pDa.x, y: pA.y }, pA])
+  if (vA === undefined) return dedup([pDa, vDa ? { x: pDa.x, y: pA.y } : { x: pA.x, y: pDa.y }, pA])
+
+  // Due capi su assi diversi: un angolo solo li soddisfa entrambi.
+  if (vDa !== vA) return dedup([pDa, vDa ? { x: pDa.x, y: pA.y } : { x: pA.x, y: pDa.y }, pA])
+
+  // Due capi sullo stesso asse: servono due angoli, e la piega sta a metà — la scelta
+  // simmetrica, l'unica che non privilegia un capo sull'altro.
+  if (vDa) {
+    const yMedia = (pDa.y + pA.y) / 2
+    return dedup([pDa, { x: pDa.x, y: yMedia }, { x: pA.x, y: yMedia }, pA])
+  }
+  const xMedia = (pDa.x + pA.x) / 2
+  return dedup([pDa, { x: xMedia, y: pDa.y }, { x: xMedia, y: pA.y }, pA])
+}
+
+/** Toglie i vertici coincidenti col precedente: capi già allineati sull'asse imposto non
+ *  devono produrre un angolo che non esiste. */
+function dedup(punti: Punto[]): Punto[] {
+  return punti.filter((p, i, arr) => i === 0 || p.x !== arr[i - 1].x || p.y !== arr[i - 1].y)
+}
+
 /**
  * L'unico posto che deve decidere la forma di un tubo. La chiamano sia il render del documento
  * (`renderSvg.ts`) sia la tela dell'editor, quest'ultima tramite `polilineaDellArco`
  * (`conversioneFlow.ts`, cablata dentro `SchemaEdgeTubazione.tsx`): è questa condivisione a
  * chiudere la divergenza fra i due disegni, non solo ad aprirle la strada.
  *
- * I gomiti imposti a mano vincono su ogni rotta nativa: da quel momento il percorso è una
- * scelta dell'utente e nessuna euristica deve sovrascriverla.
+ * Tre livelli di precedenza, in quest'ordine: i gomiti imposti a mano vincono su tutto — da quel
+ * momento il percorso è una scelta dell'utente e nessuna euristica deve sovrascriverla; poi i
+ * lati imposti ai capi (`rottaImboccata`, sopra), quando almeno uno dei due li impone; solo
+ * senza né gomiti né lati si usa la rotta nativa dello stile.
  */
 export function instrada(
   stile: SchemaArcoStile,
   pDa: Punto,
   pA: Punto,
   gomiti: Punto[] | undefined,
-  quote: QuoteInstradamento
+  quote: QuoteInstradamento,
+  lati?: LatiImposti
 ): Punto[] {
   if (gomiti && gomiti.length > 0) return polilineaConGomiti(pDa, gomiti, pA)
+  // I lati imposti vengono prima delle rotte native dello stile: vedi `rottaImboccata`.
+  if (lati && (lati.da || lati.a)) return rottaImboccata(pDa, pA, lati)
   if (stile === 'flessibile') return rottaFlessibile(pDa, pA, quote.yCollettore)
   if (stile === 'condensa') return rottaCondensa(pDa, pA, quote.yCorsiaCondense)
   return rottaLinea(pDa, pA)

@@ -546,3 +546,97 @@ describe('instrada', () => {
     }
   })
 })
+
+describe('instrada con un lato imposto', () => {
+  const QUOTE = { yCollettore: 0, yCorsiaCondense: 500 }
+
+  // Il caso misurato in pagina: un ramo che scende su un TEE posato su un tubo
+  // orizzontale. Senza il lato imposto la rotta gira a metà strada (x mediana 327) e
+  // l'ultimo tratto corre sovrapposto al tubo passante; con il lato imposto il ramo
+  // scende dritto nella giunzione e la T si forma.
+  it('un capo che impone il lato alto viene imboccato in verticale', () => {
+    const punti = instrada('standard', { x: 272, y: 182 }, { x: 382, y: 405 }, undefined, QUOTE, { a: 'alto' })
+    expect(punti).toEqual([
+      { x: 272, y: 182 },
+      { x: 382, y: 182 },
+      { x: 382, y: 405 },
+    ])
+  })
+
+  it('un capo che impone un lato laterale viene imboccato in orizzontale', () => {
+    const punti = instrada('standard', { x: 272, y: 182 }, { x: 382, y: 405 }, undefined, QUOTE, { a: 'sx' })
+    expect(punti).toEqual([
+      { x: 272, y: 182 },
+      { x: 272, y: 405 },
+      { x: 382, y: 405 },
+    ])
+  })
+
+  // Il lato imposto sul capo di PARTENZA vincola il primo segmento, non l'ultimo.
+  it('un lato imposto in partenza vincola il primo segmento', () => {
+    const punti = instrada('standard', { x: 272, y: 182 }, { x: 382, y: 405 }, undefined, QUOTE, { da: 'basso' })
+    expect(punti).toEqual([
+      { x: 272, y: 182 },
+      { x: 272, y: 405 },
+      { x: 382, y: 405 },
+    ])
+  })
+
+  // Due giunzioni sullo stesso tubo: entrambi i vincoli vanno rispettati. Assi diversi
+  // bastano a una spezzata a un angolo solo.
+  it('due lati imposti su assi diversi danno un angolo solo', () => {
+    const punti = instrada('standard', { x: 272, y: 182 }, { x: 382, y: 405 }, undefined, QUOTE, { da: 'basso', a: 'sx' })
+    expect(punti).toEqual([
+      { x: 272, y: 182 },
+      { x: 272, y: 405 },
+      { x: 382, y: 405 },
+    ])
+  })
+
+  // Assi uguali: servono due angoli, e la piega sta a metà fra i due capi sull'asse
+  // imposto — la scelta simmetrica, l'unica che non privilegia un capo sull'altro.
+  it('due lati imposti sullo stesso asse danno una piega a metà', () => {
+    const punti = instrada('standard', { x: 272, y: 182 }, { x: 382, y: 405 }, undefined, QUOTE, { da: 'basso', a: 'alto' })
+    expect(punti).toEqual([
+      { x: 272, y: 182 },
+      { x: 272, y: 293.5 },
+      { x: 382, y: 293.5 },
+      { x: 382, y: 405 },
+    ])
+  })
+
+  // Capi già allineati sull'asse imposto: nessun vertice intermedio, una linea dritta.
+  it('capi già allineati non producono vertici inutili', () => {
+    const punti = instrada('standard', { x: 382, y: 182 }, { x: 382, y: 405 }, undefined, QUOTE, { a: 'alto' })
+    expect(punti).toEqual([
+      { x: 382, y: 182 },
+      { x: 382, y: 405 },
+    ])
+  })
+
+  // I gomiti a mano vincono su tutto, lato imposto compreso: è la regola di sempre, ed
+  // è ciò che lascia intatte le due metà di un tubo spezzato, che nascono con gomiti.
+  it('i gomiti a mano vincono anche sul lato imposto', () => {
+    const gomiti = [{ x: 300, y: 300 }]
+    const conLato = instrada('standard', { x: 272, y: 182 }, { x: 382, y: 405 }, gomiti, QUOTE, { a: 'alto' })
+    const senzaLato = instrada('standard', { x: 272, y: 182 }, { x: 382, y: 405 }, gomiti, QUOTE)
+    expect(conLato).toEqual(senzaLato)
+  })
+
+  // Senza lati imposti nulla cambia: è ciò che tiene invariato il disegno di ogni
+  // pratica che un TEE non ce l'ha.
+  it('senza lati imposti la rotta resta quella dello stile', () => {
+    const conOggettoVuoto = instrada('standard', { x: 0, y: 0 }, { x: 300, y: 100 }, undefined, QUOTE, {})
+    const senzaParametro = instrada('standard', { x: 0, y: 0 }, { x: 300, y: 100 }, undefined, QUOTE)
+    expect(conOggettoVuoto).toEqual(senzaParametro)
+    expect(senzaParametro).toEqual(rottaLinea({ x: 0, y: 0 }, { x: 300, y: 100 }))
+  })
+
+  // Il lato imposto vince anche sugli stili con una rotta nativa lontana: un ramo
+  // condense su una giunzione non deve passare dalla corsia comune.
+  it('vale anche per gli stili con rotta nativa propria', () => {
+    const punti = instrada('condensa', { x: 272, y: 182 }, { x: 382, y: 405 }, undefined, QUOTE, { a: 'alto' })
+    expect(punti.some((p) => p.y === QUOTE.yCorsiaCondense)).toBe(false)
+    expect(punti[punti.length - 1]).toEqual({ x: 382, y: 405 })
+  })
+})

@@ -14,7 +14,7 @@
  * si limita a riesportare `DIMENSIONI_NODO` per i consumatori esistenti.
  */
 import { ondula } from '../tratti'
-import type { SchemaArcoStile, SchemaNodoTipo, SchemaNodo, SchemaAncora, ChiaveSimbolo } from '../types'
+import type { SchemaArcoStile, SchemaNodoTipo, SchemaNodo, SchemaAncora, SchemaLatoAncora, ChiaveSimbolo } from '../types'
 import { chiaveSimbolo } from '../types'
 
 export const TRATTO = 2
@@ -594,6 +594,23 @@ export function ancoreDi(nodo: SchemaNodo): SchemaAncora[] {
 
 export function ancoraDi(nodo: SchemaNodo, id: string): SchemaAncora | undefined {
   return ancoreDi(nodo).find((a) => a.id === id)
+}
+
+/**
+ * Il lato da cui una tubazione deve imboccare questo capo, quando il capo lo impone;
+ * `undefined` quando la rotta è libera di arrivare come vuole.
+ *
+ * Lo impone la sola **giunzione**: è l'unico simbolo le cui quattro ancore coincidono — stanno
+ * tutte al centro del pallino — quindi l'unico per cui il disegno non può dedurre da che parte
+ * il tubo entra, ed è anche l'unico la cui forma (la T, o la croce, o il gomito) è disegnata
+ * per intero dalle tubazioni che vi arrivano.
+ *
+ * La condizione è sul TIPO e non sulla presenza del campo `lato`: così la regola non si allarga
+ * in silenzio ad altri simboli il giorno che uno di loro dichiarasse un lato per ragioni sue.
+ */
+export function latoImposto(nodo: SchemaNodo, ancoraId: string): SchemaLatoAncora | undefined {
+  if (nodo.tipo !== 'giunzione') return undefined
+  return ancoraDi(nodo, ancoraId)?.lato
 }
 
 /**
