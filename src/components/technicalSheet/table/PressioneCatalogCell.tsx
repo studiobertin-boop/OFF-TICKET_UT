@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Controller, useWatch, type Control } from 'react-hook-form'
+import { useEffect, useRef, useState } from 'react'
+import { useController, useWatch, type Control } from 'react-hook-form'
 import { Autocomplete, TextField, Box } from '@mui/material'
 import { equipmentCatalogApi } from '@/services/api/equipmentCatalog'
 import { etichettaVariante, type VarianteCatalogo } from '@/utils/equipmentVarianti'
@@ -62,6 +62,7 @@ export const PressioneCatalogCell = ({
   const [varianti, setVarianti] = useState<VarianteCatalogo[]>([])
   const [loading, setLoading] = useState(false)
   const ac = useNoAutofillToken()
+  const { field } = useController({ name: `${base}.${pressioneField}`, control })
 
   useEffect(() => {
     let cancelled = false
@@ -102,78 +103,88 @@ export const PressioneCatalogCell = ({
     if (scelta) applica(scelta)
   }
 
+  /**
+   * Marca e modello con una sola variante a catalogo: non c'è scelta da fare, quindi la si fa
+   * da soli. Una volta per combinazione — il ref ricorda l'ultima marca+modello già tentata —
+   * così uno svuotamento volontario del campo dopo l'autocompilazione non viene riscritto subito.
+   */
+  const autoApplicataRef = useRef<string | null>(null)
+  useEffect(() => {
+    const chiave = `${marca ?? ''}::${modello ?? ''}`
+    if (varianti.length !== 1 || autoApplicataRef.current === chiave) return
+    autoApplicataRef.current = chiave
+    if (field.value == null) {
+      field.onChange(varianti[0].value)
+      applica(varianti[0])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [varianti, marca, modello])
+
+  const current = typeof field.value === 'number' ? field.value : undefined
+
   return (
-    <Controller
-      name={`${base}.${pressioneField}`}
-      control={control}
-      render={({ field }) => {
-        const current = typeof field.value === 'number' ? field.value : undefined
-        return (
-          <Box sx={{ position: 'relative' }}>
-            <Autocomplete
-              freeSolo
-              fullWidth
-              openOnFocus
-              disableClearable
-              forcePopupIcon={false}
-              disabled={!marca || !modello}
-              // Il tipo delle opzioni è ora VarianteCatalogo: il valore corrente, che resta un
-              // numero nel form, va in stringa per rientrare nel tipo che freeSolo accetta.
-              value={current === undefined ? '' : String(current)}
-              options={varianti}
-              loading={loading}
-              slotProps={denseSlotProps}
-              getOptionLabel={(o) =>
-                o === null || o === undefined || o === '' ? '' : typeof o === 'object' ? String(o.value) : String(o)
-              }
-              // Il valore del campo è un numero, non una variante, e due varianti possono
-              // dichiarare la stessa pressione: nessuna voce del menu si marca come scelta.
-              isOptionEqualToValue={() => false}
-              /* Il campo svuotato vale `null` e non `undefined`: quest'ultimo, per
-                 react-hook-form, è un campo mai valorizzato, e alla lettura ne
-                 ripescherebbe il default — la pressione che c'era prima. Stessa ragione
-                 documentata in `NumberCell`. */
-              onChange={(_e, v) => {
-                if (v === null || (v as any) === '') { field.onChange(null); return }
-                if (typeof v === 'object') { field.onChange(v.value); applica(v); return }
-                const num = typeof v === 'number' ? v : parseFloat(v)
-                if (isNaN(num)) { field.onChange(null); return }
-                field.onChange(num)
-                applicaPressione(num)
-              }}
-              onInputChange={(_e, v, reason) => {
-                if (reason !== 'input') return
-                const num = parseFloat(v)
-                field.onChange(v === '' || isNaN(num) ? null : num)
-              }}
-              sx={autocompleteSx}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  type="number"
-                  variant="standard"
-                  placeholder={marca && modello ? '—' : 'Prima il modello'}
-                  InputProps={{ ...params.InputProps, disableUnderline: true }}
-                  inputProps={{ ...params.inputProps, min, max, step, autoComplete: ac }}
-                />
-              )}
-              renderOption={(props, option) => {
-                // La chiave che MUI mette in `props` deriva dall'etichetta, che due varianti
-                // possono avere uguale: si scarta e si usa l'id della riga di catalogo.
-                // Niente destrutturazione con `_key`: il progetto non copre le variabili non
-                // usate con `varsIgnorePattern`, solo gli argomenti (`argsIgnorePattern`).
-                const rest = { ...props }
-                delete (rest as any).key
-                return (
-                  <Box component="li" key={option.item.id} {...rest}>
-                    {etichettaVariante(catalogType, option)}
-                  </Box>
-                )
-              }}
-            />
-          </Box>
-        )
-      }}
-    />
+    <Box sx={{ position: 'relative' }}>
+      <Autocomplete
+        freeSolo
+        fullWidth
+        openOnFocus
+        disableClearable
+        forcePopupIcon={false}
+        disabled={!marca || !modello}
+        // Il tipo delle opzioni è ora VarianteCatalogo: il valore corrente, che resta un
+        // numero nel form, va in stringa per rientrare nel tipo che freeSolo accetta.
+        value={current === undefined ? '' : String(current)}
+        options={varianti}
+        loading={loading}
+        slotProps={denseSlotProps}
+        getOptionLabel={(o) =>
+          o === null || o === undefined || o === '' ? '' : typeof o === 'object' ? String(o.value) : String(o)
+        }
+        // Il valore del campo è un numero, non una variante, e due varianti possono
+        // dichiarare la stessa pressione: nessuna voce del menu si marca come scelta.
+        isOptionEqualToValue={() => false}
+        /* Il campo svuotato vale `null` e non `undefined`: quest'ultimo, per
+           react-hook-form, è un campo mai valorizzato, e alla lettura ne
+           ripescherebbe il default — la pressione che c'era prima. Stessa ragione
+           documentata in `NumberCell`. */
+        onChange={(_e, v) => {
+          if (v === null || (v as any) === '') { field.onChange(null); return }
+          if (typeof v === 'object') { field.onChange(v.value); applica(v); return }
+          const num = typeof v === 'number' ? v : parseFloat(v)
+          if (isNaN(num)) { field.onChange(null); return }
+          field.onChange(num)
+          applicaPressione(num)
+        }}
+        onInputChange={(_e, v, reason) => {
+          if (reason !== 'input') return
+          const num = parseFloat(v)
+          field.onChange(v === '' || isNaN(num) ? null : num)
+        }}
+        sx={autocompleteSx}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            type="number"
+            variant="standard"
+            placeholder={marca && modello ? '—' : 'Prima il modello'}
+            InputProps={{ ...params.InputProps, disableUnderline: true }}
+            inputProps={{ ...params.inputProps, min, max, step, autoComplete: ac }}
+          />
+        )}
+        renderOption={(props, option) => {
+          // La chiave che MUI mette in `props` deriva dall'etichetta, che due varianti
+          // possono avere uguale: si scarta e si usa l'id della riga di catalogo.
+          // Niente destrutturazione con `_key`: il progetto non copre le variabili non
+          // usate con `varsIgnorePattern`, solo gli argomenti (`argsIgnorePattern`).
+          const rest = { ...props }
+          delete (rest as any).key
+          return (
+            <Box component="li" key={option.item.id} {...rest}>
+              {etichettaVariante(catalogType, option)}
+            </Box>
+          )
+        }}
+      />
+    </Box>
   )
 }

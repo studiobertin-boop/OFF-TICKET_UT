@@ -42,7 +42,7 @@ export function useOCRAnalysis() {
   const [progress, setProgress] = useState(0)
 
   /**
-   * Converte File in base64
+   * Converte File in base64 (senza il prefisso `data:...;base64,`)
    */
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -83,9 +83,9 @@ export function useOCRAnalysis() {
     setProgress(0)
 
     try {
-      // STEP 1: Converte immagine in base64
+      // STEP 1: Converte il file in base64
       setProgress(20)
-      const image_base64 = await fileToBase64(file)
+      const file_base64 = await fileToBase64(file)
 
       // STEP 2: Chiama Edge Function
       setProgress(40)
@@ -95,8 +95,14 @@ export function useOCRAnalysis() {
         throw new Error('Sessione non valida. Effettua il login.')
       }
 
+      /**
+       * Il PDF viaggia come PDF: è la funzione a darlo in pasto al modello nella forma
+       * giusta. Convertirlo qui in immagine perdeva il testo del documento e limitava la
+       * lettura alla prima pagina — la targhetta può stare sulla seconda.
+       */
       const requestBody: OCRAnalysisRequest = {
-        image_base64,
+        file_base64,
+        media_type: file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
         equipment_type: equipmentType,
         equipment_code: equipmentCode
       }

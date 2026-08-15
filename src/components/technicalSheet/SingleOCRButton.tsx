@@ -1,11 +1,17 @@
 import { useState, useRef } from 'react'
-import { IconButton, Tooltip, CircularProgress } from '@mui/material'
+import { Alert, IconButton, Snackbar, Tooltip, CircularProgress } from '@mui/material'
 import { PhotoCamera as PhotoCameraIcon } from '@mui/icons-material'
 import { useOCRAnalysis, requiresNormalizationConfirmation } from '@/hooks/useOCRAnalysis'
 import { NormalizationSuggestionDialog } from './NormalizationSuggestionDialog'
-import { convertPDFToImages, isPDFFile } from '@/utils/pdfToImage'
 import type { EquipmentCatalogType } from '@/types'
 import type { EquipmentType, OCRExtractedData, NormalizedField } from '@/types/ocr'
+
+/**
+ * Tetto di dimensione del file da leggere. Il limite vero è quello dell'API del modello (32 MB
+ * per documento); qui si sta ampiamente sotto, perché un certificato scansionato che superi i
+ * 20 MB è quasi sempre una scansione a risoluzione inutilmente alta.
+ */
+const MAX_BYTES = 20 * 1024 * 1024
 
 interface SingleOCRButtonProps {
   equipmentType: EquipmentCatalogType
@@ -81,6 +87,7 @@ export const SingleOCRButton = ({
 
   const [showNormalizationDialog, setShowNormalizationDialog] = useState(false)
   const [normalizationData, setNormalizationData] = useState<NormalizationDialogData | null>(null)
+  const [errore, setErrore] = useState<string | null>(null)
 
   const handleClick = () => {
     if (!disabled && fileInputRef.current) {
@@ -94,34 +101,18 @@ export const SingleOCRButton = ({
 
     console.log('📸 File selezionato:', file.name, file.type, file.size, 'bytes')
 
-    // Gestione PDF: converti prima pagina in PNG
-    let fileToAnalyze = file
-    if (isPDFFile(file)) {
-      console.log('📄 PDF rilevato, conversione prima pagina in corso...')
-      try {
-        const result = await convertPDFToImages(file, 1.5, 1) // Solo prima pagina
-
-        if (result.pages.length === 0) {
-          console.error('❌ Nessuna pagina estratta dal PDF')
-          alert('Errore: impossibile convertire il PDF')
-          event.target.value = ''
-          return
-        }
-
-        const pngBlob = result.pages[0].blob
-        const pngFile = new File([pngBlob],
-          file.name.replace('.pdf', '_page1.png'),
-          { type: 'image/png' })
-
-        console.log('✅ PDF convertito in PNG:', pngFile.name, pngFile.type, pngFile.size, 'bytes')
-        fileToAnalyze = pngFile
-      } catch (error) {
-        console.error('❌ Errore conversione PDF:', error)
-        alert('Errore durante la conversione del PDF')
-        event.target.value = ''
-        return
-      }
+    /**
+     * Il file va all'analisi così com'è, PDF compresi: è la funzione a darlo al modello nella
+     * forma giusta. Resta solo il limite di dimensione, che qui si intercetta con un messaggio
+     * invece di lasciarlo tornare come errore di rete.
+     */
+    if (file.size > MAX_BYTES) {
+      setErrore(`Il file pesa ${(file.size / 1024 / 1024).toFixed(1)} MB: il limite è ${MAX_BYTES / 1024 / 1024} MB.`)
+      event.target.value = ''
+      return
     }
+
+    const fileToAnalyze = file
 
     // Se componentType è presente, usa tipo OCR specifico per il componente
     let ocrType: EquipmentType | undefined
@@ -137,6 +128,12 @@ export const SingleOCRButton = ({
     console.log('📸 Upload foto singola:', { equipmentType, ocrType, code, componentType, file: fileToAnalyze.name })
 
     const result = await analyzeImage(fileToAnalyze, ocrType, code)
+
+    // Il fallimento va detto: prima restava nella console del browser e la scheda non
+    // cambiava, così la rotellina girava e sembrava non fosse successo niente.
+    if (!result.success) {
+      setErrore(result.error ?? 'Lettura non riuscita')
+    }
 
     if (result.success && result.data) {
       const { marca_normalized, modello_normalized } = result.data
@@ -176,7 +173,7 @@ export const SingleOCRButton = ({
 
     const { field, extractedData } = normalizationData
 
-    let finalData = { ...extractedData }
+    const finalData = { ...extractedData }
 
     if (useNormalized && selectedValue) {
       // Usa valore selezionato dalle alternative
@@ -213,8 +210,20 @@ export const SingleOCRButton = ({
         onChange={handleFileChange}
       />
 
+      {/* Esito negativo della lettura: senza, la rotellina finisce e non compare nulla. */}
+      <Snackbar
+        open={errore !== null}
+        autoHideDuration={8000}
+        onClose={() => setErrore(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="error" variant="filled" onClose={() => setErrore(null)} sx={{ maxWidth: 520 }}>
+          {errore}
+        </Alert>
+      </Snackbar>
+
       {/* Camera button */}
-      <Tooltip title="Compila da foto">
+      <Tooltip title="Compila da foto o da PDF">
         <span>
           <IconButton
             onClick={handleClick}

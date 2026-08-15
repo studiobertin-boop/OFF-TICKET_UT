@@ -20,6 +20,7 @@ import {
   eCompleta, righeComplete, somma, type Completezza,
 } from '@/utils/schedaCompleteness'
 import { useHydrateCatalogOrigini } from '@/hooks/useHydrateCatalogOrigini'
+import { normalizeDiametroValvola } from '@/services/equipmentAudit'
 import { type MovimentoPratica } from '@/services/fascicolo/scadenza'
 import type { SchedaDatiCompleta } from '@/types'
 import type { BatchOCRResult, BatchOCRItem } from '@/types/ocr'
@@ -254,7 +255,7 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
   /**
    * Il gate su `isDirty` non è un'ottimizzazione: la scheda resta modificabile anche dopo il
    * completamento, quindi senza di esso la sola apertura in consultazione la riscriverebbe
-   * dopo 120 secondi. `watch()` cambia a ogni render, `isDirty` solo su modifica reale.
+   * dopo pochi secondi. `watch()` cambia a ogni render, `isDirty` solo su modifica reale.
    */
   useEffect(() => {
     if (!onAutoSave || !isDirty) return
@@ -264,10 +265,11 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
       clearTimeout(autoSaveTimeoutRef.current)
     }
 
-    // Set new timeout for autosave (120 secondi dopo l'ultima modifica)
+    // Set new timeout for autosave (3 secondi dopo l'ultima modifica)
     autoSaveTimeoutRef.current = setTimeout(() => {
+      autoSaveTimeoutRef.current = null
       onAutoSave(watchedData as SchedaDatiCompleta)
-    }, 120000)
+    }, 3000)
 
     // Cleanup
     return () => {
@@ -276,6 +278,27 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
       }
     }
   }, [watchedData, onAutoSave, isDirty])
+
+  /**
+   * Non c'è più un pulsante "Salva bozza": uscire dalla scheda prima che il debounce sopra
+   * scada perderebbe l'ultima modifica. I ref si aggiornano a ogni render (non sono nella
+   * dependency array apposta) così la cleanup, che gira solo allo smontaggio, salva sempre
+   * il dato più fresco invece di quello catturato alla creazione dell'effetto.
+   */
+  const latestWatchedDataRef = useRef(watchedData)
+  latestWatchedDataRef.current = watchedData
+  const onAutoSaveRef = useRef(onAutoSave)
+  onAutoSaveRef.current = onAutoSave
+
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current)
+        autoSaveTimeoutRef.current = null
+        onAutoSaveRef.current?.(latestWatchedDataRef.current as SchedaDatiCompleta)
+      }
+    }
+  }, [])
 
 
   const handleBatchOCRComplete = (results: BatchOCRResult, items: BatchOCRItem[]) => {
@@ -364,7 +387,13 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
         setValue(`${basePath}.marca` as any, marca)
         setValue(`${basePath}.modello` as any, modello)
         if (data.n_fabbrica) setValue(`${basePath}.n_fabbrica` as any, data.n_fabbrica)
-        if (data.diametro_pressione) setValue(`${basePath}.diametro_pressione` as any, data.diametro_pressione)
+        // Il campo della valvola è `diametro` — `diametro_pressione` è il nome che ha in
+        // risposta all'OCR, e scriverlo tale e quale lasciava il dato in un campo che la
+        // scheda non legge. Il valore va ricondotto alla scala canonica: fa parte della
+        // chiave con cui il catalogo distingue le varianti della valvola.
+        if (data.diametro_pressione) {
+          setValue(`${basePath}.diametro` as any, normalizeDiametroValvola(data.diametro_pressione))
+        }
 
         console.log(`✅ Valvola popolata: ${marca} ${modello}`)
         return

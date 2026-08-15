@@ -12,6 +12,7 @@ import { radii } from '@/theme/tokens'
 import { completezzaRiga, eCompleta } from '@/utils/schedaCompleteness'
 import { CheckCell, NumberCell, SelectCell, TextCell } from './EquipmentCells'
 import { ValvoleProtezioneCell } from './ValvoleProtezioneCell'
+import { DiametroCatalogCell } from './DiametroCatalogCell'
 import { useCellePrincipali } from './useCellePrincipali'
 import { useCampoExit } from './useCampoExit'
 import { FascicoloSection } from '../fascicolo/FascicoloSection'
@@ -212,7 +213,7 @@ const Contenuto = ({
 
           {extraVisibili.map((f) => (
             <Campo key={f.name} label={f.label} largo={f.name === 'note'}>
-              <ExtraControl control={control} base={base} f={f} />
+              <ExtraControl control={control} base={base} f={f} onSelected={onSelected} />
             </Campo>
           ))}
         </Box>
@@ -316,9 +317,16 @@ const etichettaCapacita = (def: EquipmentTypeDef) => {
  * Controllo di un campo extra. È un componente e non una chiamata perché alcuni tipi di
  * campo montano hook propri.
  */
-const ExtraControl = ({ control, base, f }: { control: Control<any>; base: string; f: ExtraFieldDef }) => {
+const ExtraControl = ({ control, base, f, onSelected }: {
+  control: Control<any>
+  base: string
+  f: ExtraFieldDef
+  /** Serve ai campi che scelgono una variante di catalogo, non a tutti gli extra. */
+  onSelected?: (specs: Record<string, any>, item?: EquipmentCatalogItem) => void
+}) => {
   const name = `${base}.${f.name}`
   if (f.kind === 'multi') return <ValvoleProtezioneCell control={control} name={name} />
+  if (f.kind === 'diametro-valvola') return <DiametroCatalogCell control={control} base={base} onSelected={onSelected} />
   if (f.kind === 'select') {
     return <SelectCell control={control} name={name} options={[...(f.options || [])]} display={f.display} labels={f.labels} emptyLabel={f.emptyLabel} />
   }

@@ -157,6 +157,14 @@ describe('duplicati', () => {
     expect(duplicati(input(varianti))).toEqual([])
   })
 
+  it('non considera duplicate due valvole che differiscono per diametro', () => {
+    const varianti = [
+      row('Valvole di sicurezza', 'PADOVAN VALERIO snc', 'TW3', { ptar: 11, diametro: '3/8"', qmax: 8415 }),
+      row('Valvole di sicurezza', 'PADOVAN VALERIO snc', 'TW3', { ptar: 11, diametro: '3/4"', qmax: 16982 }),
+    ]
+    expect(duplicati(input(varianti))).toEqual([])
+  })
+
   it('propone la fusione quando i nomi coincidono', () => {
     const coppia = [
       row('Serbatoi', 'SICC TECH s.r.l.', 'SC 500', { volume: '500' }, { usageCount: 2 }),

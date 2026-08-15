@@ -57,7 +57,6 @@ export const TechnicalDetails = () => {
   const [technicalData, setTechnicalData] = useState<DM329TechnicalData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
   const [formData, setFormData] = useState<SchedaDatiCompleta | null>(null)
   const [autoSaving, setAutoSaving] = useState(false)
   const [showSaveSuccess, setShowSaveSuccess] = useState(false)
@@ -192,13 +191,11 @@ export const TechnicalDetails = () => {
     }
   }, [id, segnalaListeDaAggiornare])
 
-  // Manual save function (con feedback)
+  // Submit nativo del form (Invio in un campo): stesso salvataggio dell'autosave, con feedback.
   const handleFormSubmit = async (data: SchedaDatiCompleta) => {
     if (!id) return
 
     try {
-      setSaving(true)
-
       // Salva i dati nel campo equipment_data (JSONB)
       await technicalDataApi.updateEquipmentData(id, data)
 
@@ -209,31 +206,6 @@ export const TechnicalDetails = () => {
     } catch (err) {
       console.error('Error saving draft:', err)
       alert('Errore nel salvataggio della bozza')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  // Salva bozza usando i dati attuali del form
-  const handleSaveDraft = async () => {
-    if (!id || !formRef.current) return
-
-    try {
-      setSaving(true)
-      const currentData = formRef.current.getFormData()
-
-      // Salva i dati nel campo equipment_data (JSONB)
-      await technicalDataApi.updateEquipmentData(id, currentData)
-
-      setFormData(currentData)
-      setLastSaved(new Date())
-      setShowSaveSuccess(true)
-      segnalaListeDaAggiornare()
-    } catch (err) {
-      console.error('Error saving draft:', err)
-      alert('Errore nel salvataggio della bozza')
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -554,7 +526,6 @@ export const TechnicalDetails = () => {
                 codicePratica={codicePratica}
                 denominazioneSala={request.denominazione_sala}
                 completezza={completezza}
-                saving={saving}
                 autoSaving={autoSaving}
                 lastSaved={lastSaved}
                 canManageSharing={canManageSharing}
@@ -564,7 +535,6 @@ export const TechnicalDetails = () => {
                 onCivaSummary={() => navigate(`/requests/${id}/civa-summary`)}
                 onRelazione={() => setRelazioneDialogOpen(true)}
                 onDichiarazioni={() => setDichiarazioniDialogOpen(true)}
-                onSaveDraft={handleSaveDraft}
                 relazionePronta={!!relazioneSalvata}
                 dichiarazioniPronte={!!dichiarazioniSalvate}
                 onScaricaRelazione={handleScaricaRelazione}

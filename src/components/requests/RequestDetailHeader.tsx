@@ -3,6 +3,8 @@ import { Box, Button, Chip, IconButton, Typography } from '@mui/material'
 import { ArrowBack as ArrowBackIcon, Edit as EditIcon } from '@mui/icons-material'
 import { StatusChip } from '@/components/common'
 import { BlockIndicator } from './BlockIndicator'
+import { BlocchiNastro } from './BlocchiNastro'
+import type { RiassuntoBlocchi } from '@/utils/blocchiPratica'
 import type { Request } from '@/types'
 
 export interface RequestDetailHeaderProps {
@@ -14,6 +16,10 @@ export interface RequestDetailHeaderProps {
   codicePratica: string
   canManageCodice: boolean
   onEditCodice: () => void
+  /** Lettura dei fermi della pratica, per il nastro sotto lo stepper. */
+  blocchi: RiassuntoBlocchi
+  /** Frazione di percorso coperta (0–1): il nastro finisce sotto il passo raggiunto. */
+  avanzamento: number
   blockReason?: string
   onBack: () => void
   /** Azione primaria a destra (Scheda dati) e, se la pratica è ferma, Sblocca. */
@@ -40,6 +46,8 @@ export const RequestDetailHeader = ({
   codicePratica,
   canManageCodice,
   onEditCodice,
+  blocchi,
+  avanzamento,
   blockReason,
   onBack,
   primaryActions,
@@ -137,6 +145,10 @@ export const RequestDetailHeader = ({
         </Typography>
 
         <Box sx={{ mt: 1.5 }}>{workflow}</Box>
+
+        {/* Quante volte si è fermata, per quanto e perché è ripartita: sotto lo stepper,
+            e lungo quanto il percorso già coperto, così le due righe si leggono in colonna. */}
+        <BlocchiNastro riassunto={blocchi} creataIl={request.created_at} avanzamento={avanzamento} />
       </Box>
     </>
   )

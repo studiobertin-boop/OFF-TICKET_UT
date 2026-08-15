@@ -5,14 +5,16 @@ import {
   Typography,
   Button,
   Divider,
-  List,
-  ListItem,
-  ListItemText,
-  Chip,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+  TableContainer,
 } from '@mui/material'
-import { ContentCopy as ContentCopyIcon } from '@mui/icons-material'
+import { TableChart as ExcelIcon, Description as WordIcon } from '@mui/icons-material'
 import { BillingReportData } from '@/types/billingReport'
-import { STATO_FATTURA_LABELS } from '@/types'
+import { exportBillingReportToExcel, exportBillingReportToWord } from '@/services/billingReportExport'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
 import { toast } from 'react-hot-toast'
@@ -23,7 +25,6 @@ interface BillingReportResultsProps {
   dateTo: string
 }
 
-// Helper per formattare data
 const formatDate = (dateString: string): string => {
   try {
     return format(new Date(dateString), 'dd/MM/yyyy', { locale: it })
@@ -32,59 +33,29 @@ const formatDate = (dateString: string): string => {
   }
 }
 
-// Helper per ottenere nome cliente
-const getCustomerName = (customer: any): string => {
-  if (!customer) return 'N/A'
-  if (customer.company_name) return customer.company_name
-  if (customer.first_name || customer.last_name) {
-    return [customer.first_name, customer.last_name].filter(Boolean).join(' ')
-  }
-  return 'N/A'
-}
-
-// Genera testo formattato per copy/paste - SOLO ELENCO CLIENTI
-const generateTextReport = (data: BillingReportData, dateFrom: string, dateTo: string): string => {
-  let output = ''
-
-  // Ordina tipi alfabeticamente
-  const sortedTypes = Object.keys(data).sort((a, b) => a.localeCompare(b, 'it'))
-
-  sortedTypes.forEach(type => {
-    const items = data[type]
-    output += `--- ${type.toUpperCase()} (${items.length}) ---\n`
-    items.forEach(req => {
-      const customer = getCustomerName(req.customer)
-      output += `${customer}\n`
-    })
-    output += '\n'
-  })
-
-  return output.trim()
-}
+const cellSx = { border: 1, borderColor: 'divider', userSelect: 'text' as const }
 
 export const BillingReportResults = ({
   data,
   dateFrom,
   dateTo,
 }: BillingReportResultsProps) => {
-  const totalCount = Object.values(data).reduce((sum, items) => sum + items.length, 0)
-  const sortedTypes = Object.keys(data).sort((a, b) => a.localeCompare(b, 'it'))
+  const totalCount = data.length
 
-  const handleCopyAll = () => {
-    const textOutput = generateTextReport(data, dateFrom, dateTo)
-    navigator.clipboard.writeText(textOutput)
-    toast.success('Report copiato negli appunti')
+  const handleExportExcel = () => {
+    try {
+      exportBillingReportToExcel(data, dateFrom, dateTo)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Errore durante l\'esportazione Excel')
+    }
   }
 
-  const handleCopyType = (type: string) => {
-    const items = data[type]
-    let output = `--- ${type.toUpperCase()} (${items.length}) ---\n`
-    items.forEach(req => {
-      const customer = getCustomerName(req.customer)
-      output += `${customer}\n`
-    })
-    navigator.clipboard.writeText(output)
-    toast.success(`Gruppo "${type}" copiato negli appunti`)
+  const handleExportWord = () => {
+    try {
+      exportBillingReportToWord(data, dateFrom, dateTo)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Errore durante l\'esportazione Word')
+    }
   }
 
   if (totalCount === 0) {
@@ -104,8 +75,7 @@ export const BillingReportResults = ({
   return (
     <Card>
       <CardContent>
-        {/* Header */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
           <Box>
             <Typography variant="h6" gutterBottom>
               Report Fatturazione
@@ -117,85 +87,52 @@ export const BillingReportResults = ({
               Totale richieste non fatturate: <strong>{totalCount}</strong>
             </Typography>
           </Box>
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<ContentCopyIcon />}
-            onClick={handleCopyAll}
-          >
-            Copia Tutto
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button
+              variant="outlined"
+              startIcon={<ExcelIcon />}
+              onClick={handleExportExcel}
+            >
+              Esporta Excel
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<WordIcon />}
+              onClick={handleExportWord}
+            >
+              Esporta Word
+            </Button>
+          </Box>
         </Box>
 
         <Divider sx={{ mb: 2 }} />
 
-        {/* Gruppi per tipo */}
-        {sortedTypes.map((type, index) => {
-          const items = data[type]
-          return (
-            <Box key={type} sx={{ mb: index < sortedTypes.length - 1 ? 3 : 0 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                <Typography variant="h6" component="div">
-                  {type}
-                  <Chip
-                    label={items.length}
-                    size="small"
-                    color="primary"
-                    sx={{ ml: 1 }}
-                  />
-                </Typography>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<ContentCopyIcon />}
-                  onClick={() => handleCopyType(type)}
-                >
-                  Copia Gruppo
-                </Button>
-              </Box>
-
-              <List dense disablePadding>
-                {items.map((item, idx) => {
-                  const customer = getCustomerName(item.customer)
-                  const date = formatDate(item.closed_date)
-                  const stato = STATO_FATTURA_LABELS[item.stato_fattura]
-
-                  return (
-                    <ListItem
-                      key={item.id}
-                      sx={{
-                        py: 0.5,
-                        px: 1,
-                        bgcolor: idx % 2 === 0 ? 'action.hover' : 'transparent',
-                        fontFamily: 'monospace',
-                      }}
-                    >
-                      <ListItemText
-                        primary={
-                          <Typography
-                            variant="body2"
-                            component="span"
-                            sx={{ fontFamily: 'monospace' }}
-                          >
-                            {customer} - {date} -{' '}
-                            <Chip
-                              label={stato}
-                              size="small"
-                              color={item.stato_fattura === 'AVVISO' ? 'warning' : 'default'}
-                              sx={{ ml: 0.5 }}
-                            />
-                          </Typography>
-                        }
-                      />
-                    </ListItem>
-                  )
-                })}
-              </List>
-
-              {index < sortedTypes.length - 1 && <Divider sx={{ mt: 2 }} />}
-            </Box>
-          )
-        })}
+        <TableContainer sx={{ overflowX: 'auto' }}>
+          <Table size="small" sx={{ border: 1, borderColor: 'divider' }}>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ ...cellSx, fontWeight: 700 }}>OFF/CAC</TableCell>
+                <TableCell sx={{ ...cellSx, fontWeight: 700 }}>TIPO PRATICA</TableCell>
+                <TableCell sx={{ ...cellSx, fontWeight: 700 }}>CODICE PRATICA</TableCell>
+                <TableCell sx={{ ...cellSx, fontWeight: 700 }}>CLIENTE</TableCell>
+                <TableCell sx={{ ...cellSx, fontWeight: 700 }}>DATA CHIUSURA</TableCell>
+                <TableCell sx={{ ...cellSx, fontWeight: 700 }}>X FATTURA</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {data.map(row => (
+                <TableRow key={row.id}>
+                  <TableCell sx={cellSx}>{row.offCacDisplay}</TableCell>
+                  <TableCell sx={cellSx}>{row.requestTypeName}</TableCell>
+                  <TableCell sx={{ ...cellSx, fontFamily: 'monospace' }}>{row.codicePratica}</TableCell>
+                  <TableCell sx={cellSx}>{row.customerName}</TableCell>
+                  <TableCell sx={cellSx}>{formatDate(row.closedDate)}</TableCell>
+                  <TableCell sx={cellSx}>{row.xFattura}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
       </CardContent>
     </Card>
   )

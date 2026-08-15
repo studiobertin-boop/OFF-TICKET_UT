@@ -136,6 +136,42 @@ describe('raggruppaApparecchiatureInstallatore', () => {
     expect(righe).toHaveLength(0)
   })
 
+  test('esclude le apparecchiature già denunciate a INAIL', () => {
+    const righe = raggruppaApparecchiatureInstallatore(
+      scheda({
+        compressori: [{ codice: 'C1', marca: 'KAESER', modello: 'X', n_fabbrica: '1' }],
+        disoleatori: [
+          {
+            codice: 'C1.1',
+            compressore_associato: 'C1',
+            marca: 'X',
+            volume: 65,
+            ps_pressione_max: 11,
+            gia_denunciato: true,
+            matricola_inail: '2018/7/00046/TV',
+            valvola_sicurezza: valvola,
+          },
+        ],
+        serbatoi: [
+          { codice: 'S1', marca: 'X', volume: 500, ps_pressione_max: 11, gia_denunciato: true, valvola_sicurezza: valvola },
+          { codice: 'S2', marca: 'X', volume: 500, ps_pressione_max: 11, valvola_sicurezza: valvola },
+        ],
+        essiccatori: [{ codice: 'E1', marca: 'X', modello: 'Y', n_fabbrica: 'Z' }],
+        scambiatori: [
+          { codice: 'E1.1', essiccatore_associato: 'E1', marca: 'X', volume: 58, ps_pressione_max: 11, gia_denunciato: true },
+        ],
+        filtri: [{ codice: 'F1', marca: 'X', modello: 'Y', n_fabbrica: 'Z' }],
+        recipienti_filtro: [
+          { codice: 'F1.1', filtro_associato: 'F1', marca: 'X', volume: 55, ps_pressione_max: 11, gia_denunciato: true },
+        ],
+      })
+    )
+
+    // Resta il solo serbatoio non denunciato: la dichiarazione riguarda ciò che si sta
+    // denunciando adesso, non ciò che INAIL ha già a matricola.
+    expect(righe.map((r) => r.codiceOrdinamento)).toEqual(['S2'])
+  })
+
   test('un dipendente soggetto senza principale trovato compare comunque, con principale null', () => {
     const righe = raggruppaApparecchiatureInstallatore(
       scheda({

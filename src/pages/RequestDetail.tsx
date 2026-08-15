@@ -51,10 +51,11 @@ import { CompleteCustomerDataDialog } from '@/components/customers/CompleteCusto
 import { CodicePraticaDialog } from '@/components/requests/CodicePraticaDialog'
 import { CustomerInfoSection } from '@/components/requests/CustomerInfoSection'
 import { PlantLocationSection } from '@/components/requests/PlantLocationSection'
-import { useActiveBlock } from '@/hooks/useRequestBlocks'
+import { useActiveBlock, useRequestBlocks } from '@/hooks/useRequestBlocks'
+import { riassumiBlocchi } from '@/utils/blocchiPratica'
 import { isDM329Family } from '@/utils/workflow'
 import { FieldValue, SectionLabel } from '@/components/common'
-import { DM329StatusStepper } from '@/components/requests/DM329StatusStepper'
+import { DM329StatusStepper, STEPS } from '@/components/requests/DM329StatusStepper'
 import { SchedaDatiStatoGroup } from '@/components/requests/SchedaDatiStatoGroup'
 import { CAMPO_STATO_SCHEDA, compilazioneDiPratica, type StatoScheda } from '@/utils/schedaStato'
 import { useRequestTypes } from '@/hooks/useRequestTypes'
@@ -70,6 +71,7 @@ export const RequestDetail = () => {
   const { user } = useAuth()
   const { data: request, isLoading, error, refetch } = useRequest(id!)
   const { data: activeBlock } = useActiveBlock(id)
+  const { data: blocchiPratica = [] } = useRequestBlocks(id)
   const { isEnabled: dm329FullWorkflowEnabled } = useFeatureFlag('dm329_full_workflow')
   const { data: requestTypes = [] } = useRequestTypes()
 
@@ -115,6 +117,7 @@ export const RequestDetail = () => {
   const [offCacValue, setOffCacValue] = useState<'off' | 'cac' | ''>('')
   const [statoFatturaValue, setStatoFatturaValue] = useState<StatoFattura>('NO')
   const [togglingUrgent, setTogglingUrgent] = useState(false)
+  const [savingXFattura, setSavingXFattura] = useState(false)
   const [salvandoStatoScheda, setSalvandoStatoScheda] = useState(false)
   const queryClient = useQueryClient()
 
@@ -247,6 +250,7 @@ export const RequestDetail = () => {
     return Object.entries(request.custom_fields)
       .filter(([key]) => {
         if (key === 'note') return false                                               // ha una sezione dedicata
+        if (key === 'x_fattura') return false                                          // colonna proprietà, solo admin
         if (isDM329 && ['no_civa', 'off_cac', 'stato_fattura'].includes(key)) return false // colonna proprietà
         if (campiCliente.includes(key)) return false                                   // sezione Cliente
         if (campiTecnici.includes(key)) return false                                   // interni
@@ -329,6 +333,24 @@ export const RequestDetail = () => {
       alert('Errore nel cambiamento dello stato urgente')
     } finally {
       setTogglingUrgent(false)
+    }
+  }
+
+  const handleChangeXFattura = async (delta: 1 | -1) => {
+    if (!id || !request) return
+    const current = (request.custom_fields?.x_fattura as number) ?? 1
+    const next = Math.min(10, Math.max(1, current + delta))
+    if (next === current) return
+
+    try {
+      setSavingXFattura(true)
+      await requestsApi.updateCustomField(id, 'x_fattura', next)
+      await refetch()
+    } catch (err) {
+      console.error('Error updating x_fattura:', err)
+      alert('Errore nel salvataggio di X Fattura')
+    } finally {
+      setSavingXFattura(false)
     }
   }
 
@@ -540,6 +562,18 @@ export const RequestDetail = () => {
   const indirizzoImpianto = risolviIndirizzoImpianto(request.indirizzo_impianto)
   const noteSalvata = (request.custom_fields?.note as string) || ''
 
+  const riassuntoBlocchi = riassumiBlocchi(blocchiPratica, { creataIl: request.created_at })
+
+  /**
+   * Quanto del percorso la pratica ha coperto: la stessa frazione del pallino acceso nello
+   * stepper — centro del passo corrente, non suo bordo — così il nastro finisce lì sotto.
+   * Fuori dal DM329 non c'è uno stepper a cui allinearsi e il nastro prende tutta la riga.
+   */
+  const passoCorrente = STEPS.indexOf(request.status as never)
+  const avanzamento = isDM329 && passoCorrente > -1
+    ? (passoCorrente + 0.5) / STEPS.length
+    : 1
+
   return (
     <Layout>
       <Box>
@@ -550,6 +584,8 @@ export const RequestDetail = () => {
           codicePratica={codicePratica}
           canManageCodice={canManageCodice}
           onEditCodice={() => setCodiceDialogOpen(true)}
+          blocchi={riassuntoBlocchi}
+          avanzamento={avanzamento}
           blockReason={activeBlock?.reason}
           onBack={() => navigate('/requests')}
           primaryActions={
@@ -812,6 +848,10 @@ export const RequestDetail = () => {
               setStatoFatturaValue={setStatoFatturaValue}
               showIncompleteCustomer={!!customerRecord && hasIncompleteCustomerData(customerRecord)}
               onCompleteCustomer={() => setShowCompleteCustomerDialog(true)}
+              isAdmin={user?.role === 'admin'}
+              xFattura={(request.custom_fields?.x_fattura as number) ?? 1}
+              savingXFattura={savingXFattura}
+              onChangeXFattura={handleChangeXFattura}
             />
 
             <AssignmentSection

@@ -34,7 +34,7 @@ export default function BillingReport() {
       setReportData(data)
 
       // Calculate total
-      const totalCount = Object.values(data).reduce((sum, items) => sum + items.length, 0)
+      const totalCount = data.length
 
       if (totalCount === 0) {
         // react-hot-toast non ha toast.info: il toast "blank" con icona è la
@@ -70,7 +70,7 @@ export default function BillingReport() {
             Report Fatturazione
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Visualizza le richieste chiuse non ancora fatturate (stato fattura: NO o AVVISO) per un periodo selezionato.
+            Visualizza le richieste chiuse non ancora fatturate (stato fattura: No) per un periodo selezionato.
           </Typography>
         </Box>
 

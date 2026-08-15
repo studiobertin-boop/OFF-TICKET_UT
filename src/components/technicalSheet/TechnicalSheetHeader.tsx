@@ -11,7 +11,6 @@ import {
   Gavel as GavelIcon,
   Inventory2 as Inventory2Icon,
   Refresh as RefreshIcon,
-  Save as SaveIcon,
   Share as ShareIcon,
 } from '@mui/icons-material'
 import { AzioneIcona, AzionePronta } from '@/components/common'
@@ -36,7 +35,6 @@ export interface TechnicalSheetHeaderProps {
   codicePratica: string
   denominazioneSala?: string | null
   completezza: Completezza
-  saving: boolean
   autoSaving: boolean
   lastSaved: Date | null
   canManageSharing: boolean
@@ -47,7 +45,6 @@ export interface TechnicalSheetHeaderProps {
   onCivaSummary: () => void
   onRelazione: () => void
   onDichiarazioni: () => void
-  onSaveDraft: () => void
   /** Presente quando la relazione è già stata generata e salvata. */
   relazionePronta: boolean
   /** Presente quando le dichiarazioni sono già state generate e salvate. */
@@ -76,7 +73,6 @@ export const TechnicalSheetHeader = ({
   codicePratica,
   denominazioneSala,
   completezza,
-  saving,
   autoSaving,
   lastSaved,
   canManageSharing,
@@ -86,7 +82,6 @@ export const TechnicalSheetHeader = ({
   onCivaSummary,
   onRelazione,
   onDichiarazioni,
-  onSaveDraft,
   relazionePronta,
   dichiarazioniPronte,
   onScaricaRelazione,
@@ -219,13 +214,6 @@ export const TechnicalSheetHeader = ({
               Salvato alle {lastSaved.toLocaleTimeString('it-IT')}
             </Typography>
           )}
-
-          <AzioneIcona
-            icona={<SaveIcon fontSize="small" />}
-            testo="Salva bozza"
-            onClick={onSaveDraft}
-            disabled={saving || autoSaving}
-          />
 
           {canManageSharing && (
             <AzioneIcona icona={<ShareIcon fontSize="small" />} testo="Assegna scheda" onClick={onShare} />
