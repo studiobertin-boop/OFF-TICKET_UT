@@ -20,6 +20,7 @@ import {
   FONT,
   TESTO_LIBERO,
   TRATTO,
+  TRATTEGGIO_CONDENSE,
 } from './symbols'
 import {
   instrada,
@@ -132,7 +133,7 @@ function renderLineaCondense(
   const pDa = posizioneAncora(da, ancoraDa)
   const pA = posizioneAncora(a, ancoraA)
   const punti = instrada(stile, pDa, pA, gomiti, quote, { da: latoImposto(da, ancoraDa), a: latoImposto(a, ancoraA) })
-  const svg = `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" stroke-dasharray="10 7" marker-end="url(#freccia)" />`
+  const svg = `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" stroke-dasharray="${TRATTEGGIO_CONDENSE}" marker-end="url(#freccia)" />`
   return { svg, punti }
 }
 

@@ -19,6 +19,14 @@ import { chiaveSimbolo } from '../types'
 
 export const TRATTO = 2
 /**
+ * Tratteggio delle linee condense, unica fonte per il documento e per la tela dell'editor.
+ * Fino al Blocco D4 il numero era scritto due volte con due valori diversi ('10 7' qui, '8 6' in
+ * SchemaEdgeTubazione.tsx): finche' la tela era nera la differenza non si notava, su fondo bianco
+ * il confronto con l'anteprima e' immediato. Non e' il tratteggio del codolo del terminale utenze
+ * (`simboloUtenze`), che porta lo stesso numero per coincidenza e vuol dire un'altra cosa.
+ */
+export const TRATTEGGIO_CONDENSE = '10 7'
+/**
  * Esportato perché non lo usa solo l'SVG: l'editor rende le annotazioni libere in HTML sulla
  * tela (TestiLiberi.tsx) e deve usare lo STESSO carattere del documento, non una seconda
  * dichiarazione uguale che nessuno terrebbe allineata a questa.
@@ -178,7 +186,7 @@ export function campioneTubazione(stile: SchemaArcoStile): string {
   if (stile === 'flessibile') {
     return `<path d="${ondula(capi)}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
   }
-  const tratteggio = stile === 'condensa' ? ' stroke-dasharray="10 7"' : ''
+  const tratteggio = stile === 'condensa' ? ` stroke-dasharray="${TRATTEGGIO_CONDENSE}"` : ''
   return `<path d="M ${-meta} 0 L ${meta} 0" fill="none" stroke="#000" stroke-width="${TRATTO}"${tratteggio} />`
 }
 

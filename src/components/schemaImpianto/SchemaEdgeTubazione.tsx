@@ -12,7 +12,7 @@
  */
 import { useCallback } from 'react'
 import { BaseEdge, EdgeLabelRenderer, useReactFlow, type EdgeProps } from '@xyflow/react'
-import { riduttorePressione, valvolaIntercettazione } from '@/services/schemaImpianto/symbols'
+import { riduttorePressione, valvolaIntercettazione, TRATTEGGIO_CONDENSE } from '@/services/schemaImpianto/symbols'
 import {
   ondula,
   percorso,
@@ -349,7 +349,7 @@ export function SchemaEdgeTubazione({
           // si innesterà, e un tubo può benissimo essere insieme selezionato e sorvolato.
           stroke: edgeData?.evidenziato ? '#ed6c02' : selected ? '#1976d2' : '#000',
           strokeWidth: edgeData?.evidenziato ? 4 : selected ? 3 : 2,
-          strokeDasharray: stile === 'condensa' ? '8 6' : undefined,
+          strokeDasharray: stile === 'condensa' ? TRATTEGGIO_CONDENSE : undefined,
         }}
       />
       {/*

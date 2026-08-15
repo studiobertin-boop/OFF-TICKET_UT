@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { chiaveSimbolo } from '../types'
-import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloUtenze, valvolaIntercettazione, riduttorePressione, testoMultiRiga, DIAMETRO_GIUNZIONE } from '../symbols'
+import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloUtenze, valvolaIntercettazione, riduttorePressione, testoMultiRiga, DIAMETRO_GIUNZIONE, campioneTubazione, TRATTEGGIO_CONDENSE } from '../symbols'
 import { capoValido } from '../agganci'
 
 describe('chiaveSimbolo', () => {
@@ -303,5 +303,15 @@ describe('riduttorePressione', () => {
     const orizzontale = riduttorePressione(50, 50, 'orizzontale')
     const verticale = riduttorePressione(50, 50, 'verticale')
     expect(orizzontale).not.toBe(verticale)
+  })
+})
+
+describe('campioneTubazione', () => {
+  // La tela (SchemaEdgeTubazione.tsx) e il documento devono tratteggiare le condense allo stesso
+  // modo: fino al Blocco D4 la tela usava '8 6' e il documento '10 7', e su fondo nero la
+  // differenza non si notava. Il test fissa la costante, non il numero scritto due volte.
+  it('il campione di legenda delle condense usa la costante del tratteggio', () => {
+    expect(campioneTubazione('condensa')).toContain(`stroke-dasharray="${TRATTEGGIO_CONDENSE}"`)
+    expect(TRATTEGGIO_CONDENSE).toBe('10 7')
   })
 })
