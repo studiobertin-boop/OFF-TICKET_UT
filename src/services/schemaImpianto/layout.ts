@@ -83,8 +83,12 @@ function posiziona(nodo: SchemaNodo, x: number, y: number): SchemaNodoPosizionat
  * una decorazione che attraversa il disegno, non ciò che decide dove comincia la pagina. Senza
  * questo fermo, un'apparecchiatura a meno di `MARGINE_SUPERIORE / 2` dal bordo superiore (per
  * esempio trascinata a `y=20`, con un margine di 55) produceva un `yMin` negativo e la cima del
- * muro finiva tagliata fuori dal viewBox — stesso rilievo del fondo qui sotto, sull'altro bordo
- * (revisione finale del Blocco D4, dopo il rilievo Importante su `dimensioniLayout`).
+ * muro finiva tagliata fuori dal viewBox — a differenza del fondo (vedi il commento su
+ * `dimensioniLayout` più sotto), qui non c'è una tabella sotto che assorba lo sforo: il `viewBox`
+ * comincia davvero a zero, e nulla aggiunto più in basso rimedia a qualcosa che sta sopra il bordo
+ * superiore. Fix condiviso apposta fra `calcolaMuro` e `muroDaAscissa` (revisione finale del
+ * Blocco D4, dopo il rilievo Importante su `dimensioniLayout`): entrambe soffrivano lo stesso
+ * difetto perché entrambe passano da qui.
  */
 function inviluppoVerticale(nodi: SchemaNodoPosizionato[]): { yMin: number; yMax: number } | null {
   const rilevanti = nodi.filter((n) => n.tipo !== 'utenze')
@@ -288,17 +292,26 @@ export function ingombroTesto(testo: SchemaTestoLibero): { destra: number; basso
  * tela e finirebbe tagliata nel PNG. Tiene conto anche dei testi liberi, per lo stesso motivo:
  * un'annotazione trascinata oltre l'ultima apparecchiatura non deve finire tagliata nel PNG.
  *
- * Tiene conto anche del muro, spessore compreso (`SPESSORE_MURO`) e sui due assi: finché nasceva
- * da sé fra i due gruppi restava sempre dentro l'inviluppo dei nodi, ma dal Blocco D4 il
+ * Tiene conto anche del muro sull'asse orizzontale, spessore compreso (`SPESSORE_MURO`): finché
+ * nasceva da sé fra i due gruppi restava sempre dentro l'inviluppo dei nodi, ma dal Blocco D4 il
  * committente lo trascina dove vuole, e un muro posato a destra di tutto il disegno finiva nel
  * markup ma fuori dal viewBox — visibile sulla tela dell'editor, assente nell'anteprima e nel
- * .docx (revisione finale, rilievo Importante). Il fondo del muro (`layout.muro.yMax`) va nello
- * stesso `maxY`: `inviluppoVerticale` allarga l'estensione verticale del muro di
- * `MARGINE_SUPERIORE / 2` (55) sopra e sotto le apparecchiature che separa, un margine più largo
- * del `MARGINE` (40) che allarga qui la pagina — senza questo candidato, un muro con niente sotto
- * più in basso della sua stessa estensione finiva 15 unità sotto il bordo della pagina a ogni
- * disegno con sala e linea ma senza pozzo di raccolta né catena di trattamento (revisione finale,
- * secondo rilievo).
+ * .docx (revisione finale, rilievo Importante).
+ *
+ * Sull'asse verticale il fondo del muro NON è fra i candidati di `maxY`, di proposito: sarebbe il
+ * gemello del fix sopra (`inviluppoVerticale` allarga il muro di `MARGINE_SUPERIORE / 2`, 55,
+ * mentre qui la pagina si allarga di solo `MARGINE`, 40), ma qui il gemello è stato provato e
+ * scartato in revisione finale (secondo rilievo). Chi consuma un `renderSvg` vero non vede mai
+ * questo scarto: `renderSvg` disegna sempre la tabella "Lista apparecchiature" sotto il disegno
+ * (un muro esiste solo se c'è almeno un'apparecchiatura per gruppo, quindi la tabella ha sempre
+ * almeno 2 righe, ≥182 unità di margine) — più del disavanzo massimo possibile fra il fondo del
+ * muro e questo `maxY` (al più `MARGINE_SUPERIORE/2 − MARGINE` = 15 unità, perché l'insieme di nodi
+ * che allarga il muro è sempre un sottoinsieme di quello che allarga `maxY` qui). Includerlo
+ * comunque avrebbe due costi reali per un difetto che non si manifesta mai: 55 unità di spazio
+ * vuoto in più fra disegno e tabella in OGNI schema con muro (non solo quelli al limite), e uno
+ * spostamento delle quote di instradamento — `quoteInstradamento` legge proprio questa `altezza` —
+ * cioè delle tubazioni, sul documento consegnato. La prova che il fondo resta comunque dentro
+ * l'SVG vero è un test su `renderSvg`, non su questa funzione (`renderSvg.test.ts`).
  *
  * `layout.testi` legge in modo difensivo (`?? []`) benché `SchemaLayout.testi` sia obbligatorio a
  * livello di tipo (`types.ts`): il produttore che davvero lo dimenticava era `flowALayout`
@@ -321,8 +334,7 @@ export function dimensioniLayout(layout: SchemaLayout): { larghezza: number; alt
   )
   const maxY = Math.max(
     ...layout.nodi.map((n) => n.y + dimensioniDi(n).altezza),
-    ...ingombriTesti.map((i) => i.basso),
-    ...(layout.muro ? [layout.muro.yMax] : [])
+    ...ingombriTesti.map((i) => i.basso)
   )
   return { larghezza: maxX + MARGINE, altezza: maxY + MARGINE }
 }

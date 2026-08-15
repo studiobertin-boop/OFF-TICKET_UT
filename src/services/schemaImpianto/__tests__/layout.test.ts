@@ -19,6 +19,7 @@ import {
   layoutSchema,
   quoteInstradamento,
 } from '../layout'
+import { renderSvg } from '../renderSvg'
 import { dimensioniDi, SPESSORE_MURO } from '../symbols'
 import type { SchemaLayout } from '../types'
 
@@ -400,22 +401,35 @@ describe('layoutSchema', () => {
     expect(conMuro.larghezza).toBeGreaterThanOrEqual(muro!.x + SPESSORE_MURO)
   })
 
-  // Revisione finale del Blocco D4, difetto trovato dopo il rilievo Importante sopra: `maxY`
-  // leggeva solo `layout.nodi` e `layout.testi`, mai `layout.muro` — la stessa correzione fatta
-  // per `maxX` non era stata rifatta sull'asse verticale. Il muro si allarga di
-  // `MARGINE_SUPERIORE / 2` (55) sopra e sotto l'inviluppo delle apparecchiature (vedi
-  // `inviluppoVerticale`), ma la pagina si allarga di solo `MARGINE` (40): quando nessun nodo
-  // scende più in basso del muro, il fondo del muro finisce sempre 15 unità sotto il bordo
-  // della pagina — non è un caso limite, è la situazione ordinaria di un impianto con sala e
-  // linea senza pozzo di raccolta né catena di trattamento.
-  it('il fondo del muro resta dentro l’altezza della pagina quando nient’altro scende più in basso', () => {
+  // Revisione finale del Blocco D4, difetto trovato dopo il rilievo Importante sopra: il fondo del
+  // muro (`yMax`) può stare fino a 15 unità sotto `dimensioniLayout(...).altezza`, perché
+  // `inviluppoVerticale` allarga il muro di `MARGINE_SUPERIORE / 2` (55) mentre `dimensioniLayout`
+  // allarga la pagina di solo `MARGINE` (40). Un fix gemello di quello su `maxX` (il test sopra)
+  // sembrava la correzione naturale — ed è stato scritto — ma è stato tolto in un secondo giro di
+  // revisione: non risolve un difetto osservabile sul documento consegnato, perché `renderSvg`
+  // disegna sempre la tabella «Lista apparecchiature» sotto il disegno (un muro esiste solo se
+  // c'è almeno un'apparecchiatura per gruppo, quindi la tabella ha sempre ≥2 righe: ≥182 unità di
+  // margine, contro un disavanzo massimo di 15 fra `muro.yMax` e `dimensioniLayout(...).altezza`,
+  // perché l'insieme di nodi che allarga il muro è sempre un sottoinsieme di quello che allarga
+  // `dimensioniLayout`). Includerlo comunque in `maxY` avrebbe avuto due costi reali per un
+  // difetto inesistente: più spazio vuoto fra disegno e tabella in OGNI schema con muro, e uno
+  // spostamento delle quote di instradamento — `quoteInstradamento` legge proprio questa altezza —
+  // cioè delle tubazioni sul documento consegnato al cliente.
+  //
+  // Questo test fissa perciò la proprietà vera, sull'SVG che `renderSvg` produce davvero, non una
+  // proprietà interna di `dimensioniLayout` che si è appena dimostrato non essere quella che
+  // conta. Oggi regge grazie alla tabella, non per costruzione: se domani la tabella diventasse
+  // opzionale, o quel margine si riducesse, questo test lo direbbe subito invece di lasciarlo
+  // scoprire su una consegna.
+  it('in un impianto col muro, il fondo del muro sta dentro l’altezza dichiarata dall’SVG di renderSvg', () => {
     const layout = layoutSchema(modelloConSalaELinea())
     const muro = calcolaMuro(layout.nodi)
     expect(muro).not.toBeNull()
 
-    const conMuro = dimensioniLayout({ ...layout, muro })
+    const svg = renderSvg({ ...layout, muro })
+    const altezzaDichiarata = Number(/height="([\d.]+)"/.exec(svg)![1])
 
-    expect(conMuro.altezza).toBeGreaterThanOrEqual(muro!.yMax)
+    expect(altezzaDichiarata).toBeGreaterThanOrEqual(muro!.yMax)
   })
 
   // Stesso difetto, sull'altro bordo: `inviluppoVerticale` sottrae `MARGINE_SUPERIORE / 2` (55)
