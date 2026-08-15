@@ -74,8 +74,8 @@ describe('serializzazione', () => {
 
   it('rifiuta un salvato con un tipo di nodo sconosciuto invece di rompersi più avanti', () => {
     // A monte Zod accetta il contenuto come z.any(): un tipo ritirato o una modifica manuale
-    // del JSON arriverebbero fin qui. Senza il controllo, `calcolaMuro` (chiamato subito
-    // sotto) esplode leggendo `DIMENSIONI_NODO[tipoInventato]`, che è `undefined`.
+    // del JSON arriverebbero fin qui. Senza il controllo, un tipo sconosciuto arriva intonso
+    // a `definizioneDi`.
     const salvato = serializzaLayout(layoutSchema(modelloDiProva(['C1'])))
     salvato.nodi[0] = { ...salvato.nodi[0], tipo: 'tipo-inventato' as never }
 

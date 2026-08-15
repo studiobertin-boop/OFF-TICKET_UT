@@ -54,8 +54,8 @@ export function layoutAFlow(
 }
 
 /**
- * Ricostruisce il modello dalle entità di react-flow. Il muro arriva dallo stato dell'editor
- * come sola ascissa, e riprende qui l'altezza dal disegno corrente.
+ * Ricostruisce il modello dalle entità di react-flow. Il muro arriva dal chiamante come sola
+ * ascissa e riprende qui l'altezza dal disegno corrente.
  */
 export function flowALayout(
   nodes: Node[],
