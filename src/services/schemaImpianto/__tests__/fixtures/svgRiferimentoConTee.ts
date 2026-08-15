@@ -34,6 +34,11 @@
  * valvole e riduttori"), Task 3 del Blocco D4: il rettangolo bianco che copre la farfalla della
  * valvola di intercettazione (`<rect ... fill="#fff" />` prima del `<path>` della farfalla, sia
  * nel disegno sia nella riga di legenda).
+ *
+ * Verificato di nuovo al commit 5cfe586 ("feat(schema): il muro non si disegna piu' da solo"),
+ * Task 5 del Blocco D4: contenuto invariato. L'impianto di questa fixture ha apparecchiature in
+ * un solo gruppo (nessuna in linea distribuzione), quindi non aveva un muro nemmeno prima — il
+ * Task 5, che toglie il muro disegnato in automatico, non ha nulla da togliere qui.
  */
 export const RIGHE_SVG_RIFERIMENTO_CON_TEE = [
   `<svg xmlns="http://www.w3.org/2000/svg" width="830" height="762" viewBox="0 0 830 762">`,
