@@ -159,7 +159,7 @@ function TestoLibero({ testo, onSposta, onModifica, selezionato, onSeleziona }: 
       // screenToFlowPosition usa a metà trascinamento — l'annotazione rilasciata tornerebbe
       // dov'era. Stesso motivo per cui ce l'ha `SchemaGomito`.
       className="nopan"
-      title="Trascina per spostare, doppio clic per riscrivere o eliminare"
+      title="Trascina per spostare, si cancella col tasto Canc, doppio clic per riscrivere o eliminare"
       onPointerDown={suPointerDown}
       onPointerMove={suPointerMove}
       onPointerUp={suPointerUp}

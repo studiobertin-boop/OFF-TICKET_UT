@@ -564,13 +564,54 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
     [applica, selezione.edges, stato.edges, stato.nodes]
   )
 
-  // Un verso solo: react-flow che seleziona qualcosa spegne la selezione libera, mai il
-  // contrario. Cosi' non esiste il caso in cui un Canc cancella sia un nodo/arco sia il muro o
-  // un'annotazione — le due selezioni non convivono mai con qualcosa dentro entrambe.
+  // Direzione «react-flow spegne la libera»: clic su un nodo/arco (o selezione a rettangolo)
+  // azzera `selezioneLibera`. L'altra direzione vive in `selezionaLibero`/`deselezionaReactFlow`
+  // qui sotto — il pointerdown del muro/di un'annotazione ferma la propagazione (vedi lì), quindi
+  // questo handler non li vede mai e non può essere lui a spegnerli.
   const onSelectionChange = useCallback((s: { nodes: Node[]; edges: Edge[] }) => {
     setSelezione(s)
     if (s.nodes.length > 0 || s.edges.length > 0) setSelezioneLibera(null)
   }, [])
+
+  // Direzione «la libera spegne react-flow». Il pointerdown del muro e di un'annotazione ferma
+  // la propagazione (useGestoPuntatore.ts, TestiLiberi.tsx): il click della pane di react-flow
+  // non scatta e `onSelectionChange` sopra non si accorge di nulla, quindi selezionare il muro o
+  // un testo NON fa decadere da sé una selezione di react-flow già accesa — senza questa
+  // chiamata esplicita un Canc con l'ordine nodo→muro cancellava entrambi, perché due listener
+  // diversi (questo su `window`, quello di react-flow su `document`) leggevano ciascuno la
+  // propria selezione, non condivisa.
+  //
+  // `aggiornaSenzaCronologia`, non `applica`: deselezionare non deve diventare un passo di
+  // Ctrl+Z, per lo stesso motivo per cui `selezioneLibera` sta fuori da `StatoEditor`.
+  const deselezionaReactFlow = useCallback(() => {
+    // Guardia contro la ricorsione con la direzione sopra: senza, ogni chiamata scriverebbe
+    // comunque su `stato` (anche a selezione già vuota), `onSelectionChange` la vedrebbe come un
+    // cambiamento e ripartirebbe un giro a vuoto a ogni clic sul muro/su un'annotazione.
+    if (selezione.nodes.length === 0 && selezione.edges.length === 0) return
+    aggiornaSenzaCronologia((s) => ({
+      ...s,
+      nodes: s.nodes.map((n) => (n.selected ? { ...n, selected: false } : n)),
+      edges: s.edges.map((e) => (e.selected ? { ...e, selected: false } : e)),
+    }))
+  }, [aggiornaSenzaCronologia, selezione.edges.length, selezione.nodes.length])
+
+  const selezionaLibero = useCallback(
+    (nuova: SelezioneLibera) => {
+      setSelezioneLibera(nuova)
+      deselezionaReactFlow()
+    },
+    [deselezionaReactFlow]
+  )
+
+  // La selezione libera può restare stantia: l'annotazione selezionata sparisce dal suo dialogo
+  // (`eliminaTestoAperto`) o il muro da un Ctrl+Z che disfa l'aggiunta, e senza questo effetto un
+  // Canc successivo consumerebbe una voce di cronologia per un'operazione ormai a vuoto.
+  useEffect(() => {
+    if (!selezioneLibera) return
+    const esiste =
+      selezioneLibera.tipo === 'muro' ? stato.muroX !== null : stato.testi.some((t) => t.id === selezioneLibera.id)
+    if (!esiste) setSelezioneLibera(null)
+  }, [selezioneLibera, stato.muroX, stato.testi])
 
   const eliminaSelezione = useCallback(() => {
     const nodi = new Set(selezione.nodes.map((n) => n.id))
@@ -619,23 +660,19 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
     [applica, aggiornaSenzaCronologia, selezione.nodes]
   )
 
+  // `scrittura !== null`, non l'intero oggetto: cambia identità a ogni carattere digitato (il
+  // valore del campo vive lì), e in dipendenza dell'effetto qui sotto sganciava e riagganciava
+  // questo listener a ogni tasto premuto nel campo di scrittura.
+  const scritturaAperta = scrittura !== null
+
   // Ctrl+Z e frecce sull'intera finestra: l'editor occupa tutto il dialog, e chiedere
   // all'utente di mettere prima a fuoco la tela per annullare o spostare sarebbe un tranello.
   useEffect(() => {
     const suTasto = (e: KeyboardEvent) => {
-      // Prima di Ctrl+Z, non dopo. Il dialog di scrittura (onKeyDown più sotto) ferma già la
-      // propagazione di ogni tasto tranne Esc sul proprio root, quindi finché il fuoco resta
-      // dentro — cioè sempre, a dialog aperto, per via del focus trap del Modal MUI — questo
-      // listener su `window` non riceve nulla comunque: provato in pagina, con l'annotazione
-      // aperta e selezionata (il pointerdown del doppio clic la seleziona prima di aprire il
-      // dialog), sia Backspace sia Ctrl+Z restano dentro il campo — il primo cancella un
-      // carattere, il secondo lo recupera con l'undo nativo del campo — SENZA questa guardia,
-      // non solo con essa: la sua vera funzione è ridondanza esplicita, indipendente da
-      // quell'altro componente, non l'unica barriera. Messa prima e non dopo perché è la
-      // stessa scelta già fatta lì (vedi il commento sul `<Dialog onKeyDown>`): mentre si
-      // scrive un'annotazione, Ctrl+Z appartiene al campo, mai al disegno — un Annulla che
-      // sparisse un nodo mentre si sta scrivendo sarebbe la sorpresa peggiore delle due.
-      if (scrittura) return
+      // Ridondante oggi (il Dialog di scrittura più sotto ferma già ogni tasto, Esc compreso, sul
+      // proprio root): resta per tenere l'invariante esplicito qui, non affidato in silenzio a un
+      // dettaglio implementativo di un altro componente.
+      if (scritturaAperta) return
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault()
         annulla()
@@ -656,7 +693,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
     }
     window.addEventListener('keydown', suTasto)
     return () => window.removeEventListener('keydown', suTasto)
-  }, [annulla, rimuoviMuro, rimuoviTesto, scrittura, selezione.nodes, selezioneLibera, sposta])
+  }, [annulla, rimuoviMuro, rimuoviTesto, scritturaAperta, selezione.nodes, selezioneLibera, sposta])
 
   const stileSelezionato =
     selezione.edges.length > 0
@@ -990,7 +1027,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
               onSposta={spostaTesto}
               onModifica={apriTesto}
               selezionato={selezioneLibera?.tipo === 'testo' ? selezioneLibera.id : null}
-              onSeleziona={(id) => setSelezioneLibera({ tipo: 'testo', id })}
+              onSeleziona={(id) => selezionaLibero({ tipo: 'testo', id })}
             />
             {layoutCorrente.muro && (
               <MuroSeparazione
@@ -998,7 +1035,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
                 varchi={varchiMuro}
                 selezionato={selezioneLibera?.tipo === 'muro'}
                 onSposta={spostaMuro}
-                onSeleziona={() => setSelezioneLibera({ tipo: 'muro' })}
+                onSeleziona={() => selezionaLibero({ tipo: 'muro' })}
               />
             )}
           </ViewportPortal>
