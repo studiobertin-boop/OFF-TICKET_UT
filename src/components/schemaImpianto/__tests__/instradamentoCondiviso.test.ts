@@ -11,8 +11,8 @@ import { buildSchemaModel } from '@/services/schemaImpianto/buildSchemaModel'
 import { layoutSchema, quoteInstradamento } from '@/services/schemaImpianto/layout'
 import { posizioneAncora, renderSvg } from '@/services/schemaImpianto/renderSvg'
 import { instrada, percorso, polilineaConGomiti, type Punto } from '@/services/schemaImpianto/tratti'
-import { ancoraDi, dimensioniDi } from '@/services/schemaImpianto/symbols'
-import type { SchemaLayout } from '@/services/schemaImpianto/types'
+import { ancoraDi, dimensioniDi, latoImposto } from '@/services/schemaImpianto/symbols'
+import type { SchemaLayout, SchemaNodoPosizionato } from '@/services/schemaImpianto/types'
 import {
   capiDegliArchi,
   capiDellArco,
@@ -37,6 +37,38 @@ function layoutCompleto(): SchemaLayout {
     dati_impianto: makeDatiImpianto({ raccolta_condense: 'tanica' }),
   })
   return layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } }))
+}
+
+/**
+ * `layoutCompleto` con in più una giunzione: un ramo (S1 lato `dx` → giunzione lato `alto`)
+ * arriva senza gomiti a mano, col capo di partenza spostato lateralmente rispetto al centro
+ * della giunzione — la configurazione misurata in pagina che, senza il lato imposto, fa girare
+ * la rotta a metà strada (`rottaLinea`) invece di entrare verticalmente e formare la T.
+ */
+function layoutConGiunzione(): SchemaLayout {
+  const layout = layoutCompleto()
+  const s1 = layout.nodi.find((n) => n.id === 'S1')!
+  const pDa = posizioneAncora(s1, 'dx')
+  const giunzione: SchemaNodoPosizionato = {
+    id: 'M-G1',
+    tipo: 'giunzione',
+    etichetta: 'Giunzione',
+    gruppo: 'LINEA_DISTRIBUZIONE',
+    valvoleSicurezza: [],
+    origine: 'manuale',
+    // Centro spostato di 140 in x e 160 in y rispetto a `pDa`: fuori dalla sua verticale, così
+    // la rotta nativa e quella imboccata dal lato `alto` producono poligonali diverse.
+    x: pDa.x + 140 - 12,
+    y: pDa.y + 160 - 12,
+  }
+  layout.nodi.push(giunzione)
+  layout.archi.push({
+    id: 'ramo-giunzione',
+    da: { nodo: s1.id, ancora: 'dx' },
+    a: { nodo: giunzione.id, ancora: 'alto' },
+    stile: 'standard',
+  })
+  return layout
 }
 
 /**
@@ -89,16 +121,24 @@ function capiComeReactFlow(nodes: Node[], edge: Edge): CapiArco {
   }
 }
 
-/** La polilinea che il documento disegna per quell'arco, dalle sue sole funzioni. */
+/**
+ * La polilinea che il documento disegna per quell'arco, dalle sue sole funzioni — compresi i
+ * lati imposti, risolti con `latoImposto` come fanno ora le tre `render*` di `renderSvg.ts`:
+ * senza, questo modello smetterebbe di rappresentare fedelmente ciò che il documento disegna
+ * per un arco che tocca una giunzione.
+ */
 function dalDocumento(layout: SchemaLayout, arcoId: string): Punto[] {
   const arco = layout.archi.find((a) => a.id === arcoId)!
   const nodo = (id: string) => layout.nodi.find((n) => n.id === id)!
+  const da = nodo(arco.da.nodo)
+  const a = nodo(arco.a.nodo)
   return instrada(
     arco.stile,
-    posizioneAncora(nodo(arco.da.nodo), arco.da.ancora),
-    posizioneAncora(nodo(arco.a.nodo), arco.a.ancora),
+    posizioneAncora(da, arco.da.ancora),
+    posizioneAncora(a, arco.a.ancora),
     arco.punti,
-    quoteInstradamento(layout)
+    quoteInstradamento(layout),
+    { da: latoImposto(da, arco.da.ancora), a: latoImposto(a, arco.a.ancora) }
   )
 }
 
@@ -180,6 +220,10 @@ describe('accordo fra la tela dell’editor e il documento', () => {
       expect(capi, `arco ${edge.id}`).toEqual({
         da: posizioneAncora(nodo(edge.source), edge.sourceHandle!),
         a: posizioneAncora(nodo(edge.target), edge.targetHandle!),
+        lati: {
+          da: latoImposto(nodo(edge.source), edge.sourceHandle!),
+          a: latoImposto(nodo(edge.target), edge.targetHandle!),
+        },
       })
       expect(capi, `arco ${edge.id}`).not.toEqual(capiComeReactFlow(nodes, edge))
     }
@@ -208,5 +252,57 @@ describe('accordo fra la tela dell’editor e il documento', () => {
     // resterebbe verde anche se il gomito finisse al posto giusto ma il resto della polilinea
     // (capi, verso) fosse sbagliato.
     expect(polilinea).toEqual(polilineaConGomiti({ x: 0, y: 0 }, [{ x: 42, y: 42 }], { x: 200, y: 200 }))
+  })
+
+  /**
+   * Il caso con una giunzione: un ramo arriva dal lato `alto`, senza gomiti a mano, col capo di
+   * partenza fuori dalla verticale del centro del pallino (`layoutConGiunzione`). Confrontare
+   * solo tela e documento fra loro NON basterebbe a provare che i lati sono davvero risolti: se
+   * nessuno dei due li passasse a `instrada`, sbaglierebbero ALLO STESSO MODO — la rotta nativa
+   * gira a metà strada — e resterebbero comunque d'accordo, verdi, senza formare la T. Il terzo
+   * termine di paragone, `attesa`, è la rotta calcolata passando esplicitamente `latoImposto` a
+   * `instrada`: è quello a rendere il confronto discriminante.
+   *
+   * E per lo stesso motivo per cui serve `dalDocumento` VERSUS l'SVG vero due test più sopra: un
+   * confronto che passasse solo dal modello `dalDocumento` non si accorgerebbe se le `render*` di
+   * `renderSvg.ts` smettessero di passare i lati a `instrada` — è la mutazione verificata nel
+   * report di questo task, e senza `tracciati`/`renderSvg` qui sotto la suite restava verde.
+   */
+  it('un ramo che arriva su una giunzione dal lato imposto: tela e documento concordano sulla rotta imboccata', () => {
+    const layout = layoutConGiunzione()
+    const arco = layout.archi.find((a) => a.id === 'ramo-giunzione')!
+    const nodo = (id: string) => layout.nodi.find((n) => n.id === id)!
+    const da = nodo(arco.da.nodo)
+    const a = nodo(arco.a.nodo)
+
+    // La giunzione impone davvero un lato: se non lo facesse, questo test non proverebbe nulla
+    // di diverso dal resto della suite.
+    expect(latoImposto(a, arco.a.ancora)).toBe('alto')
+
+    const attesa = instrada(
+      arco.stile,
+      posizioneAncora(da, arco.da.ancora),
+      posizioneAncora(a, arco.a.ancora),
+      arco.punti,
+      quoteInstradamento(layout),
+      { da: latoImposto(da, arco.da.ancora), a: latoImposto(a, arco.a.ancora) }
+    )
+    // La rotta imboccata è davvero diversa dalla rotta nativa (`rottaLinea`, senza lati):
+    // altrimenti il confronto con `attesa` qui sotto non discriminerebbe nulla.
+    const nativa = instrada(arco.stile, posizioneAncora(da, arco.da.ancora), posizioneAncora(a, arco.a.ancora), arco.punti, quoteInstradamento(layout))
+    expect(attesa).not.toEqual(nativa)
+
+    const { nodes, edges } = archiComeInEditor(layout)
+    const edge = edges.find((e) => e.id === arco.id)!
+    const data = edge.data as SchemaEdgeData
+    const dallaTela = polilineaDellArco(capiDellArco(data, capiComeReactFlow(nodes, edge)), data)
+    const dalDoc = dalDocumento(layout, arco.id)
+    // L'SVG VERO, prodotto da `renderSvg` — non il modello `dalDocumento` — sull'arco
+    // `ramo-giunzione` (stile `standard`, non ondulato: usa `percorso`, comandi M/L puri).
+    const tracciati = tracciatiLineari(renderSvg(layout))
+
+    expect(dallaTela, 'tela').toEqual(attesa)
+    expect(dalDoc, 'documento (modello)').toEqual(attesa)
+    expect(tracciati, 'documento (SVG vero)').toContain(percorso(attesa))
   })
 })

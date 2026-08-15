@@ -10,6 +10,7 @@ import {
   ancoraDi,
   campioneTubazione,
   escapeXml,
+  latoImposto,
   riduttorePressione,
   simboloDi,
   simboloMuro,
@@ -94,7 +95,7 @@ function renderMandataCompressore(
 ): { svg: string; punti: Punto[] } {
   const pDa = posizioneAncora(da, ancoraDa)
   const pA = posizioneAncora(a, ancoraA)
-  const punti = instrada(stile, pDa, pA, gomiti, quote)
+  const punti = instrada(stile, pDa, pA, gomiti, quote, { da: latoImposto(da, ancoraDa), a: latoImposto(a, ancoraA) })
   const svg = `<path d="${ondula(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" marker-end="url(#freccia)" />`
   return { svg, punti }
 }
@@ -112,7 +113,7 @@ function renderMandataLinea(
 ): { svg: string; punti: Punto[] } {
   const pDa = posizioneAncora(da, ancoraDa)
   const pA = posizioneAncora(a, ancoraA)
-  const punti = instrada(stile, pDa, pA, gomiti, quote)
+  const punti = instrada(stile, pDa, pA, gomiti, quote, { da: latoImposto(da, ancoraDa), a: latoImposto(a, ancoraA) })
   const freccia = frecciaFinale ? ' marker-end="url(#freccia)"' : ''
   const svg = `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}"${freccia} />`
   return { svg, punti }
@@ -130,7 +131,7 @@ function renderLineaCondense(
 ): { svg: string; punti: Punto[] } {
   const pDa = posizioneAncora(da, ancoraDa)
   const pA = posizioneAncora(a, ancoraA)
-  const punti = instrada(stile, pDa, pA, gomiti, quote)
+  const punti = instrada(stile, pDa, pA, gomiti, quote, { da: latoImposto(da, ancoraDa), a: latoImposto(a, ancoraA) })
   const svg = `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" stroke-dasharray="10 7" marker-end="url(#freccia)" />`
   return { svg, punti }
 }

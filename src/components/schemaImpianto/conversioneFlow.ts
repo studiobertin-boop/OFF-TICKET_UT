@@ -6,7 +6,14 @@
 import type { Edge, Node } from '@xyflow/react'
 import { calcolaMuro } from '@/services/schemaImpianto/layout'
 import { posizioneAncora } from '@/services/schemaImpianto/renderSvg'
-import { instrada, polilineaConGomiti, type Punto, type QuoteInstradamento } from '@/services/schemaImpianto/tratti'
+import { latoImposto } from '@/services/schemaImpianto/symbols'
+import {
+  instrada,
+  polilineaConGomiti,
+  type LatiImposti,
+  type Punto,
+  type QuoteInstradamento,
+} from '@/services/schemaImpianto/tratti'
 import type {
   SchemaArcoStile,
   SchemaLayout,
@@ -89,6 +96,13 @@ export function flowALayout(
 export interface CapiArco {
   da: Punto
   a: Punto
+  /**
+   * I lati da cui la tubazione deve imboccare i due capi, quando quei capi lo impongono
+   * (`latoImposto`, symbols/index.ts). Viaggiano insieme ai capi e per la stessa ragione:
+   * un arco non ha, né deve avere, una vista sui nodi — e il documento li risolve con la
+   * stessa funzione, perché le due linee restino la stessa linea.
+   */
+  lati?: LatiImposti
 }
 
 /**
@@ -113,6 +127,7 @@ export function capiDegliArchi(layout: SchemaLayout): Map<string, CapiArco> {
     capi.set(arco.id, {
       da: posizioneAncora(nodoDa, arco.da.ancora),
       a: posizioneAncora(nodoA, arco.a.ancora),
+      lati: { da: latoImposto(nodoDa, arco.da.ancora), a: latoImposto(nodoA, arco.a.ancora) },
     })
   }
   return capi
@@ -151,7 +166,7 @@ export function capiDellArco(data: SchemaEdgeData | undefined, ripiego: CapiArco
 export function polilineaDellArco(capi: CapiArco, data: SchemaEdgeData | undefined): Punto[] {
   const stile = (data?.stile ?? 'standard') as SchemaArcoStile
   if (!data?.quote) return polilineaConGomiti(capi.da, data?.punti ?? [], capi.a)
-  return instrada(stile, capi.da, capi.a, data.punti, data.quote)
+  return instrada(stile, capi.da, capi.a, data.punti, data.quote, capi.lati)
 }
 
 /**
