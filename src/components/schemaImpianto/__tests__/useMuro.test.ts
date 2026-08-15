@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { calcolaMuro, DIMENSIONI_NODO } from '@/services/schemaImpianto/layout'
-import { PASSO_GRIGLIA } from '@/services/schemaImpianto/griglia'
 import type { SchemaNodoPosizionato } from '@/services/schemaImpianto/types'
 import { ascissaProposta, ascissaSpostata } from '../useMuro'
 
-function compressoreIn(x: number): SchemaNodoPosizionato {
+function compressoreIn(x: number, id = 'C1'): SchemaNodoPosizionato {
   return {
-    id: 'C1',
+    id,
     tipo: 'compressore',
     etichetta: '',
     valvoleSicurezza: [],
@@ -42,16 +41,28 @@ describe('ascissaProposta', () => {
   // Un disegno con la sola sala, o con la sola linea, non ha un bordo fra i due gruppi: il muro
   // nasce comunque, perche' il committente l'ha chiesto, ma in spazio libero — un muro che
   // nascesse sopra le apparecchiature sembrerebbe un difetto invece di una proposta.
-  it('propone un punto libero anche quando non c e un bordo fra i due gruppi', () => {
-    const soloSala = [compressoreIn(40)]
+  it('propone il bordo destro del nodo piu a destra, oltre il margine di spazio libero, quando manca un bordo fra i due gruppi', () => {
+    // Due compressori, non uno solo: con un solo nodo Math.max e Math.min di ascissaProposta
+    // darebbero lo stesso risultato, e un mutante che li scambiasse passerebbe inosservato.
+    const piuASinistra = compressoreIn(40)
+    const piuADestra = compressoreIn(300, 'C2')
+    const soloSala = [piuASinistra, piuADestra]
     expect(calcolaMuro(soloSala)).toBeNull()
-    const proposta = ascissaProposta(soloSala)
-    expect(proposta % PASSO_GRIGLIA).toBe(0)
-    expect(proposta).toBeGreaterThan(40 + DIMENSIONI_NODO.compressore.larghezza)
+
+    const bordoDestro = piuADestra.x + DIMENSIONI_NODO.compressore.larghezza
+    // Lo stesso margine che ascissaProposta somma al bordo nel ramo senza bordo fra i gruppi
+    // (`bordo + 60` in useMuro.ts): scritto qui a parte, non dentro il valore atteso finale,
+    // cosi' un mutante che lo cambiasse (es. a 20, ancora multiplo di PASSO_GRIGLIA) fa
+    // comunque cadere il confronto sul valore esatto.
+    const margineSpazioLibero = 60
+    expect(ascissaProposta(soloSala)).toBe(bordoDestro + margineSpazioLibero)
   })
 
-  it('propone comunque un punto sulla griglia su un disegno vuoto', () => {
-    expect(ascissaProposta([]) % PASSO_GRIGLIA).toBe(0)
+  it('propone il solo margine di spazio libero su un disegno vuoto', () => {
+    // Nessun nodo: il bordo di partenza e' 0, quindi la proposta e' il margine da solo — lo
+    // stesso valore letterale della fixture precedente, perche' e' la stessa costante in
+    // ascissaProposta.
+    expect(ascissaProposta([])).toBe(60)
   })
 })
 
