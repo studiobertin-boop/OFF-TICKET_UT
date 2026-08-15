@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { chiaveSimbolo } from '../types'
-import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloUtenze, valvolaIntercettazione, riduttorePressione, testoMultiRiga, DIAMETRO_GIUNZIONE, campioneTubazione, TRATTEGGIO_CONDENSE } from '../symbols'
+import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloMuro, simboloUtenze, valvolaIntercettazione, riduttorePressione, testoMultiRiga, DIAMETRO_GIUNZIONE, campioneTubazione, TRATTEGGIO_CONDENSE } from '../symbols'
 import { capoValido } from '../agganci'
 
 describe('chiaveSimbolo', () => {
@@ -336,5 +336,31 @@ describe('campioneTubazione', () => {
   it('il campione di legenda delle condense usa la costante del tratteggio', () => {
     expect(campioneTubazione('condensa')).toContain(`stroke-dasharray="${TRATTEGGIO_CONDENSE}"`)
     expect(TRATTEGGIO_CONDENSE).toBe('10 7')
+  })
+})
+
+describe('simboloMuro', () => {
+  // Le aperture sono larghe `larghezzaVarco = 44` e si fondono in una sola quando l'inizio della
+  // prossima cade entro 20px dalla fine di quella già aperta (`symbols/index.ts`): due varchi a
+  // 64px o meno di distanza (44 + 20) restano un'unica apertura. Il test conta i TRONCONI PIENI
+  // di muratura (i `<rect>`, l'unico elemento che ne contiene), non le coordinate delle aperture:
+  // con N aperture interne che non toccano gli estremi [yMin, yMax] i tronconi sono N+1 (uno
+  // prima della prima, uno fra ogni coppia, uno dopo l'ultima) — un conteggio che non si rompe al
+  // primo ritocco estetico della geometria del muro. Due casi, non uno: un solo caso non
+  // distingue «fonde» da «non disegna il secondo varco» (che darebbe anch'esso un troncone in
+  // meno del numero di varchi).
+  it('due varchi vicini si fondono in un\'unica apertura: un troncone in meno dei varchi', () => {
+    // y=100 e y=150 distano 50px, sotto la soglia di fusione (64) — si fondono in un'apertura
+    // sola: 2 tronconi (prima e dopo), non 3.
+    const svg = simboloMuro(0, 0, 300, [100, 150])
+    expect([...svg.matchAll(/<rect/g)]).toHaveLength(2)
+  })
+
+  it('due varchi lontani restano due aperture distinte: un troncone in più della fusione', () => {
+    // y=100 e y=220 distano 120px, sopra la soglia di fusione — è il caso che dà senso al primo:
+    // 3 tronconi (prima, fra i due varchi, dopo), la controprova che senza distanza sufficiente
+    // le aperture non si fondono da sole.
+    const svg = simboloMuro(0, 0, 300, [100, 220])
+    expect([...svg.matchAll(/<rect/g)]).toHaveLength(3)
   })
 })

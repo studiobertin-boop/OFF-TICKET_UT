@@ -10,11 +10,10 @@
  * senza muro. Il muro qui disegnato ha due varchi aperti dalle tubazioni che attraversano la sua
  * ascissa (x=230): a y=90 (mandata del compressore verso il serbatoio in linea) e a y=421 (linea
  * condense del disoleatore verso la tanica) — i tre tronconi di muratura piena (`<rect
- * x="230" ... width="14" .../>`, spessore 14) sono ciò che ne resta. I due varchi non sono
- * abbastanza vicini da fondersi in un'unica apertura (`simboloMuro` li fonde solo entro 20px):
- * questo riferimento prova quindi che i varchi vengono aperti e alla larghezza giusta (44), non
- * che vengano fusi — nessuno dei tre riferimenti committati arriva a due varchi tanto vicini da
- * fondersi, quindi quel ramo di `simboloMuro` resta senza un pin che lo copra. Non intercetta
+ * x="230" ... width="14" .../>`, spessore 14) sono ciò che ne resta. I due varchi distano troppo
+ * per fondersi in un'unica apertura, quindi questo riferimento prova che i varchi vengono aperti e
+ * alla larghezza giusta (44), non che vengano fusi: la fusione dei varchi vicini è provata a parte,
+ * su `simboloMuro` isolato, in `describe('simboloMuro')` di `simboli.test.ts`. Non intercetta
  * inoltre una giunzione TEE (copertura di `svgRiferimentoConTee.ts`) né un attacco 'alto'/'basso'
  * alla giunzione: nessuno dei due compare in questo disegno.
  *
