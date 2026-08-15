@@ -180,6 +180,15 @@ export interface SchemaEditorProps {
 }
 
 /**
+ * I nodi di react-flow ricondotti a `SchemaNodoPosizionato`, come fa già `flowALayout`
+ * (conversioneFlow.ts) per l'intero layout: qui serve solo per proporre dove nasce un muro
+ * nuovo (`ascissaProposta`, useMuro.ts), che lavora su quel tipo e non conosce react-flow.
+ */
+function nodiDi(s: { nodes: Node[] }): SchemaNodoPosizionato[] {
+  return s.nodes.map((n) => ({ ...(n.data as SchemaNodeData).nodo, x: n.position.x, y: n.position.y }))
+}
+
+/**
  * Quota più bassa occupata dal disegno: sotto di essa c'è spazio libero, ed è lì che nascono
  * apparecchiature e annotazioni nuove. Comprende le annotazioni già posate, non solo i nodi:
  * altrimenti due scritte create di seguito finirebbero esattamente l'una sull'altra, illeggibili
@@ -190,15 +199,6 @@ export interface SchemaEditorProps {
  * quota fissa una nuova apparecchiatura o annotazione poteva nascere sopra un terminale alto,
  * come già corretto per `layout.ts` e `persistenza.ts` (Task 4).
  */
-/**
- * I nodi di react-flow ricondotti a `SchemaNodoPosizionato`, come fa già `flowALayout`
- * (conversioneFlow.ts) per l'intero layout: qui serve solo per proporre dove nasce un muro
- * nuovo (`ascissaProposta`, useMuro.ts), che lavora su quel tipo e non conosce react-flow.
- */
-function nodiDi(s: { nodes: Node[] }): SchemaNodoPosizionato[] {
-  return s.nodes.map((n) => ({ ...(n.data as SchemaNodeData).nodo, x: n.position.x, y: n.position.y }))
-}
-
 function piedeDelDisegno(nodes: Node[], testi: SchemaTestoLibero[]): number {
   const quote = [
     ...nodes.map((n) => n.position.y + dimensioniDi((n.data as SchemaNodeData).nodo).altezza),

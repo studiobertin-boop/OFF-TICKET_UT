@@ -19,7 +19,7 @@ import {
   layoutSchema,
   quoteInstradamento,
 } from '../layout'
-import { dimensioniDi } from '../symbols'
+import { dimensioniDi, SPESSORE_MURO } from '../symbols'
 import type { SchemaLayout } from '../types'
 
 function nodo(layout: SchemaLayout, id: string) {
@@ -134,8 +134,9 @@ describe('layoutSchema', () => {
   // I test che seguono provavano queste regole passando da `layoutSchema(...).muro`: dal
   // Blocco D4 quella strada restituisce sempre `null` (vedi il test sopra), quindi ora
   // interrogano `calcolaMuro` sui nodi che l'auto-layout produce — la stessa funzione che
-  // proporra' l'ascissa al pulsante della barra (Task 7). La regola di dominio (quali gruppi
-  // il muro separa) resta la stessa, solo non gira più in automatico ad ogni disegno.
+  // propone l'ascissa al pulsante della barra (`ascissaProposta`, useMuro.ts). La regola di
+  // dominio (quali gruppi il muro separa) resta la stessa, solo non gira più in automatico ad
+  // ogni disegno.
   it('non c’è muro quando tutte le apparecchiature stanno in sala compressori', () => {
     const scheda = makeScheda({
       serbatoi: [makeSerbatoio({ ubicazione: 'SALA_COMPRESSORI' })],
@@ -376,6 +377,27 @@ describe('layoutSchema', () => {
       expect(n.x).toBeGreaterThanOrEqual(0)
       expect(n.y).toBeGreaterThanOrEqual(0)
     }
+  })
+
+  // Revisione finale, rilievo Importante: `maxX` leggeva solo `layout.nodi` e `layout.testi`,
+  // mai `layout.muro`. Finché il muro nasceva da solo fra i due gruppi restava sempre dentro la
+  // pagina; dal Blocco D4 il committente lo trascina dove vuole, e un muro oltre l'ultima
+  // apparecchiatura finiva nel markup ma fuori dal viewBox — visibile sulla tela dell'editor,
+  // assente nell'anteprima e nel .docx.
+  it('un muro posato a destra di tutto il disegno resta dentro la larghezza della pagina', () => {
+    const layout = layoutSchema(
+      buildSchemaModel({
+        scheda: schedaTrePiuUno(),
+        collegamentiCompressoriSerbatoi: { C1: ['S1'], C2: ['S1'], C3: ['S1'] },
+      })
+    )
+    const senzaMuro = dimensioniLayout(layout)
+    // Ben oltre il bordo destro di adesso: se `dimensioniLayout` ignorasse il muro, la
+    // larghezza non cambierebbe affatto e il confronto sotto cadrebbe di sicuro.
+    const muro = muroDaAscissa(senzaMuro.larghezza + 200, layout.nodi)
+    const conMuro = dimensioniLayout({ ...layout, muro })
+
+    expect(conMuro.larghezza).toBeGreaterThanOrEqual(muro!.x + SPESSORE_MURO)
   })
 
   it('la tela si allarga per contenere un testo libero che sporge oltre le apparecchiature', () => {

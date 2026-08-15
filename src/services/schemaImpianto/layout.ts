@@ -7,7 +7,7 @@
  * destra. Funzione pura: nessun DOM, testabile in Node.
  */
 import { ordinaCatenaTrattamento } from './buildSchemaModel'
-import { DIMENSIONI_NODO, INTERLINEA_TESTO, TESTO_LIBERO, dimensioniDi } from './symbols'
+import { DIMENSIONI_NODO, INTERLINEA_TESTO, SPESSORE_MURO, TESTO_LIBERO, dimensioniDi } from './symbols'
 import type { QuoteInstradamento } from './tratti'
 import type {
   SchemaLayout,
@@ -281,6 +281,12 @@ export function ingombroTesto(testo: SchemaTestoLibero): { destra: number; basso
  * tela e finirebbe tagliata nel PNG. Tiene conto anche dei testi liberi, per lo stesso motivo:
  * un'annotazione trascinata oltre l'ultima apparecchiatura non deve finire tagliata nel PNG.
  *
+ * Tiene conto anche del muro, spessore compreso (`SPESSORE_MURO`): finché nasceva da sé fra i
+ * due gruppi restava sempre dentro l'inviluppo dei nodi, ma dal Blocco D4 il committente lo
+ * trascina dove vuole, e un muro posato a destra di tutto il disegno finiva nel markup ma fuori
+ * dal viewBox — visibile sulla tela dell'editor, assente nell'anteprima e nel .docx (revisione
+ * finale, rilievo Importante).
+ *
  * `layout.testi` legge in modo difensivo (`?? []`) benché `SchemaLayout.testi` sia obbligatorio a
  * livello di tipo (`types.ts`): il produttore che davvero lo dimenticava era `flowALayout`
  * (`conversioneFlow.ts`), corretto insieme a questo campo — non i test o i salvataggi pre-Blocco
@@ -291,11 +297,14 @@ export function ingombroTesto(testo: SchemaTestoLibero): { destra: number; basso
  */
 export function dimensioniLayout(layout: SchemaLayout): { larghezza: number; altezza: number } {
   const testi = layout.testi ?? []
-  if (layout.nodi.length === 0 && testi.length === 0) return { larghezza: MARGINE * 2, altezza: MARGINE * 2 }
+  if (layout.nodi.length === 0 && testi.length === 0 && !layout.muro) {
+    return { larghezza: MARGINE * 2, altezza: MARGINE * 2 }
+  }
   const ingombriTesti = testi.map(ingombroTesto)
   const maxX = Math.max(
     ...layout.nodi.map((n) => n.x + dimensioniDi(n).larghezza),
-    ...ingombriTesti.map((i) => i.destra)
+    ...ingombriTesti.map((i) => i.destra),
+    ...(layout.muro ? [layout.muro.x + SPESSORE_MURO] : [])
   )
   const maxY = Math.max(
     ...layout.nodi.map((n) => n.y + dimensioniDi(n).altezza),

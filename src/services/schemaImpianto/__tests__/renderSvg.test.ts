@@ -40,8 +40,8 @@ function svgMinimo(noteTubazioni?: string[]) {
  * del compressore verso il serbatoio in linea, e la linea condense del disoleatore verso la
  * tanica. Dal Blocco D4 `layoutSchema` non disegna più il muro da sé (lo aggiunge solo il
  * committente): questi test provano il render dei varchi dato un muro, non se `layoutSchema` lo
- * proponga, quindi glielo si attacca con `calcolaMuro`, la stessa regola che oggi proporrà
- * l'ascissa al pulsante della barra (Task 7).
+ * proponga, quindi glielo si attacca con `calcolaMuro`, la stessa regola che propone l'ascissa
+ * al pulsante della barra (`ascissaProposta`, useMuro.ts).
  */
 function layoutConMuro() {
   const scheda = makeScheda({

@@ -124,7 +124,7 @@ export function MuroSeparazione({ muro, varchi, selezionato, onSposta, onSelezio
         width={SPESSORE_MURO + MARGINE_PRESA * 2}
         height={muro.yMax - muro.yMin}
         fill="transparent"
-        style={{ cursor: 'move', pointerEvents: 'all' }}
+        style={{ cursor: 'col-resize', pointerEvents: 'all' }}
         onPointerDown={suPointerDown}
         onPointerMove={suPointerMove}
         onPointerUp={suPointerUp}

@@ -31,11 +31,19 @@ function serbatoioInLinea(x: number): SchemaNodoPosizionato {
 
 describe('ascissaProposta', () => {
   // Il pulsante della barra non chiede al committente dove mettere il muro: lo propone dove
-  // stava prima che diventasse manuale — il bordo destro della sala compressori — e lo lascia
-  // spostare. E' l'unico uso rimasto di `calcolaMuro`.
-  it('propone il bordo destro della sala compressori, come faceva il muro automatico', () => {
-    const nodi = [compressoreIn(40), serbatoioInLinea(600)]
-    expect(ascissaProposta(nodi)).toBe(calcolaMuro(nodi).x)
+  // stava prima che diventasse manuale — il bordo destro della sala compressori, allineato alla
+  // griglia — e lo lascia spostare. E' l'unico uso rimasto di `calcolaMuro`.
+  //
+  // Il compressore sta apposta su un'ascissa che non produce un multiplo di 10 (37, non 40):
+  // `calcolaMuro` dà qui 227 (37 + 160 di larghezza del compressore + 30 di margine), e solo
+  // `allineaAllaGriglia` lo porta a 230. Con un compressore già su un multiplo di 10 (come la
+  // versione precedente di questo test, che confrontava con `calcolaMuro(nodi).x`) i due valori
+  // coincidevano per coincidenza, e il confronto passava anche togliendo `allineaAllaGriglia`
+  // dal ramo automatico.
+  it('propone il bordo destro della sala compressori, allineato alla griglia', () => {
+    const nodi = [compressoreIn(37), serbatoioInLinea(600)]
+    expect(calcolaMuro(nodi)!.x).toBe(227)
+    expect(ascissaProposta(nodi)).toBe(230)
   })
 
   // Un disegno con la sola sala, o con la sola linea, non ha un bordo fra i due gruppi: il muro
