@@ -400,6 +400,38 @@ describe('layoutSchema', () => {
     expect(conMuro.larghezza).toBeGreaterThanOrEqual(muro!.x + SPESSORE_MURO)
   })
 
+  // Revisione finale del Blocco D4, difetto trovato dopo il rilievo Importante sopra: `maxY`
+  // leggeva solo `layout.nodi` e `layout.testi`, mai `layout.muro` — la stessa correzione fatta
+  // per `maxX` non era stata rifatta sull'asse verticale. Il muro si allarga di
+  // `MARGINE_SUPERIORE / 2` (55) sopra e sotto l'inviluppo delle apparecchiature (vedi
+  // `inviluppoVerticale`), ma la pagina si allarga di solo `MARGINE` (40): quando nessun nodo
+  // scende più in basso del muro, il fondo del muro finisce sempre 15 unità sotto il bordo
+  // della pagina — non è un caso limite, è la situazione ordinaria di un impianto con sala e
+  // linea senza pozzo di raccolta né catena di trattamento.
+  it('il fondo del muro resta dentro l’altezza della pagina quando nient’altro scende più in basso', () => {
+    const layout = layoutSchema(modelloConSalaELinea())
+    const muro = calcolaMuro(layout.nodi)
+    expect(muro).not.toBeNull()
+
+    const conMuro = dimensioniLayout({ ...layout, muro })
+
+    expect(conMuro.altezza).toBeGreaterThanOrEqual(muro!.yMax)
+  })
+
+  // Stesso difetto, sull'altro bordo: `inviluppoVerticale` sottrae `MARGINE_SUPERIORE / 2` (55)
+  // dalla quota più alta senza mai fermarsi a zero. La pagina comincia sempre a `y=0`: un muro il
+  // cui inviluppo sale più in alto del nodo più alto di 55 (per esempio un'apparecchiatura
+  // trascinata a `y=20`, come nel rilievo del committente) produce un `yMin` negativo, e la sua
+  // cima finisce tagliata fuori dal viewBox.
+  it('la cima del muro non sale sopra il bordo della pagina: yMin non è mai negativo', () => {
+    const layout = layoutSchema(modelloConSalaELinea())
+    const spostato = layout.nodi.map((n) => (n.tipo === 'compressore' ? { ...n, y: 20 } : n))
+    const muro = calcolaMuro(spostato)
+    expect(muro).not.toBeNull()
+
+    expect(muro!.yMin).toBeGreaterThanOrEqual(0)
+  })
+
   it('la tela si allarga per contenere un testo libero che sporge oltre le apparecchiature', () => {
     const layout = layoutSchema(buildSchemaModel({ scheda: makeScheda({}), collegamentiCompressoriSerbatoi: {} }))
     const senza = dimensioniLayout(layout)

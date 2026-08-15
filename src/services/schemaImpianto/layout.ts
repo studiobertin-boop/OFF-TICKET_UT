@@ -78,12 +78,19 @@ function posiziona(nodo: SchemaNodo, x: number, y: number): SchemaNodoPosizionat
  * conta: e' un raccordo, non qualcosa da separare (stesso motivo per cui `ordinaCatenaTrattamento`
  * e `pozzoCondense` lo ignorano). Uno solo per `calcolaMuro` e `muroDaAscissa`, o «cosa il muro
  * deve separare» tornerebbe ad avere due definizioni.
+ *
+ * `yMin` non scende mai sotto zero: la pagina comincia a `y=0` (`renderSvg`, viewBox), e il muro è
+ * una decorazione che attraversa il disegno, non ciò che decide dove comincia la pagina. Senza
+ * questo fermo, un'apparecchiatura a meno di `MARGINE_SUPERIORE / 2` dal bordo superiore (per
+ * esempio trascinata a `y=20`, con un margine di 55) produceva un `yMin` negativo e la cima del
+ * muro finiva tagliata fuori dal viewBox — stesso rilievo del fondo qui sotto, sull'altro bordo
+ * (revisione finale del Blocco D4, dopo il rilievo Importante su `dimensioniLayout`).
  */
 function inviluppoVerticale(nodi: SchemaNodoPosizionato[]): { yMin: number; yMax: number } | null {
   const rilevanti = nodi.filter((n) => n.tipo !== 'utenze')
   if (rilevanti.length === 0) return null
   return {
-    yMin: Math.min(...rilevanti.map((n) => n.y)) - MARGINE_SUPERIORE / 2,
+    yMin: Math.max(0, Math.min(...rilevanti.map((n) => n.y)) - MARGINE_SUPERIORE / 2),
     yMax: Math.max(...rilevanti.map((n) => n.y + DIMENSIONI_NODO[n.tipo].altezza)) + MARGINE_SUPERIORE / 2,
   }
 }
@@ -281,11 +288,17 @@ export function ingombroTesto(testo: SchemaTestoLibero): { destra: number; basso
  * tela e finirebbe tagliata nel PNG. Tiene conto anche dei testi liberi, per lo stesso motivo:
  * un'annotazione trascinata oltre l'ultima apparecchiatura non deve finire tagliata nel PNG.
  *
- * Tiene conto anche del muro, spessore compreso (`SPESSORE_MURO`): finché nasceva da sé fra i
- * due gruppi restava sempre dentro l'inviluppo dei nodi, ma dal Blocco D4 il committente lo
- * trascina dove vuole, e un muro posato a destra di tutto il disegno finiva nel markup ma fuori
- * dal viewBox — visibile sulla tela dell'editor, assente nell'anteprima e nel .docx (revisione
- * finale, rilievo Importante).
+ * Tiene conto anche del muro, spessore compreso (`SPESSORE_MURO`) e sui due assi: finché nasceva
+ * da sé fra i due gruppi restava sempre dentro l'inviluppo dei nodi, ma dal Blocco D4 il
+ * committente lo trascina dove vuole, e un muro posato a destra di tutto il disegno finiva nel
+ * markup ma fuori dal viewBox — visibile sulla tela dell'editor, assente nell'anteprima e nel
+ * .docx (revisione finale, rilievo Importante). Il fondo del muro (`layout.muro.yMax`) va nello
+ * stesso `maxY`: `inviluppoVerticale` allarga l'estensione verticale del muro di
+ * `MARGINE_SUPERIORE / 2` (55) sopra e sotto le apparecchiature che separa, un margine più largo
+ * del `MARGINE` (40) che allarga qui la pagina — senza questo candidato, un muro con niente sotto
+ * più in basso della sua stessa estensione finiva 15 unità sotto il bordo della pagina a ogni
+ * disegno con sala e linea ma senza pozzo di raccolta né catena di trattamento (revisione finale,
+ * secondo rilievo).
  *
  * `layout.testi` legge in modo difensivo (`?? []`) benché `SchemaLayout.testi` sia obbligatorio a
  * livello di tipo (`types.ts`): il produttore che davvero lo dimenticava era `flowALayout`
@@ -308,7 +321,8 @@ export function dimensioniLayout(layout: SchemaLayout): { larghezza: number; alt
   )
   const maxY = Math.max(
     ...layout.nodi.map((n) => n.y + dimensioniDi(n).altezza),
-    ...ingombriTesti.map((i) => i.basso)
+    ...ingombriTesti.map((i) => i.basso),
+    ...(layout.muro ? [layout.muro.yMax] : [])
   )
   return { larghezza: maxX + MARGINE, altezza: maxY + MARGINE }
 }
