@@ -17,6 +17,7 @@ import { dimensioniDi } from '../symbols'
 import type { SchemaNodoPosizionato, SchemaSegnoTubo } from '../types'
 import { SVG_RIFERIMENTO_SENZA_TESTI } from './fixtures/svgRiferimentoSenzaTesti'
 import { SVG_RIFERIMENTO_CON_TEE } from './fixtures/svgRiferimentoConTee'
+import { SVG_RIFERIMENTO_CON_MURO } from './fixtures/svgRiferimentoConMuro'
 
 function svgMinimo(noteTubazioni?: string[]) {
   const scheda = makeScheda({
@@ -509,6 +510,14 @@ describe('varchi nel muro', () => {
     // prova che `simboloMuro` (symbols/index.ts) ha davvero letto questa quota per aprirci un
     // buco, non solo che `varchiDelMuro` l'ha calcolata.
     for (const y of varchi) expect(renderSvg(layout)).toContain(`y="${y + 22}"`)
+  })
+
+  // Riferimento ESTERNO al codice corrente, non un self-comparison. Copre l'unico elemento che
+  // gli altri due non toccano: il muro, e con lui i varchi che le tubazioni gli aprono. Dal
+  // Blocco D4 il muro e' modificabile a mano, quindi e' l'elemento piu' esposto del disegno, e
+  // senza questo pin la sua scomparsa da un impianto passerebbe inosservata.
+  it('un impianto col muro resta identico al riferimento', () => {
+    expect(renderSvg(layoutConMuro())).toBe(SVG_RIFERIMENTO_CON_MURO)
   })
 })
 
