@@ -1,10 +1,9 @@
 import { useState, useRef } from 'react'
 import { Alert, IconButton, Snackbar, Tooltip, CircularProgress } from '@mui/material'
 import { PhotoCamera as PhotoCameraIcon } from '@mui/icons-material'
-import { useOCRAnalysis, requiresNormalizationConfirmation } from '@/hooks/useOCRAnalysis'
-import { NormalizationSuggestionDialog } from './NormalizationSuggestionDialog'
+import { useOCRAnalysis } from '@/hooks/useOCRAnalysis'
 import type { EquipmentCatalogType } from '@/types'
-import type { EquipmentType, OCRExtractedData, NormalizedField } from '@/types/ocr'
+import type { EquipmentType, OCRExtractedData } from '@/types/ocr'
 
 /**
  * Tetto di dimensione del file da leggere. Il limite vero è quello dell'API del modello (32 MB
@@ -68,12 +67,13 @@ function generateEquipmentCode(
   return `${prefix}${index + 1}`
 }
 
-interface NormalizationDialogData {
-  field: 'marca' | 'modello'
-  normalizedField: NormalizedField
-  extractedData: OCRExtractedData
-}
-
+/**
+ * Pulsante di lettura targhetta: prende un file, lo dà all'analisi e restituisce i dati letti.
+ *
+ * Non decide più che farsene. Chi lo monta — la riga della tabella — è l'unico a sapere di
+ * quale apparecchiatura si tratta e a poter ricondurre la lettura a una voce di catalogo:
+ * qui si ferma alla lettura.
+ */
 export const SingleOCRButton = ({
   equipmentType,
   equipmentIndex,
@@ -85,8 +85,6 @@ export const SingleOCRButton = ({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { analyzeImage, loading } = useOCRAnalysis()
 
-  const [showNormalizationDialog, setShowNormalizationDialog] = useState(false)
-  const [normalizationData, setNormalizationData] = useState<NormalizationDialogData | null>(null)
   const [errore, setErrore] = useState<string | null>(null)
 
   const handleClick = () => {
@@ -135,68 +133,15 @@ export const SingleOCRButton = ({
       setErrore(result.error ?? 'Lettura non riuscita')
     }
 
+    // I dati letti escono così come sono: ricondurli a una voce di catalogo — e quindi
+    // decidere quale grafia della marca e del modello scrivere in scheda — è compito di chi
+    // ha montato il pulsante, che sa di quale apparecchiatura si tratta.
     if (result.success && result.data) {
-      const { marca_normalized, modello_normalized } = result.data
-
-      // Check se richiede conferma normalizzazione
-      if (requiresNormalizationConfirmation(marca_normalized, modello_normalized)) {
-        console.log('⚠️ Normalizzazione richiede conferma utente')
-
-        // Mostra dialog per il campo con confidence più bassa
-        const marcaConf = marca_normalized?.confidence || 100
-        const modelloConf = modello_normalized?.confidence || 100
-
-        const fieldToConfirm = marcaConf < modelloConf ? 'marca' : 'modello'
-        const normalizedField = fieldToConfirm === 'marca' ? marca_normalized : modello_normalized
-
-        if (normalizedField) {
-          setNormalizationData({
-            field: fieldToConfirm,
-            normalizedField,
-            extractedData: result.data
-          })
-          setShowNormalizationDialog(true)
-        }
-      } else {
-        // Auto-apply: confidence >= 80% o no normalizzazione
-        console.log('✅ Normalizzazione auto-applicata (confidence >= 80%)')
-        onOCRComplete(result.data)
-      }
+      onOCRComplete(result.data)
     }
 
     // Reset input per permettere re-upload stesso file
     event.target.value = ''
-  }
-
-  const handleNormalizationConfirm = (useNormalized: boolean, selectedValue?: string) => {
-    if (!normalizationData) return
-
-    const { field, extractedData } = normalizationData
-
-    const finalData = { ...extractedData }
-
-    if (useNormalized && selectedValue) {
-      // Usa valore selezionato dalle alternative
-      finalData[field] = selectedValue
-    } else if (!useNormalized) {
-      // Mantieni valore OCR raw (rimuovi normalizzazione)
-      const normalizedField = extractedData[`${field}_normalized`] as NormalizedField | undefined
-      if (normalizedField) {
-        finalData[field] = normalizedField.originalValue
-      }
-    }
-
-    console.log('✅ Normalizzazione confermata:', { field, useNormalized, finalData })
-
-    onOCRComplete(finalData)
-    setShowNormalizationDialog(false)
-    setNormalizationData(null)
-  }
-
-  const handleNormalizationCancel = () => {
-    console.log('❌ Normalizzazione annullata')
-    setShowNormalizationDialog(false)
-    setNormalizationData(null)
   }
 
   return (
@@ -236,20 +181,6 @@ export const SingleOCRButton = ({
           </IconButton>
         </span>
       </Tooltip>
-
-      {/* Dialog normalizzazione */}
-      {showNormalizationDialog && normalizationData && (
-        <NormalizationSuggestionDialog
-          open={showNormalizationDialog}
-          fieldName={normalizationData.field === 'marca' ? 'Marca' : 'Modello'}
-          ocrValue={normalizationData.normalizedField.originalValue}
-          suggestedValue={normalizationData.normalizedField.normalizedValue}
-          confidence={normalizationData.normalizedField.confidence}
-          alternatives={normalizationData.normalizedField.alternatives}
-          onConfirm={handleNormalizationConfirm}
-          onCancel={handleNormalizationCancel}
-        />
-      )}
     </>
   )
 }

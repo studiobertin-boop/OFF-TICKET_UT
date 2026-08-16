@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useFieldArray, useFormContext, useWatch, type Control } from 'react-hook-form'
 import {
   Box, Card, Typography, Button, Tooltip, Menu, MenuItem,
@@ -22,6 +22,10 @@ import { rowKeyOf, useEquipmentCatalogContext } from '../EquipmentCatalogContext
 import { VALVOLE_ROW_PREFIX } from '@/hooks/useHydrateCatalogOrigini'
 import { useCampoExit } from './useCampoExit'
 import { useRowCatalogDivergence } from '@/hooks/useRowCatalogDivergence'
+import { useCatalogoPerTipi } from '@/hooks/useCatalogoPerTipo'
+import { matchEquipment, type Candidato, type MotivoAmbiguita } from '@/utils/equipmentMatcher'
+import { EquipmentMatchDialog } from '../EquipmentMatchDialog'
+import { equipmentCatalogApi } from '@/services/api/equipmentCatalog'
 import { UpdateCatalogDialog } from '../UpdateCatalogDialog'
 import type { EquipmentCatalogItem } from '@/types'
 import { calculateCategoriaPED } from '@/utils/categoriaPedCalculator'
@@ -176,6 +180,8 @@ interface EqRowProps {
   onCampoExit: () => void
   /** Applica al form i dati tecnici della voce scelta a catalogo. */
   onSelected: (specs: Record<string, any>, item?: EquipmentCatalogItem) => void
+  /** Riceve i dati letti dalla targhetta e decide se agganciarli al catalogo. */
+  onOcrLetto: (dati: OCRExtractedData) => void
   /** Un montante per ogni livello di annidamento; vuoto per le righe principali. */
   guide: Guida[]
   /**
@@ -194,9 +200,8 @@ interface EqRowProps {
 }
 
 const EqRow = ({
-  control, def, base, code, rowKey, onCampoExit, onSelected, guide, discendente, adv, ocr, indice, onSelect, selezionata,
+  control, def, base, code, rowKey, onCampoExit, onSelected, onOcrLetto, guide, discendente, adv, ocr, indice, onSelect, selezionata,
 }: EqRowProps) => {
-  const { setValue } = useFormContext()
   // Il confine è la cella: la verifica scatta anche passando da una colonna all'altra della
   // stessa riga, non solo lasciando la riga.
   const campoExit = useCampoExit(onCampoExit, 'td')
@@ -296,7 +301,7 @@ const EqRow = ({
           >
             Dettagli
           </Button>
-          <SingleOCRButton equipmentType={ocr.equipmentType} equipmentIndex={ocr.equipmentIndex} componentType={ocr.componentType} onOCRComplete={(d) => applyOcr(def, base, d, setValue)} />
+          <SingleOCRButton equipmentType={ocr.equipmentType} equipmentIndex={ocr.equipmentIndex} componentType={ocr.componentType} onOCRComplete={onOcrLetto} />
         </Box>
       </Box>
 
@@ -419,6 +424,24 @@ const EqRow = ({
 interface PendingDelete { testo: string; conferma: () => void }
 type AskDelete = (label: string, code: string, conferma: () => void) => void
 
+/**
+ * Targhetta già letta che aspetta una decisione dell'operatore.
+ *
+ * Si porta dietro tutto quel che serve ad applicarla dopo: la riga cui appartiene (`def`,
+ * `base`), il suo applicatore di catalogo, e l'identità con cui verificare — al momento
+ * della risposta, che può arrivare molto più tardi — che a quel percorso ci sia ancora la
+ * stessa apparecchiatura.
+ */
+interface TarghettaInAttesa {
+  datiOcr: OCRExtractedData
+  candidati: Candidato[]
+  motivo: MotivoAmbiguita
+  def: EquipmentTypeDef
+  base: string
+  identita: { path: string; value: string }
+  applica: (specs: Record<string, any>, item?: EquipmentCatalogItem) => void
+}
+
 interface UnifiedEquipmentTableProps {
   control: Control<any>
   errors: any
@@ -446,6 +469,23 @@ export const UnifiedEquipmentTable = ({
   const divergenza = useRowCatalogDivergence()
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null)
   const [pending, setPending] = useState<PendingDelete | null>(null)
+  /** Targhetta in attesa di una decisione dell'operatore. */
+  const [daScegliere, setDaScegliere] = useState<TarghettaInAttesa | null>(null)
+
+  /**
+   * I tipi di catalogo che questa tabella può ospitare, stabili fra i render.
+   *
+   * L'elenco si ricava da `EQUIPMENT_DEFS`, che è una costante di modulo: non dipende da
+   * quante righe la scheda abbia e non cambia mai. È la condizione perché il caricamento del
+   * catalogo resti **una sola** chiamata, qui nel corpo della tabella. Dentro `EqRow` — che è
+   * istanziato una volta per riga — il numero di hook cambierebbe a ogni aggiunta o
+   * eliminazione di apparecchiatura, che è esattamente ciò che le regole degli hook vietano.
+   */
+  const tipiInTabella = useMemo(
+    () => [...new Set(Object.values(EQUIPMENT_DEFS).map((d) => d.catalogType))],
+    []
+  )
+  const catalogoPerTipo = useCatalogoPerTipi(tipiInTabella)
 
   /**
    * Riga con i dettagli aperti, come posizione nell'elenco delle righe rese.
@@ -609,6 +649,80 @@ export const UnifiedEquipmentTable = ({
     divergenza.verificaRiga({ tipo: def.catalogType, base, rowKey, codice: code })
 
   /**
+   * Applica alla riga la voce di catalogo riconosciuta dalla targhetta.
+   *
+   * Due passaggi, in quest'ordine. Prima la targhetta per intero, con la strada di sempre:
+   * porta dati che al modello non appartengono e che il catalogo non ha — numero di
+   * fabbrica, anno, e quel che si legge sulla stessa foto dei componenti a bordo (la valvola
+   * di un serbatoio, i due indici del manometro). Poi il catalogo, che sovrascrive marca,
+   * modello e dati tecnici: su quelli è lui la fonte autorevole, ed è il motivo per cui si
+   * fa il riconoscimento.
+   *
+   * Il secondo passaggio è `applica`, cioè `selettoreCatalogo`: lo stesso applicatore della
+   * selezione manuale. È lì che si registra la provenienza della riga, e dalla provenienza
+   * dipendono il controllo di scostamento e la riscrittura a catalogo. Scrivere i valori a
+   * mano li lascerebbe orfani, che è il difetto che questo lavoro corregge.
+   */
+  const applicaCandidato = (
+    def: EquipmentTypeDef,
+    base: string,
+    dati: OCRExtractedData,
+    candidato: Candidato,
+    applica: (specs: Record<string, any>, item?: EquipmentCatalogItem) => void
+  ) => {
+    applyOcr(def, base, dati, setValue)
+    setValue(`${base}.marca`, candidato.riga.marca)
+    setValue(`${base}.modello`, candidato.riga.modello)
+    applica((candidato.riga.specs ?? {}) as Record<string, any>, candidato.riga)
+    // A voce usata: è il conteggio che ordina i suggerimenti dell'autocomplete. Non si
+    // aspetta né si segnala un fallimento — la scheda è già compilata comunque.
+    void equipmentCatalogApi.incrementUsage(candidato.riga.id)
+  }
+
+  /**
+   * La riga è ancora quella per cui la targhetta era stata letta.
+   *
+   * Fra la lettura e la scrittura passa una chiamata di rete, e con il popup di scelta anche
+   * il tempo che l'operatore ci mette a rispondere: se nel frattempo un'eliminazione ha fatto
+   * scalare gli indici, `base` non indica più quell'apparecchiatura e scrivere sporcherebbe
+   * quella subentrata. Stessa guardia, e stessa ragione, di `selettoreCatalogo`.
+   */
+  const ancoraLaStessaRiga = (identita: { path: string; value: string }) =>
+    getValues(identita.path) === identita.value
+
+  /**
+   * Dati appena letti da una targhetta: si tenta di ricondurli a una voce di catalogo.
+   *
+   * Tre esiti. Riconoscimento certo: si applica e basta. Ambiguo: si mette la targhetta in
+   * attesa e si chiede all'operatore quale voce sia. Nessuna corrispondenza: si scrive quel
+   * che la targhetta dice, che è la strada di sempre — l'apparecchiatura è davvero nuova per
+   * il catalogo, e il «+» dell'autocomplete comparirà per invitare a censirla.
+   */
+  const ocrLetto = (
+    def: EquipmentTypeDef,
+    base: string,
+    identita: { path: string; value: string },
+    applica: (specs: Record<string, any>, item?: EquipmentCatalogItem) => void,
+    righeCatalogo: EquipmentCatalogItem[]
+  ) => (dati: OCRExtractedData) => {
+    if (!ancoraLaStessaRiga(identita)) return
+
+    const esito = matchEquipment(def.kind, dati, righeCatalogo)
+
+    if (esito.esito === 'certo') {
+      applicaCandidato(def, base, dati, esito.candidato, applica)
+      return
+    }
+    if (esito.esito === 'ambiguo') {
+      setDaScegliere({
+        datiOcr: dati, candidati: esito.candidati, motivo: esito.motivo, def, base, identita, applica,
+      })
+      return
+    }
+    applyOcr(def, base, dati, setValue)
+  }
+
+  /**
    * Righe della tabella e, in parallelo, l'elenco su cui la finestra dei dettagli scorre.
    *
    * I due nascono insieme perché devono avere lo stesso ordine: la freccia «successiva»
@@ -673,6 +787,7 @@ export const UnifiedEquipmentTable = ({
         rowKey={rowKey}
         onCampoExit={onExit}
         onSelected={onSelected}
+        onOcrLetto={ocrLetto(def, base, identita, onSelected, catalogoPerTipo[def.catalogType] ?? [])}
         guide={guide}
         discendente={discendente}
         adv={adv}
@@ -1031,6 +1146,31 @@ export const UnifiedEquipmentTable = ({
         }}
         onClose={() => { dettaglio?.onExit(); chiudiDettaglio() }}
       />
+
+      {/* Il popup si monta solo quando c'è una targhetta in attesa: così ogni lettura riparte
+          da uno stato pulito, senza la scelta fatta sulla targhetta precedente ancora accesa. */}
+      {daScegliere && (
+        <EquipmentMatchDialog
+          open
+          datiOcr={daScegliere.datiOcr}
+          candidati={daScegliere.candidati}
+          motivo={daScegliere.motivo}
+          onScegli={(c) => {
+            if (ancoraLaStessaRiga(daScegliere.identita)) {
+              applicaCandidato(daScegliere.def, daScegliere.base, daScegliere.datiOcr, c, daScegliere.applica)
+            }
+            setDaScegliere(null)
+          }}
+          // «Nessuno di questi»: la targhetta non è a catalogo, e i suoi dati vanno in scheda
+          // così come sono letti. È la stessa strada del caso senza corrispondenza.
+          onScarta={() => {
+            if (ancoraLaStessaRiga(daScegliere.identita)) {
+              applyOcr(daScegliere.def, daScegliere.base, daScegliere.datiOcr, setValue)
+            }
+            setDaScegliere(null)
+          }}
+        />
+      )}
 
       <UpdateCatalogDialog
         open={!!divergenza.pending}
