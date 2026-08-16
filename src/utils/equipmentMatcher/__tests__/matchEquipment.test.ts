@@ -156,6 +156,27 @@ describe('ordinamento e limite dei candidati', () => {
     expect([...sim].sort((a, b) => b - a)).toEqual(sim)
     expect(r.candidati.map((c) => c.riga.usage_count)).toEqual([3, 1, 0, 0, 0])
   })
+
+  // Important 6, seconda metà (revisione): il test sopra non è sensibile alla mutazione dello
+  // spareggio — il re-revisore ha rimosso `|| (b.riga.usage_count ?? 0) - (a.riga.usage_count
+  // ?? 0)` da `ordina` e la suite è rimasta verde, perché dopo il collasso la `Map` conserva
+  // l'ordine di primo inserimento e a fixture `sicc-tech-500` (usage 3) capita già di comparire
+  // prima di `sicc-tech-725` (usage 1): `[3, 1, 0, 0, 0]` usciva dal solo ordine del catalogo,
+  // non dallo spareggio. Qui l'ordine del catalogo è deliberatamente l'opposto di quello atteso.
+  test('il pareggio di somiglianza si spezza su usage_count anche quando l\'ordine del catalogo dice il contrario', () => {
+    const catalogo = [
+      riga('bassa-usanza', 'ALFA SPA', 'X9', { volume: 500, ps: 11 }, 0),
+      riga('alta-usanza', 'BETA SPA', 'X9', { volume: 500, ps: 11 }, 5),
+      riga('media-usanza', 'GAMMA SPA', 'X9', { volume: 500, ps: 11 }, 2),
+    ]
+    const r = matchEquipment('serbatoio',
+      { modello: 'X9', volume: 500, pressione_max: 11 },
+      catalogo)
+
+    expect(r.esito).toBe('ambiguo')
+    if (r.esito !== 'ambiguo') return
+    expect(r.candidati.map((c) => c.riga.usage_count)).toEqual([5, 2, 0])
+  })
 })
 
 describe('revisione del Task 4: Critical 1 e Important 2/3/4/5/7 (ruling R5/R6/R7)', () => {
@@ -178,6 +199,12 @@ describe('revisione del Task 4: Critical 1 e Important 2/3/4/5/7 (ruling R5/R6/R
     expect(r.esito).toBe('ambiguo')
     if (r.esito !== 'ambiguo') return
     expect(r.motivo).toBe('piu_candidati')
+    // R8 (ruling del controller, seconda revisione): il motivo `piu_candidati` deve trovare
+    // davvero più candidati in elenco. Prima di R8 il filtro dei soli-esatti restava applicato
+    // anche qui (`compatibili.length > 1` ma un solo esatto), riducendo `candidati` a `[SK 19]`
+    // da solo: l'operatore avrebbe letto "più voci corrispondono" sopra un elenco da una riga,
+    // senza mai vedere l'alternativa (`SK 19 B`) che ha reso il caso ambiguo.
+    expect(r.candidati.map((c) => c.riga.id).sort()).toEqual(['sk19', 'sk19b'])
   })
 
   test('Important 3 — un exact match che diverge sulle specs non deve far sparire il quasi-match compatibile', () => {
@@ -237,7 +264,7 @@ describe('revisione del Task 4: Critical 1 e Important 2/3/4/5/7 (ruling R5/R6/R
     expect(r.candidati.map((c) => c.riga.id).sort()).toEqual(['sep-100', 'sep-101'])
   })
 
-  test('R6 — nessuna marca letta non basta a certificare da sola il modello identico', () => {
+  test('R6/R9 — nessuna marca letta non basta a certificare da sola il modello identico', () => {
     // Isola la parte del cancello che il caso PARISE (sotto) non copre: lì `daAltraRagioneSociale`
     // si estende già perché una marca È stata letta e non trova riscontro; verificato per
     // mutazione che togliendo quell'estensione il test PARISE resta comunque verde (la marca
@@ -250,10 +277,26 @@ describe('revisione del Task 4: Critical 1 e Important 2/3/4/5/7 (ruling R5/R6/R
       SERBATOI_SICC)
 
     expect(r.esito).toBe('ambiguo')
-    // Il motivo qui resta `somiglianza_incerta`, che è impreciso quanto lo era prima di R7 per
-    // il caso dei filtri: il modello combacia alla lettera ed è confermato tecnicamente, non è
-    // affatto "incerto" — a mancare è solo la marca. Non è coperto dall'enum attuale (aggiungere
-    // un altro valore non era nel ruling): lo segnalo nel report invece di deciderlo da solo.
+    if (r.esito !== 'ambiguo') return
+    // R9 (ruling del controller, seconda revisione): prima usciva `somiglianza_incerta`, che
+    // mentiva quanto `somiglianza_incerta` mentiva sui filtri prima di R7 — il modello combacia
+    // alla lettera ed è confermato tecnicamente, manca solo la marca. `marca_assente` lo dice
+    // per quello che è.
+    expect(r.motivo).toBe('marca_assente')
+  })
+
+  test('R9 — una marca di soli spazi conta come assente, non come "un\'altra ragione sociale"', () => {
+    // Il re-revisore ha notato che la guardia `marcaLetta !== ''` lasciava passare `' '`:
+    // `normalizzaMarcaStretta(' ')` è `''`, quindi nessun candidato la conferma mai, e senza il
+    // `.trim()` sulla sorgente il risultato sarebbe stato `ragione_sociale_altra` per un dato
+    // che di fatto non c'è. Stesso scenario del test sopra, marca `' '` invece che assente.
+    const r = matchEquipment('serbatoio',
+      { marca: ' ', modello: '900-12783', volume: 900, pressione_max: 11 },
+      SERBATOI_SICC)
+
+    expect(r.esito).toBe('ambiguo')
+    if (r.esito !== 'ambiguo') return
+    expect(r.motivo).toBe('marca_assente')
   })
 
   test('R6 — una marca dichiarata ma estranea al catalogo non certifica il modello identico', () => {

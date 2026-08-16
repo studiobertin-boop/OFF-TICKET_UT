@@ -22,6 +22,7 @@ export type MotivoAmbiguita =
   | 'ragione_sociale_altra'
   | 'divergenza_specs'
   | 'piu_candidati'
+  | 'marca_assente'
   | 'senza_conferma_tecnica'
   | 'somiglianza_incerta'
 
@@ -45,7 +46,11 @@ export function matchEquipment(
   const modelloLetto = normalizzaModello(datiOcr.modello ?? '')
   if (!modelloLetto || righe.length === 0) return { esito: 'nessuno' }
 
-  const marcaLetta = datiOcr.marca ?? ''
+  // `.trim()`: una marca fatta di soli spazi non è una marca. Senza il trim, ' ' passa la
+  // guardia `marcaLetta !== ''` più sotto (che esiste apposta per distinguere "nessuna marca
+  // letta" da "marca letta ma sbagliata") e un dato di fatto assente verrebbe raccontato come
+  // "un'altra ragione sociale" — un'affermazione che i dati non sostengono.
+  const marcaLetta = (datiOcr.marca ?? '').trim()
   const marcaStretta = normalizzaMarcaStretta(marcaLetta)
 
   // 1. Restrizione stretta: se la targhetta dichiara una ragione sociale precisa, si cerca
@@ -164,9 +169,22 @@ export function matchEquipment(
   //    quasi-match compatibile rimasto è l'unico aggancio che l'operatore ha — toglierlo
   //    anche lui lascerebbe il popup vuoto o, peggio, con la sola riga che i dati letti hanno
   //    già contraddetto.
+  //
+  //    Il filtro va saltato anche quando ridurrebbe a una sola voce un'ambiguità che nasce
+  //    da più righe compatibili in competizione (`compatibili.length > 1`, motivo
+  //    `piu_candidati`): `SK 19` e `SK 19 B`, stessa marca, stesse specs, l'OCR legge `SK 19`
+  //    per un troncamento plausibile — filtrare ai soli esatti lascerebbe solo `SK 19` in
+  //    scena, e il popup direbbe "più voci corrispondono" sopra un elenco da una riga, con
+  //    l'alternativa che ha reso il caso ambiguo mai arrivata all'operatore. Il caso CECCATO,
+  //    per cui il filtro esiste, resta invece coperto: lì i compatibili sono 4 ma gli esatti
+  //    sono comunque 2 (una ragione sociale ciascuno) — filtrare non cancella la competizione,
+  //    la rende solo più precisa. La condizione è quindi sugli *esatti* rimasti, non sul
+  //    numero grezzo di compatibili: si applica il filtro se ne resta più di un esatto, o se
+  //    i compatibili in gara erano comunque uno solo (nessuna competizione da preservare).
   const base = compatibili.length > 0 ? compatibili : candidati
   const esatti = base.filter((c) => c.simModello === 1)
-  const daMostrare = esatti.length > 0 ? esatti : base
+  const filtroSoliEsattiSiApplica = compatibili.length <= 1 || esatti.length > 1
+  const daMostrare = filtroSoliEsattiSiApplica && esatti.length > 0 ? esatti : base
 
   const ordina = (a: Candidato, b: Candidato) =>
     b.simModello - a.simModello || (b.riga.usage_count ?? 0) - (a.riga.usage_count ?? 0)
@@ -178,12 +196,19 @@ export function matchEquipment(
       ? 'divergenza_specs'
       : compatibili.length > 1
         ? 'piu_candidati'
-        // Un solo compatibile, modello identico, ma senza un dato tecnico che lo confermi
-        // (filtro, separatore): non è "solo somigliante", è letteralmente lo stesso modello.
-        // Dirlo con `somiglianza_incerta` mentirebbe all'operatore sul motivo reale.
-        : compatibili[0].simModello === 1 && !haConferme(compatibili[0].confronti)
-          ? 'senza_conferma_tecnica'
-          : 'somiglianza_incerta'
+        // Nessuna marca letta (già ripulita dai soli spazi): il `certo` è bloccato dal punto
+        // 6 a prescindere da quanto modello e specs combacino, quindi non ha senso scendere a
+        // parlare di somiglianza o di conferme tecniche — il problema, quando c'è, è più a
+        // monte. `marcaLetta` è già `''` qui per costruzione (vedi guardia sopra su
+        // `nessunCandidatoConfermaLaMarca`), quindi non serve altro controllo.
+        : marcaLetta === ''
+          ? 'marca_assente'
+          // Un solo compatibile, modello identico, ma senza un dato tecnico che lo confermi
+          // (filtro, separatore): non è "solo somigliante", è letteralmente lo stesso modello.
+          // Dirlo con `somiglianza_incerta` mentirebbe all'operatore sul motivo reale.
+          : compatibili[0].simModello === 1 && !haConferme(compatibili[0].confronti)
+            ? 'senza_conferma_tecnica'
+            : 'somiglianza_incerta'
 
   return { esito: 'ambiguo', candidati: mostrati, motivo }
 }
