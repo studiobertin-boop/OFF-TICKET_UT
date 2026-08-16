@@ -385,6 +385,11 @@ export function simboloCompressore(nodo: SchemaNodo): string {
  * larghezza`, `x = 0`): non c'è più un centraggio diverso fra i due orientamenti, perché ora
  * ciascuno ha un riquadro tagliato sulla propria capsula, non un riquadro condiviso più grande
  * di uno dei due corpi.
+ *
+ * `definizioneDi(nodo)` senza `libreria`, di proposito: questa funzione disegna la sagoma BASE
+ * in coordinate locali, e `simboloTrasformato` (chiamato da `definizioneDi` quando una taratura
+ * esiste) la avvolge già in un `<g>` che applica dx/dy/sx/sy — passare `libreria` anche qui
+ * applicherebbe la stessa trasformazione due volte.
  */
 export function simboloSerbatoio(nodo: SchemaNodo): string {
   const { larghezza, altezza } = definizioneDi(nodo).dimensioni
@@ -700,6 +705,10 @@ export const TESTO_LIBERO = { dimensione: UTENZE.dimensioneScritta, larghezzaCar
  * La punta è un triangolo pieno e non un `marker-end`: nell'editor `SchemaNodeSymbol` monta il
  * simbolo in un `<svg>` suo, senza i `<defs>` che `renderSvg` dichiara, e un marker non
  * verrebbe disegnato affatto.
+ *
+ * `dimensioniDi(nodo)` senza `libreria`, di proposito: qui serve solo l'altezza NON tarata per
+ * disegnare il codolo in coordinate locali — la stessa ragione di `simboloSerbatoio` sopra, non
+ * applicare la trasformazione che `simboloTrasformato` applicherà già al risultato.
  */
 export function simboloUtenze(nodo: SchemaNodo): string {
   const { altezza } = dimensioniDi(nodo)

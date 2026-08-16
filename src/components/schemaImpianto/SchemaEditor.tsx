@@ -233,10 +233,21 @@ export function codiceLibero(prefisso: string, nodes: Node[]): string {
   }
 }
 
+/**
+ * Default di `SchemaEditorProps.libreria` quando il chiamante la omette. Costante di modulo, non
+ * `{}` inline nella destrutturazione: un `{}` lì produrrebbe un oggetto nuovo a ogni render, e
+ * gli `useMemo` che tengono `libreria` fra le dipendenze (`iniziale`, `layoutCorrente`,
+ * `varchiMuro`, `quote`, `capi`, `anteprima`) la vedrebbero cambiata a ogni giro — invalidandosi
+ * sempre, anche a schema fermo. Oggi non morde perché l'unico chiamante di produzione
+ * (`SchemaImpiantoSection`) passa un valore già memoizzato, ma resta una trappola per il
+ * prossimo che non lo facesse.
+ */
+const LIBRERIA_VUOTA: Tarature = {}
+
 function SchemaEditorInterno({
   layout,
   noteTubazioni,
-  libreria = {},
+  libreria = LIBRERIA_VUOTA,
   onConferma,
   onAnnulla,
   preferenze,
@@ -922,7 +933,7 @@ function SchemaEditorInterno({
             <Button
               size="small"
               startIcon={<AddIcon />}
-              onClick={() => aggiungiMuro((s) => ascissaProposta(nodiDi(s)))}
+              onClick={() => aggiungiMuro((s) => ascissaProposta(nodiDi(s), libreria))}
               disabled={stato.muroX !== null}
             >
               Muro
