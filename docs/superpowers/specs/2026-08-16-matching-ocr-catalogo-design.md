@@ -303,21 +303,32 @@ autocomplete, altrimenti si ricrea il problema di partenza. Si riusa perciò
 che applica `specsMap` e — passaggio cruciale — registra l'origine con
 `setOrigine(rowKey, { catalogItem, appliedSpecs })`.
 
-Da quella registrazione discendono tre comportamenti che oggi non si verificano:
+Da quella registrazione discendono due comportamenti che oggi non si verificano:
 
-- il «+» *Aggiungi al catalogo* non compare (`EquipmentAutocomplete.tsx:204-240`);
 - `useRowCatalogDivergence` sa da cosa misurare gli scostamenti se una cella viene poi
   modificata a mano;
 - `usage_count` si incrementa sulla voce di catalogo.
+
+Il «+» *Aggiungi al catalogo* smette di comparire, ma **non** per via di `setOrigine`:
+`EquipmentAutocomplete` (righe 204-240) lo decide per conto proprio, interrogando
+`findVariants` e confrontando la variante corrente. L'effetto si ottiene perché in scheda
+finiscono la marca e il modello esatti del catalogo, non perché l'origine sia registrata.
 
 Ripartizione dei dati applicati:
 
 | dalla riga di catalogo | dalla targhetta |
 |---|---|
-| marca (ragione sociale completa), modello, Volume, PS, TS, categoria PED | numero di fabbrica, anno |
+| marca (ragione sociale completa), modello, Volume, PS, TS, categoria PED | numero di fabbrica, anno, **e ogni altro dato dell'esemplare letto sulla stessa foto** |
 
-Numero di fabbrica e anno appartengono all'esemplare, non al modello, e vengono sempre dalla
-targhetta.
+La seconda colonna è più larga di quanto sembri, ed è un punto facile da sbagliare: sulla
+stessa targhetta l'OCR legge anche i dati della valvola di sicurezza (sui tipi con
+`mandatoryValvola`), del manometro (sui serbatoi), il `materiale_n` dei compressori e il
+diametro delle valvole. Sono tutti dell'esemplare, non del modello, e nessuno di essi arriva
+dal catalogo: applicare la sola riga di catalogo li perderebbe.
+
+Il modo sicuro di applicare è quindi in due passate: prima si scrivono tutti i dati letti
+(`applyOcr`, la stessa strada del caso C), poi vi si sovrascrivono marca, modello e le specs
+di catalogo. Ciò che il catalogo non conosce sopravvive.
 
 **Da verificare in implementazione**: per Compressori e Valvole di sicurezza le specs
 dipendono dalla variante di PS, normalmente scelta in `PressioneCatalogCell`. Il match
