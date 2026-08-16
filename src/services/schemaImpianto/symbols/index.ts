@@ -991,27 +991,52 @@ export function simboloMuro(x: number, yMin: number, yMax: number, varchi: numbe
 }
 
 /**
+ * Punto di ancoraggio della contro-scala di un `<text>`: le sue proprie `x`/`y` quando le porta,
+ * altrimenti quelle del primo `<tspan>` del suo contenuto.
+ *
+ * Il secondo caso è `testoMultiRiga`: il `<text>` che genera non porta `x`/`y` proprie (stanno sui
+ * singoli `tspan`, una per riga), ma il PRIMO tspan porta l'ascissa e l'ordinata della prima riga
+ * — le stesse `x`/`y` che il chiamante di `testoMultiRiga` ha passato — ed è quindi l'ancoraggio
+ * naturale, esattamente come lo sono `x`/`y` per un `<text>` a riga singola.
+ *
+ * Se nessuno dei due porta coordinate (caso che oggi non si presenta), l'ancora ricade su (0,0):
+ * un punto fisso di qualunque scala, quindi la contro-scala vi si annulla esattamente sulla
+ * POSIZIONE — il testo riceve solo la traslazione del gruppo, non la sua scala. È il sintomo
+ * concreto di un'ancora sbagliata (trovato in revisione sul terminale utenze prima di questa
+ * correzione), non un semplice "meno preciso": ecco perché la lettura del tspan è la prima cosa da
+ * tentare, e la (0,0) di riserva resta un ultimo ripiego silenzioso solo perché nessun caso reale
+ * lo raggiunge più.
+ */
+function ancoraDiTesto(attributiText: string, contenuto: string): { x: number; y: number } {
+  const xText = /\sx="(-?[\d.]+)"/.exec(attributiText)?.[1]
+  const yText = /\sy="(-?[\d.]+)"/.exec(attributiText)?.[1]
+  if (xText !== undefined && yText !== undefined) return { x: Number(xText), y: Number(yText) }
+  const primoTspan = /<tspan\b([^>]*)>/.exec(contenuto)?.[1] ?? ''
+  const x = Number(/\sx="(-?[\d.]+)"/.exec(primoTspan)?.[1] ?? 0)
+  const y = Number(/\sy="(-?[\d.]+)"/.exec(primoTspan)?.[1] ?? 0)
+  return { x, y }
+}
+
+/**
  * Contro-scala ogni `<text>` del frammento: la sagoma può stirarsi (è la deformazione che chi
  * tara ha scelto), ma una scritta stirata diventerebbe illeggibile. Il gruppo che avvolge la
  * sagoma applicherà `scale(sx sy)`; questa funzione anticipa l'inverso sul singolo `<text>`,
- * ancorato al suo stesso punto `x`/`y` (`translate(x y) scale(1/sx 1/sy) translate(-x -y)`), così
- * l'anello sagoma-scritta si annulla per la sola FORMA della scritta e la sua POSIZIONE segue
- * comunque la trasformazione del gruppo, come ogni altro elemento.
+ * ancorato al suo punto proprio (`ancoraDiTesto`, `translate(x y) scale(1/sx 1/sy) translate(-x
+ * -y)`), così l'anello sagoma-scritta si annulla per la sola FORMA della scritta e la sua POSIZIONE
+ * segue comunque la trasformazione del gruppo, come ogni altro elemento — testo a riga singola e
+ * multi-riga (`testoMultiRiga`) allo stesso modo, vedi `ancoraDiTesto`.
  *
- * Non tocca `<tspan>`: nel solo consumatore multi-riga di questo file (`testoMultiRiga`) il
- * `<text>` che li contiene non porta `x`/`y` propri (stanno sui singoli `tspan`) — un caso che
- * nessun simbolo tarato usa oggi e che questa funzione, non sapendo dove ancorare la contro-scala,
- * lascerebbe con l'ancora di default (0,0) se mai comparisse.
+ * Cattura l'elemento per intero (`<text ...>...</text>`, non solo il tag di apertura) perché il
+ * caso multi-riga ha bisogno del contenuto per trovare il primo `<tspan>`.
  */
 function controScalaTesti(svg: string, t: TaraturaSimbolo): string {
   if (t.sx === 1 && t.sy === 1) return svg
   const invSx = 1 / t.sx
   const invSy = 1 / t.sy
-  return svg.replace(/<text\b([^>]*)>/g, (_intero, attributi: string) => {
-    const x = Number(/\sx="(-?[\d.]+)"/.exec(attributi)?.[1] ?? 0)
-    const y = Number(/\sy="(-?[\d.]+)"/.exec(attributi)?.[1] ?? 0)
+  return svg.replace(/<text\b([^>]*)>([\s\S]*?)<\/text>/g, (_intero, attributi: string, contenuto: string) => {
+    const { x, y } = ancoraDiTesto(attributi, contenuto)
     const transform = `translate(${x} ${y}) scale(${invSx} ${invSy}) translate(${-x} ${-y})`
-    return `<text${attributi} transform="${transform}">`
+    return `<text${attributi} transform="${transform}">${contenuto}</text>`
   })
 }
 

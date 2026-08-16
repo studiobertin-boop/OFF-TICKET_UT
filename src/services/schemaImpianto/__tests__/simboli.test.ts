@@ -551,6 +551,19 @@ describe('la trasformazione della sagoma', () => {
     // La scritta porta una scala inversa a quella del gruppo: 1/2 in orizzontale.
     expect(svg).toMatch(/<text[^>]*transform="[^"]*scale\(0\.5 1\)/)
   })
+
+  it('ancora la contro-scala del testo multi-riga al primo tspan, non a (0,0)', () => {
+    // testoMultiRiga produce un <text> SENZA x/y proprie (le porta il primo <tspan>, una per
+    // riga: vedi testoMultiRiga in symbols/index.ts). Ancorare la contro-scala all'ancora di
+    // default (0,0) sarebbe un errore silenzioso, non solo "meno preciso": (0,0) è un punto
+    // fisso di qualunque scala, quindi lì scala diretta e inversa si annullerebbero ESATTAMENTE
+    // sulla posizione, lasciando il blocco di testo fermo alla sola traslazione del gruppo,
+    // senza seguirne la scala — il sintomo scoperto in revisione sul terminale utenze
+    // (simboloUtenze), l'unico consumatore reale di testoMultiRiga.
+    const svgOriginale = testoMultiRiga(50, 30, 'riga1\nriga2', 20, 'start')
+    const svg = simboloTrasformato(svgOriginale, { ...t, sx: 2, sy: 1 })
+    expect(svg).toMatch(/<text[^>]*transform="translate\(50 30\) scale\(0\.5 1\) translate\(-50 -30\)"/)
+  })
 })
 
 describe("l'ingombro è l'inviluppo di sagoma trasformata e ancore", () => {
