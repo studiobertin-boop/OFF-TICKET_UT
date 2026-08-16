@@ -23,7 +23,9 @@ import {
   completezzaApparecchiature, completezzaDatiGenerali, completezzaDatiImpianto,
   eCompleta, righeComplete, somma, type Completezza,
 } from '@/utils/schedaCompleteness'
-import { useHydrateCatalogOrigini } from '@/hooks/useHydrateCatalogOrigini'
+import { useHydrateCatalogOrigini, VALVOLE_ROW_PREFIX } from '@/hooks/useHydrateCatalogOrigini'
+import { rowKeyOf, useEquipmentCatalogContext } from './EquipmentCatalogContext'
+import { codiciValvoleDisoleatore, codiciValvoleSerbatoio } from '@/utils/valvoleImpianto'
 import { caricaCatalogoPerTipo } from '@/hooks/useCatalogoPerTipo'
 import { normalizeDiametroValvola, readSpec } from '@/services/equipmentAudit'
 import { matchEquipment, type Candidato, type MotivoAmbiguita } from '@/utils/equipmentMatcher'
@@ -146,6 +148,23 @@ interface AmbiguitaBatch {
 }
 
 /**
+ * Provenienza da registrare quando i codici si saranno assestati.
+ *
+ * La riga si indica per **posizione** nell'array e non per codice: `normalizeSchedaCodes` gira
+ * dopo la scrittura e può rinumerare («F9.jpg» con `filtri.max = 8` diventa F1), mentre l'ordine
+ * degli array lo conserva — lavora con `items.map`. La posizione è quindi l'unica coordinata che
+ * sopravvive alla normalizzazione, e il codice definitivo si rilegge da lì.
+ */
+interface ProvenienzaBatch {
+  arrayName: string
+  indice: number
+  /** La provenienza è della valvola di quel record, non del record stesso. */
+  valvola?: boolean
+  catalogItem: EquipmentCatalogItem
+  appliedSpecs: Record<string, unknown>
+}
+
+/**
  * Il `kind` che descrive la targhetta di un file del batch.
  *
  * Per le valvole `parsedType` è il tipo del *recipiente* che le porta ("S1.1.jpg" ⇒ Serbatoi):
@@ -213,6 +232,10 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
   // Aggancia le righe già compilate alle voci di catalogo da cui provengono: senza, riaprendo
   // una scheda salvata non si saprebbe da dove vengono i dati né si potrebbe riportarli a catalogo.
   useHydrateCatalogOrigini(defaultValues as SchedaDatiCompleta | undefined)
+
+  // Il batch scrive negli array senza passare dal selettore del catalogo della tabella: la
+  // provenienza delle righe che aggancia se la registra da sé, a fine scrittura.
+  const { setOrigine } = useEquipmentCatalogContext()
 
   // State per Batch OCR Dialog
   const [batchOCRDialogOpen, setBatchOCRDialogOpen] = useState(false)
@@ -395,6 +418,9 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
     /** File non applicati al form, con il motivo: da mostrare al tecnico a fine batch. */
     const skipped: string[] = []
 
+    /** Provenienze da registrare a fine scrittura, quando i codici non cambiano più. */
+    const provenienze: ProvenienzaBatch[] = []
+
     /**
      * Ordine di applicazione: prima i record principali, poi i dipendenti, infine le valvole.
      * Ogni gruppo si aggancia a qualcosa che il gruppo precedente ha già creato — un disoleatore al
@@ -481,6 +507,13 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
             const v = readSpec(def.catalogType, specs, specKey)
             if (v === null) return
             setValue(`${basePath}.${field}` as any, field === 'ts' ? String(v) : v)
+          })
+          provenienze.push({
+            arrayName: fieldName,
+            indice: ownerIndex,
+            valvola: true,
+            catalogItem: decisione.candidato.riga,
+            appliedSpecs: specs,
           })
         }
 
@@ -584,6 +617,18 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
       else newArray.push(newEquipment)
       console.log(`💾 Salvando in ${fieldName} ${targetCode ?? '(senza codice)'}:`, newEquipment)
 
+      // Posizione in cui il record è finito. Le scritture successive di questo stesso batch non
+      // la spostano: `mergeOcrData` sostituisce sul posto e i nuovi record si accodano, nessuna
+      // rimuove o riordina.
+      if (decisione.candidato) {
+        provenienze.push({
+          arrayName: fieldName,
+          indice: existing >= 0 ? existing : newArray.length - 1,
+          catalogItem: decisione.candidato.riga,
+          appliedSpecs: (decisione.candidato.riga.specs ?? {}) as Record<string, unknown>,
+        })
+      }
+
       console.log(`📊 Nuovo array ${fieldName}:`, newArray)
       setValue(fieldName as any, newArray, { shouldValidate: true, shouldDirty: true })
     })
@@ -599,6 +644,36 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
     // dati di una riga sotto un'altra.
     const { scheda: normalized } = normalizeSchedaCodes(getValues())
     reset(normalized, { keepDirty: true })
+
+    /**
+     * Provenienze, registrate qui e non al momento della scrittura: la chiave si costruisce sul
+     * codice, e fino alla riga sopra il codice poteva ancora cambiare. Quel che non cambia è la
+     * posizione nell'array, che è ciò che il ciclo ha annotato.
+     *
+     * Senza questa registrazione una riga agganciata dal batch resta orfana, e dalla provenienza
+     * dipendono il controllo di scostamento e la riscrittura a catalogo — cioè il difetto che
+     * questo lavoro corregge. `useHydrateCatalogOrigini` non chiude il buco da solo: ricostruisce
+     * la voce per euristica (marca + modello, poi la variante) e si arrende quando due varianti
+     * dello stesso modello non si distinguono, mentre qui l'`id` della riga scelta è noto con
+     * certezza; e su un batch di sole valvole non gira nemmeno, perché quel ramo scrive senza
+     * `shouldDirty`, l'autosave non parte e l'idratazione non si riarma.
+     */
+    for (const p of provenienze) {
+      const codice = (normalized as any)[p.arrayName]?.[p.indice]?.codice
+      if (!codice) continue
+      // Le valvole non hanno una chiave propria: la loro identità è la posizione nell'impianto,
+      // derivata dal codice del recipiente con la stessa convenzione di `elencaValvole`. Il batch
+      // scrive sempre e solo la valvola principale, che è la prima della serie.
+      const rowKey = p.valvola
+        ? rowKeyOf(
+            VALVOLE_ROW_PREFIX,
+            p.arrayName === 'disoleatori'
+              ? codiciValvoleDisoleatore(codice, 1)[0]
+              : codiciValvoleSerbatoio(codice, 1)[0]
+          )
+        : rowKeyOf(p.arrayName, codice)
+      setOrigine(rowKey, { catalogItem: p.catalogItem, appliedSpecs: p.appliedSpecs })
+    }
 
     return skipped
   }
