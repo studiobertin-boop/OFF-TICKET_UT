@@ -17,9 +17,10 @@ non cadono sui multipli di 10 e agganciare i tubi alla sola griglia produce tre 
 invece di uno. Il suo commento dice già che il giorno in cui le ancore saranno sui punti
 giusti diventerà indistinguibile da `allineaAllaGriglia`.
 
-Il blocco chiude quel debito e ne cambia la natura: le ancore smettono di essere numeri
-scritti nel codice e diventano **qualcosa che il committente tara da sé**, dall'editor,
-guardando un impianto vero.
+Il blocco fa due cose. **Rifà le sagome fedeli ai blocchi CAD** del committente — che è
+la richiesta con cui il blocco è nato — e cambia la natura delle ancore: smettono di
+essere numeri scritti nel codice e diventano **qualcosa che il committente tara da sé**,
+dall'editor, guardando un impianto vero.
 
 ## Fatti misurati il 16-08-2026, non dedotti
 
@@ -36,11 +37,27 @@ di direzione del flusso, linea condense. I 301 tracciati sono i segmenti che com
 quelle 19 voci, non 301 simboli. Il file è git-ignored (`DOCUMENTAZIONE/**/*.pdf`): vive
 solo nel worktree principale.
 
-**I simboli attuali sono già fedeli a quei blocchi.** Il confronto è stato fatto
-generando `scripts/tavola-simboli.ts` e affiancandola alla tavola CAD: sagome dei
-serbatoi, rombi di essiccatore/filtro/separatore, pacco bombole e compressore
-corrispondono. Le differenze sono di dettaglio, non di forma. **Ciò che è davvero
-sbagliato sono le ancore**, non i disegni.
+**I simboli attuali NON sono fedeli a quei blocchi.** Una prima lettura di questa
+specifica affermava il contrario, sulla base di un colpo d'occhio a una tavola
+rimpicciolita. Il committente l'ha smentita — lui l'editor lo guarda tutti i giorni — e il
+confronto affiancato, voce CAD contro simbolo reso, gli dà ragione:
+
+| Simbolo | Nel blocco CAD | Nell'editor oggi |
+|---|---|---|
+| Compressore | etichetta `C1` **fuori dal riquadro**, in alto a sinistra; cerchio **liscio** | etichetta dentro; cerchio **barrato da una diagonale** |
+| Serbatoio orizzontale | **allungato, circa 3:1** | quasi tozzo |
+| Tanica | **rettangolo largo** con la sigla `RC` | quadrato |
+| Essiccatore, separatore | rombo **pulito all'interno**; valvola di scarico minuta | tratto orizzontale sotto la sigla; valvola di scarico molto più grande |
+| Pacco bombole | colli e passo delle bombole del CAD | proporzioni diverse |
+| Serbatoio verticale | calotte più snelle | il più vicino dei sette, ma non sovrapponibile |
+
+**Le sagome vanno quindi rifatte davvero**, non ritoccate — e le ancore con loro.
+
+Il confronto è ripetibile: le 19 voci si isolano dal PDF raggruppando i tracciati per
+prossimità verticale (attenzione: la pagina ha `rotation: 270`, e i rettangoli restituiti
+da `get_drawings()` vanno moltiplicati per `page.rotation_matrix` prima di essere usati),
+e i simboli resi si generano dal registro. Averlo affiancato è ciò che ha fatto cadere
+l'affermazione falsa: **è lo strumento di verifica del blocco, non un di più.**
 
 **In banca dati ci sono due soli layout salvati**, su 359 schede: ORVED (15-08 13:24) e
 LOWA R&D (15-08 23:19), entrambe prove del committente, **nessuna col muro**. La
@@ -50,6 +67,13 @@ riattacco va costruito per il futuro, non per salvare un patrimonio che oggi non
 **Le ancore fuori griglia, coi numeri veri.** Il serbatoio verticale ha i fianchi a
 `x=33` e `x=117`, l'attacco alto a `y=40` su `x=75`. Il passo della griglia è 10
 (`PASSO_GRIGLIA`). Nessuno di quei tre numeri ci cade sopra.
+
+**Un difetto trovato durante il confronto:** `serbatoio:ORIZZONTALE` dichiara
+`DIMENSIONI.serbatoio`, cioè `150×260` — **lo stesso ingombro del verticale** — mentre la
+sagoma orizzontale ne occupa in altezza meno di un terzo. Il riquadro si porta dietro una
+fascia vuota che entra nell'area cliccabile sulla tela e nell'inviluppo del disegno. Si
+chiude da sé col ridisegno, ma va verificato che si chiuda: è il tipo di scarto che il
+banco di confronto deve vedere.
 
 ## Cosa vuole il committente
 
@@ -71,7 +95,8 @@ in basso al centro sulla valvola di scarico. Oggi ce ne sono quattro, in posti d
 
 ## Perimetro
 
-**Dentro:** i tre strati della libreria e la loro risoluzione; la trasformazione
+**Dentro:** il **ridisegno fedele di tutte le sagome** sui blocchi CAD, misurando sulle
+coordinate vere; i tre strati della libreria e la loro risoluzione; la trasformazione
 (traslazione + scala) applicata al disegno e all'ingombro; le ancore di fabbrica portate
 sulla griglia su tutti i simboli; la tabella di persistenza e il riattacco dei tubi
 quando un'ancora sparisce; il modo taratura nell'editor col dialogo a tre vie; il
@@ -94,8 +119,11 @@ arrivano dalla scheda, il serbatoio ha due orientamenti, il terminale utenze por
 scritta che va a capo. Un path importato reggerebbe la sagoma e perderebbe tutte le parti
 che si accendono e si spengono.
 
-Il PDF resta il riferimento su cui misurare, e `scripts/tavola-simboli.ts` — che esiste
-già — è lo strumento con cui si verifica simbolo per simbolo.
+Questo però **non** autorizza a ridisegnare a occhio, che è l'errore già commesso una
+volta in questa specifica. Le proporzioni si prendono dai tracciati veri: `get_drawings()`
+dà per ogni voce i segmenti e le curve con le loro coordinate, da cui si ricavano rapporti
+e misure — il rapporto 3:1 del serbatoio orizzontale, il passo delle bombole, il lato del
+rombo. Il ridisegno è **a mano nella struttura e misurato nei numeri**.
 
 ### Le ancore non si scalano
 
@@ -211,22 +239,34 @@ riferimenti che non risolvono.
 
 ## L'ordine dei lavori
 
-1. **Il modello a tre strati e la sua risoluzione.** Dati puri, nessuna interfaccia:
+0. **Lo strumento di confronto.** Il ritaglio delle 19 voci dal PDF e l'affiancamento coi
+   simboli resi, ripetibile a comando. Viene per primo perché è ciò che dice se i task 1
+   e 6 hanno funzionato — e perché senza di esso questa specifica ha già sbagliato una
+   volta.
+1. **Il ridisegno fedele delle sagome**, misurando sui tracciati veri: compressore
+   (etichetta fuori, cerchio liscio), serbatoio orizzontale allungato, tanica
+   rettangolare, rombi puliti con la valvola di scarico nella misura del CAD, pacco
+   bombole, serbatoio verticale. Ogni simbolo si chiude col confronto affiancato.
+2. **Il modello a tre strati e la sua risoluzione.** Dati puri, nessuna interfaccia:
    tipi, sovrascrittura, «torna a default». Provabile per intero senza montare niente.
-2. **La trasformazione applicata al disegno e all'ingombro.** Sagoma traslata e scalata,
+3. **La trasformazione applicata al disegno e all'ingombro.** Sagoma traslata e scalata,
    ancore in coordinate finali, scritte contro-scalate, `dimensioniDi` che calcola
-   l'inviluppo invece di leggere una tabella.
-3. **Le ancore di fabbrica sui simboli veri.** Portate sulla griglia, misurando sul PDF;
+   l'inviluppo invece di leggere una tabella — dove si chiude anche l'ingombro sbagliato
+   del serbatoio orizzontale.
+4. **Le ancore di fabbrica sui simboli veri.** Portate sulla griglia sulle sagome nuove;
    sul serbatoio verticale le cinque dello screenshot. Sono il punto di partenza, non la
    parola definitiva: le posizioni finali le farà il committente col modo taratura.
-4. **La tabella, la persistenza e il riattacco.** Migrazione, RLS, lettura all'apertura,
+5. **La tabella, la persistenza e il riattacco.** Migrazione, RLS, lettura all'apertura,
    scrittura riservata all'amministratore.
-5. **Il modo taratura nell'editor.** Interruttore in barra, pallini trascinabili solo
+6. **Il modo taratura nell'editor.** Interruttore in barra, pallini trascinabili solo
    sulla griglia, aggiunta e rimozione di ancore, scelta di cosa accettano, maniglie per
    traslare e deformare, dialogo a tre vie all'uscita.
-6. **Il ridisegno fedele dei segni senza ancore:** valvola di intercettazione, valvola di
+7. **Il ridisegno fedele dei segni senza ancore:** valvola di intercettazione, valvola di
    scarico, riduttore, freccia di flusso, muro col varco, tratteggi. Entrano nella
    fedeltà al CAD ma non nel modo taratura.
+
+Il ridisegno viene **prima** della taratura di proposito: tarare le ancore su sagome
+destinate a cambiare significherebbe farlo due volte.
 
 ## Come si verifica
 
@@ -248,6 +288,11 @@ aggiornamento.
 la produzione usa: è nel passaggio fra la funzione interna e la porta vera che i nomi dei
 campi divergono, ed è così che il difetto peggiore del D4 è passato inosservato per dieci
 revisioni. Le mutazioni si ripristinano da una copia del file, mai con `git checkout`.
+
+**Il confronto affiancato col CAD chiude ogni simbolo ridisegnato.** Non è una rifinitura
+estetica da rimandare in fondo: è il criterio con cui si dice che il task 1 è finito, ed è
+lo stesso strumento che ha smentito l'affermazione falsa di questa specifica. Il giudizio
+finale sulla somiglianza resta del committente.
 
 **La prova in pagina** si fa sulle due pratiche che hanno un layout salvato (ORVED e
 LOWA): sono l'unico caso reale di riapertura con simboli cambiati.
