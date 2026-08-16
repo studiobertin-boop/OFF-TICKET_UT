@@ -554,13 +554,21 @@ describe('i tre rombi si distinguono per il segno interno', () => {
 
   // La firma della valvola di scarico: il vertice dove le due punte della farfalla si toccano,
   // seguito dall'inizio del secondo triangolo — letta chiamando DAVVERO `valvolaScarico`, nella
-  // stessa posizione (55, 100) in cui `simboloRombo` la posa sotto un rombo 110×110 (essiccatore,
+  // stessa posizione (50, 102) in cui `simboloRombo` la posa sotto un rombo 110×110 (essiccatore,
   // filtro e separatore condividono quell'ingombro). Non è una stringa immaginata: se la
   // geometria della farfalla cambiasse, questa costante smetterebbe di comparire nel disegno
   // vero e il test lo scoprirebbe da sé, invece di restare verde per una coincidenza.
-  const FIRMA_VALVOLA_SCARICO = 'L 55 100 Z M 51.85 106.3'
+  //
+  // Fix round 1 (revisione, Task 8, Blocco 3): non più (55, 100) — quella era la posizione vera
+  // solo prima del Task 8, quando `cx` del rombo era `larghezza/2` senza offset (55) e `cy +
+  // semiH + 12` dava 49+39+12=100. Con gli offset nuovi (`cx=50`, `cy+semiH+12=50+40+12=102`) il
+  // vecchio letterale era rimasto un test contro se stesso, non contro il disegno vero — la
+  // stessa classe di difetto che il revisore ha trovato in `ANCORE_ROMBO` (verificato qui
+  // renderizzando `simboloDi` su un essiccatore e cercando il pattern della farfalla nel
+  // markup: la coppia di triangoli compare esattamente a (50, 102), non a (55, 100)).
+  const FIRMA_VALVOLA_SCARICO = 'L 50 102 Z M 46.85 108.3'
   it('la firma è davvero prodotta da valvolaScarico', () => {
-    expect(valvolaScarico(55, 100, 'apparecchio')).toContain(FIRMA_VALVOLA_SCARICO)
+    expect(valvolaScarico(50, 102, 'apparecchio')).toContain(FIRMA_VALVOLA_SCARICO)
   })
 
   it("l'essiccatore ha due tratti orizzontali, non uno", () => {

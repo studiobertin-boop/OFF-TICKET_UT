@@ -599,14 +599,16 @@ export function simboloFiltro(nodo: SchemaNodo): string {
  * un tratto nudo che scende dal vertice basso e, staccato da un vuoto, un secondo segmento più
  * in basso — non una farfalla. Il CAD misura 2,28pt/4,8pt/2,22pt (tratto/vuoto/segmento, rapporto
  * ≈1:2:1); qui in unità assolute (5/10/5, stesso rapporto) perché l'ingombro del nodo (Task 4,
- * non questo) lascia poco margine sotto il vertice basso — a 110 di altezza e vertice a y=88
- * restano solo 22 unità prima del bordo dichiarato, e il secondo segmento le riempie appena.
+ * non questo) lascia poco margine sotto il vertice basso — a 110 di altezza e vertice a y=90
+ * (non più 88: fix round 1 del Task 8, Blocco 3 — `cx`/`cy`/`semiH` duplicavano qui la vecchia
+ * geometria di `simboloRombo`, 0/6/16, invece di leggere quella vera, 5/5/15) restano solo 20
+ * unità prima del bordo dichiarato, e il secondo segmento vi arriva esattamente.
  */
 export function simboloSeparatore(nodo: SchemaNodo): string {
   const { larghezza, altezza } = DIMENSIONI.separatore
-  const cx = larghezza / 2
-  const cy = altezza / 2 - 6
-  const semiH = altezza / 2 - 16
+  const cx = larghezza / 2 - 5
+  const cy = altezza / 2 - 5
+  const semiH = altezza / 2 - 15
   const yVertice = cy + semiH
   return (
     simboloRombo(nodo, 'rettangolo', 'nessuno') +
@@ -779,15 +781,24 @@ export interface DefinizioneSimbolo {
 
 /**
  * Ancore condivise da essiccatore e filtro, che hanno la stessa geometria e sono solo stadi
- * della linea aria: i quattro vertici del rombo disegnato da `simboloRombo` (vedi i suoi
- * `cx`/`cy`/`semiL`/`semiH`) — 6/104/49/10/88 prima del Task 8, Blocco 3, quando il rombo era
- * centrato esattamente nel riquadro; ora 10/90/40/10/70, sulla griglia.
+ * della linea aria: i quattro vertici VERI del rombo disegnato da `simboloRombo` — con
+ * `cx=cy=semiL=50`, `semiH=40` (vedi i suoi commenti), il path è `M 50 10 L 100 50 L 50 90 L 0
+ * 50 Z` (verificato renderizzando `simboloDi`, non solo calcolato a mano), quindi vertice alto
+ * (50,10), destro (100,50), basso (50,90), sinistro (0,50). Fix round 1 (revisione, Task 8,
+ * Blocco 3): la prima stesura dichiarava `sx=(10,40)`/`dx=(90,40)`/`basso-out=(50,70)` — tre
+ * vertici su quattro staccati dal disegno vero di 14-20 unità, un resto della bozza scartata
+ * che riscalava il rombo a un riquadro 100×100 (mai arrivata al codice finale, che invece tiene
+ * il riquadro 110×110 invariato — vedi il commento su `simboloRombo`). Erano comunque multipli
+ * di 10, quindi il test di regolarità sulla griglia non se ne accorgeva: cadere sulla griglia
+ * non basta, l'ancora deve cadere sul vertice — 6/104/49/10/88 prima del Task 8 (rombo centrato
+ * nel riquadro, fuori griglia), 0/100/50/10/90 ora (vertici veri, sulla griglia per costruzione,
+ * non per coincidenza).
  */
 const ANCORE_ROMBO: SchemaAncora[] = [
-  { id: 'sx', x: 10, y: 40, accetta: ['aria'] },
-  { id: 'dx', x: 90, y: 40, accetta: ['aria'] },
+  { id: 'sx', x: 0, y: 50, accetta: ['aria'] },
+  { id: 'dx', x: 100, y: 50, accetta: ['aria'] },
   { id: 'alto-in', x: 50, y: 10, accetta: ['aria'] },
-  { id: 'basso-out', x: 50, y: 70, accetta: ['condensa'] },
+  { id: 'basso-out', x: 50, y: 90, accetta: ['condensa'] },
 ]
 
 /**
@@ -798,10 +809,10 @@ const ANCORE_ROMBO: SchemaAncora[] = [
  * di linea.
  */
 const ANCORE_SEPARATORE: SchemaAncora[] = [
-  { id: 'sx', x: 10, y: 40, accetta: ['aria', 'condensa'] },
-  { id: 'dx', x: 90, y: 40, accetta: ['aria', 'condensa'] },
+  { id: 'sx', x: 0, y: 50, accetta: ['aria', 'condensa'] },
+  { id: 'dx', x: 100, y: 50, accetta: ['aria', 'condensa'] },
   { id: 'alto-in', x: 50, y: 10, accetta: ['aria'] },
-  { id: 'basso-out', x: 50, y: 70, accetta: ['condensa'] },
+  { id: 'basso-out', x: 50, y: 90, accetta: ['condensa'] },
 ]
 
 /**

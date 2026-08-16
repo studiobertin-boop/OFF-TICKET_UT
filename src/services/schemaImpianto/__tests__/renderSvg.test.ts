@@ -13,9 +13,9 @@ import { buildSchemaModel } from '../buildSchemaModel'
 import { calcolaMuro, layoutSchema, quoteInstradamento } from '../layout'
 import { renderSvg, righeLista, righeLegenda, posizioneAncora, varchiDelMuro } from '../renderSvg'
 import { AVVICINAMENTO, raccordoOrtogonale } from '../tratti'
-import { dimensioniDi } from '../symbols'
+import { dimensioniDi, simboloDi } from '../symbols'
 import type { Tarature } from '../libreria'
-import type { SchemaNodoPosizionato, SchemaSegnoTubo } from '../types'
+import type { SchemaNodo, SchemaNodoPosizionato, SchemaSegnoTubo } from '../types'
 import { SVG_RIFERIMENTO_SENZA_TESTI } from './fixtures/svgRiferimentoSenzaTesti'
 import { SVG_RIFERIMENTO_CON_TEE } from './fixtures/svgRiferimentoConTee'
 import { SVG_RIFERIMENTO_CON_MURO } from './fixtures/svgRiferimentoConMuro'
@@ -379,11 +379,22 @@ describe('attacco alle ancore', () => {
     const sep = layout.nodi.find((n) => n.id === 'SEP1')!
     const svg = renderSvg(layout)
 
-    // ancora 'sx' del separatore: (10, 40) in coordinate locali — sul fianco sinistro del
-    // rombo, non al centro del corpo né in cima (dove atterrava il vecchio calcolo). Non più
-    // (6, 49): il rombo non è più centrato esattamente nel riquadro (Task 8, Blocco 3 — vedi
-    // `simboloRombo`, il suo vertice sinistro cade ora sulla griglia).
-    const atteso = `L ${sep.x + 10} ${sep.y + 40}" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="10 7" marker-end="url(#freccia)" />`
+    // Vertice sinistro del rombo letto dal PATH VERO che `simboloDi` disegna, non da un
+    // letterale a mano: fix round 1 (revisione, Task 8, Blocco 3) — la prima stesura di questo
+    // test dichiarava (10, 40), lo stesso valore sbagliato che `ANCORE_ROMBO` dichiarava allora,
+    // e il confronto letterale-contro-letterale non poteva scoprire che i due non
+    // corrispondevano al disegno reale (il rombo, a `cx=cy=semiL=50`/`semiH=40`, disegna
+    // `M 50 10 L 100 50 L 50 90 L 0 50 Z`: il quarto punto, dopo l'ultima "L", è il vertice
+    // sinistro). Estrarlo da qui invece di scriverlo a mano fa cadere questo test se il rombo si
+    // sposta di nuovo, invece di limitarsi a confermare se stesso.
+    const separatoreNudo: SchemaNodo = {
+      id: 'SEP1', tipo: 'separatore', etichetta: '', gruppo: 'ALTRO', valvoleSicurezza: [], origine: 'scheda',
+    }
+    const rombo = simboloDi(separatoreNudo).match(
+      /<path d="M ([\d.]+) ([\d.]+) L ([\d.]+) ([\d.]+) L ([\d.]+) ([\d.]+) L ([\d.]+) ([\d.]+) Z"/
+    )!
+    const [vertSx, vertSy] = [Number(rombo[7]), Number(rombo[8])]
+    const atteso = `L ${sep.x + vertSx} ${sep.y + vertSy}" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="10 7" marker-end="url(#freccia)" />`
     expect(svg).toContain(atteso)
   })
 
