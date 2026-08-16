@@ -110,10 +110,12 @@ export function SchemaImpiantoSection({
 
   const puoGenerare = puoGenerareSchema({ scheda, collegamentiCompressoriSerbatoi })
   const note = useMemo(() => notaTubazioni(scheda), [scheda])
-  // Punto unico di risoluzione della libreria per questa catena (generazione del documento):
-  // permanenti e di pratica non esistono ancora (arriveranno col Blocco 3 Task 9, dalla tabella
-  // delle tarature e dal layout salvato), quindi resta vuota — ma il chiamante è già quello
-  // giusto, così quel task tocca un solo file per aggiungere le due fonti vere.
+  // Punto unico di risoluzione della libreria per questa pratica: sia per la generazione del
+  // documento (`disegna`/`rigenera` qui sotto) sia per l'editor, che la riceve come prop invece
+  // di risolversi la propria — le tarature di pratica vivranno nel layout salvato, che questa
+  // Section possiede, non l'editor che monta. Permanenti e di pratica non esistono ancora
+  // (arriveranno col Blocco 3 Task 9, dalla tabella delle tarature e dal layout salvato), quindi
+  // resta vuota — ma il chiamante è già quello giusto, così quel task tocca un solo file.
   const libreria = useMemo(() => risolviLibreria({}, {}), [])
 
   useEffect(() => {
@@ -425,6 +427,7 @@ export function SchemaImpiantoSection({
             <SchemaEditor
               layout={layout}
               noteTubazioni={note}
+              libreria={libreria}
               preferenze={preferenze}
               onCambiaPreferenze={cambiaPreferenze}
               onAnnulla={() => setEditorAperto(false)}

@@ -942,4 +942,28 @@ describe('libreria delle tarature', () => {
     const layout = layoutSchema(modello, tarata)
     expect(renderSvg(layout, tarata)).not.toBe(renderSvg(layoutSchema(modello)))
   })
+
+  /**
+   * Fix round 1 (revisione): il test sopra non inchioda `layoutSchema` — con `sx: 2, sy: 1` la
+   * tanica non ha altri nodi nella propria riga (`disponiInRiga` la posiziona da sola) e la sua
+   * altezza non cambia, quindi NESSUNA `x`/`y` di `layout.nodi` si sposta: la differenza fra i
+   * due `renderSvg` è tutta nel disegno (`simboloDi`/`ancoreDi`), non nel layout. Una `libreria`
+   * ombreggiata dentro `layoutSchema` (mai propagata a `disponiInRiga`) avrebbe fatto passare
+   * comunque quel test. Qui la taratura cambia anche `sy` (l'altezza, non solo la larghezza):
+   * `disponiInRiga` allinea la tanica al centro della corsia condense sulla sua altezza vera
+   * (`quota - dim.altezza / 2`), quindi un'altezza diversa sposta la sua `y` — un'asserzione
+   * sulle POSIZIONI, non sull'SVG.
+   */
+  it('una taratura passata a layoutSchema sposta le posizioni dei nodi', () => {
+    const tarata: Tarature = {
+      tanica: { dx: 0, dy: 0, sx: 2, sy: 2, ancore: [{ id: 'alto-in', x: 80, y: 0, accetta: ['condensa'] }] },
+    }
+    const modello = buildSchemaModel({
+      scheda: schedaConTanica(),
+      collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+    })
+    const nodoTarato = layoutSchema(modello, tarata).nodi.find((n) => n.tipo === 'tanica')!
+    const nodoBase = layoutSchema(modello).nodi.find((n) => n.tipo === 'tanica')!
+    expect(nodoTarato.y).not.toBe(nodoBase.y)
+  })
 })

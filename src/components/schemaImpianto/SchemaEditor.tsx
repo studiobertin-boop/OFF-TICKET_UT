@@ -58,7 +58,7 @@ import { capoValido, connessioneAmmessa, stileIniziale } from '@/services/schema
 import type { Asse, Bordo } from '@/services/schemaImpianto/allineamento'
 import { PASSO_GRIGLIA, allineaAllaGriglia } from '@/services/schemaImpianto/griglia'
 import { ingombroTesto, quoteInstradamento } from '@/services/schemaImpianto/layout'
-import { risolviLibreria, type Tarature } from '@/services/schemaImpianto/libreria'
+import type { Tarature } from '@/services/schemaImpianto/libreria'
 import { renderSvg, varchiDelMuro } from '@/services/schemaImpianto/renderSvg'
 import { dimensioniDi } from '@/services/schemaImpianto/symbols'
 import type {
@@ -168,6 +168,16 @@ export interface SchemaEditorProps {
   layout: SchemaLayout
   /** Le stesse note che finiranno sotto il disegno: servono a rendere l'anteprima fedele. */
   noteTubazioni?: string[]
+  /**
+   * La libreria risolta di questa pratica (Task 5/9). Arriva come prop, non è l'editor a
+   * risolverla: chi monta il dialog (`SchemaImpiantoSection`) ha già la sola `risolviLibreria`
+   * della catena "generazione del documento" — se l'editor ne costruisse una propria, ci
+   * sarebbero due punti di risoluzione per la stessa pratica, e un domani (Task 9, tarature di
+   * pratica lette dal layout salvato che possiede la Section) potrebbero divergere in silenzio.
+   * Default `{}`: nessun chiamante di produzione la passa vuota per scelta, solo perché oggi non
+   * c'è altro da passare.
+   */
+  libreria?: Tarature
   onConferma: (layout: SchemaLayout) => void
   onAnnulla: () => void
   /**
@@ -223,13 +233,15 @@ export function codiceLibero(prefisso: string, nodes: Node[]): string {
   }
 }
 
-function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, preferenze, onCambiaPreferenze }: SchemaEditorProps) {
-  // Punto unico di risoluzione della libreria per questa catena (l'editor): permanenti e di
-  // pratica non esistono ancora (Blocco 3 Task 9 le aggiungerà, dalla tabella delle tarature e
-  // dal layout aperto), quindi resta vuota — ma è già il chiamante giusto, così quel task tocca
-  // un solo file per aggiungere le due fonti vere.
-  const libreria = useMemo<Tarature>(() => risolviLibreria({}, {}), [])
-
+function SchemaEditorInterno({
+  layout,
+  noteTubazioni,
+  libreria = {},
+  onConferma,
+  onAnnulla,
+  preferenze,
+  onCambiaPreferenze,
+}: SchemaEditorProps) {
   // `layout.muro?.x ?? null`, non `layout.muro`: lo stato porta la sola ascissa (vedi il commento
   // su `StatoEditor.muroX`), e senza questa lettura una pratica riaperta perderebbe in silenzio
   // il muro salvato — tornerebbe sempre a `null`, come prima che questo stato esistesse.

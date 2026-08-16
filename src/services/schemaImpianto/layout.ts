@@ -14,7 +14,6 @@ import {
   MARGINE_VALVOLA_SERBATOIO,
   SPESSORE_MURO,
   TESTO_LIBERO,
-  definizioneDi,
   dimensioniDi,
 } from './symbols'
 import type { QuoteInstradamento } from './tratti'
@@ -276,20 +275,25 @@ export function corpoNodo(
   larghezza: number
   altezza: number
 } {
-  const dim = DIMENSIONI_NODO[nodo.tipo]
+  // `dimensioniDi`, non `DIMENSIONI_NODO[nodo.tipo]` né `definizioneDi(...).dimensioni`: è la
+  // sola delle tre che riflette una taratura (attraverso l'inviluppo, symbols/index.ts). Senza,
+  // il pozzo di raccolta condense tarato — tanica o separatore, sono i due tipi che
+  // `pozzoCondense` può restituire — lascerebbe `quotaCorsiaCondense` leggere l'altezza del
+  // registro invariata, e l'intera corsia condense del documento correrebbe alla quota
+  // sbagliata (fix round 1, Task 7).
+  const dim = dimensioniDi(nodo, libreria)
 
   if (nodo.tipo === 'serbatoio') {
-    // Il riquadro proprio del nodo (verticale o orizzontale, Task 4), non `dim` sopra: quello
-    // resta indicizzato per tipo, sempre il verticale. La stessa geometria di `simboloSerbatoio`
+    // Il riquadro proprio del nodo (verticale o orizzontale, Task 4), non l'ingombro indicizzato
+    // per tipo: quello resta sempre il verticale. La stessa geometria di `simboloSerbatoio`
     // (symbols/index.ts): il corpo riempie il riquadro in larghezza, con `MARGINE_VALVOLA_SERBATOIO`
     // di spazio sopra per la valvola di sicurezza — una sola formula per i due orientamenti, non
     // più un centraggio diverso e una misura fissa (84) indipendente dal riquadro dichiarato.
-    const propria = definizioneDi(nodo, libreria).dimensioni
     return {
       x: nodo.x,
       y: nodo.y + MARGINE_VALVOLA_SERBATOIO,
-      larghezza: propria.larghezza,
-      altezza: propria.altezza - MARGINE_VALVOLA_SERBATOIO,
+      larghezza: dim.larghezza,
+      altezza: dim.altezza - MARGINE_VALVOLA_SERBATOIO,
     }
   }
 

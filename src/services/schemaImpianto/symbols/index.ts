@@ -854,15 +854,10 @@ export function definizioneDi(
 }
 
 /**
- * Le ancore di un nodo. Coincidono con quelle del registro per tutti i tipi tranne il
- * terminale utenze, il cui riquadro cresce con la lunghezza della scritta e, da quando la
- * scritta può andare a capo, anche col numero di righe (vedi `dimensioniDi`): il suo attacco
- * sta in fondo al riquadro, dove comincia il codolo, quindi segue l'altezza invece di restare
- * alla quota fissa dichiarata nel registro.
- *
- * Il registro resta la fonte per la forma e per gli identificativi — che entrano negli archi
- * salvati e non possono cambiare — e questa funzione è l'unico posto dove una coordinata
- * dipende dal contenuto del nodo.
+ * Le ancore di un nodo: quelle della taratura per la sua chiave, se `libreria` ne ha una
+ * (`definizioneDi`), altrimenti quelle del registro. Il terminale utenze è un caso ulteriore
+ * sopra i due: il suo attacco `in` segue l'altezza vera del riquadro (`dimensioniDi`), che
+ * cresce con la scritta — non la quota fissa che l'una o l'altra fonte dichiarano.
  */
 export function ancoreDi(nodo: SchemaNodo, libreria: Tarature = {}): SchemaAncora[] {
   const ancore = definizioneDi(nodo, libreria).ancore
@@ -930,11 +925,13 @@ export function dimensioniDi(nodo: SchemaNodo, libreria: Tarature = {}): { largh
   const taratura = taraturaDi(libreria, chiave)
   // Con taratura l'ingombro è l'inviluppo di sagoma trasformata e ancore (vedi `inviluppo` più
   // sotto), non più il riquadro fisso del registro: la crescita dinamica del terminale utenze
-  // qui sotto è un caso a parte che con una taratura non si applica (nessuna chiave tarata è
-  // 'utenze' oggi, e le due logiche non avrebbero un modo ovvio di comporsi).
-  if (taratura) return inviluppo(REGISTRO_SIMBOLI[chiave].dimensioni, taratura, ancoreDi(nodo, libreria))
+  // qui sotto è un caso a parte che con una taratura non si applica. Da `taratura.ancore`
+  // direttamente, non da `ancoreDi(nodo, libreria)`: per 'utenze' quest'ultima richiama
+  // `dimensioniDi` per la propria altezza (il ramo sotto), e richiamarla da qui ricreerebbe lo
+  // stesso ciclo — `taratura.ancore` è già il dato finale, nessuna chiamata in più serve.
+  if (taratura) return inviluppo(REGISTRO_SIMBOLI[chiave].dimensioni, taratura, taratura.ancore)
 
-  const dimensioni = definizioneDi(nodo).dimensioni
+  const dimensioni = definizioneDi(nodo, libreria).dimensioni
   if (nodo.tipo !== 'utenze') return dimensioni
 
   const righe = nodo.etichetta.split('\n')

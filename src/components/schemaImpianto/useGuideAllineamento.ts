@@ -30,7 +30,11 @@ export function useGuideAllineamento(nodes: Node[]) {
       // loro: si muovono in blocco e sarebbero sempre "in riga" l'uno con l'altro.
       const idTrascinati = new Set(nodiTrascinati.map((n) => n.id))
       const altri = nodes.filter((n) => !idTrascinati.has(n.id)).map(posizionato)
-      setGuide(guideDiAllineamento(posizionato(nodoTrascinato), altri))
+      // La libreria viaggia già dentro `data` (vedi `SchemaNodeData`, `layoutAFlow`): letta dal
+      // nodo trascinato invece di ricevuta come parametro a parte, per non aggiungere un canale
+      // in più a un hook che riceve solo `nodes`.
+      const { libreria } = nodoTrascinato.data as SchemaNodeData
+      setGuide(guideDiAllineamento(posizionato(nodoTrascinato), altri, libreria))
     },
     [nodes]
   )

@@ -3,7 +3,7 @@ import { chiaveSimbolo } from '../types'
 import type { SchemaNodo, SchemaNodoTipo } from '../types'
 import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloMuro, simboloUtenze, valvolaIntercettazione, riduttorePressione, valvolaScarico, testoMultiRiga, DIAMETRO_GIUNZIONE, campioneTubazione, TRATTEGGIO_CONDENSE, MARGINE_VALVOLA_SERBATOIO, simboloTrasformato, inviluppo } from '../symbols'
 import { capoValido } from '../agganci'
-import { TARATURA_NEUTRA } from '../libreria'
+import { TARATURA_NEUTRA, type Tarature } from '../libreria'
 
 describe('chiaveSimbolo', () => {
   it('distingue le due varianti del serbatoio', () => {
@@ -208,6 +208,28 @@ describe('ancoreDi', () => {
     const lunga = terminale('Utenze aria\nreparto verniciatura\ne collaudo\nlinea 4\nlinea 5\nlinea 6')
     expect(ancoreDi(corta).find((a) => a.id === 'in')!.y).toBe(dimensioniDi(corta).altezza)
     expect(ancoreDi(lunga).find((a) => a.id === 'in')!.y).toBe(dimensioniDi(lunga).altezza)
+  })
+
+  /**
+   * Fix round 1 (revisione, Task 7): `utenze` è una `ChiaveSimbolo` valida come le altre, quindi
+   * una taratura potrà coprirla. Con taratura, il ramo utenze di `ancoreDi` chiama `dimensioniDi`
+   * per la propria altezza; se il ramo tarato di `dimensioniDi` richiamasse a sua volta
+   * `ancoreDi(nodo, libreria)` (invece di leggere `taratura.ancore` direttamente) il giro si
+   * chiuderebbe su se stesso — `RangeError: Maximum call stack size exceeded` alla prima
+   * apertura del dialog su una pratica con 'utenze' tarato. Nessun altro test in questo file
+   * combina «tipo utenze» e «chiave tarata»: senza questo, il ciclo passerebbe inosservato.
+   */
+  it('una taratura su "utenze" non entra in ricorsione fra ancoreDi e dimensioniDi', () => {
+    const nodo = terminale('Utenze aria')
+    const libreria: Tarature = {
+      utenze: { dx: 0, dy: 0, sx: 1, sy: 1, ancore: [{ id: 'in', x: 12, y: 0, accetta: ['aria'] }] },
+    }
+    expect(() => ancoreDi(nodo, libreria)).not.toThrow()
+    expect(() => dimensioniDi(nodo, libreria)).not.toThrow()
+    // L'altezza resta un numero finito, non NaN o Infinity: il sintomo concreto di un giro che
+    // in qualche runtime non esplodesse subito in uno stack overflow, ma producesse comunque
+    // un dato inutilizzabile.
+    expect(Number.isFinite(dimensioniDi(nodo, libreria).altezza)).toBe(true)
   })
 })
 
