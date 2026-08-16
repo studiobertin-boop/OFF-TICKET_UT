@@ -1,5 +1,4 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -43,7 +42,6 @@ interface OCRResponse {
   data?: any
   error?: string
   confidence_score?: number
-  fuzzy_matches?: any[]
 }
 
 serve(async (req) => {
@@ -69,11 +67,6 @@ serve(async (req) => {
         }
       )
     }
-
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseKey)
 
     // Get Anthropic API key from environment
     const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY')
@@ -170,20 +163,11 @@ serve(async (req) => {
     // Calculate confidence score (0-100)
     const confidenceScore = calculateConfidenceScore(extractedData)
 
-    // Search for fuzzy matches in equipment catalog
-    const fuzzyMatches = await searchFuzzyMatches(
-      supabase,
-      extractedData.marca,
-      extractedData.modello,
-      equipment_type
-    )
-
     // Return response
     const response: OCRResponse = {
       success: true,
       data: extractedData,
-      confidence_score: confidenceScore,
-      fuzzy_matches: fuzzyMatches
+      confidence_score: confidenceScore
     }
 
     return new Response(
@@ -363,38 +347,4 @@ function calculateConfidenceScore(data: any): number {
   const fields = ['marca', 'modello', 'n_fabbrica', 'anno', 'pressione_max', 'volume']
   const extractedCount = fields.filter(field => data[field] !== null && data[field] !== undefined).length
   return Math.round((extractedCount / fields.length) * 100)
-}
-
-/**
- * Cerca match fuzzy nel catalogo equipaggiamenti
- */
-async function searchFuzzyMatches(
-  supabase: any,
-  marca: string | null,
-  modello: string | null,
-  equipmentType: string
-): Promise<any[]> {
-  if (!marca && !modello) {
-    return []
-  }
-
-  try {
-    const searchTerm = `${marca || ''} ${modello || ''}`.trim()
-
-    const { data, error } = await supabase.rpc('search_equipment_fuzzy', {
-      search_term: searchTerm,
-      equipment_type_filter: equipmentType,
-      limit_results: 5
-    })
-
-    if (error) {
-      console.error('Fuzzy search error:', error)
-      return []
-    }
-
-    return data || []
-  } catch (error) {
-    console.error('Error in searchFuzzyMatches:', error)
-    return []
-  }
 }

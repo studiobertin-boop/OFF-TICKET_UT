@@ -1,38 +1,22 @@
 import { useState } from 'react'
 import { supabase, SUPABASE_URL } from '@/services/supabase'
-import { normalizeEquipment } from '@/utils/equipmentNormalizer'
 import type {
   EquipmentType,
   OCRAnalysisRequest,
-  OCRAnalysisResponse,
-  OCRExtractedData,
-  NormalizedField
+  OCRAnalysisResponse
 } from '@/types/ocr'
-import type { EquipmentCatalogType } from '@/types'
 
 /**
- * Mappa EquipmentType (OCR) → EquipmentCatalogType (Catalogo)
- * 'valvola' non ha un tipo catalogo (è un componente nested)
- */
-const EQUIPMENT_TYPE_MAP: Partial<Record<EquipmentType, EquipmentCatalogType>> = {
-  'serbatoio': 'Serbatoi',
-  'compressore': 'Compressori',
-  'disoleatore': 'Disoleatori',
-  'essiccatore': 'Essiccatori',
-  'scambiatore': 'Scambiatori',
-  'filtro': 'Filtri',
-  'separatore': 'Separatori'
-  // 'valvola' non mappato - è un componente, non un'apparecchiatura
-}
-
-/**
- * Hook per analisi OCR con normalizzazione automatica
+ * Hook per analisi OCR
  *
  * Features:
  * - Converte immagine in base64
  * - Chiama Edge Function analyze-equipment-nameplate
- * - Normalizza marca/modello contro catalogo
  * - Gestisce stati loading/error
+ *
+ * Il riconoscimento contro il catalogo (marca/modello) non avviene più qui: è il matcher
+ * lato client in `src/utils/equipmentMatcher/` a confrontare il dato letto dalla targhetta
+ * con `equipment_catalog`, a valle di questo hook.
  *
  * @returns Oggetto con funzione analyzeImage e stati
  */
@@ -64,12 +48,12 @@ export function useOCRAnalysis() {
   }
 
   /**
-   * Analizza immagine con OCR + Normalizzazione
+   * Analizza immagine con OCR
    *
    * @param file - File immagine da analizzare
    * @param equipmentType - Tipo apparecchiatura
    * @param equipmentCode - Codice apparecchiatura (es: "S1", "C2")
-   * @returns Response OCR con dati normalizzati
+   * @returns Response OCR con i dati letti dalla targhetta
    */
   const analyzeImage = async (
     file: File,
@@ -136,21 +120,9 @@ export function useOCRAnalysis() {
 
       console.log('✅ OCR completato:', ocrResult)
 
-      // STEP 3: Normalizzazione marca/modello
-      setProgress(85)
-      const normalizedData = await normalizeOCRData(
-        ocrResult.data,
-        equipmentType
-      )
-
       setProgress(100)
 
-      console.log('✅ Normalizzazione completata')
-
-      return {
-        ...ocrResult,
-        data: normalizedData
-      }
+      return ocrResult
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Errore sconosciuto'
       console.error('❌ Errore analisi OCR:', errorMessage)
@@ -163,51 +135,6 @@ export function useOCRAnalysis() {
     } finally {
       setLoading(false)
       setProgress(0)
-    }
-  }
-
-  /**
-   * Normalizza marca e modello nei dati OCR
-   */
-  const normalizeOCRData = async (
-    data: OCRExtractedData,
-    equipmentType: EquipmentType
-  ): Promise<OCRExtractedData> => {
-    const catalogType = EQUIPMENT_TYPE_MAP[equipmentType]
-
-    if (!catalogType) {
-      console.warn(`Tipo apparecchiatura non mappato: ${equipmentType}`)
-      return data
-    }
-
-    // Se mancano marca o modello, skippa normalizzazione
-    if (!data.marca || !data.modello) {
-      console.log('⚠️ Marca o modello mancanti, skip normalizzazione')
-      return data
-    }
-
-    try {
-      console.log('🔄 Normalizzazione marca/modello in corso...')
-
-      const normalized = await normalizeEquipment(
-        catalogType,
-        data.marca,
-        data.modello
-      )
-
-      return {
-        ...data,
-        // Usa valori normalizzati se disponibili
-        marca: normalized.marca.normalizedValue,
-        modello: normalized.modello.normalizedValue,
-        // Aggiungi metadati normalizzazione
-        marca_normalized: normalized.marca,
-        modello_normalized: normalized.modello
-      }
-    } catch (err) {
-      console.error('⚠️ Errore normalizzazione (non bloccante):', err)
-      // In caso di errore, ritorna dati OCR raw
-      return data
     }
   }
 
@@ -257,37 +184,4 @@ export function useOCRAnalysis() {
     error,
     progress
   }
-}
-
-/**
- * Helper: Determina se è richiesta conferma utente per normalizzazione
- */
-export function requiresNormalizationConfirmation(
-  marcaNormalized?: NormalizedField,
-  modelloNormalized?: NormalizedField
-): boolean {
-  if (!marcaNormalized && !modelloNormalized) return false
-
-  const marcaConfidence = marcaNormalized?.confidence || 100
-  const modelloConfidence = modelloNormalized?.confidence || 100
-
-  // Richiede conferma se confidence tra 50-80%
-  return (
-    (marcaConfidence >= 50 && marcaConfidence < 80) ||
-    (modelloConfidence >= 50 && modelloConfidence < 80)
-  )
-}
-
-/**
- * Helper: Formatta messaggio normalizzazione per utente
- */
-export function formatNormalizationMessage(
-  field: 'marca' | 'modello',
-  normalized: NormalizedField
-): string {
-  if (!normalized.wasNormalized) {
-    return `${field}: "${normalized.normalizedValue}"`
-  }
-
-  return `${field}: "${normalized.originalValue}" → "${normalized.normalizedValue}" (${normalized.confidence}% match)`
 }

@@ -35,20 +35,6 @@ export interface OCRAnalysisResponse {
   data?: OCRExtractedData
   error?: string
   confidence_score?: number // 0-100
-  fuzzy_matches?: FuzzyMatch[]
-}
-
-// ============================================================================
-// NORMALIZED FIELDS
-// ============================================================================
-
-export interface NormalizedField {
-  originalValue: string
-  normalizedValue: string
-  wasNormalized: boolean
-  confidence: number
-  source: 'exact_match' | 'fuzzy_match' | 'no_match'
-  alternatives?: FuzzyMatch[]
 }
 
 // ============================================================================
@@ -87,10 +73,6 @@ export interface OCRExtractedData {
 
   // Confidence per campo
   field_confidence?: Record<string, number>
-
-  // Normalizzazione marca/modello
-  marca_normalized?: NormalizedField
-  modello_normalized?: NormalizedField
 }
 
 // ============================================================================
@@ -164,8 +146,6 @@ export interface BatchOCRItem {
   status: 'pending' | 'processing' | 'completed' | 'error' | 'conflict'
   error?: string
   result?: OCRAnalysisResponse
-  normalizedMarca?: NormalizedField
-  normalizedModello?: NormalizedField
   hasConflict?: boolean
   conflictFields?: string[]
   // PDF support
@@ -181,5 +161,7 @@ export interface BatchOCRResult {
   errors: number
   skipped: number
   conflicts: number
-  normalized: number // Quanti marca/modello sono stati normalizzati
+  // Il matching contro il catalogo avviene dopo, in TechnicalSheetForm — qui non è ancora noto
+  // quante voci abbiano agganciato una riga, quindi il campo resta a 0.
+  normalized: number
 }

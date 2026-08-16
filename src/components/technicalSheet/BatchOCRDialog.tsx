@@ -233,9 +233,7 @@ export const BatchOCRDialog = ({ open, onClose, onComplete }: BatchOCRDialogProp
             it.id === item.id ? {
               ...it,
               status: 'completed' as const,
-              result,
-              normalizedMarca: result.data?.marca_normalized,
-              normalizedModello: result.data?.modello_normalized
+              result
             } : it
           )
           setItems(updatedItems)
@@ -278,9 +276,7 @@ export const BatchOCRDialog = ({ open, onClose, onComplete }: BatchOCRDialogProp
       errors: errorCount,
       skipped: updatedItems.filter(i => i.status === 'error' && !i.result).length,
       conflicts: 0, // TODO: Implementare rilevamento conflitti
-      normalized: updatedItems.filter(i =>
-        i.normalizedMarca?.wasNormalized || i.normalizedModello?.wasNormalized
-      ).length
+      normalized: 0 // Il matching a catalogo avviene dopo, in TechnicalSheetForm
     }
 
     // Pass updatedItems instead of state items
@@ -412,25 +408,15 @@ export const BatchOCRDialog = ({ open, onClose, onComplete }: BatchOCRDialogProp
                       )}
                     </TableCell>
                     <TableCell>
-                      {item.normalizedMarca ? (
-                        <Box>
-                          {item.normalizedMarca.normalizedValue}
-                          {item.normalizedMarca.wasNormalized && (
-                            <Chip label="✓" color="success" size="small" sx={{ ml: 0.5 }} />
-                          )}
-                        </Box>
+                      {item.result?.data?.marca ? (
+                        <Box>{item.result.data.marca}</Box>
                       ) : (
                         <Typography variant="body2" color="text.secondary">-</Typography>
                       )}
                     </TableCell>
                     <TableCell>
-                      {item.normalizedModello ? (
-                        <Box>
-                          {item.normalizedModello.normalizedValue}
-                          {item.normalizedModello.wasNormalized && (
-                            <Chip label="✓" color="success" size="small" sx={{ ml: 0.5 }} />
-                          )}
-                        </Box>
+                      {item.result?.data?.modello ? (
+                        <Box>{item.result.data.modello}</Box>
                       ) : (
                         <Typography variant="body2" color="text.secondary">-</Typography>
                       )}

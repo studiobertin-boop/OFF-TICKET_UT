@@ -1,5 +1,5 @@
 import { supabase } from '../supabase'
-import type { EquipmentCatalogType, EquipmentCatalogItem, EquipmentSearchResult } from '@/types'
+import type { EquipmentCatalogType, EquipmentCatalogItem } from '@/types'
 import { normalizeSpecs, variantSpecKey } from '@/services/equipmentAudit'
 import { raggruppaVarianti, stessaVoceCatalogo, type VarianteCatalogo } from '@/utils/equipmentVarianti'
 
@@ -216,26 +216,6 @@ export const equipmentCatalogApi = {
     if (error) throw error
 
     return data
-  },
-
-  /**
-   * Cerca apparecchiature con fuzzy matching
-   * Opzionalmente filtrato per tipo
-   */
-  async searchFuzzy(
-    searchTerm: string,
-    tipo?: EquipmentCatalogType,
-    limit: number = 10
-  ): Promise<EquipmentSearchResult[]> {
-    const { data, error } = await supabase.rpc('search_equipment_fuzzy', {
-      search_term: searchTerm,
-      equipment_type_filter: tipo || null,
-      limit_results: limit
-    })
-
-    if (error) throw error
-
-    return data as EquipmentSearchResult[]
   },
 
   /**

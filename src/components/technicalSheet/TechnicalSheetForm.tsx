@@ -479,9 +479,8 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
         }
         console.log(`🔐 Popolando la valvola di ${ownerCode}`)
 
-        // Usa valori normalizzati se disponibili
-        const marca = item.normalizedMarca?.normalizedValue || data.marca || ''
-        const modello = item.normalizedModello?.normalizedValue || data.modello || ''
+        const marca = data.marca || ''
+        const modello = data.modello || ''
 
         const basePath = `${fieldName}.${ownerIndex}.valvola_sicurezza`
         setValue(`${basePath}.marca` as any, marca)
@@ -525,9 +524,8 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
       const currentArray = watch(fieldName as any) || []
       console.log(`📋 Array corrente ${fieldName}:`, currentArray.length, 'items')
 
-      // Usa valori normalizzati se disponibili, altrimenti usa raw OCR
-      const marca = item.normalizedMarca?.normalizedValue || data.marca || ''
-      const modello = item.normalizedModello?.normalizedValue || data.modello || ''
+      const marca = data.marca || ''
+      const modello = data.modello || ''
 
       // Crea nuova apparecchiatura o aggiorna esistente
       const newEquipment: any = {
