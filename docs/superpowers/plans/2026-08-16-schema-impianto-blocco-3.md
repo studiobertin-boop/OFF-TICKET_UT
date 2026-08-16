@@ -291,6 +291,11 @@ ridisegno cambia gli ingombri, e quindi cambia il layout: un banco montato a val
 misurerebbe zero differenze proprio sul cambiamento più pervasivo. È l'errore che il
 Blocco D4 ha già pagato.
 
+**Cosa misura e cosa no.** Questo banco prova due cose: che la catena intera sia
+deterministica, e che un cambiamento di ingombro arrivi fino all'SVG. **Non** è un confronto
+prima/dopo del ridisegno: quello è affidato ai **riferimenti SVG committati**, congelati nel
+tempo, che cadono quando il disegno cambia. Non cercare qui un raffronto storico che non c'è.
+
 - [ ] **Step 1: Scrivere il banco e la sua prova di discriminazione**
 
 ```typescript
@@ -751,7 +756,9 @@ git commit -m "feat(schema): i tre strati della libreria dei simboli, dati puri"
 - Consumes: `TaraturaSimbolo`, `TARATURA_NEUTRA` (Task 5)
 - Produces:
   - `function simboloTrasformato(svg: string, t: TaraturaSimbolo): string`
-  - `function inviluppo(svg: string, dimensioni: {larghezza: number; altezza: number}, t: TaraturaSimbolo, ancore: SchemaAncora[]): {larghezza: number; altezza: number}`
+  - `function inviluppo(dimensioni: {larghezza: number; altezza: number}, t: TaraturaSimbolo, ancore: SchemaAncora[]): {larghezza: number; altezza: number}`
+    — **non** riceve l'SVG: non lo parsa, e il registro dichiara già l'ingombro della sagoma
+    non trasformata
 
 Il meccanismo portante del blocco: **le ancore non si scalano**. La sagoma vive in
 coordinate sue e viene traslata e scalata; le ancore si dichiarano già nel sistema finale,
@@ -785,14 +792,12 @@ describe('la trasformazione della sagoma', () => {
 describe("l'ingombro è l'inviluppo di sagoma trasformata e ancore", () => {
   it('cresce se un ancora sta fuori dal disegno', () => {
     const ancore = [{ id: 'alto', x: 75, y: -20, accetta: ['valvola_sicurezza'] as const }]
-    const misure = inviluppo('<rect x="0" y="0" width="150" height="260" />',
-                             { larghezza: 150, altezza: 260 }, TARATURA_NEUTRA, ancore)
+    const misure = inviluppo({ larghezza: 150, altezza: 260 }, TARATURA_NEUTRA, ancore)
     expect(misure.altezza).toBeGreaterThan(260)
   })
 
   it('segue la scala della sagoma', () => {
-    const misure = inviluppo('<rect x="0" y="0" width="100" height="100" />',
-                             { larghezza: 100, altezza: 100 }, { ...TARATURA_NEUTRA, sx: 2, sy: 1 }, [])
+    const misure = inviluppo({ larghezza: 100, altezza: 100 }, { ...TARATURA_NEUTRA, sx: 2, sy: 1 }, [])
     expect(misure.larghezza).toBe(200)
   })
 })
@@ -809,9 +814,9 @@ Expected: FAIL — le funzioni non esistono.
 che tiene fermi tutti i riferimenti SVG dei simboli non tarati. La contro-scala delle
 scritte si applica a ogni `<text>` del frammento.
 
-`inviluppo` non parsa l'SVG: prende `dimensioni` dal registro, le moltiplica per la scala,
-le trasla, e allarga il rettangolo risultante fino a contenere ogni ancora. Parsare la
-stringa sarebbe fragile e non serve — il registro **dichiara** già l'ingombro della sagoma
+`inviluppo` prende `dimensioni` dal registro, le moltiplica per la scala, le trasla, e
+allarga il rettangolo risultante fino a contenere ogni ancora. Non riceve l'SVG e non lo
+parsa: sarebbe fragile e non serve — il registro **dichiara** già l'ingombro della sagoma
 non trasformata.
 
 - [ ] **Step 4: Eseguire i test**
