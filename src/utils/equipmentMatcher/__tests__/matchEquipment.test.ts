@@ -1,6 +1,23 @@
 import { describe, test, expect } from 'vitest'
 import { matchEquipment } from '../index'
 import { SERBATOI_SICC, COMPRESSORI_CECCATO, FILTRI } from './fixtures'
+import type { EquipmentCatalogItem } from '@/types'
+
+/**
+ * Riga di catalogo minima per gli scenari della revisione (R5/R6/R7): non sono presi dalle
+ * fixture di produzione perché riproducono difetti isolati dal revisore su combinazioni che
+ * non esistono a catalogo reale (es. due varianti dello stesso modello a somiglianza alta ma
+ * non identica, o una marca del tutto assente dai Serbatoi). Stessa forma del `riga()` locale
+ * di `fixtures.ts`.
+ */
+const riga = (
+  id: string, marca: string, modello: string,
+  specs: Record<string, any>, usage_count = 0
+): EquipmentCatalogItem => ({
+  id, tipo: '', marca, modello, specs, usage_count,
+  is_active: true, is_user_defined: false,
+  created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+})
 
 describe('esito certo', () => {
   test('ragione sociale completa, modello esatto, volume e PS confermati', () => {
@@ -121,11 +138,151 @@ describe('esito nessuno', () => {
 })
 
 describe('ordinamento e limite dei candidati', () => {
-  test('al massimo cinque candidati, i più somiglianti per primi', () => {
+  // Important 6 (revisione): la versione precedente di questo test non aveva un `expect`
+  // sull'esito prima del guard `if (r.esito !== 'ambiguo') return` — sarebbe rimasto verde
+  // anche restituendo `nessuno` (verificato dal revisore alzando la soglia a 0,999). In più
+  // l'asserzione sull'ordinamento era tautologica: con `modello: '12783'`, tutte le undici
+  // righe SICC normalizzano a «<capacità> 12783» e danno la stessa somiglianza (0,625,
+  // verificato numericamente sotto), quindi qualunque ordine la soddisfa. Lo spareggio vero
+  // è sull'`usage_count` (3, 1, 0, 0, 0 per le prime cinque posizioni), ed è quello che va
+  // asserito.
+  test('al massimo cinque candidati, il pareggio di somiglianza si spezza su usage_count', () => {
     const r = matchEquipment('serbatoio', { modello: '12783' }, SERBATOI_SICC)
+
+    expect(r.esito).toBe('ambiguo')
     if (r.esito !== 'ambiguo') return
     expect(r.candidati.length).toBeLessThanOrEqual(5)
     const sim = r.candidati.map((c) => c.simModello)
     expect([...sim].sort((a, b) => b - a)).toEqual(sim)
+    expect(r.candidati.map((c) => c.riga.usage_count)).toEqual([3, 1, 0, 0, 0])
+  })
+})
+
+describe('revisione del Task 4: Critical 1 e Important 2/3/4/5/7 (ruling R5/R6/R7)', () => {
+  test('Critical 1 — due varianti compatibili della stessa marca non certificano una sola riga', () => {
+    // Ripro del revisore: `SK 19` e `SK 19 B` a catalogo, stessa marca, stesse specs.
+    // Prima di R5 il filtro dei soli-esatti girava sui candidati prima di calcolare
+    // `compatibili`: riduceva l'insieme al solo `SK 19` (l'unico a somiglianza 1) prima
+    // ancora di sapere se ce ne fosse più di uno tecnicamente compatibile, e la clausola «un
+    // solo candidato compatibile» del `certo` si trovava a valutare un insieme già potato.
+    // Lo scenario reale è un OCR che tronca un suffisso (`SK 19-08` letto `SK 19`): con le
+    // due varianti indistinguibili sulle specs, la scelta spetta all'operatore.
+    const catalogo = [
+      riga('sk19', 'ACME SPA', 'SK 19', { ps: 11, volume: 500 }),
+      riga('sk19b', 'ACME SPA', 'SK 19 B', { ps: 11, volume: 500 }),
+    ]
+    const r = matchEquipment('serbatoio',
+      { marca: 'ACME SPA', modello: 'SK 19', volume: 500, pressione_max: 11 },
+      catalogo)
+
+    expect(r.esito).toBe('ambiguo')
+    if (r.esito !== 'ambiguo') return
+    expect(r.motivo).toBe('piu_candidati')
+  })
+
+  test('Important 3 — un exact match che diverge sulle specs non deve far sparire il quasi-match compatibile', () => {
+    // Ripro del revisore: `500 12783` (esatto) diverge sul volume letto, `500 12783 A`
+    // (quasi-match, somiglianza 0,909) è invece compatibile con tutto ciò che l'OCR ha letto.
+    // Prima di R5 il filtro dei soli-esatti toglieva `500 12783 A` di mezzo perché non era
+    // sim=1, lasciando in scena solo la riga che i dati letti avevano già contraddetto:
+    // l'operatore avrebbe visto un solo candidato, sbagliato, e avrebbe perso l'aggancio.
+    const catalogo = [
+      riga('esatto-diverge', 'ACME SPA', '500 12783', { ps: 11, volume: 500 }),
+      riga('quasi-compatibile', 'ACME SPA', '500 12783 A', { ps: 11, volume: 900 }),
+    ]
+    const r = matchEquipment('serbatoio',
+      { marca: 'ACME SPA', modello: '500-12783', volume: 900, pressione_max: 11 },
+      catalogo)
+
+    expect(r.esito).toBe('ambiguo')
+    if (r.esito !== 'ambiguo') return
+    expect(r.candidati.map((c) => c.riga.id)).toEqual(['quasi-compatibile'])
+  })
+
+  test('Important 4 — il ripiego di famiglia con un solo esito esatto e confermato resta ambiguo', () => {
+    // Copertura del ramo `!daAltraRagioneSociale`: la targhetta dichiara `SICC TECH s.r.l.`,
+    // che a catalogo esiste ma con un modello del tutto diverso (`ZK 900`, somiglianza 0,43
+    // col letto `ZK 250` — sotto soglia, quindi la restrizione stretta resta vuota). Il
+    // ripiego di famiglia trova `ZK 250` sotto `SICC S.r.L.`: modello esatto, specs
+    // confermate, marca comunque riconducibile alla famiglia (quindi non bloccato da R6) — è
+    // `daAltraRagioneSociale` l'unica condizione che deve impedire il `certo`.
+    const catalogo = [
+      riga('sicc-tech-zk900', 'SICC TECH s.r.l.', 'ZK 900', { volume: 400, ps: 9 }),
+      riga('sicc-srl-zk250', 'SICC S.r.L.', 'ZK 250', { volume: 250, ps: 9 }),
+    ]
+    const r = matchEquipment('serbatoio',
+      { marca: 'SICC TECH s.r.l.', modello: 'ZK 250', volume: 250, pressione_max: 9 },
+      catalogo)
+
+    expect(r.esito).toBe('ambiguo')
+    if (r.esito !== 'ambiguo') return
+    expect(r.motivo).toBe('ragione_sociale_altra')
+  })
+
+  test('Important 5 — su un tipo a specsMap vuoto, modelli diversi della stessa marca non collassano', () => {
+    // Copertura della Correzione 1: `separatore` ha `specsMap: {}`, quindi senza il modello
+    // normalizzato nell'impronta del collasso questa si ridurrebbe alla sola marca — `SEP 100`
+    // e `SEP 101`, entrambi sopra soglia contro il letto `SEP 10X` (somiglianza 0,750,
+    // verificata numericamente), si fonderebbero in una riga sola.
+    const catalogo = [
+      riga('sep-100', 'BETA SEP S.r.l.', 'SEP 100', {}, 2),
+      riga('sep-101', 'BETA SEP S.r.l.', 'SEP 101', {}, 1),
+    ]
+    const r = matchEquipment('separatore',
+      { marca: 'BETA SEP S.r.l.', modello: 'SEP 10X' },
+      catalogo)
+
+    expect(r.esito).toBe('ambiguo')
+    if (r.esito !== 'ambiguo') return
+    expect(r.candidati.map((c) => c.riga.id).sort()).toEqual(['sep-100', 'sep-101'])
+  })
+
+  test('R6 — nessuna marca letta non basta a certificare da sola il modello identico', () => {
+    // Isola la parte del cancello che il caso PARISE (sotto) non copre: lì `daAltraRagioneSociale`
+    // si estende già perché una marca È stata letta e non trova riscontro; verificato per
+    // mutazione che togliendo quell'estensione il test PARISE resta comunque verde (la marca
+    // letta non corrisponde a nessuna riga tecnicamente compatibile) — è la condizione esplicita
+    // `corrispondeAllaMarca(compatibili[0])` nel `certo`, non l'estensione, a bloccare *questo*
+    // caso, dove la marca è del tutto assente e l'estensione resta spenta apposta (guardia
+    // `marcaLetta !== ''`, per non chiamare "un'altra ragione sociale" un dato che non c'è).
+    const r = matchEquipment('serbatoio',
+      { modello: '900-12783', volume: 900, pressione_max: 11 },
+      SERBATOI_SICC)
+
+    expect(r.esito).toBe('ambiguo')
+    // Il motivo qui resta `somiglianza_incerta`, che è impreciso quanto lo era prima di R7 per
+    // il caso dei filtri: il modello combacia alla lettera ed è confermato tecnicamente, non è
+    // affatto "incerto" — a mancare è solo la marca. Non è coperto dall'enum attuale (aggiungere
+    // un altro valore non era nel ruling): lo segnalo nel report invece di deciderlo da solo.
+  })
+
+  test('R6 — una marca dichiarata ma estranea al catalogo non certifica il modello identico', () => {
+    // Ripro del revisore sulle fixture del task: `PARISE COMPRESSORI SRL` non esiste fra i
+    // Serbatoi SICC e non risolve nessuna famiglia. Prima di R6 `strette` restava vuoto, la
+    // ricerca scivolava sull'intero tipo senza che nessuna contraddizione emergesse, e
+    // l'unico modello esatto (`900-12783`, sotto `SICC TECH s.r.l.`) usciva `certo` — la
+    // scheda si sarebbe compilata con un costruttore diverso da quello sulla targhetta.
+    const r = matchEquipment('serbatoio',
+      { marca: 'PARISE COMPRESSORI SRL', modello: '900-12783', volume: 900, pressione_max: 11 },
+      SERBATOI_SICC)
+
+    expect(r.esito).toBe('ambiguo')
+    if (r.esito !== 'ambiguo') return
+    expect(r.motivo).toBe('ragione_sociale_altra')
+  })
+
+  test('R7 — modello identico ma senza dati tecnici da confermare non è "solo somigliante"', () => {
+    // Stesso scenario del test «tipo senza discriminanti tecnici» sui filtri, con
+    // l'asserzione sul motivo che prima mancava: `AC 0035` combacia alla lettera
+    // (somiglianza 1) ma il filtro non ha campi confrontabili nello schema OCR, quindi
+    // `haConferme` è sempre falso. Etichettarlo `somiglianza_incerta` direbbe il falso
+    // all'operatore — il modello non è affatto incerto, manca solo la conferma tecnica.
+    const r = matchEquipment('filtro',
+      { marca: 'AIR COM S.r.l.', modello: 'AC 0035' },
+      FILTRI)
+
+    expect(r.esito).toBe('ambiguo')
+    if (r.esito !== 'ambiguo') return
+    expect(r.motivo).toBe('senza_conferma_tecnica')
   })
 })

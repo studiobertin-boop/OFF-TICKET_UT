@@ -22,6 +22,7 @@ export type MotivoAmbiguita =
   | 'ragione_sociale_altra'
   | 'divergenza_specs'
   | 'piu_candidati'
+  | 'senza_conferma_tecnica'
   | 'somiglianza_incerta'
 
 export type RisultatoMatch =
@@ -106,33 +107,70 @@ export function matchEquipment(
   }
   candidati = [...perImpronta.values()]
 
-  // 3bis. Un modello identico rende rumore chi è solo somigliante. Se la targhetta trova
-  // almeno una riga con corrispondenza esatta, le righe che si avvicinano ma non coincidono
-  // non aggiungono un'alternativa reale: sono lo stesso modello letto peggio, o un modello
-  // diverso che il testo ricorda. In entrambi i casi non aiutano la scelta e allungano solo
-  // il popup — l'unica domanda che deve restare aperta, quando l'exact match esiste, è fra le
-  // ragioni sociali che lo condividono (vedi CECCATO: stesso `FONOCOMPACT PRO 270 F6S` sotto
-  // due aziende), non fra modelli diversi.
-  if (candidati.some((c) => c.simModello === 1)) {
-    candidati = candidati.filter((c) => c.simModello === 1)
+  // 4. Compatibilità tecnica, calcolata sull'insieme intero (non ancora ridotto ai soli
+  //    esatti: quel filtro è un fatto di *presentazione*, non di decisione — vedi sotto). Se
+  //    girasse prima, la clausola «un solo candidato compatibile» del punto 5 si valuterebbe
+  //    su un insieme già potato e il cancello del `certo` si allargherebbe: un modello esatto
+  //    che diverge sulle specs lascerebbe fuori il quasi-match compatibile, l'insieme potato
+  //    crollerebbe a un solo elemento (quello divergente) e quell'elemento — da solo — non
+  //    passerebbe comunque il `certo` per via della divergenza, ma nel caso duale (`SK 19` e
+  //    `SK 19 B`, stessa marca, stesse specs, l'OCR legge `SK 19` per troncamento) l'esatto
+  //    è pure compatibile: il quasi-match verrebbe scartato prima di essere confrontato,
+  //    l'insieme crollerebbe a lui solo, e la scheda si compilerebbe da sola su una delle due
+  //    varianti senza che l'altra abbia mai avuto voce in capitolo.
+  const compatibili = candidati.filter((c) => eCompatibile(c.confronti))
+
+  // 5. La marca letta deve riconoscersi nella riga scelta — o è la stessa ragione sociale, o
+  //    appartiene alla sua famiglia produttore. Senza questo controllo il modello può anche
+  //    coincidere alla lettera: resta comunque un'altra azienda, e non è un dettaglio che la
+  //    scheda possa risolversi da sola. Copre anche la marca del tutto assente: nessuna
+  //    corrispondenza vuol dire nessuna certezza sul costruttore.
+  const corrispondeAllaMarca = (c: Candidato): boolean => {
+    if (c.marcaEsatta) return true
+    const famiglia = risolviFamiglia(marcaLetta)
+    return famiglia !== null && famiglia.includes(c.riga.marca)
   }
 
-  const compatibili = candidati.filter((c) => eCompatibile(c.confronti))
-  const ordina = (a: Candidato, b: Candidato) =>
-    b.simModello - a.simModello || (b.riga.usage_count ?? 0) - (a.riga.usage_count ?? 0)
+  // Generalizza `daAltraRagioneSociale` oltre al solo caso del ripiego di famiglia: capita
+  // anche quando la marca letta non sta in nessuna famiglia mappata (es. un costruttore mai
+  // censito) e la ricerca è scivolata sull'intero tipo — lì nessuna delle due branche sopra
+  // segnala nulla, ma il candidato tecnico che ne esce appartiene comunque a un'altra azienda.
+  // Guardato dietro `marcaLetta !== ''`: quando la targhetta non dichiara proprio una marca
+  // non c'è una "ragione sociale altra" da nominare, solo un dato mancante — il motivo di
+  // quel caso resta quello determinato dal numero di compatibili, non questo.
+  const nessunCandidatoConfermaLaMarca =
+    marcaLetta !== '' && compatibili.length > 0 && !compatibili.some(corrispondeAllaMarca)
+  daAltraRagioneSociale = daAltraRagioneSociale || nessunCandidatoConfermaLaMarca
 
-  // 4. Certezza: un solo candidato compatibile, modello identico, e almeno un dato tecnico
-  //    che lo conferma. Tutto il resto passa dall'operatore.
+  // 6. Certezza: un solo candidato compatibile, modello identico, un dato tecnico che lo
+  //    conferma, e una marca che gli corrisponde davvero (punto 5 — copre anche il caso della
+  //    marca vuota, che la riga sopra non intercetta per via della guardia su `marcaLetta`).
+  //    Tutto il resto passa dall'operatore.
   if (
     !daAltraRagioneSociale &&
     compatibili.length === 1 &&
     compatibili[0].simModello === 1 &&
-    haConferme(compatibili[0].confronti)
+    haConferme(compatibili[0].confronti) &&
+    corrispondeAllaMarca(compatibili[0])
   ) {
     return { esito: 'certo', candidato: compatibili[0] }
   }
 
-  const mostrati = (compatibili.length > 0 ? compatibili : candidati).sort(ordina).slice(0, MAX_CANDIDATI)
+  // 7. Presentazione: un modello identico rende rumore chi è solo somigliante. Applicato qui
+  //    — sull'insieme che finisce davvero nel popup — e non prima del calcolo di
+  //    `compatibili`, così da non alterare la decisione presa al punto 6. Se nell'insieme da
+  //    mostrare non c'è nessun modello esatto, il filtro non toglie nulla: è il caso in cui
+  //    l'unico esatto è stato escluso da `compatibili` perché diverge sulle specs, e il
+  //    quasi-match compatibile rimasto è l'unico aggancio che l'operatore ha — toglierlo
+  //    anche lui lascerebbe il popup vuoto o, peggio, con la sola riga che i dati letti hanno
+  //    già contraddetto.
+  const base = compatibili.length > 0 ? compatibili : candidati
+  const esatti = base.filter((c) => c.simModello === 1)
+  const daMostrare = esatti.length > 0 ? esatti : base
+
+  const ordina = (a: Candidato, b: Candidato) =>
+    b.simModello - a.simModello || (b.riga.usage_count ?? 0) - (a.riga.usage_count ?? 0)
+  const mostrati = daMostrare.sort(ordina).slice(0, MAX_CANDIDATI)
 
   const motivo: MotivoAmbiguita = daAltraRagioneSociale
     ? 'ragione_sociale_altra'
@@ -140,7 +178,12 @@ export function matchEquipment(
       ? 'divergenza_specs'
       : compatibili.length > 1
         ? 'piu_candidati'
-        : 'somiglianza_incerta'
+        // Un solo compatibile, modello identico, ma senza un dato tecnico che lo confermi
+        // (filtro, separatore): non è "solo somigliante", è letteralmente lo stesso modello.
+        // Dirlo con `somiglianza_incerta` mentirebbe all'operatore sul motivo reale.
+        : compatibili[0].simModello === 1 && !haConferme(compatibili[0].confronti)
+          ? 'senza_conferma_tecnica'
+          : 'somiglianza_incerta'
 
   return { esito: 'ambiguo', candidati: mostrati, motivo }
 }
