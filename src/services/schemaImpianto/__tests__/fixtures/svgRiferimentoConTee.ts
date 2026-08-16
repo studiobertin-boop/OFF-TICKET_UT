@@ -59,8 +59,8 @@
  * allineamento `'basso'`, layout.ts) invece che su un'altezza di riga assunta uniforme — sposta
  * ulteriormente le coordinate di nodi e tubi, nessun altro cambiamento.
  *
- * Generato di nuovo al commit (Task 8 del Blocco 3, hash da riportare qui in un commit di solo
- * commento successivo, come già fatto per i Task 3/4 — vedi 3a207ab/109ad2a): le ancore di
+ * Generato di nuovo al commit cb31278 ("feat(schema): le ancore di fabbrica cadono tutte sulla
+ * griglia"), Task 8 del Blocco 3: le ancore di
  * fabbrica sono arrotondate ai multipli di 10 — compressore 129×129 → 120×120, serbatoio
  * orizzontale 310×137 → 310×140, giunzione 24×24 → 20×20 (il test in renderSvg.test.ts che
  * costruisce questo layout sposta di conseguenza l'offset che centra la giunzione sul tubo, da
