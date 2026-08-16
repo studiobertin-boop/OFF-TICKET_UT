@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useQueries, useQuery, type QueryClient } from '@tanstack/react-query'
 import { equipmentCatalogApi } from '@/services/api/equipmentCatalog'
 import type { EquipmentCatalogItem, EquipmentCatalogType } from '@/types'
@@ -39,11 +40,16 @@ export function useCatalogoPerTipi(tipi: EquipmentCatalogType[]) {
     })),
   })
 
-  const perTipo = {} as Record<EquipmentCatalogType, EquipmentCatalogItem[]>
-  tipi.forEach((tipo, i) => {
-    perTipo[tipo] = (risultati[i]?.data ?? []) as EquipmentCatalogItem[]
-  })
-  return perTipo
+  // Come `manufacturers` in useCIVAData: senza useMemo l'oggetto è un riferimento nuovo a ogni
+  // render, e a valle (Task 7) finisce in dipendenze di effetti e callback dove un riferimento
+  // instabile vanifica la memoizzazione o fa rieseguire l'effetto senza che i dati siano cambiati.
+  return useMemo(() => {
+    const perTipo = {} as Record<EquipmentCatalogType, EquipmentCatalogItem[]>
+    tipi.forEach((tipo, i) => {
+      perTipo[tipo] = (risultati[i]?.data ?? []) as EquipmentCatalogItem[]
+    })
+    return perTipo
+  }, [risultati, tipi])
 }
 
 /**
