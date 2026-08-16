@@ -58,6 +58,7 @@ import { capoValido, connessioneAmmessa, stileIniziale } from '@/services/schema
 import type { Asse, Bordo } from '@/services/schemaImpianto/allineamento'
 import { PASSO_GRIGLIA, allineaAllaGriglia } from '@/services/schemaImpianto/griglia'
 import { ingombroTesto, quoteInstradamento } from '@/services/schemaImpianto/layout'
+import { risolviLibreria, type Tarature } from '@/services/schemaImpianto/libreria'
 import { renderSvg, varchiDelMuro } from '@/services/schemaImpianto/renderSvg'
 import { dimensioniDi } from '@/services/schemaImpianto/symbols'
 import type {
@@ -199,9 +200,9 @@ function nodiDi(s: { nodes: Node[] }): SchemaNodoPosizionato[] {
  * quota fissa una nuova apparecchiatura o annotazione poteva nascere sopra un terminale alto,
  * come già corretto per `layout.ts` e `persistenza.ts` (Task 4).
  */
-function piedeDelDisegno(nodes: Node[], testi: SchemaTestoLibero[]): number {
+function piedeDelDisegno(nodes: Node[], testi: SchemaTestoLibero[], libreria: Tarature = {}): number {
   const quote = [
-    ...nodes.map((n) => n.position.y + dimensioniDi((n.data as SchemaNodeData).nodo).altezza),
+    ...nodes.map((n) => n.position.y + dimensioniDi((n.data as SchemaNodeData).nodo, libreria).altezza),
     ...testi.map((t) => ingombroTesto(t).basso),
   ]
   return quote.length === 0 ? 0 : Math.max(...quote)
@@ -223,10 +224,19 @@ export function codiceLibero(prefisso: string, nodes: Node[]): string {
 }
 
 function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, preferenze, onCambiaPreferenze }: SchemaEditorProps) {
+  // Punto unico di risoluzione della libreria per questa catena (l'editor): permanenti e di
+  // pratica non esistono ancora (Blocco 3 Task 9 le aggiungerà, dalla tabella delle tarature e
+  // dal layout aperto), quindi resta vuota — ma è già il chiamante giusto, così quel task tocca
+  // un solo file per aggiungere le due fonti vere.
+  const libreria = useMemo<Tarature>(() => risolviLibreria({}, {}), [])
+
   // `layout.muro?.x ?? null`, non `layout.muro`: lo stato porta la sola ascissa (vedi il commento
   // su `StatoEditor.muroX`), e senza questa lettura una pratica riaperta perderebbe in silenzio
   // il muro salvato — tornerebbe sempre a `null`, come prima che questo stato esistesse.
-  const iniziale = useMemo(() => ({ ...layoutAFlow(layout), muroX: layout.muro?.x ?? null }), [layout])
+  const iniziale = useMemo(
+    () => ({ ...layoutAFlow(layout, libreria), muroX: layout.muro?.x ?? null }),
+    [layout, libreria]
+  )
   const storia = useSchemaHistory<StatoEditor>(iniziale)
   const { stato, applica, aggiornaSenzaCronologia, annulla, puoAnnullare } = storia
   const [selezione, setSelezione] = useState<{ nodes: Node[]; edges: Edge[] }>({ nodes: [], edges: [] })
@@ -256,8 +266,8 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
   // che dentro ognuno dei calcoli qui sotto, è quel che tiene quote, capi e anteprima sullo
   // STESSO layout: sono i tre ingressi della geometria condivisa con il documento.
   const layoutCorrente = useMemo(
-    () => flowALayout(stato.nodes, stato.edges, stato.testi, stato.muroX),
-    [stato.nodes, stato.edges, stato.testi, stato.muroX]
+    () => flowALayout(stato.nodes, stato.edges, stato.testi, stato.muroX, libreria),
+    [stato.nodes, stato.edges, stato.testi, stato.muroX, libreria]
   )
 
   // Quote a cui le tubazioni attraversano il muro: la STESSA `renderArchi` che disegna il
@@ -265,8 +275,8 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
   // varco si apre sulla tela dove si apre nel .docx. Vuoto senza muro: `varchiDelMuro` rifarebbe
   // comunque tutto l'instradamento per un risultato che poi non si disegna.
   const varchiMuro = useMemo(
-    () => (layoutCorrente.muro ? varchiDelMuro(layoutCorrente) : []),
-    [layoutCorrente]
+    () => (layoutCorrente.muro ? varchiDelMuro(layoutCorrente, libreria) : []),
+    [layoutCorrente, libreria]
   )
 
   // Quote di instradamento (collettore della mandata flessibile, corsia delle condense):
@@ -276,13 +286,13 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
   // rimetterebbe in piedi la divergenza fra tela e documento che questo blocco ha chiuso.
   // Ricalcolarle a ogni spostamento è voluto: le linee si riassestano mentre si trascina un
   // nodo, esattamente come farà il documento.
-  const quote = useMemo(() => quoteInstradamento(layoutCorrente), [layoutCorrente])
+  const quote = useMemo(() => quoteInstradamento(layoutCorrente, libreria), [layoutCorrente, libreria])
 
   // Capi di ogni arco, dalle ancore dei nodi e con la stessa `posizioneAncora` del documento
   // (vedi `capiDegliArchi`). Viaggiano nei dati dell'arco per lo stesso motivo delle quote: il
   // componente dell'arco non ha una vista sui nodi, e quel che react-flow gli passerebbe da sé
   // (`sourceX`/`sourceY`) è il bordo dell'handle, 5 unità fuori dal centro dell'ancora.
-  const capi = useMemo(() => capiDegliArchi(layoutCorrente), [layoutCorrente])
+  const capi = useMemo(() => capiDegliArchi(layoutCorrente, libreria), [layoutCorrente, libreria])
 
   // La tela di react-flow mostra nodi e archi — terminale utenze compreso, che dal 12-08-2026
   // è un nodo come gli altri e si ritocca qui — più le annotazioni libere, che nodi non sono e
@@ -293,9 +303,9 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
   // .docx — perché disegna anche ciò che la tela non mostra affatto.
   const anteprima = useMemo(() => {
     if (!anteprimaAperta) return null
-    const svg = renderSvg(layoutCorrente, { noteTubazioni })
+    const svg = renderSvg(layoutCorrente, libreria, { noteTubazioni })
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
-  }, [anteprimaAperta, layoutCorrente, noteTubazioni])
+  }, [anteprimaAperta, layoutCorrente, libreria, noteTubazioni])
 
   // Se il trascinamento in corso ha già registrato in cronologia lo stato da cui è partito:
   // senza, l'evento conclusivo (`dragging: false`) sarebbe quello che chiama `applica`, ma a
@@ -378,7 +388,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
     iniziaTrascinamento: iniziaTrascinamentoTee,
     seguiTrascinamento: seguiTrascinamentoTee,
     concludiTrascinamento: concludiTrascinamentoTee,
-  } = useInserimentoTee(stato, applica, aggiornaSenzaCronologia, quote, capi)
+  } = useInserimentoTee(stato, applica, aggiornaSenzaCronologia, quote, capi, libreria)
 
   const edgesConGomiti = useMemo(
     () => fondiDatiArchi(edgesConGomitiBase, edgesConSegni, edgesConTrascinamento, quote, capi, arcoEvidenziato),
@@ -424,9 +434,9 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
       if (!partenza || !arrivo) return false
       const nodoDa = (partenza.data as SchemaNodeData).nodo
       const nodoA = (arrivo.data as SchemaNodeData).nodo
-      return connessioneAmmessa(nodoDa, c.sourceHandle ?? '', nodoA, c.targetHandle ?? '')
+      return connessioneAmmessa(nodoDa, c.sourceHandle ?? '', nodoA, c.targetHandle ?? '', libreria)
     },
-    [stato.nodes]
+    [stato.nodes, libreria]
   )
 
   const onConnect = useCallback(
@@ -443,7 +453,8 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
                 (partenza.data as SchemaNodeData).nodo,
                 connessione.sourceHandle ?? '',
                 (arrivo.data as SchemaNodeData).nodo,
-                connessione.targetHandle ?? ''
+                connessione.targetHandle ?? '',
+                libreria
               )
             : 'standard'
         return {
@@ -460,7 +471,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
         }
       })
     },
-    [applica]
+    [applica, libreria]
   )
 
   // Riaggancio di una tubazione già disegnata a un altro attacco: senza, per spostare un
@@ -483,7 +494,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
         const id = codiceLibero(voce.prefisso, s.nodes)
         // Sotto tutto il resto: un punto fisso finirebbe sopra un'apparecchiatura già
         // disegnata, nascondendola proprio mentre si lavora.
-        const posizione = { x: 40, y: allineaAllaGriglia(piedeDelDisegno(s.nodes, s.testi) + 40) }
+        const posizione = { x: 40, y: allineaAllaGriglia(piedeDelDisegno(s.nodes, s.testi, libreria) + 40) }
         const nodo = {
           id,
           tipo: voce.tipo,
@@ -498,12 +509,12 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
           ...s,
           nodes: [
             ...s.nodes,
-            { id, type: TIPO_NODO_FLOW, position: posizione, data: { nodo } satisfies SchemaNodeData },
+            { id, type: TIPO_NODO_FLOW, position: posizione, data: { nodo, libreria } satisfies SchemaNodeData },
           ],
         }
       })
     },
-    [applica]
+    [applica, libreria]
   )
 
   const cambiaStile = useCallback(
@@ -543,7 +554,8 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
         const nodoDa = (partenza.data as SchemaNodeData).nodo
         const nodoA = (arrivo.data as SchemaNodeData).nodo
         return !(
-          capoValido(nodoDa, e.sourceHandle ?? '', stile) && capoValido(nodoA, e.targetHandle ?? '', stile)
+          capoValido(nodoDa, e.sourceHandle ?? '', stile, libreria) &&
+          capoValido(nodoA, e.targetHandle ?? '', stile, libreria)
         )
       })
 
@@ -561,7 +573,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
         ),
       }))
     },
-    [applica, selezione.edges, stato.edges, stato.nodes]
+    [applica, libreria, selezione.edges, stato.edges, stato.nodes]
   )
 
   // Direzione «react-flow spegne la libera»: clic su un nodo/arco (o selezione a rettangolo)
@@ -742,7 +754,13 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
         ...s,
         nodes: s.nodes.map((n) =>
           n.id === id
-            ? { ...n, data: { nodo: { ...(n.data as SchemaNodeData).nodo, etichetta: contenuto } } satisfies SchemaNodeData }
+            ? {
+                ...n,
+                data: {
+                  ...(n.data as SchemaNodeData),
+                  nodo: { ...(n.data as SchemaNodeData).nodo, etichetta: contenuto },
+                } satisfies SchemaNodeData,
+              }
             : n
         ),
       }))
@@ -758,8 +776,8 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
     // chiusura: è la stessa cautela di `aggiungiNodo` e della generazione dell'id in
     // useTestiLiberi.ts — `stato` può essere l'istantanea di un render precedente a quello su
     // cui il reducer sta per applicare l'aggiunta, e l'annotazione nascerebbe sopra qualcosa.
-    aggiungiTesto((s) => ({ x: 40, y: allineaAllaGriglia(piedeDelDisegno(s.nodes, s.testi) + 40) }), contenuto)
-  }, [aggiungiTesto, applica, modificaTesto, scrittura])
+    aggiungiTesto((s) => ({ x: 40, y: allineaAllaGriglia(piedeDelDisegno(s.nodes, s.testi, libreria) + 40) }), contenuto)
+  }, [aggiungiTesto, applica, libreria, modificaTesto, scrittura])
 
   /** Elimina l'annotazione aperta nel dialog: la via più vecchia delle due che esistono — l'altra
    *  è selezionarla sulla tela e premere Canc (`selezioneLibera` qui sopra). Il pulsante «Elimina»

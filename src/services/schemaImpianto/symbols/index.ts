@@ -16,7 +16,8 @@
 import { ondula } from '../tratti'
 import type { SchemaArcoStile, SchemaNodoTipo, SchemaNodo, SchemaAncora, SchemaLatoAncora, ChiaveSimbolo } from '../types'
 import { chiaveSimbolo } from '../types'
-import type { TaraturaSimbolo } from '../libreria'
+import type { Tarature, TaraturaSimbolo } from '../libreria'
+import { taraturaDi } from '../libreria'
 
 export const TRATTO = 2
 /**
@@ -831,8 +832,25 @@ export const REGISTRO_SIMBOLI: Record<ChiaveSimbolo, DefinizioneSimbolo> = {
   },
 }
 
-export function definizioneDi(nodo: { tipo: SchemaNodoTipo; orientamento?: 'VERTICALE' | 'ORIZZONTALE' }): DefinizioneSimbolo {
-  return REGISTRO_SIMBOLI[chiaveSimbolo(nodo)]
+/**
+ * `libreria` di default `{}`: nessuna pratica passa oggi una libreria vera (i due punti che la
+ * costruiranno sono `SchemaEditor.tsx` e `SchemaImpiantoSection.tsx`, Blocco 3 Task 7), quindi il
+ * ramo con taratura resta silenzioso ovunque tranne nei test che la passano esplicitamente.
+ *
+ * Con una taratura per la chiave del nodo, `ancore` e `disegna` vengono dalla taratura (le
+ * ancore SOSTITUISCONO quelle del registro, `disegna` viene avvolto da `simboloTrasformato`);
+ * `dimensioni` resta quella del registro — l'ingombro tarato è `inviluppo(...)`, e lo calcola
+ * solo `dimensioniDi`, che ha anche le ancore già risolte per farlo.
+ */
+export function definizioneDi(
+  nodo: { tipo: SchemaNodoTipo; orientamento?: 'VERTICALE' | 'ORIZZONTALE' },
+  libreria: Tarature = {}
+): DefinizioneSimbolo {
+  const chiave = chiaveSimbolo(nodo)
+  const base = REGISTRO_SIMBOLI[chiave]
+  const taratura = taraturaDi(libreria, chiave)
+  if (!taratura) return base
+  return { ...base, ancore: taratura.ancore, disegna: (n) => simboloTrasformato(base.disegna(n), taratura) }
 }
 
 /**
@@ -846,15 +864,15 @@ export function definizioneDi(nodo: { tipo: SchemaNodoTipo; orientamento?: 'VERT
  * salvati e non possono cambiare — e questa funzione è l'unico posto dove una coordinata
  * dipende dal contenuto del nodo.
  */
-export function ancoreDi(nodo: SchemaNodo): SchemaAncora[] {
-  const ancore = definizioneDi(nodo).ancore
+export function ancoreDi(nodo: SchemaNodo, libreria: Tarature = {}): SchemaAncora[] {
+  const ancore = definizioneDi(nodo, libreria).ancore
   if (nodo.tipo !== 'utenze') return ancore
-  const { altezza } = dimensioniDi(nodo)
+  const { altezza } = dimensioniDi(nodo, libreria)
   return ancore.map((a) => (a.id === 'in' ? { ...a, y: altezza } : a))
 }
 
-export function ancoraDi(nodo: SchemaNodo, id: string): SchemaAncora | undefined {
-  return ancoreDi(nodo).find((a) => a.id === id)
+export function ancoraDi(nodo: SchemaNodo, id: string, libreria: Tarature = {}): SchemaAncora | undefined {
+  return ancoreDi(nodo, libreria).find((a) => a.id === id)
 }
 
 /**
@@ -869,9 +887,9 @@ export function ancoraDi(nodo: SchemaNodo, id: string): SchemaAncora | undefined
  * La condizione è sul TIPO e non sulla presenza del campo `lato`: così la regola non si allarga
  * in silenzio ad altri simboli il giorno che uno di loro dichiarasse un lato per ragioni sue.
  */
-export function latoImposto(nodo: SchemaNodo, ancoraId: string): SchemaLatoAncora | undefined {
+export function latoImposto(nodo: SchemaNodo, ancoraId: string, libreria: Tarature = {}): SchemaLatoAncora | undefined {
   if (nodo.tipo !== 'giunzione') return undefined
-  return ancoraDi(nodo, ancoraId)?.lato
+  return ancoraDi(nodo, ancoraId, libreria)?.lato
 }
 
 /**
@@ -880,6 +898,10 @@ export function latoImposto(nodo: SchemaNodo, ancoraId: string): SchemaLatoAncor
  *
  * Restituisce sempre un oggetto nuovo: il chiamante ne ricava uno stile CSS, e il registro è
  * condiviso fra documento ed editor — una mutazione accidentale lo corromperebbe per entrambi.
+ *
+ * Non prende `libreria`: a differenza delle altre cinque porte non guarda il registro, legge
+ * solo l'`ancora` che riceve — che il chiamante ha già risolto con `ancoreDi`/`ancoraDi`, quindi
+ * già tarata quando c'è una taratura. Un parametro qui sarebbe silenziosamente inutilizzato.
  */
 export function presaDi(ancora: SchemaAncora): { x: number; y: number } {
   return ancora.presa ? { x: ancora.presa.x, y: ancora.presa.y } : { x: ancora.x, y: ancora.y }
@@ -903,7 +925,15 @@ export function presaDi(ancora: SchemaAncora): { x: number; y: number } {
  * (la tela del PNG) e `SchemaNodeSymbol` (il riquadro sulla tela dell'editor); `simboloUtenze` e
  * `ancoreDi` leggono l'altezza da qui anziché dal registro, per la stessa ragione.
  */
-export function dimensioniDi(nodo: SchemaNodo): { larghezza: number; altezza: number } {
+export function dimensioniDi(nodo: SchemaNodo, libreria: Tarature = {}): { larghezza: number; altezza: number } {
+  const chiave = chiaveSimbolo(nodo)
+  const taratura = taraturaDi(libreria, chiave)
+  // Con taratura l'ingombro è l'inviluppo di sagoma trasformata e ancore (vedi `inviluppo` più
+  // sotto), non più il riquadro fisso del registro: la crescita dinamica del terminale utenze
+  // qui sotto è un caso a parte che con una taratura non si applica (nessuna chiave tarata è
+  // 'utenze' oggi, e le due logiche non avrebbero un modo ovvio di comporsi).
+  if (taratura) return inviluppo(REGISTRO_SIMBOLI[chiave].dimensioni, taratura, ancoreDi(nodo, libreria))
+
   const dimensioni = definizioneDi(nodo).dimensioni
   if (nodo.tipo !== 'utenze') return dimensioni
 
@@ -933,9 +963,14 @@ export const DIMENSIONI_NODO: Record<SchemaNodoTipo, { larghezza: number; altezz
   utenze: REGISTRO_SIMBOLI.utenze.dimensioni,
 }
 
-/** Frammento SVG del nodo in coordinate locali (senza traslazione). */
-export function simboloDi(nodo: SchemaNodo): string {
-  return definizioneDi(nodo).disegna(nodo)
+/**
+ * Frammento SVG del nodo in coordinate locali (senza traslazione). Non è una delle sei porte,
+ * ma è il solo punto che chiama `.disegna`: senza `libreria` qui, il `simboloTrasformato` che
+ * `definizioneDi` applica alla taratura non disegnerebbe mai nulla di diverso, in nessuna delle
+ * due catene (editor, documento) — è quindi propagato allo stesso modo.
+ */
+export function simboloDi(nodo: SchemaNodo, libreria: Tarature = {}): string {
+  return definizioneDi(nodo, libreria).disegna(nodo)
 }
 
 /**

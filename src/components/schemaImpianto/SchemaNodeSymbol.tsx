@@ -3,6 +3,7 @@
  * vede mentre si corregge è ciò che finirà in relazione.
  */
 import { Handle, Position, type NodeProps } from '@xyflow/react'
+import type { Tarature } from '@/services/schemaImpianto/libreria'
 import { ancoreDi, dimensioniDi, presaDi, simboloDi } from '@/services/schemaImpianto/symbols'
 import type { SchemaAncora, SchemaLatoAncora, SchemaNodo } from '@/services/schemaImpianto/types'
 
@@ -14,6 +15,13 @@ export interface SchemaNodeData extends Record<string, unknown> {
    * frecce, allineamento e distribuzione del blocco «fondamenta».
    */
   nodo: SchemaNodo
+  /**
+   * La libreria risolta dall'editor (`SchemaEditor.tsx`, il punto unico per questa catena),
+   * portata qui dentro `data` perché è la sola strada per passare qualcosa a un componente che
+   * react-flow istanzia da `nodeTypes` — una mappa dichiarata una volta, non per ogni nodo
+   * (`layoutAFlow`, conversioneFlow.ts).
+   */
+  libreria: Tarature
 }
 
 /**
@@ -71,17 +79,17 @@ export function latoDi(ancora: SchemaAncora, dim: { larghezza: number; altezza: 
 }
 
 export function SchemaNodeSymbol({ data, selected }: NodeProps) {
-  const { nodo } = data as SchemaNodeData
+  const { nodo, libreria } = data as SchemaNodeData
   // Ingombro effettivo, non quello del registro: la scritta del terminale utenze è libera, e con
   // la larghezza fissa il `<svg>` qui sotto la taglierebbe appena supera i 17-18 caratteri.
-  const dimensioni = dimensioniDi(nodo)
+  const dimensioni = dimensioniDi(nodo, libreria)
   const { larghezza, altezza } = dimensioni
   const latoHandlePx = latoHandle(dimensioni)
   const stileAncora = { width: latoHandlePx, height: latoHandlePx, background: '#1976d2', border: 'none' }
 
   return (
     <div style={{ position: 'relative', width: larghezza, height: altezza }}>
-      {ancoreDi(nodo).flatMap((ancora) => {
+      {ancoreDi(nodo, libreria).flatMap((ancora) => {
         // Ogni ancora ospita sia source sia target, sovrapposti: una tubazione può
         // partire o arrivare dallo stesso punto. Chi decide se il collegamento è legale
         // non è l'handle ma `isValidConnection` in SchemaEditor, via `capoValido`.
@@ -136,7 +144,7 @@ export function SchemaNodeSymbol({ data, selected }: NodeProps) {
         }}
         // Il simbolo è generato dal nostro codice a partire da dati della scheda, non da
         // input esterni, e le etichette passano già da escapeXml in symbols/index.ts.
-        dangerouslySetInnerHTML={{ __html: simboloDi(nodo) }}
+        dangerouslySetInnerHTML={{ __html: simboloDi(nodo, libreria) }}
       />
     </div>
   )

@@ -29,6 +29,7 @@ import {
   puoGenerareSchema,
 } from '@/services/schemaImpianto/buildSchemaModel'
 import { layoutSchema } from '@/services/schemaImpianto/layout'
+import { risolviLibreria } from '@/services/schemaImpianto/libreria'
 import { renderSvg } from '@/services/schemaImpianto/renderSvg'
 import { rasterizzaSvg } from '@/services/schemaImpianto/rasterize'
 import type { LayoutSalvato } from '@/services/schemaImpianto/persistenza'
@@ -109,6 +110,11 @@ export function SchemaImpiantoSection({
 
   const puoGenerare = puoGenerareSchema({ scheda, collegamentiCompressoriSerbatoi })
   const note = useMemo(() => notaTubazioni(scheda), [scheda])
+  // Punto unico di risoluzione della libreria per questa catena (generazione del documento):
+  // permanenti e di pratica non esistono ancora (arriveranno col Blocco 3 Task 9, dalla tabella
+  // delle tarature e dal layout salvato), quindi resta vuota — ma il chiamante è già quello
+  // giusto, così quel task tocca un solo file per aggiungere le due fonti vere.
+  const libreria = useMemo(() => risolviLibreria({}, {}), [])
 
   useEffect(() => {
     return () => {
@@ -132,7 +138,7 @@ export function SchemaImpiantoSection({
     async (daDisegnare: SchemaLayout) => {
       setInCorso(true)
       try {
-        const immagine = await rasterizzaSvg(renderSvg(daDisegnare, { noteTubazioni: note }))
+        const immagine = await rasterizzaSvg(renderSvg(daDisegnare, libreria, { noteTubazioni: note }))
         setLayout(daDisegnare)
         onLayoutChange(daDisegnare)
         pubblica(immagine, 'generato')
@@ -142,7 +148,7 @@ export function SchemaImpiantoSection({
         setInCorso(false)
       }
     },
-    [note, onLayoutChange, pubblica]
+    [libreria, note, onLayoutChange, pubblica]
   )
 
   // Prima generazione automatica: appena i dati bastano, l'utente trova la proposta già
@@ -161,7 +167,7 @@ export function SchemaImpiantoSection({
     if (generazioneTentata.current || !puoGenerare || schema) return
     generazioneTentata.current = true
     const modello = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi })
-    const esito = layoutIniziale(layoutSalvato, modello)
+    const esito = layoutIniziale(layoutSalvato, modello, libreria)
     // `aggiuntiDaScheda`, non `aggiunti`: il secondo comprende anche il terminale utenze, che
     // non è un'apparecchiatura e non viene dalla scheda (vedi `EsitoRiconciliazione`).
     setEsitoRiconciliazione(
@@ -170,14 +176,14 @@ export function SchemaImpiantoSection({
         : null
     )
     void disegna(esito.layout)
-  }, [collegamentiCompressoriSerbatoi, disegna, layoutSalvato, puoGenerare, scheda, schema])
+  }, [collegamentiCompressoriSerbatoi, disegna, layoutSalvato, libreria, puoGenerare, scheda, schema])
 
   const rigenera = useCallback(() => {
     // Via d'uscita quando il disegno salvato non va più bene: si riparte dalla scheda,
     // scartando sia il layout ritoccato sia l'esito della riconciliazione che lo riguardava.
     setEsitoRiconciliazione(null)
-    void disegna(layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi })))
-  }, [collegamentiCompressoriSerbatoi, disegna, scheda])
+    void disegna(layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi }), libreria))
+  }, [collegamentiCompressoriSerbatoi, disegna, libreria, scheda])
 
   const leggiFile = useCallback(
     async (file: File | undefined) => {

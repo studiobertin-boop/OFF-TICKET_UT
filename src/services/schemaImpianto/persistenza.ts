@@ -6,6 +6,7 @@
  * Del muro si salva la sola ascissa: l'altezza resta derivata dalle posizioni.
  */
 import { layoutSchema, muroDaAscissa, DIMENSIONI_NODO, pozzoCondense } from './layout'
+import type { Tarature } from './libreria'
 import { dimensioniDi } from './symbols'
 import type { SchemaArco, SchemaLayout, SchemaModel, SchemaNodo, SchemaNodoPosizionato, SchemaTestoLibero } from './types'
 
@@ -54,13 +55,16 @@ function contenutoRiconoscibile(salvato: LayoutSalvato): boolean {
   return salvato.nodi.every((n) => Boolean(n) && typeof n === 'object' && n.tipo in DIMENSIONI_NODO)
 }
 
-export function deserializzaLayout(salvato: LayoutSalvato | null | undefined): SchemaLayout | null {
+export function deserializzaLayout(
+  salvato: LayoutSalvato | null | undefined,
+  libreria: Tarature = {}
+): SchemaLayout | null {
   if (!salvato || salvato.versione !== VERSIONE) return null
   if (!contenutoRiconoscibile(salvato)) return null
   return {
     nodi: salvato.nodi,
     archi: salvato.archi,
-    muro: typeof salvato.muroX === 'number' ? muroDaAscissa(salvato.muroX, salvato.nodi) : null,
+    muro: typeof salvato.muroX === 'number' ? muroDaAscissa(salvato.muroX, salvato.nodi, libreria) : null,
     testi: salvato.testi ?? [],
   }
 }
@@ -128,11 +132,13 @@ function identitaArco(arco: SchemaArco): string {
  */
 export function layoutIniziale(
   salvato: LayoutSalvato | null | undefined,
-  modello: SchemaModel
+  modello: SchemaModel,
+  libreria: Tarature = {}
 ): EsitoRiconciliazione {
-  const ripristinato = deserializzaLayout(salvato)
-  if (!ripristinato) return { layout: layoutSchema(modello), aggiunti: [], aggiuntiDaScheda: [], rimossi: [] }
-  return riconcilia(ripristinato, modello)
+  const ripristinato = deserializzaLayout(salvato, libreria)
+  if (!ripristinato)
+    return { layout: layoutSchema(modello, libreria), aggiunti: [], aggiuntiDaScheda: [], rimossi: [] }
+  return riconcilia(ripristinato, modello, libreria)
 }
 
 /**
@@ -153,7 +159,8 @@ export function layoutIniziale(
 function posizioneTerminale(
   nodo: SchemaNodo,
   nodi: SchemaNodoPosizionato[],
-  archi: SchemaArco[]
+  archi: SchemaArco[],
+  libreria: Tarature = {}
 ): { x: number; y: number } | null {
   const pozzo = pozzoCondense(nodi, { archi })
   const inLinea = nodi.filter((n) => n.tipo !== 'compressore' && n.tipo !== 'utenze' && n.id !== pozzo?.id)
@@ -163,10 +170,10 @@ function posizioneTerminale(
   // `calcolaMuro`/`ascissaProposta` (Task 4) — se il nodo più a destra è un serbatoio
   // orizzontale, l'ingombro indicizzato sul verticale (103×298 invece di 310×137) metterebbe il
   // terminale utenze sopra il serbatoio invece che alla sua destra.
-  const dim = dimensioniDi(ultimo)
+  const dim = dimensioniDi(ultimo, libreria)
   return {
     x: ultimo.x + dim.larghezza + 50,
-    y: ultimo.y + dim.altezza / 2 - dimensioniDi(nodo).altezza,
+    y: ultimo.y + dim.altezza / 2 - dimensioniDi(nodo, libreria).altezza,
   }
 }
 
@@ -187,7 +194,8 @@ function posizioneTerminale(
  */
 export function riconcilia(
   salvato: Pick<SchemaLayout, 'nodi' | 'archi'> & { testi?: SchemaTestoLibero[]; muro?: SchemaLayout['muro'] },
-  modello: SchemaModel
+  modello: SchemaModel,
+  libreria: Tarature = {}
 ): EsitoRiconciliazione {
   const inScheda = new Set(modello.nodi.map((n) => n.id))
   const salvatiPerId = new Map(salvato.nodi.map((n) => [n.id, n]))
@@ -219,13 +227,13 @@ export function riconcilia(
   // traslate sotto il disegno esistente: in mezzo coprirebbero quello che c'è già.
   const nuovi = modello.nodi.filter((n) => !salvatiPerId.has(n.id))
   const piede = superstiti.length > 0 ? Math.max(...superstiti.map((n) => n.y)) + 320 : 0
-  const automatico = layoutSchema(modello)
+  const automatico = layoutSchema(modello, libreria)
   const aggiunti = nuovi.map((n) => n.id)
   const aggiuntiDaScheda = nuovi.filter((n) => n.tipo !== 'utenze').map((n) => n.id)
   const posizionati = nuovi.map((n) => {
     const proposto = automatico.nodi.find((p) => p.id === n.id)!
     if (n.tipo === 'utenze') {
-      const dedicata = posizioneTerminale(n, superstiti, modello.archi)
+      const dedicata = posizioneTerminale(n, superstiti, modello.archi, libreria)
       if (dedicata) return { ...proposto, ...dedicata }
     }
     return { ...proposto, y: proposto.y + piede }
@@ -281,7 +289,7 @@ export function riconcilia(
   // e non sparisce mai per un confronto con la scheda che non lo riguarda. Si legge
   // `salvato.muro?.x`, non una `muroX` che il chiamante vero (`layoutIniziale`) non passa mai:
   // vedi il commento sulla firma di questa funzione.
-  const muro = salvato.muro ? muroDaAscissa(salvato.muro.x, nodi) : null
+  const muro = salvato.muro ? muroDaAscissa(salvato.muro.x, nodi, libreria) : null
 
   return { layout: { nodi, archi, muro, testi }, aggiunti, aggiuntiDaScheda, rimossi }
 }

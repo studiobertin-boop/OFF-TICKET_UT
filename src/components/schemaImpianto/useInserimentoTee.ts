@@ -14,6 +14,7 @@ import {
   idDelleMeta,
   spezzaArco,
 } from '@/services/schemaImpianto/inserimentoTee'
+import type { Tarature } from '@/services/schemaImpianto/libreria'
 import { posizioneAncora } from '@/services/schemaImpianto/renderSvg'
 import { ancoraDi } from '@/services/schemaImpianto/symbols'
 import type { Punto, QuoteInstradamento } from '@/services/schemaImpianto/tratti'
@@ -41,9 +42,9 @@ const ANCORA_QUALSIASI = 'sx'
 /** Il centro del pallino di una giunzione posizionata. Passa da `posizioneAncora` — la stessa
  *  funzione del documento — invece di sommare a mano metà riquadro: dal Blocco D3 le quattro
  *  ancore stanno al centro, quindi quel punto È il centro, e non ne esiste una seconda fonte. */
-function centroDellaGiunzione(nodo: Node): Punto {
+function centroDellaGiunzione(nodo: Node, libreria: Tarature = {}): Punto {
   const { nodo: schema } = nodo.data as SchemaNodeData
-  return posizioneAncora({ ...schema, x: nodo.position.x, y: nodo.position.y }, ANCORA_QUALSIASI)
+  return posizioneAncora({ ...schema, x: nodo.position.x, y: nodo.position.y }, ANCORA_QUALSIASI, libreria)
 }
 
 /**
@@ -75,7 +76,8 @@ export function useInserimentoTee<T extends StatoConNodiEdArchi>(
   applica: Aggiorna<T>,
   aggiornaSenzaCronologia: Aggiorna<T>,
   quote: QuoteInstradamento,
-  capi: Map<string, CapiArco>
+  capi: Map<string, CapiArco>,
+  libreria: Tarature = {}
 ) {
   const [arcoEvidenziato, setArcoEvidenziato] = useState<string | null>(null)
   // Vero se, durante QUESTO gesto, è già passato almeno un evento di posizione — decide, alla
@@ -128,9 +130,9 @@ export function useInserimentoTee<T extends StatoConNodiEdArchi>(
     (nodo: Node, nodiTrascinati: Node[]): string | null => {
       // Un trascinamento multiplo sposta un blocco di simboli, non innesta un TEE.
       if (nodiTrascinati.length !== 1 || !eUnaGiunzione(nodo)) return null
-      return arcoPiuVicino(candidati(nodo.id), centroDellaGiunzione(nodo))
+      return arcoPiuVicino(candidati(nodo.id), centroDellaGiunzione(nodo, libreria))
     },
-    [candidati]
+    [candidati, libreria]
   )
 
   // Non legge né congela la posizione: azzera solo il ref sopra, all'inizio di un gesto nuovo.
@@ -168,11 +170,11 @@ export function useInserimentoTee<T extends StatoConNodiEdArchi>(
       const { centro, orizzontale, primo, secondo } = spezzaArco(
         polilineaDellArco(capiArco, { ...data, quote }),
         data.segni ?? [],
-        centroDellaGiunzione(nodo)
+        centroDellaGiunzione(nodo, libreria)
       )
       const [idPrimo, idSecondo] = idDelleMeta(arcoId, new Set(stato.edges.map((e) => e.id)))
       const { arrivo: ancoraArrivo, partenza: ancoraPartenza } = latiDelleMeta(orizzontale)
-      const ancora = ancoraDi((nodo.data as SchemaNodeData).nodo, ANCORA_QUALSIASI)
+      const ancora = ancoraDi((nodo.data as SchemaNodeData).nodo, ANCORA_QUALSIASI, libreria)
       const posizione = { x: centro.x - (ancora?.x ?? 0), y: centro.y - (ancora?.y ?? 0) }
 
       // L'arco sostituito in POSIZIONE (`flatMap` sull'elenco esistente), non filtrato e
@@ -224,7 +226,7 @@ export function useInserimentoTee<T extends StatoConNodiEdArchi>(
       const aggiorna = ePassatoUnEventoDiPosizione ? aggiornaSenzaCronologia : applica
       aggiorna(costruisci)
     },
-    [arcoSotto, stato.edges, capi, quote, applica, aggiornaSenzaCronologia]
+    [arcoSotto, stato.edges, capi, quote, applica, aggiornaSenzaCronologia, libreria]
   )
 
   return { arcoEvidenziato, iniziaTrascinamento, seguiTrascinamento, concludiTrascinamento }

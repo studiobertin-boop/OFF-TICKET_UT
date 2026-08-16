@@ -5,17 +5,22 @@
  * L'allineamento ragiona sul riquadro d'ingombro, non sul corpo disegnato: è quello che
  * l'utente vede muoversi quando trascina.
  */
+import type { Tarature } from './libreria'
 import { dimensioniDi } from './symbols'
 import type { SchemaNodoPosizionato } from './types'
 
 export type Bordo = 'sinistra' | 'destra' | 'alto' | 'basso' | 'centroX' | 'centroY'
 export type Asse = 'orizzontale' | 'verticale'
 
-export function allinea(nodi: SchemaNodoPosizionato[], bordo: Bordo): SchemaNodoPosizionato[] {
+export function allinea(
+  nodi: SchemaNodoPosizionato[],
+  bordo: Bordo,
+  libreria: Tarature = {}
+): SchemaNodoPosizionato[] {
   if (nodi.length < 2) return nodi
   // Ingombro effettivo: la scritta del terminale utenze ne allarga il riquadro, ed è quel
   // riquadro che l'utente vede muoversi quando allinea.
-  const dim = (n: SchemaNodoPosizionato) => dimensioniDi(n)
+  const dim = (n: SchemaNodoPosizionato) => dimensioniDi(n, libreria)
 
   switch (bordo) {
     case 'sinistra': {
@@ -73,10 +78,11 @@ export interface Guida {
  */
 export function guideDiAllineamento(
   trascinato: SchemaNodoPosizionato,
-  altri: SchemaNodoPosizionato[]
+  altri: SchemaNodoPosizionato[],
+  libreria: Tarature = {}
 ): Guida[] {
   const rif = (n: SchemaNodoPosizionato) => {
-    const d = dimensioniDi(n)
+    const d = dimensioniDi(n, libreria)
     return {
       x: [n.x, n.x + d.larghezza / 2, n.x + d.larghezza],
       y: [n.y, n.y + d.altezza / 2, n.y + d.altezza],

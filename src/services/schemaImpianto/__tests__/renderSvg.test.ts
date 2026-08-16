@@ -14,6 +14,7 @@ import { calcolaMuro, layoutSchema, quoteInstradamento } from '../layout'
 import { renderSvg, righeLista, righeLegenda, posizioneAncora, varchiDelMuro } from '../renderSvg'
 import { AVVICINAMENTO, raccordoOrtogonale } from '../tratti'
 import { dimensioniDi } from '../symbols'
+import type { Tarature } from '../libreria'
 import type { SchemaNodoPosizionato, SchemaSegnoTubo } from '../types'
 import { SVG_RIFERIMENTO_SENZA_TESTI } from './fixtures/svgRiferimentoSenzaTesti'
 import { SVG_RIFERIMENTO_CON_TEE } from './fixtures/svgRiferimentoConTee'
@@ -32,7 +33,7 @@ function svgMinimo(noteTubazioni?: string[]) {
   const layout = layoutSchema(
     buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
   )
-  return renderSvg(layout, { noteTubazioni })
+  return renderSvg(layout, {}, { noteTubazioni })
 }
 
 /**
@@ -912,5 +913,33 @@ describe('riferimento SVG del TEE', () => {
   // 10 e tubi che convergono nel centro — che senza di questo nessun test del documento vede.
   it('un impianto con un TEE resta identico al riferimento', () => {
     expect(renderSvg(layoutConTee())).toBe(SVG_RIFERIMENTO_CON_TEE)
+  })
+})
+
+/**
+ * Il passaggio dalla porta ESTERNA (`layoutSchema` + `renderSvg`), non dalle sei porte del
+ * registro (`ancoreDi`/`dimensioniDi`/...) direttamente: è nel salto fra la funzione interna e
+ * la firma pubblica che un chiamante rimasto indietro sfuggirebbe a TypeScript, perché il tipo
+ * del parametro (`Tarature`) non cambia se qualcuno lo dimentica — resta valido con `{}`. Vedi
+ * il commento di testa a `symbols/index.ts` sul Blocco 3.
+ */
+describe('libreria delle tarature', () => {
+  // Una tanica: il simbolo più semplice del registro (un rettangolo con un solo codice dentro,
+  // una sola ancora), quindi la taratura che la scala/trasla non lascia dubbi su cosa sia
+  // cambiato nell'SVG.
+  function schedaConTanica() {
+    return makeScheda({ dati_impianto: makeDatiImpianto({ raccolta_condense: 'tanica' }) })
+  }
+
+  it('una taratura passata a renderSvg arriva fino al disegno', () => {
+    const tarata: Tarature = {
+      tanica: { dx: 0, dy: 0, sx: 2, sy: 1, ancore: [{ id: 'alto-in', x: 80, y: 0, accetta: ['condensa'] }] },
+    }
+    const modello = buildSchemaModel({
+      scheda: schedaConTanica(),
+      collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+    })
+    const layout = layoutSchema(modello, tarata)
+    expect(renderSvg(layout, tarata)).not.toBe(renderSvg(layoutSchema(modello)))
   })
 })

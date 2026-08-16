@@ -7,6 +7,7 @@
  * destra. Funzione pura: nessun DOM, testabile in Node.
  */
 import { ordinaCatenaTrattamento } from './buildSchemaModel'
+import type { Tarature } from './libreria'
 import {
   DIMENSIONI_NODO,
   INTERLINEA_TESTO,
@@ -98,7 +99,10 @@ function posiziona(nodo: SchemaNodo, x: number, y: number): SchemaNodoPosizionat
  * Blocco D4, dopo il rilievo Importante su `dimensioniLayout`): entrambe soffrivano lo stesso
  * difetto perché entrambe passano da qui.
  */
-function inviluppoVerticale(nodi: SchemaNodoPosizionato[]): { yMin: number; yMax: number } | null {
+function inviluppoVerticale(
+  nodi: SchemaNodoPosizionato[],
+  libreria: Tarature = {}
+): { yMin: number; yMax: number } | null {
   const rilevanti = nodi.filter((n) => n.tipo !== 'utenze')
   if (rilevanti.length === 0) return null
   return {
@@ -106,7 +110,7 @@ function inviluppoVerticale(nodi: SchemaNodoPosizionato[]): { yMin: number; yMax
     // `dimensioniDi`, non `DIMENSIONI_NODO[n.tipo]`: il serbatoio orizzontale ha un ingombro
     // proprio, diverso da quello indicizzato per tipo (Task 4, Blocco 3) — leggerlo da lì darebbe
     // al muro l'altezza sbagliata per un impianto con un serbatoio orizzontale al bordo.
-    yMax: Math.max(...rilevanti.map((n) => n.y + dimensioniDi(n).altezza)) + MARGINE_SUPERIORE / 2,
+    yMax: Math.max(...rilevanti.map((n) => n.y + dimensioniDi(n, libreria).altezza)) + MARGINE_SUPERIORE / 2,
   }
 }
 
@@ -116,7 +120,7 @@ function inviluppoVerticale(nodi: SchemaNodoPosizionato[]): { yMin: number; yMax
  * senza muro — la chiama solo il pulsante «Muro» della barra dell'editor (`ascissaProposta`,
  * useMuro.ts). L'altezza viene da `inviluppoVerticale`, condivisa con `muroDaAscissa`.
  */
-export function calcolaMuro(nodi: SchemaNodoPosizionato[]): SchemaMuroSeparazione | null {
+export function calcolaMuro(nodi: SchemaNodoPosizionato[], libreria: Tarature = {}): SchemaMuroSeparazione | null {
   // Il terminale utenze porta `gruppo: 'LINEA_DISTRIBUZIONE'` — sta davvero a valle — ma non è
   // un'apparecchiatura da separare con un muro, è un raccordo (stesso motivo per cui
   // `ordinaCatenaTrattamento` e `pozzoCondense` lo ignorano, e per cui il Task 6 lo esclude da
@@ -127,14 +131,14 @@ export function calcolaMuro(nodi: SchemaNodoPosizionato[]): SchemaMuroSeparazion
   const inLinea = nodi.filter((n) => n.gruppo === 'LINEA_DISTRIBUZIONE' && n.tipo !== 'utenze')
   if (inSala.length === 0 || inLinea.length === 0) return null
 
-  const inviluppo = inviluppoVerticale([...inSala, ...inLinea])
+  const inviluppo = inviluppoVerticale([...inSala, ...inLinea], libreria)
   if (!inviluppo) return null
 
   return {
     // `dimensioniDi`, stessa ragione di `inviluppoVerticale` qui sopra: il serbatoio orizzontale
     // in sala compressori ha un bordo destro diverso da quello che `DIMENSIONI_NODO['serbatoio']`
     // (sempre il verticale) gli attribuirebbe.
-    x: Math.max(...inSala.map((n) => n.x + dimensioniDi(n).larghezza)) + PASSO_ORIZZONTALE / 2,
+    x: Math.max(...inSala.map((n) => n.x + dimensioniDi(n, libreria).larghezza)) + PASSO_ORIZZONTALE / 2,
     ...inviluppo,
   }
 }
@@ -145,8 +149,12 @@ export function calcolaMuro(nodi: SchemaNodoPosizionato[]): SchemaMuroSeparazion
  * l'estensione verticale si ricava qui a ogni ricostruzione. Salvare anche l'altezza sarebbe una
  * seconda fonte di verita', destinata a divergere al primo nodo spostato.
  */
-export function muroDaAscissa(x: number, nodi: SchemaNodoPosizionato[]): SchemaMuroSeparazione | null {
-  const inviluppo = inviluppoVerticale(nodi)
+export function muroDaAscissa(
+  x: number,
+  nodi: SchemaNodoPosizionato[],
+  libreria: Tarature = {}
+): SchemaMuroSeparazione | null {
+  const inviluppo = inviluppoVerticale(nodi, libreria)
   return inviluppo ? { x, ...inviluppo } : null
 }
 
@@ -169,7 +177,8 @@ function disponiInRiga(
   nodi: SchemaNodo[],
   xIniziale: number,
   quota: number,
-  allineamento: 'centro' | 'basso' = 'centro'
+  allineamento: 'centro' | 'basso' = 'centro',
+  libreria: Tarature = {}
 ): { posizionati: SchemaNodoPosizionato[]; xFinale: number } {
   let x = xIniziale
   const posizionati = nodi.map((nodo) => {
@@ -177,7 +186,7 @@ function disponiInRiga(
     // orizzontale coincidono (Task 4, Blocco 3), ma per lui `DIMENSIONI_NODO['serbatoio']`
     // resta sempre l'ingombro del verticale — leggerlo qui centrerebbe e spazierebbe il nodo
     // sbagliato, quello che l'auto-layout non disegna.
-    const dim = dimensioniDi(nodo)
+    const dim = dimensioniDi(nodo, libreria)
     const y = allineamento === 'basso' ? quota - dim.altezza : quota - dim.altezza / 2
     const collocato = posiziona(nodo, x, y)
     x += dim.larghezza + PASSO_ORIZZONTALE
@@ -186,7 +195,7 @@ function disponiInRiga(
   return { posizionati, xFinale: x }
 }
 
-export function layoutSchema(model: SchemaModel): SchemaLayout {
+export function layoutSchema(model: SchemaModel, libreria: Tarature = {}): SchemaLayout {
   const compressori = model.nodi.filter((n) => n.tipo === 'compressore')
   const serbatoi = model.nodi.filter((n) => n.tipo === 'serbatoio')
   // Il pozzo di raccolta condense sta nella corsia bassa: è la tanica, oppure il separatore
@@ -205,18 +214,19 @@ export function layoutSchema(model: SchemaModel): SchemaLayout {
   const yCentroCompressori = yBase - altezzaCompressore / 2
   const yCentroSerbatoi = yBase - altezzaSerbatoio / 2
 
-  const rigaCompressori = disponiInRiga(compressori, MARGINE, yCentroCompressori)
+  const rigaCompressori = disponiInRiga(compressori, MARGINE, yCentroCompressori, 'centro', libreria)
   const rigaSerbatoi = disponiInRiga(
     serbatoi,
     rigaCompressori.xFinale + PASSO_VERTICALE,
     yBase,
-    'basso'
+    'basso',
+    libreria
   )
   // La catena di trattamento sta a valle dei serbatoi, sulla stessa fascia orizzontale.
-  const rigaCatena = disponiInRiga(catena, rigaSerbatoi.xFinale, yCentroSerbatoi)
+  const rigaCatena = disponiInRiga(catena, rigaSerbatoi.xFinale, yCentroSerbatoi, 'centro', libreria)
 
   const yCondense = yBase + CORSIA_CONDENSE
-  const rigaRaccolta = disponiInRiga(raccolta, Math.max(rigaCatena.xFinale, MARGINE), yCondense)
+  const rigaRaccolta = disponiInRiga(raccolta, Math.max(rigaCatena.xFinale, MARGINE), yCondense, 'centro', libreria)
 
   // Il terminale utenze non sta in nessuna riga: si appoggia a destra di tutto ciò che lo
   // precede, con l'ancora (in fondo al codolo) proprio sulla fascia orizzontale dove corrono le
@@ -227,7 +237,7 @@ export function layoutSchema(model: SchemaModel): SchemaLayout {
   // l'ancora scenderebbe sotto la fascia e la tubazione arriverebbe con un gomito.
   const utenze = model.nodi.filter((n) => n.tipo === 'utenze')
   const posizionatiUtenze = utenze.map((n) =>
-    posiziona(n, rigaCatena.xFinale, yCentroSerbatoi - dimensioniDi(n).altezza)
+    posiziona(n, rigaCatena.xFinale, yCentroSerbatoi - dimensioniDi(n, libreria).altezza)
   )
 
   const nodi = [
@@ -257,7 +267,10 @@ export function layoutSchema(model: SchemaModel): SchemaLayout {
  * valvola di scarico sotto). Le tubazioni si attaccano a questo, non all'ingombro, o
  * resterebbero staccate dal simbolo.
  */
-export function corpoNodo(nodo: SchemaNodoPosizionato): {
+export function corpoNodo(
+  nodo: SchemaNodoPosizionato,
+  libreria: Tarature = {}
+): {
   x: number
   y: number
   larghezza: number
@@ -271,7 +284,7 @@ export function corpoNodo(nodo: SchemaNodoPosizionato): {
     // (symbols/index.ts): il corpo riempie il riquadro in larghezza, con `MARGINE_VALVOLA_SERBATOIO`
     // di spazio sopra per la valvola di sicurezza — una sola formula per i due orientamenti, non
     // più un centraggio diverso e una misura fissa (84) indipendente dal riquadro dichiarato.
-    const propria = definizioneDi(nodo).dimensioni
+    const propria = definizioneDi(nodo, libreria).dimensioni
     return {
       x: nodo.x,
       y: nodo.y + MARGINE_VALVOLA_SERBATOIO,
@@ -355,19 +368,22 @@ export function ingombroTesto(testo: SchemaTestoLibero): { destra: number; basso
  * passato da `deserializzaLayout` (o un cast che elude il compilatore, come nei test di
  * `serializzazione` qui accanto) può ancora presentarsi senza il campo.
  */
-export function dimensioniLayout(layout: SchemaLayout): { larghezza: number; altezza: number } {
+export function dimensioniLayout(
+  layout: SchemaLayout,
+  libreria: Tarature = {}
+): { larghezza: number; altezza: number } {
   const testi = layout.testi ?? []
   if (layout.nodi.length === 0 && testi.length === 0 && !layout.muro) {
     return { larghezza: MARGINE * 2, altezza: MARGINE * 2 }
   }
   const ingombriTesti = testi.map(ingombroTesto)
   const maxX = Math.max(
-    ...layout.nodi.map((n) => n.x + dimensioniDi(n).larghezza),
+    ...layout.nodi.map((n) => n.x + dimensioniDi(n, libreria).larghezza),
     ...ingombriTesti.map((i) => i.destra),
     ...(layout.muro ? [layout.muro.x + SPESSORE_MURO] : [])
   )
   const maxY = Math.max(
-    ...layout.nodi.map((n) => n.y + dimensioniDi(n).altezza),
+    ...layout.nodi.map((n) => n.y + dimensioniDi(n, libreria).altezza),
     ...ingombriTesti.map((i) => i.basso)
   )
   return { larghezza: maxX + MARGINE, altezza: maxY + MARGINE }
@@ -382,9 +398,9 @@ export function quotaCollettore(layout: SchemaLayout): number {
 }
 
 /** Quota della corsia comune delle linee condense: appena sopra il pozzo di raccolta, così le linee vi scendono dentro dall'alto. */
-export function quotaCorsiaCondense(layout: SchemaLayout, altezzaDisegno: number): number {
+export function quotaCorsiaCondense(layout: SchemaLayout, altezzaDisegno: number, libreria: Tarature = {}): number {
   const pozzo = pozzoCondense(layout.nodi, layout)
-  return pozzo ? corpoNodo(pozzo).y - 40 : altezzaDisegno - MARGINE / 2
+  return pozzo ? corpoNodo(pozzo, libreria).y - 40 : altezzaDisegno - MARGINE / 2
 }
 
 /**
@@ -393,9 +409,9 @@ export function quotaCorsiaCondense(layout: SchemaLayout, altezzaDisegno: number
  * ricostruito dallo stato react-flow (`flowALayout`): se ognuno le calcolasse a modo suo,
  * tela e documento tornerebbero a disegnare percorsi diversi.
  */
-export function quoteInstradamento(layout: SchemaLayout): QuoteInstradamento {
+export function quoteInstradamento(layout: SchemaLayout, libreria: Tarature = {}): QuoteInstradamento {
   return {
     yCollettore: quotaCollettore(layout),
-    yCorsiaCondense: quotaCorsiaCondense(layout, dimensioniLayout(layout).altezza),
+    yCorsiaCondense: quotaCorsiaCondense(layout, dimensioniLayout(layout, libreria).altezza, libreria),
   }
 }

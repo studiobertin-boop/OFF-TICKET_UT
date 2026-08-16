@@ -6,6 +6,7 @@
  * diametri delle tubazioni, tabella "Lista Apparecchiature" in basso.
  */
 import { corpoNodo, dimensioniLayout, quoteInstradamento } from './layout'
+import type { Tarature } from './libreria'
 import {
   ancoraDi,
   campioneTubazione,
@@ -51,10 +52,10 @@ const ALTEZZA_NOTA = 90
  * l'ancora non esiste (dato incoerente), ripiega sul centro del corpo invece di produrre
  * coordinate NaN che spaccherebbero la polilinea.
  */
-export function posizioneAncora(nodo: SchemaNodoPosizionato, ancoraId: string): Punto {
-  const ancora = ancoraDi(nodo, ancoraId)
+export function posizioneAncora(nodo: SchemaNodoPosizionato, ancoraId: string, libreria: Tarature = {}): Punto {
+  const ancora = ancoraDi(nodo, ancoraId, libreria)
   if (!ancora) {
-    const corpo = corpoNodo(nodo)
+    const corpo = corpoNodo(nodo, libreria)
     return { x: corpo.x + corpo.larghezza / 2, y: corpo.y + corpo.altezza / 2 }
   }
   return { x: nodo.x + ancora.x, y: nodo.y + ancora.y }
@@ -78,11 +79,15 @@ function renderMandataCompressore(
   ancoraA: string,
   stile: SchemaArcoStile,
   quote: QuoteInstradamento,
-  gomiti?: Punto[]
+  gomiti?: Punto[],
+  libreria: Tarature = {}
 ): { svg: string; punti: Punto[] } {
-  const pDa = posizioneAncora(da, ancoraDa)
-  const pA = posizioneAncora(a, ancoraA)
-  const punti = instrada(stile, pDa, pA, gomiti, quote, { da: latoImposto(da, ancoraDa), a: latoImposto(a, ancoraA) })
+  const pDa = posizioneAncora(da, ancoraDa, libreria)
+  const pA = posizioneAncora(a, ancoraA, libreria)
+  const punti = instrada(stile, pDa, pA, gomiti, quote, {
+    da: latoImposto(da, ancoraDa, libreria),
+    a: latoImposto(a, ancoraA, libreria),
+  })
   const svg = `<path d="${ondula(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" marker-end="url(#freccia)" />`
   return { svg, punti }
 }
@@ -96,11 +101,15 @@ function renderMandataLinea(
   stile: SchemaArcoStile,
   quote: QuoteInstradamento,
   gomiti?: Punto[],
-  frecciaFinale = true
+  frecciaFinale = true,
+  libreria: Tarature = {}
 ): { svg: string; punti: Punto[] } {
-  const pDa = posizioneAncora(da, ancoraDa)
-  const pA = posizioneAncora(a, ancoraA)
-  const punti = instrada(stile, pDa, pA, gomiti, quote, { da: latoImposto(da, ancoraDa), a: latoImposto(a, ancoraA) })
+  const pDa = posizioneAncora(da, ancoraDa, libreria)
+  const pA = posizioneAncora(a, ancoraA, libreria)
+  const punti = instrada(stile, pDa, pA, gomiti, quote, {
+    da: latoImposto(da, ancoraDa, libreria),
+    a: latoImposto(a, ancoraA, libreria),
+  })
   const freccia = frecciaFinale ? ' marker-end="url(#freccia)"' : ''
   const svg = `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}"${freccia} />`
   return { svg, punti }
@@ -114,11 +123,15 @@ function renderLineaCondense(
   ancoraA: string,
   stile: SchemaArcoStile,
   quote: QuoteInstradamento,
-  gomiti?: Punto[]
+  gomiti?: Punto[],
+  libreria: Tarature = {}
 ): { svg: string; punti: Punto[] } {
-  const pDa = posizioneAncora(da, ancoraDa)
-  const pA = posizioneAncora(a, ancoraA)
-  const punti = instrada(stile, pDa, pA, gomiti, quote, { da: latoImposto(da, ancoraDa), a: latoImposto(a, ancoraA) })
+  const pDa = posizioneAncora(da, ancoraDa, libreria)
+  const pA = posizioneAncora(a, ancoraA, libreria)
+  const punti = instrada(stile, pDa, pA, gomiti, quote, {
+    da: latoImposto(da, ancoraDa, libreria),
+    a: latoImposto(a, ancoraA, libreria),
+  })
   const svg = `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" stroke-dasharray="${TRATTEGGIO_CONDENSE}" marker-end="url(#freccia)" />`
   return { svg, punti }
 }
@@ -132,7 +145,8 @@ function renderLineaCondense(
  */
 function renderArchi(
   layout: SchemaLayout,
-  quote: QuoteInstradamento
+  quote: QuoteInstradamento,
+  libreria: Tarature = {}
 ): { svg: string; varchi: number[] } {
   const indice = new Map(layout.nodi.map((n) => [n.id, n]))
   const parti: string[] = []
@@ -148,10 +162,20 @@ function renderArchi(
 
     const reso =
       arco.stile === 'condensa'
-        ? renderLineaCondense(da, arco.da.ancora, a, arco.a.ancora, arco.stile, quote, arco.punti)
+        ? renderLineaCondense(da, arco.da.ancora, a, arco.a.ancora, arco.stile, quote, arco.punti, libreria)
         : arco.stile === 'flessibile'
-          ? renderMandataCompressore(da, arco.da.ancora, a, arco.a.ancora, arco.stile, quote, arco.punti)
-          : renderMandataLinea(da, arco.da.ancora, a, arco.a.ancora, arco.stile, quote, arco.punti, a.tipo !== 'utenze')
+          ? renderMandataCompressore(da, arco.da.ancora, a, arco.a.ancora, arco.stile, quote, arco.punti, libreria)
+          : renderMandataLinea(
+              da,
+              arco.da.ancora,
+              a,
+              arco.a.ancora,
+              arco.stile,
+              quote,
+              arco.punti,
+              a.tipo !== 'utenze',
+              libreria
+            )
 
     parti.push(reso.svg)
     for (const segno of arco.segni ?? []) {
@@ -305,24 +329,32 @@ function renderNota(note: string[], larghezza: number, yTop: number): string {
   return `<rect x="${x}" y="${yTop}" width="${w}" height="${h}" fill="none" stroke="#000" stroke-width="${TRATTO}" />${righe}`
 }
 
-export function renderSvg(layout: SchemaLayout, options: RenderSvgOptions = {}): string {
+/**
+ * `libreria` sta PRIMA di `options`, non dopo: è il parametro che le due catene di produzione
+ * (editor, documento) costruiscono una volta sola e passano sempre, mentre `options` è per
+ * consumo occasionale (la nota diametri, oggi il solo campo). Se fosse l'ultimo, ogni chiamante
+ * che oggi passa `{ noteTubazioni }` come secondo argomento continuerebbe a compilare passando
+ * una `Tarature` dove si aspetta `RenderSvgOptions` — esattamente il difetto silenzioso che
+ * questo task esiste per evitare (vedi il commento di testa a `symbols/index.ts`).
+ */
+export function renderSvg(layout: SchemaLayout, libreria: Tarature = {}, options: RenderSvgOptions = {}): string {
   const note = options.noteTubazioni ?? []
-  const dimensioniDisegno = dimensioniLayout(layout)
+  const dimensioniDisegno = dimensioniLayout(layout, libreria)
   const righe = [...righeLista(layout), ...righeLegenda(layout)]
 
-  const quote = quoteInstradamento(layout)
+  const quote = quoteInstradamento(layout, libreria)
   const yNota = dimensioniDisegno.altezza + MARGINE
   const altezzaNota = note.length > 0 ? ALTEZZA_NOTA : 0
   const yTabella = yNota + altezzaNota
   const altezzaTotale = yTabella + RIGA_TABELLA * (righe.length + 1) + MARGINE
 
-  const archi = renderArchi(layout, quote)
+  const archi = renderArchi(layout, quote, libreria)
 
   const larghezzaTabella = COLONNA_CODICE + 620 + MARGINE * 2
   const larghezzaTotale = Math.max(dimensioniDisegno.larghezza, larghezzaTabella)
 
   const nodi = layout.nodi
-    .map((nodo) => `<g transform="translate(${nodo.x} ${nodo.y})">${simboloDi(nodo)}</g>`)
+    .map((nodo) => `<g transform="translate(${nodo.x} ${nodo.y})">${simboloDi(nodo, libreria)}</g>`)
     .join('')
   const muro = layout.muro
     ? simboloMuro(layout.muro.x, layout.muro.yMin, layout.muro.yMax, archi.varchi)
@@ -349,6 +381,6 @@ export function renderSvg(layout: SchemaLayout, options: RenderSvgOptions = {}):
  * diversi da quelli del .docx consegnato. Chiamata da `SchemaEditor` (`varchiMuro`,
  * SchemaEditor.tsx), che la passa a `MuroSeparazione` insieme al muro da disegnare.
  */
-export function varchiDelMuro(layout: SchemaLayout): number[] {
-  return renderArchi(layout, quoteInstradamento(layout)).varchi
+export function varchiDelMuro(layout: SchemaLayout, libreria: Tarature = {}): number[] {
+  return renderArchi(layout, quoteInstradamento(layout, libreria), libreria).varchi
 }

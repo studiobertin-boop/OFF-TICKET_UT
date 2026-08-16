@@ -3,6 +3,7 @@
  * costruttore del modello, l'editor (che rifiuta una connessione illegale mentre la si
  * traccia) e il preflight: tre punti distanti che devono dire la stessa cosa.
  */
+import type { Tarature } from './libreria'
 import { definizioneDi } from './symbols'
 import type { SchemaAncora, SchemaArcoStile, SchemaNodoTipo, SchemaTipoAggancio } from './types'
 
@@ -27,9 +28,10 @@ export function ancoraAmmette(ancora: SchemaAncora, stile: SchemaArcoStile): boo
 export function capoValido(
   nodo: { tipo: SchemaNodoTipo; orientamento?: 'VERTICALE' | 'ORIZZONTALE' },
   ancoraId: string,
-  stile: SchemaArcoStile
+  stile: SchemaArcoStile,
+  libreria: Tarature = {}
 ): boolean {
-  const ancora = definizioneDi(nodo).ancore.find((a) => a.id === ancoraId)
+  const ancora = definizioneDi(nodo, libreria).ancore.find((a) => a.id === ancoraId)
   return Boolean(ancora && ancoraAmmette(ancora, stile))
 }
 
@@ -45,8 +47,16 @@ const STILI_PER_AGGANCIO: SchemaArcoStile[] = ['standard', 'condensa']
  * (l'unico stile con cui `onConnect` crea la tubazione) rifiuterebbe ogni linea condense,
  * perché nessuna ancora che accetta condensa accetta anche aria.
  */
-export function connessioneAmmessa(nodoDa: Nodo, ancoraIdDa: string, nodoA: Nodo, ancoraIdA: string): boolean {
-  return STILI_PER_AGGANCIO.some((stile) => capoValido(nodoDa, ancoraIdDa, stile) && capoValido(nodoA, ancoraIdA, stile))
+export function connessioneAmmessa(
+  nodoDa: Nodo,
+  ancoraIdDa: string,
+  nodoA: Nodo,
+  ancoraIdA: string,
+  libreria: Tarature = {}
+): boolean {
+  return STILI_PER_AGGANCIO.some(
+    (stile) => capoValido(nodoDa, ancoraIdDa, stile, libreria) && capoValido(nodoA, ancoraIdA, stile, libreria)
+  )
 }
 
 /**
@@ -54,7 +64,13 @@ export function connessioneAmmessa(nodoDa: Nodo, ancoraIdDa: string, nodoA: Nodo
  * l'unico stile che entrambi ammettono, altrimenti 'standard' (rigida) — la scelta di
  * default di sempre, che l'utente resta libero di cambiare in flessibile a mano.
  */
-export function stileIniziale(nodoDa: Nodo, ancoraIdDa: string, nodoA: Nodo, ancoraIdA: string): SchemaArcoStile {
-  const ariaAmmessa = capoValido(nodoDa, ancoraIdDa, 'standard') && capoValido(nodoA, ancoraIdA, 'standard')
+export function stileIniziale(
+  nodoDa: Nodo,
+  ancoraIdDa: string,
+  nodoA: Nodo,
+  ancoraIdA: string,
+  libreria: Tarature = {}
+): SchemaArcoStile {
+  const ariaAmmessa = capoValido(nodoDa, ancoraIdDa, 'standard', libreria) && capoValido(nodoA, ancoraIdA, 'standard', libreria)
   return ariaAmmessa ? 'standard' : 'condensa'
 }
