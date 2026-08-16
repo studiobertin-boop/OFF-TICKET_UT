@@ -42,6 +42,17 @@ describe('risolviFamiglia', () => {
     expect(risolviFamiglia('SICCOMPRESSORI')).toBeNull()
     expect(risolviFamiglia('FIACOMPRESSORI')).toBeNull()
   })
+
+  // Il confine di parola da solo non basta sulle marche cortissime: 'A' è il primo token di
+  // 'A ARIA C' (la forma famiglia di 'A.ARIA C S.r.l. (ABAC)'), quindi senza la soglia dei tre
+  // caratteri una targhetta ASTRA letta come 'A' risolveva la famiglia CECCATO e agganciava
+  // con esito «certo» il costruttore sbagliato. Verificato per mutazione: togliendo la guardia
+  // `cercata.length >= 3` questo test diventa rosso.
+  test('una marca di un solo carattere non risolve alcuna famiglia', () => {
+    expect(risolviFamiglia('A')).toBeNull()
+    expect(risolviFamiglia('S')).toBeNull()
+    expect(risolviFamiglia('F')).toBeNull()
+  })
 })
 
 describe('coerenza della mappa col catalogo', () => {

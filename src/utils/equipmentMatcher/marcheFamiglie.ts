@@ -32,6 +32,14 @@ export const FAMIGLIE_MARCHE: Famiglia[] = [
  * una targhetta che dice solo `SICC` risolve la famiglia perché `SICC` è il nome di
  * `SICC S.p.A.` ed è contenuto in `SICC TECH`. Si preferisce sempre la corrispondenza
  * esatta, così `FIAC` non viene attratto da una famiglia il cui nome lo contenga.
+ *
+ * Il contenimento vale però solo da tre caratteri in su. Sotto quella soglia il confine di
+ * parola non basta a rendere significativo il prefisso: `A` è l'inizio legittimo di
+ * `A ARIA C` (cioè `A.ARIA C S.r.l. (ABAC)`), e una targhetta ASTRA letta male come `A`
+ * risolveva la famiglia CECCATO — con esito «certo» sul costruttore sbagliato, perché
+ * decine di modelli ASTRA esistono identici anche sotto ABAC, stesse specs comprese, e
+ * nessuna divergenza tecnica intercettava lo scambio. Le marche corte davvero in mappa
+ * (`SICC`, `FIAC`) sono tutte di quattro caratteri e restano coperte.
  */
 export function risolviFamiglia(marca: string): string[] | null {
   const cercata = normalizzaMarcaFamiglia(marca)
@@ -45,8 +53,10 @@ export function risolviFamiglia(marca: string): string[] | null {
   const esatta = normalizzate.find((f) => f.nomi.includes(cercata))
   if (esatta) return esatta.marche
 
-  const perContenimento = normalizzate.find((f) =>
-    f.nomi.some((n) => n.startsWith(`${cercata} `) || cercata.startsWith(`${n} `))
-  )
+  const perContenimento = cercata.length >= 3
+    ? normalizzate.find((f) =>
+        f.nomi.some((n) => n.startsWith(`${cercata} `) || cercata.startsWith(`${n} `))
+      )
+    : undefined
   return perContenimento ? perContenimento.marche : null
 }
