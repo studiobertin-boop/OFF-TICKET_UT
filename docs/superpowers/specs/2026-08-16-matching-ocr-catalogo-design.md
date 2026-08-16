@@ -235,15 +235,33 @@ esistono casi non coperti.
 | ordine | esito | condizione |
 |---|---|---|
 | 1 | **nessuno** | nessun candidato con `simModello ≥ 0,60`, né nell'insieme ristretto né nel ripiego alla famiglia |
-| 2 | **certo** | *tutte* le seguenti: un solo candidato compatibile · `simModello == 1` (modello identico dopo normalizzazione) · almeno un dato tecnico letto che lo conferma · nessuna divergenza · motivo diverso da `ragione_sociale_altra` |
+| 2 | **certo** | *tutte* le seguenti: un solo candidato compatibile · `simModello == 1` (modello identico dopo normalizzazione) · almeno un dato tecnico letto che lo conferma · nessuna divergenza · motivo diverso da `ragione_sociale_altra` · marca letta riconducibile alla riga scelta |
 | 3 | **ambiguo** | tutto il resto |
 
+L'esito `certo` richiede inoltre che **la marca letta sia riconducibile alla riga scelta** —
+corrispondenza esatta della ragione sociale, oppure appartenenza alla famiglia che quella marca
+risolve. Senza questa condizione una targhetta che dichiara un costruttore potrebbe compilare la
+scheda con un altro: un modello che esiste sotto una sola marca verrebbe applicato in automatico
+anche a fronte di una marca letta del tutto estranea, perché nessuna delle altre condizioni
+guarda la marca.
+
 Il `motivo` allegato all'esito ambiguo serve a formulare il messaggio del popup e si sceglie
-col primo criterio che si applica: `ragione_sociale_altra`, poi `divergenza_specs`, poi
-`piu_candidati`, altrimenti `somiglianza_incerta`. Un candidato unico, compatibile e senza
-divergenze ma con modello soltanto somigliante (`0,60 ≤ simModello < 1`) è ambiguo per
-`somiglianza_incerta`: confermarlo costa un clic, applicarlo a torto costa una scheda
-sbagliata.
+col primo criterio che si applica:
+
+| motivo | quando |
+|---|---|
+| `ragione_sociale_altra` | la targhetta dà una ragione sociale, ma il modello è censito solo sotto un'altra della famiglia |
+| `divergenza_specs` | nessun candidato compatibile: un dato letto contraddice il catalogo |
+| `piu_candidati` | più righe compatibili competono |
+| `marca_assente` | la targhetta non porta una marca utilizzabile, mentre il resto combacia |
+| `senza_conferma_tecnica` | modello identico, ma nessun dato tecnico confrontabile lo conferma (filtri, separatori) |
+| `somiglianza_incerta` | candidato unico e compatibile, ma con modello soltanto somigliante (`0,60 ≤ simModello < 1`) |
+
+Gli ultimi tre esistono perché il popup deve dire all'operatore **la ragione vera** per cui sta
+chiedendo. Etichettare come «modello somigliante» un caso in cui il modello coincide alla lettera
+— e l'incertezza sta altrove — è un'informazione falsa proprio nel momento della decisione.
+
+Confermare un candidato costa un clic; applicarlo a torto costa una scheda sbagliata.
 
 I tipi senza discriminante tecnico (filtro, separatore) non possono raggiungere «certo» per
 la clausola *«almeno un dato tecnico letto che lo conferma»*. È voluto: su quei tipi il
