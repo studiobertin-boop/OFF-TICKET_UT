@@ -1,5 +1,6 @@
 import { useForm, FormProvider } from 'react-hook-form'
 import { useEffect, useMemo, useRef, useState, useImperativeHandle, forwardRef, type ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   Box,
   Divider,
@@ -14,6 +15,8 @@ import { UnifiedEquipmentTable } from './table/UnifiedEquipmentTable'
 import { AperturaApparecchiaturaProvider } from './AperturaApparecchiatura'
 import { AltriApparecchiSection } from './AllEquipmentSections'
 import { BatchOCRDialog } from './BatchOCRDialog'
+import { EquipmentMatchDialog } from './EquipmentMatchDialog'
+import { EQUIPMENT_DEFS, KIND_PER_CATALOG_TYPE, type EquipmentKind } from './table/equipmentConfig'
 import { AzioneIcona, CompletenessBar, SectionLabel } from '@/components/common'
 import { radii } from '@/theme/tokens'
 import {
@@ -21,11 +24,13 @@ import {
   eCompleta, righeComplete, somma, type Completezza,
 } from '@/utils/schedaCompleteness'
 import { useHydrateCatalogOrigini } from '@/hooks/useHydrateCatalogOrigini'
-import { normalizeDiametroValvola } from '@/services/equipmentAudit'
+import { caricaCatalogoPerTipo } from '@/hooks/useCatalogoPerTipo'
+import { normalizeDiametroValvola, readSpec } from '@/services/equipmentAudit'
+import { matchEquipment, type Candidato, type MotivoAmbiguita } from '@/utils/equipmentMatcher'
 import { type MovimentoPratica } from '@/services/fascicolo/scadenza'
 import type { SchedaDatiCompleta } from '@/types'
 import type { BatchOCRResult, BatchOCRItem } from '@/types/ocr'
-import type { EquipmentCatalogType } from '@/types'
+import type { EquipmentCatalogItem, EquipmentCatalogType } from '@/types'
 import { EQUIPMENT_LIMITS } from '@/types'
 import { codeForArrayIndex, normalizeSchedaCodes } from '@/utils/equipmentCodes'
 
@@ -126,6 +131,34 @@ const mergeOcrData = (existing: any, incoming: Record<string, any>) => {
   return out
 }
 
+/** Esito del riconoscimento per un file del batch, risolto prima di toccare il form. */
+interface DecisioneBatch {
+  item: BatchOCRItem
+  /** Voce di catalogo riconosciuta, o `null` se la targhetta non ne ha una. */
+  candidato: Candidato | null
+}
+
+/** Targhetta ambigua in attesa che l'operatore scelga. */
+interface AmbiguitaBatch {
+  item: BatchOCRItem
+  candidati: Candidato[]
+  motivo: MotivoAmbiguita
+}
+
+/**
+ * Il `kind` che descrive la targhetta di un file del batch.
+ *
+ * Per le valvole `parsedType` è il tipo del *recipiente* che le porta ("S1.1.jpg" ⇒ Serbatoi):
+ * è il dato con cui il resto della funzione ritrova il proprietario, ma non dice niente sulla
+ * valvola. Il tipo di catalogo su cui cercarla va quindi ricavato dal `kind` — cioè da
+ * `EQUIPMENT_DEFS.valvola.catalogType` — e non da `parsedType`, che manderebbe a cercare una
+ * valvola fra i serbatoi.
+ */
+const kindDelFile = (item: BatchOCRItem): EquipmentKind | undefined => {
+  if (item.parsedComponentType === 'valvola_sicurezza') return 'valvola'
+  return item.parsedType ? KIND_PER_CATALOG_TYPE[item.parsedType as EquipmentCatalogType] : undefined
+}
+
 /**
  * Form completo SCHEDA DATI DM329
  * Organizzato in sezioni collassabili (Accordion)
@@ -183,6 +216,19 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
 
   // State per Batch OCR Dialog
   const [batchOCRDialogOpen, setBatchOCRDialogOpen] = useState(false)
+
+  /**
+   * Il batch elabora N targhette dentro un handler e non può montare un hook per ciascuna:
+   * `caricaCatalogoPerTipo` passa dal `QueryClient` e condivide la cache degli hook, quindi un
+   * tipo già caricato dalla tabella non viene richiesto una seconda volta.
+   */
+  const queryClient = useQueryClient()
+
+  /** Ambiguità in attesa di risposta, e il resolver della promessa che le sta aspettando. */
+  const [coda, setCoda] = useState<AmbiguitaBatch[]>([])
+  const [posizione, setPosizione] = useState(0)
+  const risoltoreCoda = useRef<((scelte: DecisioneBatch[]) => void) | null>(null)
+  const scelteFinora = useRef<DecisioneBatch[]>([])
 
   // Esponi metodi al componente parent
   useImperativeHandle(ref, () => ({
@@ -302,27 +348,50 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
   }, [])
 
 
-  const handleBatchOCRComplete = (results: BatchOCRResult, items: BatchOCRItem[]) => {
-    console.log('✅ Batch OCR completato:', results, items)
+  /**
+   * Presenta le ambiguità una per volta e si sblocca a coda esaurita.
+   *
+   * Il ponte fra un dialog, che comunica per callback, e un `await` è una promessa il cui
+   * `resolve` resta in un ref finché l'ultima targhetta non ha avuto risposta.
+   *
+   * Chiudere il dialog non annulla il batch: la targhetta in esame vale «nessuno di questi» e i
+   * suoi campi si compilano coi dati letti, come se il catalogo non la conoscesse. Chiuderlo di
+   * seguito fino in fondo alla coda porta tutte le rimaste alla stessa sorte: nessun file viene
+   * perso per una finestra chiusa.
+   */
+  const risolviCoda = (ambigue: AmbiguitaBatch[]): Promise<DecisioneBatch[]> => {
+    if (ambigue.length === 0) return Promise.resolve([])
+    scelteFinora.current = []
+    setCoda(ambigue)
+    setPosizione(0)
+    return new Promise((resolve) => { risoltoreCoda.current = resolve })
+  }
 
-    // Debug: mostra stato di ogni item PRIMA del filtro
-    items.forEach((item, idx) => {
-      console.log(`📋 Item ${idx} (${item.filename}):`, {
-        status: item.status,
-        hasResult: !!item.result,
-        hasData: !!item.result?.data,
-        dataContent: item.result?.data, // 🔍 CONTENUTO COMPLETO di data
-        dataKeys: item.result?.data ? Object.keys(item.result.data) : [],
-        result: item.result,
-        parsedType: item.parsedType,
-        parsedComponentType: item.parsedComponentType
-      })
-    })
+  /** Registra la decisione sulla targhetta corrente e passa alla successiva, o chiude la coda. */
+  const avanzaCoda = (candidato: Candidato | null) => {
+    scelteFinora.current.push({ item: coda[posizione].item, candidato })
+    const prossima = posizione + 1
+    if (prossima < coda.length) { setPosizione(prossima); return }
 
-    // Applica risultati al form
-    const completedItems = items.filter(i => i.status === 'completed' && i.result?.data)
-    console.log('📦 Items completati da processare:', completedItems.length)
+    const scelte = scelteFinora.current
+    setCoda([])
+    setPosizione(0)
+    risoltoreCoda.current?.(scelte)
+    risoltoreCoda.current = null
+  }
 
+  /**
+   * Scrive nel form tutte le decisioni, in un colpo solo.
+   *
+   * È il corpo che il batch ha sempre avuto, con una sola differenza: itera sulle decisioni
+   * invece che sui file, e dove la decisione porta una voce di catalogo i dati tecnici vengono
+   * da lì. Ordinamento, risoluzione del proprietario delle valvole, risoluzione del padre dei
+   * tipi dipendenti, `mergeOcrData` sugli esistenti e la coppia finale `normalizeSchedaCodes` +
+   * `reset` restano quelli di prima.
+   *
+   * Restituisce i file non applicati, con il motivo: il riepilogo li mostra al tecnico.
+   */
+  const applicaDecisioniAlForm = (decisioni: DecisioneBatch[]): string[] => {
     /** File non applicati al form, con il motivo: da mostrare al tecnico a fine batch. */
     const skipped: string[] = []
 
@@ -338,15 +407,19 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
       const field = i.parsedType ? TYPE_TO_FIELD[i.parsedType as EquipmentCatalogType] : ''
       return field && CHILD_REF_FIELD[field] ? 1 : 0
     }
-    const orderedItems = [...completedItems].sort((a, b) => applyOrder(a) - applyOrder(b))
+    const ordinate = [...decisioni].sort((a, b) => applyOrder(a.item) - applyOrder(b.item))
 
-    orderedItems.forEach(item => {
+    ordinate.forEach(decisione => {
+      const item = decisione.item
+      const kind = kindDelFile(item)
+
       console.log('🔍 Item RAW:', {
         filename: item.filename,
         parsedType: item.parsedType,
         parsedIndex: item.parsedIndex,
         parsedComponentType: item.parsedComponentType,
-        hasData: !!item.result?.data
+        hasData: !!item.result?.data,
+        catalogo: decisione.candidato ? `${decisione.candidato.riga.marca} ${decisione.candidato.riga.modello}` : null
       })
 
       if (!item.parsedType || !item.result?.data) {
@@ -396,6 +469,21 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
           setValue(`${basePath}.diametro` as any, normalizeDiametroValvola(data.diametro_pressione))
         }
 
+        // Seconda passata, come per gli altri tipi: il catalogo sovrascrive marca, modello e i
+        // dati tecnici della variante — sulla taratura e sul diametro è lui la fonte autorevole
+        // — mentre il numero di fabbrica letto sopra è dell'esemplare e resta dov'è.
+        if (decisione.candidato) {
+          const def = EQUIPMENT_DEFS.valvola
+          const specs = (decisione.candidato.riga.specs ?? {}) as Record<string, any>
+          setValue(`${basePath}.marca` as any, decisione.candidato.riga.marca)
+          setValue(`${basePath}.modello` as any, decisione.candidato.riga.modello)
+          Object.entries(def.specsMap).forEach(([specKey, field]) => {
+            const v = readSpec(def.catalogType, specs, specKey)
+            if (v === null) return
+            setValue(`${basePath}.${field}` as any, field === 'ts' ? String(v) : v)
+          })
+        }
+
         console.log(`✅ Valvola popolata: ${marca} ${modello}`)
         return
       }
@@ -428,6 +516,26 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
       // Aggiungi dati specifici per disoleatori
       if (equipmentType === 'Disoleatori') {
         newEquipment.valvola_sicurezza = data.valvola_sicurezza || {}
+      }
+
+      // Seconda passata: la voce di catalogo riconosciuta sovrascrive marca, modello e i dati
+      // tecnici del modello. Deve venire *dopo* la prima e non al suo posto: la stessa foto porta
+      // dati che appartengono all'esemplare e non al modello — la valvola e il manometro a bordo,
+      // il materiale — e nessuno di questi compare nelle `specs` del catalogo; costruire il record
+      // dalla sola riga di catalogo li perderebbe. Numero di fabbrica e anno restano quelli della
+      // targhetta per la stessa ragione.
+      if (decisione.candidato && kind) {
+        const def = EQUIPMENT_DEFS[kind]
+        const specs = (decisione.candidato.riga.specs ?? {}) as Record<string, any>
+        newEquipment.marca = decisione.candidato.riga.marca
+        newEquipment.modello = decisione.candidato.riga.modello
+        Object.entries(def.specsMap).forEach(([specKey, field]) => {
+          const v = readSpec(def.catalogType, specs, specKey)
+          if (v === null) return
+          // A catalogo TS è spesso un intervallo («-10 ÷ +200») e nella scheda è testo libero:
+          // stessa conversione che fa il selettore del catalogo nella tabella.
+          newEquipment[field] = field === 'ts' ? String(v) : v
+        })
       }
 
       // Il nome del file individua l'apparecchiatura per codice, non per posizione: "S3.jpg" ⇒ il
@@ -492,13 +600,81 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
     const { scheda: normalized } = normalizeSchedaCodes(getValues())
     reset(normalized, { keepDirty: true })
 
+    return skipped
+  }
+
+  const handleBatchOCRComplete = async (results: BatchOCRResult, items: BatchOCRItem[]) => {
+    console.log('✅ Batch OCR completato:', results, items)
+
+    // Debug: mostra stato di ogni item PRIMA del filtro
+    items.forEach((item, idx) => {
+      console.log(`📋 Item ${idx} (${item.filename}):`, {
+        status: item.status,
+        hasResult: !!item.result,
+        hasData: !!item.result?.data,
+        dataContent: item.result?.data, // 🔍 CONTENUTO COMPLETO di data
+        dataKeys: item.result?.data ? Object.keys(item.result.data) : [],
+        result: item.result,
+        parsedType: item.parsedType,
+        parsedComponentType: item.parsedComponentType
+      })
+    })
+
+    // Applica risultati al form
+    const completedItems = items.filter(i => i.status === 'completed' && i.result?.data)
+    console.log('📦 Items completati da processare:', completedItems.length)
+
+    // 1. Riconoscimento di tutte le targhette. I casi certi si risolvono qui; gli ambigui si
+    //    accodano e si chiedono tutti insieme a elaborazione finita, invece di interrompere il
+    //    batch una foto per volta.
+    const decisioni: DecisioneBatch[] = []
+    const daChiedere: AmbiguitaBatch[] = []
+
+    for (const item of completedItems) {
+      const kind = kindDelFile(item)
+      const dati = item.result?.data
+      if (!kind || !dati) { decisioni.push({ item, candidato: null }); continue }
+
+      // Il tipo di catalogo si ricava dal `kind`, non da `parsedType`: sulle valvole i due non
+      // coincidono, e cercare una valvola fra i serbatoi non troverebbe mai niente.
+      const tipo = EQUIPMENT_DEFS[kind].catalogType
+
+      let righeCatalogo: EquipmentCatalogItem[] = []
+      try {
+        righeCatalogo = await caricaCatalogoPerTipo(queryClient, tipo)
+      } catch (e) {
+        // Un catalogo irraggiungibile non deve far perdere le letture: senza righe non c'è
+        // riconoscimento possibile e la targhetta prende la strada di sempre. Lasciar propagare
+        // l'errore invece abbandonerebbe l'intero batch prima di scrivere qualsiasi cosa.
+        console.error('[Batch OCR] catalogo non caricato per', tipo, e)
+      }
+
+      const esito = matchEquipment(kind, dati, righeCatalogo)
+      if (esito.esito === 'certo') {
+        decisioni.push({ item, candidato: esito.candidato })
+      } else if (esito.esito === 'ambiguo') {
+        daChiedere.push({ item, candidati: esito.candidati, motivo: esito.motivo })
+      } else {
+        decisioni.push({ item, candidato: null })
+      }
+    }
+
+    // 2. Coda delle ambiguità: una targhetta per volta, con l'indicazione del file da cui viene.
+    //    Ogni ambiguità esce da qui con una decisione — la voce scelta o «nessuno di questi» —
+    //    quindi `decisioni` copre comunque tutti i file elaborati.
+    const scelte = await risolviCoda(daChiedere)
+    decisioni.push(...scelte)
+
+    // 3. Scrittura nel form: unica, come prima.
+    const skipped = applicaDecisioniAlForm(decisioni)
+
     const applicati = completedItems.length - skipped.length
     alert(
       `Batch OCR completato!\n\n` +
       `Totale: ${results.total}\n` +
       `Completati: ${results.completed}\n` +
       `Errori: ${results.errors}\n` +
-      `Normalizzati: ${results.normalized}\n\n` +
+      `Agganciate a catalogo: ${decisioni.filter((d) => d.candidato).length}\n\n` +
       `${applicati} apparecchiature aggiunte al form.` +
       (skipped.length
         ? `\n\n${skipped.length} file non applicati:\n${skipped.map((s) => `• ${s}`).join('\n')}`
@@ -595,6 +771,27 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
           onClose={() => setBatchOCRDialogOpen(false)}
           onComplete={handleBatchOCRComplete}
         />
+
+        {/* Coda delle ambiguità del batch: si monta solo mentre c'è qualcosa da chiedere, sopra
+            la finestra del batch che resta aperta finché non si è deciso di tutte.
+
+            `origine` e `passo` non sono decorativi: il popup azzera la selezione anche su quei
+            due valori, e senza di essi due targhette consecutive che producono gli stessi
+            candidati con lo stesso motivo — due serbatoi SICC identici della stessa scheda, di
+            annate diverse — lascerebbero accesa e confermabile la scelta fatta sulla precedente,
+            la cui risposta giusta è un'altra riga. */}
+        {coda.length > 0 && (
+          <EquipmentMatchDialog
+            open
+            datiOcr={coda[posizione].item.result!.data!}
+            candidati={coda[posizione].candidati}
+            motivo={coda[posizione].motivo}
+            origine={coda[posizione].item.filename}
+            passo={{ corrente: posizione + 1, totale: coda.length }}
+            onScegli={(c) => avanzaCoda(c)}
+            onScarta={() => avanzaCoda(null)}
+          />
+        )}
 
       </Box>
       </AperturaApparecchiaturaProvider>

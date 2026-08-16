@@ -197,6 +197,16 @@ export const EQUIPMENT_DEFS: Record<EquipmentKind, EquipmentTypeDef> = {
   },
 }
 
+/**
+ * Da tipo di catalogo al `kind` che lo descrive. Inverso di `EQUIPMENT_DEFS[k].catalogType`.
+ *
+ * `Partial`, non `Record` pieno: `EquipmentCatalogType` comprende anche «Altro», che non ha un
+ * `kind` perché non è una riga di tabella ma un campo di testo libero della scheda. Dichiararlo
+ * totale mentirebbe al compilatore proprio là dove chi lo indicizza deve accorgersi del buco.
+ */
+export const KIND_PER_CATALOG_TYPE: Partial<Record<EquipmentCatalogType, EquipmentKind>> =
+  Object.fromEntries(Object.values(EQUIPMENT_DEFS).map((d) => [d.catalogType, d.kind]))
+
 /** Scrive `valore` in `obj` seguendo un percorso a punti, creando gli oggetti intermedi. */
 const scriviInProfondita = (obj: Record<string, any>, path: string, valore: unknown) => {
   const parti = path.split('.')
