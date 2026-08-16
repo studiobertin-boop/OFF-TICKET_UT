@@ -70,7 +70,7 @@ SVG generato a mano, PyMuPDF per leggere i blocchi CAD.
 | `src/services/schemaImpianto/types.ts` | tipi della trasformazione e della libreria |
 | `src/services/schemaImpianto/layout.ts`, `agganci.ts`, `allineamento.ts`, `renderSvg.ts`, `tratti.ts`, `persistenza.ts` | passano la libreria alle porte |
 | `src/components/schemaImpianto/SchemaEditor.tsx`, `SchemaNodeSymbol.tsx`, `conversioneFlow.ts`, `useInserimentoTee.ts` | idem, più il modo taratura |
-| `src/services/pdfCompose/raster.ts` | idem |
+| `src/components/relazione/SchemaImpiantoSection.tsx` | idem — è **questa** la sorgente della catena del documento (chiama `layoutSchema` + `renderSvg`), non `pdfCompose/raster.ts`, che è rasterizzazione generica per il fascicolo e non tocca `schemaImpianto`. Scoperto durante il Task 7 |
 
 ---
 
