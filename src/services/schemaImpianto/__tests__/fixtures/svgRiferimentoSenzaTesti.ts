@@ -33,6 +33,13 @@
  * Task 5 del Blocco D4: contenuto invariato. L'impianto di questa fixture ha un solo gruppo
  * (compressore + serbatoio, nessuno in linea distribuzione), quindi non aveva un muro nemmeno
  * prima — il Task 5, che toglie il muro disegnato in automatico, non ha nulla da togliere qui.
+ *
+ * Generato di nuovo al commit 2bb8482 ("feat(schema): i tre rombi si distinguono per il segno
+ * interno, come nel CAD"), Task 3 del Blocco 3: `valvolaScarico` prende una misura
+ * ('serbatoio' | 'apparecchio') e la farfalla del serbatoio S1 diventa più stretta (semilarghezza
+ * 8 -> 4,5, rapporto ~1:2 misurato sul CAD anziché l'8:9 quasi quadrato di prima) — nel disegno e
+ * nella riga di legenda "Valvola di scarico". Questo impianto non porta essiccatori, filtri né
+ * separatori: il segno interno dei tre rombi (l'altra metà del task) non è coperto qui.
  */
 export const RIGHE_SVG_RIFERIMENTO_SENZA_TESTI = [
   `<svg xmlns="http://www.w3.org/2000/svg" width="830" height="762" viewBox="0 0 830 762">`,

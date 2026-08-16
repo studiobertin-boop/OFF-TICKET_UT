@@ -45,6 +45,13 @@
  * mostra solo commit `docs`), quindi è il commit che meglio descrive perché `layout.muro` va
  * attaccato a mano (`calcolaMuro`, come fa `layoutConMuro()`) invece che nascere già valorizzato
  * da `layoutSchema`.
+ *
+ * Generato di nuovo al commit 2bb8482 ("feat(schema): i tre rombi si distinguono per il segno
+ * interno, come nel CAD"), Task 3 del Blocco 3: `valvolaScarico` prende una misura
+ * ('serbatoio' | 'apparecchio') e la farfalla del serbatoio S1 diventa più stretta (semilarghezza
+ * 8 -> 4,5, rapporto ~1:2 misurato sul CAD anziché l'8:9 quasi quadrato di prima) — nel disegno e
+ * nella riga di legenda "Valvola di scarico". Questo impianto non porta essiccatori, filtri né
+ * separatori: il segno interno dei tre rombi (l'altra metà del task) non è coperto qui.
  */
 export const RIGHE_SVG_RIFERIMENTO_CON_MURO = [
   `<svg xmlns="http://www.w3.org/2000/svg" width="830" height="1053" viewBox="0 0 830 1053">`,
