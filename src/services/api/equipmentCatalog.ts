@@ -146,6 +146,26 @@ export const equipmentCatalogApi = {
   },
 
   /**
+   * Tutte le righe attive di un tipo.
+   *
+   * Il matching della targhetta ha bisogno dell'insieme intero, non di un sottoinsieme per
+   * marca: la marca letta può essere parziale o assente, e il candidato giusto va cercato
+   * anche sotto ragioni sociali che la targhetta non nomina. Il tipo più popoloso è
+   * «Compressori» con 639 righe: un payload che sta in cache senza problemi.
+   */
+  async findByTipo(tipo: EquipmentCatalogType): Promise<EquipmentCatalogItem[]> {
+    const { data, error } = await supabase
+      .from('equipment_catalog')
+      .select('*')
+      .eq('tipo_apparecchiatura', tipo)
+      .eq('is_active', true)
+
+    if (error) throw error
+
+    return (data ?? []) as EquipmentCatalogItem[]
+  },
+
+  /**
    * Varianti di un modello, ordinate per pressione crescente.
    *
    * Il raggruppamento sta in `raggruppaVarianti`: qui resta solo la lettura dal database.
