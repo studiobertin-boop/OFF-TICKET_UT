@@ -44,14 +44,40 @@ confronto affiancato, voce CAD contro simbolo reso, gli dà ragione:
 
 | Simbolo | Nel blocco CAD | Nell'editor oggi |
 |---|---|---|
-| Compressore | etichetta `C1` **fuori dal riquadro**, in alto a sinistra; cerchio **liscio** | etichetta dentro; cerchio **barrato da una diagonale** |
-| Serbatoio orizzontale | **allungato, circa 3:1** | quasi tozzo |
-| Tanica | **rettangolo largo** con la sigla `RC` | quadrato |
-| Essiccatore, separatore | rombo **pulito all'interno**; valvola di scarico minuta | tratto orizzontale sotto la sigla; valvola di scarico molto più grande |
-| Pacco bombole | colli e passo delle bombole del CAD | proporzioni diverse |
-| Serbatoio verticale | calotte più snelle | il più vicino dei sette, ma non sovrapponibile |
+| Compressore | cerchio con **due corde oblique**; sigla `C1` dentro, in alto a sinistra | cerchio **barrato da una sola diagonale** passante per il centro |
+| Essiccatore | **due** tratti orizzontali, sopra e sotto la sigla | **un** tratto solo, sotto la sigla |
+| Filtro | **linea verticale tratteggiata** dall'alto, più un tratto orizzontale in basso | tratto verticale continuo |
+| Filtro + recipiente | la stessa verticale tratteggiata, `F1.1` in un **rettangolo arrotondato** | riquadro squadrato |
+| Essiccatore + scambiatore | `E1.1` con un **cerchio contenente una linea a zigzag**, a cavallo del tratto basso | resa diversa |
+| Separatore | **rettangolo verticale interno**, e **nessuna valvola a farfalla** sotto: solo un tratto che scende | tratto orizzontale; valvola di scarico presente |
+| Serbatoio orizzontale | **2,82 × 1,31** (vedi tabella sotto) | ingombro identico al verticale |
+| Tanica | rettangolo **2:1** con la sigla `RC` | quasi quadrato |
+| Pacco bombole | quadrato **1,17 × 1,17** | 1,09 × 0,91 |
+| Valvola di scarico | **due misure diverse**: una per i serbatoi, una minore per filtri ed essiccatori | una misura sola, più grande di entrambe |
+
+Il segno interno **è ciò che distingue i tre rombi fra loro**, e oggi li rende quasi
+uguali: è la differenza più sostanziale dell'elenco, non un dettaglio decorativo.
 
 **Le sagome vanno quindi rifatte davvero**, non ritoccate — e le ancore con loro.
+
+### Le proporzioni vere
+
+Il committente ha confermato che **i blocchi della tavola sono tutti alla stessa scala fra
+loro**: i rapporti misurati sul PDF sono quindi significativi, e sono i numeri su cui
+ridisegnare. Presa a 1 la larghezza del rombo:
+
+| blocco | CAD (largh × alt) | oggi | |
+|---|---|---|---|
+| compressore | 1,17 × 1,17 | 1,45 × 1,36 | più grande, e non quadrato |
+| serbatoio verticale | 0,94 × 2,77 | 1,36 × 2,36 | troppo largo e troppo corto |
+| serbatoio orizzontale | 2,82 × 1,31 | 1,36 × 2,36 | l'ingombro del verticale, mai corretto |
+| tanica | 0,78 × 0,39 | 0,73 × 0,64 | alta il doppio del dovuto |
+| pacco bombole | 1,17 × 1,17 | 1,09 × 0,91 | non quadrato |
+
+Avvertenza sui numeri: per serbatoi e rombi il rettangolo misurato **comprende** la
+valvola di sicurezza sopra e quella di scarico sotto, quindi il corpo puro è più corto di
+così. Per compressore, tanica e pacco bombole, che non hanno accessori, le misure sono
+pulite. In fase di ridisegno ogni corpo va rimisurato isolando i suoi tracciati.
 
 Il confronto è ripetibile: le 19 voci si isolano dal PDF raggruppando i tracciati per
 prossimità verticale (attenzione: la pagina ha `rotation: 270`, e i rettangoli restituiti
@@ -92,6 +118,15 @@ Dallo screenshot che ha allegato e dalle sue parole:
 Sul serbatoio verticale ha indicato **cinque ancore**: quattro sui fianchi, alle due
 quote dove le calotte incontrano il cilindro (sinistra e destra, alto e basso), più una
 in basso al centro sulla valvola di scarico. Oggi ce ne sono quattro, in posti diversi.
+
+Due risposte che chiudono altrettante strade:
+
+- **I blocchi della tavola sono tutti alla stessa scala fra loro** — quindi i rapporti
+  misurati sul PDF valgono, e non c'è nulla da indovinare sulle proporzioni relative.
+- **Nel suo file CAD non esistono punti di attacco.** Non c'è alcuna informazione da
+  importare sulle ancore: è la conferma che la loro posizione può venire soltanto dalle
+  sue mani, ed è la ragione per cui il modo taratura non è un di più ma la sostanza del
+  blocco.
 
 ## Perimetro
 
@@ -243,10 +278,12 @@ riferimenti che non risolvono.
    simboli resi, ripetibile a comando. Viene per primo perché è ciò che dice se i task 1
    e 6 hanno funzionato — e perché senza di esso questa specifica ha già sbagliato una
    volta.
-1. **Il ridisegno fedele delle sagome**, misurando sui tracciati veri: compressore
-   (etichetta fuori, cerchio liscio), serbatoio orizzontale allungato, tanica
-   rettangolare, rombi puliti con la valvola di scarico nella misura del CAD, pacco
-   bombole, serbatoio verticale. Ogni simbolo si chiude col confronto affiancato.
+1. **Il ridisegno fedele delle sagome**, misurando sui tracciati veri e sui rapporti della
+   tabella: il cerchio del compressore con le due corde oblique, i tre segni interni che
+   distinguono i rombi (due tratti l'essiccatore, verticale tratteggiata il filtro,
+   rettangolo il separatore), il separatore senza valvola a farfalla, le **due** misure
+   della valvola di scarico, il serbatoio orizzontale allungato, la tanica 2:1, il pacco
+   bombole quadrato. Ogni simbolo si chiude col confronto affiancato.
 2. **Il modello a tre strati e la sua risoluzione.** Dati puri, nessuna interfaccia:
    tipi, sovrascrittura, «torna a default». Provabile per intero senza montare niente.
 3. **La trasformazione applicata al disegno e all'ingombro.** Sagoma traslata e scalata,
