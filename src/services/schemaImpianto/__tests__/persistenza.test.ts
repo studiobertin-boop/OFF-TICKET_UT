@@ -727,6 +727,55 @@ describe('taratura di pratica e riattacco degli archi orfani', () => {
     expect(layout.archi.some((a) => a.id === 'A1')).toBe(false)
   })
 
+  it('non basta che l’id dell’ancora sia rimasto: se non accetta più lo stile dell’arco si tratta come sparita', () => {
+    // Il modo taratura (task successivi) può riassegnare un id esistente a un altro fluido
+    // SENZA toglierlo: 'sx' c'è ancora nella definizione corrente, ma ora accetta condensa. Un
+    // arco standard (aria) che citava 'sx' non deve restarci solo perché l'id combacia.
+    const salvato: LayoutSalvato = {
+      ...layoutConArcoVersoTanica('sx'),
+      simboli: {
+        tanica: {
+          dx: 0, dy: 0, sx: 1, sy: 1,
+          ancore: [
+            { id: 'sx', x: 40, y: 0, accetta: ['condensa'] },
+            { id: 'ingresso', x: 60, y: 20, accetta: ['aria'] },
+          ],
+        },
+      },
+    }
+
+    const { layout } = layoutIniziale(salvato, modelloDiRiferimento())
+    const arco = layout.archi.find((a) => a.id === 'A1')!
+
+    // Non è sparito (l'id 'sx' c'è), ma non è più giusto per lui: deve spostarsi sulla
+    // candidata che accetta ancora aria, non restare fermo perché "un'ancora chiamata sx c'è".
+    expect(arco.a.ancora).toBe('ingresso')
+  })
+
+  it('fra più ancore compatibili sceglie davvero la più vicina, non la prima della lista', () => {
+    // C1 (compressore, 120×120) sta a (40,200): il suo centro, il riferimento di distanza per
+    // il capo che si riattacca sulla tanica, è (100,260). 'lontana' è elencata per PRIMA ma è
+    // la più distante da quel centro: se la scelta prendesse la prima candidata invece di
+    // confrontare le distanze, il test la sceglierebbe e cadrebbe.
+    const salvato: LayoutSalvato = {
+      ...layoutConArcoVersoTanica('sx'),
+      simboli: {
+        tanica: {
+          dx: 0, dy: 0, sx: 1, sy: 1,
+          ancore: [
+            { id: 'lontana', x: 60, y: 20, accetta: ['aria'] }, // assoluta (560,520)
+            { id: 'vicina', x: -350, y: -350, accetta: ['aria'] }, // assoluta (150,150)
+          ],
+        },
+      },
+    }
+
+    const { layout } = layoutIniziale(salvato, modelloDiRiferimento())
+    const arco = layout.archi.find((a) => a.id === 'A1')!
+
+    expect(arco.a.ancora).toBe('vicina')
+  })
+
   it('la taratura di pratica entra nel salvato e non alza la versione', () => {
     const t = { dx: -3, dy: 0, sx: 1.07, sy: 1, ancore: [{ id: 'sx', x: 30, y: 130, accetta: ['aria' as const] }] }
 

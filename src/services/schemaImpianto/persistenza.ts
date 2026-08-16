@@ -206,13 +206,16 @@ function posizioneTerminale(
 }
 
 /**
- * Se l'ancora di un capo non esiste più nella definizione corrente del suo nodo — una
- * taratura, permanente o di pratica, gliel'ha tolta — il capo si riattacca all'ancora
- * compatibile più vicina, invece di restare puntato su un id sparito. Compatibile secondo
- * `accetta` (`ancoraAmmette`): un tubo d'aria non deve finire sull'ancora della condensa solo
- * perché è la più vicina. "Più vicina" è misurata contro il CENTRO del nodo all'altro capo —
- * l'unico riferimento geometrico disponibile qui: dove stava l'ancora sparita non è
- * recuperabile, nessuna taratura precedente resta salvata da nessuna parte.
+ * Se l'ancora di un capo non è più compatibile con lo stile dell'arco nella definizione
+ * corrente del suo nodo — una taratura, permanente o di pratica, gliel'ha tolta, o ne ha
+ * lasciato l'id ma cambiato il fluido che accetta — il capo si riattacca all'ancora
+ * compatibile più vicina, invece di restare puntato lì. Compatibile secondo `accetta`
+ * (`ancoraAmmette`): un tubo d'aria non deve finire sull'ancora della condensa solo perché è
+ * la più vicina — né restarci per il solo fatto che l'id combacia ancora, che è esattamente il
+ * caso in cui il modo taratura riassegna un id esistente a un altro fluido senza toglierlo.
+ * "Più vicina" è misurata contro il CENTRO del nodo all'altro capo — l'unico riferimento
+ * geometrico disponibile qui: dove stava l'ancora sparita non è recuperabile, nessuna taratura
+ * precedente resta salvata da nessuna parte.
  *
  * Nessuna ancora compatibile: `null`. Il chiamante scarta l'intero arco — la stessa sorte che
  * `riconcilia` riserva già oggi a un capo il cui NODO (non solo l'ancora) è sparito: un
@@ -225,7 +228,11 @@ function capoRiattaccato(
   stile: SchemaArco['stile'],
   libreria: Tarature
 ): SchemaCapo | null {
-  if (ancoraDi(nodo, capo.ancora, libreria)) return capo
+  // Non basta che l'id si trovi ancora (`ancoraDi`): và anche verificato che quell'ancora
+  // ammetta tuttora lo stile dell'arco, o un id rimasto ma riassegnato a un altro fluido
+  // (accetta cambiato da una taratura, senza toccare l'id) sfuggirebbe al riattacco.
+  const attuale = ancoraDi(nodo, capo.ancora, libreria)
+  if (attuale && ancoraAmmette(attuale, stile)) return capo
   const compatibili = ancoreDi(nodo, libreria).filter((a) => ancoraAmmette(a, stile))
   if (compatibili.length === 0) return null
   const centroAltro = {
