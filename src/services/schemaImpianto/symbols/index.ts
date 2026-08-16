@@ -386,10 +386,11 @@ export function simboloCompressore(nodo: SchemaNodo): string {
  * ciascuno ha un riquadro tagliato sulla propria capsula, non un riquadro condiviso più grande
  * di uno dei due corpi.
  *
- * `definizioneDi(nodo)` senza `libreria`, di proposito: questa funzione disegna la sagoma BASE
- * in coordinate locali, e `simboloTrasformato` (chiamato da `definizioneDi` quando una taratura
- * esiste) la avvolge già in un `<g>` che applica dx/dy/sx/sy — passare `libreria` anche qui
- * applicherebbe la stessa trasformazione due volte.
+ * `definizioneDi(nodo)` senza `libreria`: qui non cambierebbe nulla. Nel ramo tarato
+ * `definizioneDi` restituisce `{ ...base, ancore: taratura.ancore, disegna: ... }` — `.dimensioni`
+ * non è fra i campi sostituiti, resta sempre quella del registro (vedi il commento di testa a
+ * `definizioneDi`, symbols/index.ts). Passare `libreria` qui sarebbe un parametro morto, la
+ * stessa categoria di `presaDi` e del vecchio `corpoNodo` (layout.ts, fix round 1 del Task 7).
  */
 export function simboloSerbatoio(nodo: SchemaNodo): string {
   const { larghezza, altezza } = definizioneDi(nodo).dimensioni
