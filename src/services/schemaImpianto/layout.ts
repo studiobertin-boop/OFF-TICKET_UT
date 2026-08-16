@@ -7,7 +7,15 @@
  * destra. Funzione pura: nessun DOM, testabile in Node.
  */
 import { ordinaCatenaTrattamento } from './buildSchemaModel'
-import { DIMENSIONI_NODO, INTERLINEA_TESTO, SPESSORE_MURO, TESTO_LIBERO, dimensioniDi } from './symbols'
+import {
+  DIMENSIONI_NODO,
+  INTERLINEA_TESTO,
+  MARGINE_VALVOLA_SERBATOIO,
+  SPESSORE_MURO,
+  TESTO_LIBERO,
+  definizioneDi,
+  dimensioniDi,
+} from './symbols'
 import type { QuoteInstradamento } from './tratti'
 import type {
   SchemaLayout,
@@ -95,7 +103,10 @@ function inviluppoVerticale(nodi: SchemaNodoPosizionato[]): { yMin: number; yMax
   if (rilevanti.length === 0) return null
   return {
     yMin: Math.max(0, Math.min(...rilevanti.map((n) => n.y)) - MARGINE_SUPERIORE / 2),
-    yMax: Math.max(...rilevanti.map((n) => n.y + DIMENSIONI_NODO[n.tipo].altezza)) + MARGINE_SUPERIORE / 2,
+    // `dimensioniDi`, non `DIMENSIONI_NODO[n.tipo]`: il serbatoio orizzontale ha un ingombro
+    // proprio, diverso da quello indicizzato per tipo (Task 4, Blocco 3) — leggerlo da lì darebbe
+    // al muro l'altezza sbagliata per un impianto con un serbatoio orizzontale al bordo.
+    yMax: Math.max(...rilevanti.map((n) => n.y + dimensioniDi(n).altezza)) + MARGINE_SUPERIORE / 2,
   }
 }
 
@@ -120,7 +131,10 @@ export function calcolaMuro(nodi: SchemaNodoPosizionato[]): SchemaMuroSeparazion
   if (!inviluppo) return null
 
   return {
-    x: Math.max(...inSala.map((n) => n.x + DIMENSIONI_NODO[n.tipo].larghezza)) + PASSO_ORIZZONTALE / 2,
+    // `dimensioniDi`, stessa ragione di `inviluppoVerticale` qui sopra: il serbatoio orizzontale
+    // in sala compressori ha un bordo destro diverso da quello che `DIMENSIONI_NODO['serbatoio']`
+    // (sempre il verticale) gli attribuirebbe.
+    x: Math.max(...inSala.map((n) => n.x + dimensioniDi(n).larghezza)) + PASSO_ORIZZONTALE / 2,
     ...inviluppo,
   }
 }
@@ -147,7 +161,11 @@ function disponiInRiga(
 ): { posizionati: SchemaNodoPosizionato[]; xFinale: number } {
   let x = xIniziale
   const posizionati = nodi.map((nodo) => {
-    const dim = DIMENSIONI_NODO[nodo.tipo]
+    // `dimensioniDi`, non `DIMENSIONI_NODO[nodo.tipo]`: per tutti i tipi tranne il serbatoio
+    // orizzontale coincidono (Task 4, Blocco 3), ma per lui `DIMENSIONI_NODO['serbatoio']`
+    // resta sempre l'ingombro del verticale — leggerlo qui centrerebbe e spazierebbe il nodo
+    // sbagliato, quello che l'auto-layout non disegna.
+    const dim = dimensioniDi(nodo)
     const collocato = posiziona(nodo, x, yCentro - dim.altezza / 2)
     x += dim.larghezza + PASSO_ORIZZONTALE
     return collocato
@@ -233,14 +251,17 @@ export function corpoNodo(nodo: SchemaNodoPosizionato): {
   const dim = DIMENSIONI_NODO[nodo.tipo]
 
   if (nodo.tipo === 'serbatoio') {
-    const orizzontale = nodo.orientamento === 'ORIZZONTALE'
-    const w = orizzontale ? dim.larghezza : 84
-    const h = orizzontale ? 84 : dim.altezza - 40
+    // Il riquadro proprio del nodo (verticale o orizzontale, Task 4), non `dim` sopra: quello
+    // resta indicizzato per tipo, sempre il verticale. La stessa geometria di `simboloSerbatoio`
+    // (symbols/index.ts): il corpo riempie il riquadro in larghezza, con `MARGINE_VALVOLA_SERBATOIO`
+    // di spazio sopra per la valvola di sicurezza — una sola formula per i due orientamenti, non
+    // più un centraggio diverso e una misura fissa (84) indipendente dal riquadro dichiarato.
+    const propria = definizioneDi(nodo).dimensioni
     return {
-      x: nodo.x + (dim.larghezza - w) / 2,
-      y: nodo.y + (orizzontale ? (dim.altezza - h) / 2 : 40),
-      larghezza: w,
-      altezza: h,
+      x: nodo.x,
+      y: nodo.y + MARGINE_VALVOLA_SERBATOIO,
+      larghezza: propria.larghezza,
+      altezza: propria.altezza - MARGINE_VALVOLA_SERBATOIO,
     }
   }
 

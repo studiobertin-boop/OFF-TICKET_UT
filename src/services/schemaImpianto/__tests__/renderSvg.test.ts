@@ -355,8 +355,9 @@ describe('attacco alle ancore', () => {
     const compressore = layout.nodi.find((n) => n.id === 'C1')!
     const svg = renderSvg(layout)
 
-    // ancora 'alto-out' del compressore: (larghezza/2, 0) in coordinate locali
-    const atteso = `M ${compressore.x + 80} ${compressore.y}`
+    // ancora 'alto-out' del compressore: (larghezza/2, 0) in coordinate locali — 64,5 da quando
+    // il compressore è quadrato e largo 129, non più 160 (Task 4).
+    const atteso = `M ${compressore.x + 64.5} ${compressore.y}`
     expect(svg).toContain(atteso)
   })
 
@@ -395,8 +396,9 @@ describe('attacco alle ancore', () => {
     const s1 = layout.nodi.find((n) => n.id === 'S1')!
     const svg = renderSvg(layout)
 
-    // ancora 'basso-out' del serbatoio verticale: (75, 260) in coordinate locali.
-    const atteso = `M ${s1.x + 75} ${s1.y + 260}`
+    // ancora 'basso-out' del serbatoio verticale: (51,5, 298) in coordinate locali — il corpo
+    // isolato dalla valvola e centrato sul riquadro 103×298 del Task 4, non più 75/260.
+    const atteso = `M ${s1.x + 51.5} ${s1.y + 298}`
     expect(svg).toContain(atteso)
   })
 })
@@ -848,10 +850,11 @@ describe('testi liberi', () => {
     // tubazioni nella stringa concatenata, un tubo o un simbolo posati sullo stesso punto
     // coprirebbero la scritta. Niente in questo test lo impedirebbe se non l'ordine delle
     // sottostringhe: `marker-end="url(#freccia)"` è la firma di ogni tratto di tubazione,
-    // `<circle cx="80" cy="75"` è la girante del compressore (unico nodo di questa fixture).
+    // `<circle cx="64.5" cy="64.5"` è la girante del compressore (unico nodo di questa fixture,
+    // centrata sul riquadro 129×129 del Task 4, non più 80/75 su 160×150).
     const svg = renderSvg(layoutConTesti([{ id: 'T1', x: 300, y: 400, contenuto: 'Sopra il tubo' }]))
     const indiceTubo = svg.indexOf('marker-end="url(#freccia)"')
-    const indiceNodo = svg.indexOf('<circle cx="80" cy="75"')
+    const indiceNodo = svg.indexOf('<circle cx="64.5" cy="64.5"')
     const indiceTesto = svg.indexOf('>Sopra il tubo</tspan>')
     expect(indiceTubo).toBeGreaterThan(-1)
     expect(indiceNodo).toBeGreaterThan(-1)

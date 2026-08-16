@@ -36,24 +36,11 @@ describe('banco del Blocco 3', () => {
     expect(catena(scheda)).toBe(catena(scheda))
   })
 
-  // Il caso qui sotto NON è quello del piano originale (VERTICALE vs ORIZZONTALE dello stesso
-  // serbatoio): quel caso non discrimina. `REGISTRO_SIMBOLI['serbatoio:VERTICALE'].dimensioni` e
-  // `['serbatoio:ORIZZONTALE'].dimensioni` puntano OGGI allo stesso oggetto `DIMENSIONI.serbatoio`
-  // (symbols/index.ts, voci 'serbatoio:VERTICALE'/'serbatoio:ORIZZONTALE'), e `DIMENSIONI_NODO` in
-  // layout.ts è indicizzato solo per `tipo`, mai per orientamento: fra i due orientamenti
-  // `layoutSchema` produce nodi e archi identici byte per byte, e tutta la differenza fra i due SVG
-  // nasce dentro `renderSvg` (solo il disegno del simbolo cambia). Un banco così resterebbe verde
-  // anche se calcolasse il layout una volta sola e lo riusasse per il secondo render — cioè
-  // esattamente il montaggio a valle che questo banco deve scoprire, il difetto già pagato dal
-  // Blocco D4. PROMEMORIA per il Task 4 di questo blocco: quando il serbatoio ORIZZONTALE avrà un
-  // proprio ingombro (dimensioni diverse da VERTICALE), il caso tornerà a discriminare anche sul
-  // layout e potrà rientrare qui accanto (o al posto di) questo.
-  //
-  // Il caso scelto al suo posto sposta davvero il layout: con l'essiccatore la catena aggiunge un
-  // nodo (e con lui il suo scambiatore) fra il serbatoio e il terminale utenze, spostando le
-  // posizioni di tutto ciò che segue. Si asserisce prima sui NODI del layout — non solo sull'SVG
-  // — perché è quell'asserzione a far cadere il test se un domani il banco tornasse a condividere
-  // il layout fra i due lati.
+  // Il caso scelto sposta davvero il layout: con l'essiccatore la catena aggiunge un nodo (e con
+  // lui il suo scambiatore) fra il serbatoio e il terminale utenze, spostando le posizioni di
+  // tutto ciò che segue. Si asserisce prima sui NODI del layout — non solo sull'SVG — perché è
+  // quell'asserzione a far cadere il test se un domani il banco tornasse a condividere il layout
+  // fra i due lati.
   it('DISCRIMINA: due schede con topologie diverse producono layout diversi, e SVG diversi', () => {
     const conEssiccatore = costruisci(scheda)
     const senzaEssiccatore = costruisci(
@@ -67,5 +54,35 @@ describe('banco del Blocco 3', () => {
 
     expect(conEssiccatore.layout.nodi).not.toEqual(senzaEssiccatore.layout.nodi)
     expect(conEssiccatore.svg).not.toBe(senzaEssiccatore.svg)
+  })
+
+  // Il caso VERTICALE vs ORIZZONTALE dello stesso serbatoio, che il piano originale proponeva:
+  // fino al Task 4 di questo blocco NON discriminava, perché `REGISTRO_SIMBOLI['serbatoio:
+  // VERTICALE'].dimensioni` e `['serbatoio:ORIZZONTALE'].dimensioni` puntavano allo stesso oggetto
+  // `DIMENSIONI.serbatoio`, e `layout.ts` leggeva l'ingombro dei nodi indicizzato solo per `tipo`
+  // (mai per orientamento): fra i due orientamenti `layoutSchema` produceva nodi e archi identici
+  // salvo il campo `orientamento` stesso — un banco che si fosse fermato lì avrebbe scoperto un
+  // banale campo diverso sui NODI, non un vero effetto sul LAYOUT, e sarebbe rimasto verde anche
+  // con un `layoutSchema` che calcolasse la riga una volta sola e la riusasse per l'altro
+  // orientamento.
+  //
+  // Dal Task 4 il serbatoio orizzontale ha un riquadro proprio (310×137, contro 103×298 del
+  // verticale — `DIMENSIONI_SERBATOIO_ORIZZONTALE` in symbols/index.ts), e `disponiInRiga`
+  // (layout.ts) legge quell'ingombro con `dimensioniDi(nodo)` invece di `DIMENSIONI_NODO[tipo]`:
+  // un serbatoio più largo sposta davvero a destra tutto ciò che la riga colloca dopo di lui. La
+  // scheda porta un essiccatore apposta, per lo stesso motivo del caso sopra: senza un nodo a
+  // valle da spostare, l'unica differenza osservabile resterebbe di nuovo il campo `orientamento`
+  // sul solo S1, non un effetto sul layout.
+  it('DISCRIMINA: lo stesso serbatoio verticale/orizzontale sposta la catena a valle, e produce SVG diversi', () => {
+    const base = { compressori: [makeCompressore({ ha_disoleatore: false })] }
+    const verticale = costruisci(makeScheda({ ...base, serbatoi: [makeSerbatoio({ orientamento: 'VERTICALE' })] }))
+    const orizzontale = costruisci(
+      makeScheda({ ...base, serbatoi: [makeSerbatoio({ orientamento: 'ORIZZONTALE' })] })
+    )
+
+    const essiccatoreDi = (layout: typeof verticale.layout) => layout.nodi.find((n) => n.tipo === 'essiccatore')!
+    expect(essiccatoreDi(verticale.layout).x).not.toBe(essiccatoreDi(orizzontale.layout).x)
+    expect(verticale.layout.nodi).not.toEqual(orizzontale.layout.nodi)
+    expect(verticale.svg).not.toBe(orizzontale.svg)
   })
 })

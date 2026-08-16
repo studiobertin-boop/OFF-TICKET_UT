@@ -54,8 +54,51 @@ describe('registro dei simboli', () => {
   })
 
   it('definizioneDi risolve la variante del nodo', () => {
-    expect(definizioneDi({ tipo: 'serbatoio', orientamento: 'ORIZZONTALE' }).dimensioni.larghezza).toBe(150)
-    expect(definizioneDi({ tipo: 'tanica' }).dimensioni.larghezza).toBe(80)
+    // 310 e 86: gli ingombri del Task 4 (proporzioni dai blocchi CAD), non più 150 e 80.
+    expect(definizioneDi({ tipo: 'serbatoio', orientamento: 'ORIZZONTALE' }).dimensioni.larghezza).toBe(310)
+    expect(definizioneDi({ tipo: 'tanica' }).dimensioni.larghezza).toBe(86)
+  })
+})
+
+describe('le proporzioni seguono i blocchi CAD', () => {
+  // Task 4, Blocco 3: rapporti misurati sui blocchi `Blocchi.pdf` (script
+  // `scripts/blocchi-cad.py --misure`), presa a 1 la larghezza del rombo (`essiccatore`). Per
+  // compressore/tanica/pacco bombole la misura grezza è già il corpo (nessun accessorio da
+  // isolare); per il serbatoio la misura grezza comprende valvola e scarico, quindi qui si
+  // confrontano i soli ingombri del registro (che isolano il corpo, vedi il commento su
+  // `CORPO_SERBATOIO_VERTICALE`/`CORPO_SERBATOIO_ORIZZONTALE` in symbols/index.ts), non `2,82/1,31`
+  // (quello è il rettangolo grezzo, con valvola e scarico compresi).
+  const lato = (chiave: string, orientamento?: string) =>
+    definizioneDi({ tipo: chiave, orientamento } as SchemaNodo).dimensioni
+  const rombo = lato('essiccatore').larghezza
+
+  it('il compressore è quadrato e largo 1,17 rombi', () => {
+    const { larghezza, altezza } = lato('compressore')
+    expect(larghezza / rombo).toBeCloseTo(1.17, 1)
+    expect(larghezza).toBe(altezza)
+  })
+
+  it('il serbatoio orizzontale ha un ingombro suo, più largo che alto', () => {
+    // Il riquadro non è il solo corpo (2,82×0,88 rombi, capsula isolata da valvola e scarico
+    // sul CAD — vedi CORPO_SERBATOIO_ORIZZONTALE in symbols/index.ts): ci sale sopra lo spazio
+    // per la valvola di sicurezza (MARGINE_VALVOLA_SERBATOIO, 40 unità, lo stesso riservato al
+    // verticale). Rapporto atteso: 310 / (97 + 40) = 310/137 ≈ 2,26 — largo più del doppio
+    // dell'altezza, ma meno dei 3,2 del solo corpo.
+    const o = lato('serbatoio', 'ORIZZONTALE')
+    const v = lato('serbatoio', 'VERTICALE')
+    expect(o).not.toEqual(v)
+    expect(o.larghezza).toBeGreaterThan(o.altezza)
+    expect(o.larghezza / o.altezza).toBeCloseTo(310 / 137, 1)
+  })
+
+  it('la tanica è larga il doppio dell\'altezza', () => {
+    const { larghezza, altezza } = lato('tanica')
+    expect(larghezza / altezza).toBeCloseTo(2, 1)
+  })
+
+  it('il pacco bombole è quadrato', () => {
+    const { larghezza, altezza } = lato('pacco_bombole')
+    expect(larghezza).toBe(altezza)
   })
 })
 
