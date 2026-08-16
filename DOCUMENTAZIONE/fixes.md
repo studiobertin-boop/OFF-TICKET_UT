@@ -9,6 +9,7 @@ _Nessun fix in attesa._
 
 | DATA | DESCRIZIONE |
 | --- | --- |
+| 2026-08-16 | Scheda dati: dopo il riconoscimento da targhetta i dati vengono ricondotti al catalogo — apparecchiatura trovata con certezza, popup di scelta fra i candidati col confronto dei valori, oppure compilazione dai dati letti. Prima ogni apparecchiatura risultava nuova: la ricerca fuzzy nel database era rotta da sempre e falliva in silenzio. |
 | 2026-08-10 | Scheda dati: la scelta su un valore scostato dal catalogo (solo per questa volta / aggiorna / default) si chiede una volta sola. Prima tornava passando all'apparecchiatura successiva, perché confermare non toglieva lo scostamento. |
 | 2026-08-10 | Scheda dati: il diametro delle valvole di sicurezza non entra più nel contatore di completezza, essendo opzionale. Resta pieno a catalogo, dove distingue le varianti della stessa valvola. |
 | 2026-08-10 | Form genera relazione: lo schema d'impianto si può trascinare sull'area del §2.3, oltre che sceglierlo da file. Stessi controlli di formato e dimensione del pulsante. |
