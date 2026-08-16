@@ -110,11 +110,14 @@ describe('le proporzioni seguono i blocchi CAD', () => {
   })
 
   // Fix round 1 (revisione del Task 4): sul riquadro quadrato più piccolo (129, prima 160) la
-  // girante spostata a destra per il disoleatore sconfinava nel suo riquadro per ~8×17 unità
-  // (prima del task, ~2×31 su un riquadro più grande). Non una misura CAD — il blocco non porta
-  // questa variante — ma una scelta geometrica di questo editor: qui si blocca la proprietà che
-  // conta, che i due riquadri non si tocchino in proiezione X (e quindi non si sovrappongano a
-  // nessuna quota Y).
+  // girante spostata a destra per il disoleatore sconfinava nel suo riquadro. Fix round 2: il
+  // blocco CAD `compressore-disoleatore` ESISTE (indice 2 di `NOMI` in blocchi-cad.py — la
+  // versione precedente di questo commento diceva il contrario, la stessa falsità corretta nel
+  // commento gemello di `simboloCompressore`), ed è stato misurato: box del disoleatore
+  // 21,30×26,70pt su un riquadro 53,40×53,34pt → 51,5×64,5 su un riquadro 129 (non il quadrato
+  // 46×46 del giro precedente). Il franco fra girante e box che il CAD stesso lascia (1,26pt,
+  // ~3 unità qui) è quello che tiene i due riquadri separati — non serve più scostare la girante
+  // a mano.
   it('la girante e il riquadro del disoleatore non si sovrappongono', () => {
     const nodo = {
       id: 'C1', tipo: 'compressore' as const, etichetta: 'C1', gruppo: 'SALA_COMPRESSORI' as const,
@@ -129,12 +132,18 @@ describe('le proporzioni seguono i blocchi CAD', () => {
     const bordoSinistroGirante = Number(cxStr) - Number(rStr)
 
     // Il primo `<rect>` è il corpo (x="0"): il disoleatore è il successivo, con x diverso da 0.
-    const rettangoli = [...svg.matchAll(/<rect x="([\d.]+)" y="[\d.]+" width="([\d.]+)" height="[\d.]+"/g)]
+    const rettangoli = [...svg.matchAll(/<rect x="([\d.]+)" y="[\d.]+" width="([\d.]+)" height="([\d.]+)"/g)]
     const disoleatore = rettangoli.find((m) => m[1] !== '0')
     expect(disoleatore).toBeDefined()
-    const bordoDestroDisoleatore = Number(disoleatore![1]) + Number(disoleatore![2])
+    const [, xStr, wStr, hStr] = disoleatore!
+    const bordoDestroDisoleatore = Number(xStr) + Number(wStr)
 
     expect(bordoSinistroGirante).toBeGreaterThan(bordoDestroDisoleatore)
+
+    // Il box è più alto che largo (21,30×26,70pt sul CAD, rapporto 0,80), non un quadrato: lo
+    // stesso difetto di forma che aveva anche il pacco bombole (fix round 1) prima di essere
+    // misurato sul blocco vero.
+    expect(Number(wStr) / Number(hStr)).toBeCloseTo(21.3 / 26.7, 1)
   })
 })
 

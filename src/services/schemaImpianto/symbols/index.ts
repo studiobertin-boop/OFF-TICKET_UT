@@ -328,33 +328,46 @@ export function simboloCompressore(nodo: SchemaNodo): string {
     return corpo + girante(larghezza / 2, altezza / 2) + testo(10, 20, nodo.id, 24, 'start')
   }
 
-  // Disoleatore: riquadro in basso a sinistra, con sopra la propria valvola di sicurezza. Non è
-  // una voce fra i ritagli misurati del Task 1 (il CAD non porta una variante «con disoleatore»
-  // a sé): la composizione resta quella di prima del Task 4, proporzionata al nuovo riquadro
-  // quadrato (fattori 129/160 in larghezza, 129/150 in altezza, gli ingombri prima e dopo), con
-  // `cx`/`dw` corretti in un secondo giro (fix round 1) perché la sola proporzione diretta
-  // lasciava la girante sconfinare nell'angolo del disoleatore: girante e box hanno entrambi una
-  // proiezione X che si divide il riquadro quasi a metà (raggio 32,25 su 129 di larghezza), e la
-  // vecchia `cx = larghezza - raggio - 15` (bordo sinistro della girante a x=49,5) si sovrapponeva
-  // al vecchio `dw=52` (bordo destro del disoleatore a x=58) per ~8,5 unità. Qui il bordo sinistro
-  // della girante (`cx - raggio` = 55,5) e il bordo destro del disoleatore (`dx + dw` = 52) sono
-  // scelti per non toccarsi (~3,5 unità di margine): non è una misura CAD, è geometria di questo
-  // editor per evitare la sovrapposizione.
-  const cx = larghezza - raggio - 9
-  const conGirante = girante(cx, altezza / 2 + 7)
+  // Disoleatore: riquadro in basso a sinistra, con sopra la propria valvola di sicurezza.
+  //
+  // Fix round 2 (revisione): il giro precedente diceva «il CAD non porta una variante "con
+  // disoleatore" a sé» — falso, e la seconda volta in questo file che una costante viene
+  // dichiarata non misurabile a torto (la prima è stata il pacco bombole, fix round 1). Il
+  // blocco esiste: `compressore-disoleatore`, indice 2 di `NOMI` in `scripts/blocchi-cad.py`,
+  // il caso esplicito che `scripts/confronto-simboli.ts` genera apposta perché ometterlo
+  // «mente per omissione» (il suo stesso commento di testa, Task 1).
+  //
+  // Misurato isolando i sotto-elementi del gruppo (`dettaglio-items.py`, stessa tecnica delle
+  // altre costanti di questo file): riquadro 53,40×53,34pt — lo stesso quadrato del compressore
+  // semplice, stesso raggio 0,25×larghezza. Girante: centro a (37,35; 29,31)pt dall'angolo del
+  // blocco → frazioni (0,699; 0,549) → 90,2×70,8 su un riquadro 129. Box del disoleatore:
+  // origine a (1,44; 24,00)pt, dimensioni 21,30×26,70pt → frazioni origine (0,027; 0,450),
+  // dimensioni (0,399; 0,501) → origine 3,5×58, dimensioni 51,5×64,5 — un box più alto che
+  // largo, non il quadrato 46×46 che il giro precedente disegnava (46 era il 29% più basso del
+  // vero, e sbagliato nella forma). Franco fra il bordo sinistro della girante e il bordo destro
+  // del box: 1,26pt (0,024×larghezza) — è il CAD stesso a lasciare quello spazio, non una scelta
+  // di questo editor: con le misure sopra il franco torna da sé (girante a 57,95, box a 55 →
+  // ~2,95 unità), senza bisogno di scostare la girante a mano per evitare la sovrapposizione.
+  const cx = 90.2
+  const conGirante = girante(cx, 70.8)
 
-  const dw = 46
-  const dh = 46
-  const dx = 6
-  const dy = altezza - dh - 7
+  const dw = 51.5
+  const dh = 64.5
+  const dx = 3.5
+  const dy = 58
   const disoleatore = [
     `<rect x="${dx}" y="${dy}" width="${dw}" height="${dh}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`,
     testo(dx + 4, dy + dh - 12, nodo.accessorio.codice, 14, 'start'),
   ].join('')
 
+  // Valvola di sicurezza del disoleatore: icona 5,10×9,42pt centrata a (12,09; 19,29)pt
+  // dall'angolo del blocco → frazioni (0,226; 0,362) → 29,2×46,7 su un riquadro 129 — il suo
+  // bordo inferiore tocca il bordo superiore del box del disoleatore (46,7 + mezza icona ≈ 52,7,
+  // il box comincia a 58: il resto è margine, non un errore). L'icona condivisa
+  // (`valvolaSicurezza`) resta 12×12 come altrove nel file — solo il suo CENTRO è misurato qui.
   const valvola = nodo.accessorio.valvoleSicurezza[0]
   const conValvola = valvola
-    ? valvolaSicurezza(dx + 15, 38) + testo(dx, 19, valvola.codice, 14, 'start')
+    ? valvolaSicurezza(29.2, 46.7) + testo(23.2, 27.7, valvola.codice, 14, 'start')
     : ''
 
   return corpo + conGirante + testo(larghezza - 10, 20, nodo.id, 24, 'end') + disoleatore + conValvola
