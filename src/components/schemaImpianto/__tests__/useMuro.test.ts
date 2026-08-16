@@ -35,15 +35,15 @@ describe('ascissaProposta', () => {
   // griglia — e lo lascia spostare. E' l'unico uso rimasto di `calcolaMuro`.
   //
   // Il compressore sta apposta su un'ascissa che non produce un multiplo di 10 (37, non 40):
-  // `calcolaMuro` dà qui 196 (37 + 129 di larghezza del compressore, Task 4 — non più 160 — +
-  // 30 di margine), e solo `allineaAllaGriglia` lo porta a 200. Con un compressore già su un
-  // multiplo di 10 (come la versione precedente di questo test, che confrontava con
-  // `calcolaMuro(nodi).x`) i due valori coincidevano per coincidenza, e il confronto passava
-  // anche togliendo `allineaAllaGriglia` dal ramo automatico.
+  // `calcolaMuro` dà qui 187 (37 + 120 di larghezza del compressore, sceso da 129 nel Task 8,
+  // Blocco 3 — non più 160 — + 30 di margine), e solo `allineaAllaGriglia` lo porta a 190. Con
+  // un compressore già su un multiplo di 10 (come la versione precedente di questo test, che
+  // confrontava con `calcolaMuro(nodi).x`) i due valori coincidevano per coincidenza, e il
+  // confronto passava anche togliendo `allineaAllaGriglia` dal ramo automatico.
   it('propone il bordo destro della sala compressori, allineato alla griglia', () => {
     const nodi = [compressoreIn(37), serbatoioInLinea(600)]
-    expect(calcolaMuro(nodi)!.x).toBe(196)
-    expect(ascissaProposta(nodi)).toBe(200)
+    expect(calcolaMuro(nodi)!.x).toBe(187)
+    expect(ascissaProposta(nodi)).toBe(190)
   })
 
   // Un disegno con la sola sala, o con la sola linea, non ha un bordo fra i due gruppi: il muro
@@ -52,12 +52,14 @@ describe('ascissaProposta', () => {
   it('propone il bordo destro del nodo piu a destra, oltre il margine di spazio libero, quando manca un bordo fra i due gruppi', () => {
     // Due compressori, non uno solo: con un solo nodo Math.max e Math.min di ascissaProposta
     // darebbero lo stesso risultato, e un mutante che li scambiasse passerebbe inosservato.
-    // Il più a destra sta apposta su un'ascissa (301, non 300) che tiene `bordoDestro +
-    // margineSpazioLibero` un multiplo di 10 anche col compressore largo 129 (Task 4, non più
-    // 160): questo test isola l'aritmetica del ramo senza bordo, non `allineaAllaGriglia` — già
-    // coperta a parte dal test sopra — quindi non deve dipendere da un arrotondamento.
+    // Il più a destra sta su un'ascissa tonda (300): col compressore sceso a un multiplo di 10
+    // (120, Task 8, Blocco 3 — non più 129) un'ascissa già multipla di 10 basta a tenere
+    // `bordoDestro + margineSpazioLibero` un multiplo di 10 anch'esso, senza la correzione ad
+    // hoc (301, non 300) che serviva quando 129 non lo era: questo test isola l'aritmetica del
+    // ramo senza bordo, non `allineaAllaGriglia` — già coperta a parte dal test sopra — quindi
+    // non deve dipendere da un arrotondamento.
     const piuASinistra = compressoreIn(40)
-    const piuADestra = compressoreIn(301, 'C2')
+    const piuADestra = compressoreIn(300, 'C2')
     const soloSala = [piuASinistra, piuADestra]
     expect(calcolaMuro(soloSala)).toBeNull()
 

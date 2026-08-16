@@ -356,9 +356,10 @@ describe('attacco alle ancore', () => {
     const compressore = layout.nodi.find((n) => n.id === 'C1')!
     const svg = renderSvg(layout)
 
-    // ancora 'alto-out' del compressore: (larghezza/2, 0) in coordinate locali — 64,5 da quando
-    // il compressore è quadrato e largo 129, non più 160 (Task 4).
-    const atteso = `M ${compressore.x + 64.5} ${compressore.y}`
+    // ancora 'alto-out' del compressore: (larghezza/2, 0) in coordinate locali — 60, non più
+    // 64,5 da quando il compressore è sceso a 120 (Task 8, Blocco 3, per portare l'ancora sulla
+    // griglia — vedi `DIMENSIONI.compressore`).
+    const atteso = `M ${compressore.x + 60} ${compressore.y}`
     expect(svg).toContain(atteso)
   })
 
@@ -378,9 +379,11 @@ describe('attacco alle ancore', () => {
     const sep = layout.nodi.find((n) => n.id === 'SEP1')!
     const svg = renderSvg(layout)
 
-    // ancora 'sx' del separatore: (6, 49) in coordinate locali — sul fianco sinistro del
-    // rombo, non al centro del corpo né in cima (dove atterrava il vecchio calcolo).
-    const atteso = `L ${sep.x + 6} ${sep.y + 49}" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="10 7" marker-end="url(#freccia)" />`
+    // ancora 'sx' del separatore: (10, 40) in coordinate locali — sul fianco sinistro del
+    // rombo, non al centro del corpo né in cima (dove atterrava il vecchio calcolo). Non più
+    // (6, 49): il rombo non è più centrato esattamente nel riquadro (Task 8, Blocco 3 — vedi
+    // `simboloRombo`, il suo vertice sinistro cade ora sulla griglia).
+    const atteso = `L ${sep.x + 10} ${sep.y + 40}" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="10 7" marker-end="url(#freccia)" />`
     expect(svg).toContain(atteso)
   })
 
@@ -397,9 +400,11 @@ describe('attacco alle ancore', () => {
     const s1 = layout.nodi.find((n) => n.id === 'S1')!
     const svg = renderSvg(layout)
 
-    // ancora 'basso-out' del serbatoio verticale: (51,5, 298) in coordinate locali — il corpo
-    // isolato dalla valvola e centrato sul riquadro 103×298 del Task 4, non più 75/260.
-    const atteso = `M ${s1.x + 51.5} ${s1.y + 298}`
+    // ancora 'basso-out' del serbatoio verticale: (50, 300) in coordinate locali — il corpo
+    // isolato dalla valvola e centrato sul riquadro 100×300 (Task 8, Blocco 3: 100×300, non più
+    // 103×298 del Task 4 — larghezza arrotondata a multiplo di 20 perché l'ancora cadesse sulla
+    // griglia, vedi `CORPO_SERBATOIO_VERTICALE`).
+    const atteso = `M ${s1.x + 50} ${s1.y + 300}`
     expect(svg).toContain(atteso)
   })
 })
@@ -851,11 +856,11 @@ describe('testi liberi', () => {
     // tubazioni nella stringa concatenata, un tubo o un simbolo posati sullo stesso punto
     // coprirebbero la scritta. Niente in questo test lo impedirebbe se non l'ordine delle
     // sottostringhe: `marker-end="url(#freccia)"` è la firma di ogni tratto di tubazione,
-    // `<circle cx="64.5" cy="64.5"` è la girante del compressore (unico nodo di questa fixture,
-    // centrata sul riquadro 129×129 del Task 4, non più 80/75 su 160×150).
+    // `<circle cx="60" cy="60"` è la girante del compressore (unico nodo di questa fixture,
+    // centrata sul riquadro 120×120 — 60,60, non più 64,5/64,5 su 129×129, Task 8, Blocco 3).
     const svg = renderSvg(layoutConTesti([{ id: 'T1', x: 300, y: 400, contenuto: 'Sopra il tubo' }]))
     const indiceTubo = svg.indexOf('marker-end="url(#freccia)"')
-    const indiceNodo = svg.indexOf('<circle cx="64.5" cy="64.5"')
+    const indiceNodo = svg.indexOf('<circle cx="60" cy="60"')
     const indiceTesto = svg.indexOf('>Sopra il tubo</tspan>')
     expect(indiceTubo).toBeGreaterThan(-1)
     expect(indiceNodo).toBeGreaterThan(-1)
@@ -888,7 +893,8 @@ describe('riferimento SVG del TEE', () => {
     // Un TEE inserito a metà del tubo S1 -> UTENZE, come farebbe il gesto di trascinamento
     // (`inserimentoTee.ts`) su un tratto esistente: due tubi lo toccano da lati opposti
     // (sx/dx), il minimo che eserciti sia il raggio del pallino sia la convergenza dei capi
-    // al centro del riquadro 24×24.
+    // al centro del riquadro 20×20 (24×24 prima del Task 8, Blocco 3 — l'offset -10 porta
+    // ancora il CENTRO del riquadro, non più il vecchio -12, sul punto voluto).
     const giunzione: SchemaNodoPosizionato = {
       id: 'M-G1',
       tipo: 'giunzione',
@@ -896,8 +902,8 @@ describe('riferimento SVG del TEE', () => {
       gruppo: 'LINEA_DISTRIBUZIONE',
       valvoleSicurezza: [],
       origine: 'manuale',
-      x: (pDa.x + pA.x) / 2 - 12,
-      y: pDa.y - 12,
+      x: (pDa.x + pA.x) / 2 - 10,
+      y: pDa.y - 10,
     }
     layout.nodi.push(giunzione)
     layout.archi = layout.archi.filter((a) => a.id !== arcoUtenze.id)

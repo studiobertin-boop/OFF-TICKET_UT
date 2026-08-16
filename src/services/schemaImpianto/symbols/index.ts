@@ -79,10 +79,15 @@ export const MARGINE_VALVOLA_SERBATOIO = 40
  * - orizzontale: capsula da x=432,84pt a x=561,36pt, alta 40,02pt (y=390,20→430,22) → 2,82×0,88
  *   rombi.
  * Il rombo dell'editor è largo 110 unità (`essiccatore` qui sotto): le due capsule sono quelle
- * proporzioni scalate a quell'unità.
+ * proporzioni scalate a quell'unità, poi arrotondate (Task 8, Blocco 3) ai multipli di 10 (di 20
+ * per la larghezza, che `simboloSerbatoio` dimezza per il raggio delle calotte): le ancore dei
+ * fianchi nascono dove le calotte — semicerchi di raggio metà larghezza — incontrano il
+ * cilindro, quindi cadono sulla griglia da sole quando lo fa la sagoma; senza arrotondare
+ * uscivano a quote come 91,5 e 246,5. Scarto dal rapporto CAD entro il decimo su ogni asse
+ * (0,94→0,91 e 2,34→2,36 sul verticale; 2,82 invariato e 0,88→0,91 sull'orizzontale).
  */
-const CORPO_SERBATOIO_VERTICALE = { larghezza: 103, altezza: 258 } // 0,94×110 e 2,34×110
-const CORPO_SERBATOIO_ORIZZONTALE = { larghezza: 310, altezza: 97 } // 2,82×110 e 0,88×110
+const CORPO_SERBATOIO_VERTICALE = { larghezza: 100, altezza: 260 } // 0,91×110 e 2,36×110
+const CORPO_SERBATOIO_ORIZZONTALE = { larghezza: 310, altezza: 100 } // 2,82×110 e 0,91×110
 
 /**
  * Ingombro del serbatoio orizzontale: un riquadro proprio, non `DIMENSIONI.serbatoio` (quello del
@@ -98,8 +103,11 @@ const DIMENSIONI_SERBATOIO_ORIZZONTALE = {
 /** Ingombri per tipo, in unità SVG: le funzioni di disegno vi leggono `larghezza`/`altezza`. */
 const DIMENSIONI: Record<SchemaNodoTipo, { larghezza: number; altezza: number }> = {
   // 129 = 1,17×110 (rombo), misurato sul blocco CAD `compressore` (53,40×53,34pt su un rombo di
-  // 45,54pt): un quadrato, non più 160×150 (Task 4).
-  compressore: { larghezza: 129, altezza: 129 },
+  // 45,54pt): un quadrato, non più 160×150 (Task 4). Arrotondato a 120 = 1,09×110 (Task 8,
+  // Blocco 3): le due ancore (centro dell'orlo superiore/inferiore) leggono `larghezza/2`, che
+  // cade sulla griglia solo se `larghezza` è multiplo di 20 — 129 non lo è, 120 sì. Scarto dal
+  // rapporto CAD entro il decimo (1,17→1,09, 6,97%).
+  compressore: { larghezza: 120, altezza: 120 },
   serbatoio: {
     larghezza: CORPO_SERBATOIO_VERTICALE.larghezza,
     altezza: CORPO_SERBATOIO_VERTICALE.altezza + MARGINE_VALVOLA_SERBATOIO,
@@ -109,13 +117,22 @@ const DIMENSIONI: Record<SchemaNodoTipo, { larghezza: number; altezza: number }>
   separatore: { larghezza: 110, altezza: 110 },
   // 86×43 = 0,78×110 e 0,39×110, misurato sul blocco CAD `tanica` (35,52×17,76pt su un rombo di
   // 45,54pt, rapporto 2:1 esatto: 35,52 = 2×17,76). Non ha valvola né scarico da isolare (Task 4,
-  // avvertenza): la misura grezza è già il corpo.
-  tanica: { larghezza: 86, altezza: 43 },
+  // avvertenza): la misura grezza è già il corpo. Arrotondato a 80×40 = 0,73×110 e 0,36×110
+  // (Task 8, Blocco 3): l'unica ancora legge `larghezza/2`, che vuole `larghezza` multiplo di
+  // 20 — 86 non lo è, 80 sì; l'altezza segue lo stesso 2:1 del CAD. Scarto entro il decimo
+  // (0,78→0,73 e 0,39→0,36, ~6,8% su entrambi gli assi).
+  tanica: { larghezza: 80, altezza: 40 },
   // 129×129 = 1,17×110, misurato sul blocco CAD `pacco-bombole` (53,40×53,40pt su un rombo di
   // 45,54pt): un quadrato, come il compressore (Task 4). Nessun accessorio da isolare.
-  pacco_bombole: { larghezza: 129, altezza: 129 },
+  // Arrotondato a 120×120 come il compressore (Task 8, Blocco 3, stessa misura CAD, stesso
+  // vincolo sull'ancora `dx`: y legge `altezza/2`, che vuole `altezza` multiplo di 20).
+  pacco_bombole: { larghezza: 120, altezza: 120 },
   utenze: { larghezza: 190, altezza: 120 },
-  giunzione: { larghezza: 24, altezza: 24 },
+  // 24 → 20 (Task 8, Blocco 3): le quattro ancore coincidono nel centro (`larghezza/2`), che
+  // cade sulla griglia solo se `larghezza` è multiplo di 20. Non è una misura CAD (la giunzione
+  // è un segnaposto, vedi `simboloGiunzione`): 20 resta ampiamente più largo del pallino
+  // (`DIAMETRO_GIUNZIONE`, 10), la sola cosa che deve contenere.
+  giunzione: { larghezza: 20, altezza: 20 },
 }
 
 /** Testo: `x`/`y` sono il centro, o il capo iniziale/finale se `ancora` lo dice. */
@@ -342,35 +359,37 @@ export function simboloCompressore(nodo: SchemaNodo): string {
   // Misurato isolando i sotto-elementi del gruppo (`dettaglio-items.py`, stessa tecnica delle
   // altre costanti di questo file): riquadro 53,40×53,34pt — lo stesso quadrato del compressore
   // semplice, stesso raggio 0,25×larghezza. Girante: centro a (37,35; 29,31)pt dall'angolo del
-  // blocco → frazioni (0,699; 0,549) → 90,2×70,8 su un riquadro 129. Box del disoleatore:
-  // origine a (1,44; 24,00)pt, dimensioni 21,30×26,70pt → frazioni origine (0,027; 0,450),
-  // dimensioni (0,399; 0,501) → origine 3,5×58, dimensioni 51,5×64,5 — un box più alto che
-  // largo, non il quadrato 46×46 che il giro precedente disegnava (46 era il 29% più basso del
-  // vero, e sbagliato nella forma). Franco fra il bordo sinistro della girante e il bordo destro
-  // del box: 1,26pt (0,024×larghezza) — è il CAD stesso a lasciare quello spazio, non una scelta
-  // di questo editor: con le misure sopra il franco torna da sé (girante a 57,95, box a 55 →
-  // ~2,95 unità), senza bisogno di scostare la girante a mano per evitare la sovrapposizione.
-  const cx = 90.2
-  const conGirante = girante(cx, 70.8)
+  // blocco → frazioni (0,699; 0,549). Box del disoleatore: origine a (1,44; 24,00)pt, dimensioni
+  // 21,30×26,70pt → frazioni origine (0,027; 0,450), dimensioni (0,399; 0,501) — un box più alto
+  // che largo, non il quadrato 46×46 che il giro precedente disegnava (46 era il 29% più basso
+  // del vero, e sbagliato nella forma). Le frazioni, non più i prodotti già fatti (Task 8,
+  // Blocco 3: il riquadro è sceso da 129 a 120 per portare le ancore sulla griglia, vedi
+  // `DIMENSIONI.compressore` — ricalcolare qui a mano avrebbe richiesto tenere allineate due
+  // fonti della stessa cifra).
+  const cx = 0.699 * larghezza // 83,9 su un riquadro 120
+  const conGirante = girante(cx, 0.549 * larghezza) // 65,9
 
-  const dw = 51.5
-  const dh = 64.5
-  const dx = 3.5
-  const dy = 58
+  const dw = 0.399 * larghezza // 47,9
+  const dh = 0.501 * larghezza // 60,1
+  const dx = 0.027 * larghezza // 3,2
+  const dy = 0.45 * larghezza // 54
   const disoleatore = [
     `<rect x="${dx}" y="${dy}" width="${dw}" height="${dh}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`,
     testo(dx + 4, dy + dh - 12, nodo.accessorio.codice, 14, 'start'),
   ].join('')
 
   // Valvola di sicurezza del disoleatore: icona 5,10×9,42pt centrata a (12,09; 19,29)pt
-  // dall'angolo del blocco → frazioni (0,226; 0,362) → 29,2×46,7 su un riquadro 129 — il suo
-  // bordo inferiore tocca il bordo superiore del box del disoleatore (46,7 + mezza icona ≈ 52,7,
-  // il box comincia a 58: il resto è margine, non un errore). L'icona condivisa
-  // (`valvolaSicurezza`) resta 12×12 come altrove nel file — solo il suo CENTRO è misurato qui.
+  // dall'angolo del blocco → frazioni (0,226; 0,362) — il suo bordo inferiore tocca il bordo
+  // superiore del box del disoleatore (0,362×120 + mezza icona ≈ 49,4, il box comincia a 54: il
+  // resto è margine, non un errore). L'icona condivisa (`valvolaSicurezza`) resta 12×12 come
+  // altrove nel file — solo il suo CENTRO è misurato qui. Il franco fra il bordo sinistro della
+  // girante e il bordo destro del box (`cx - raggio` contro `dx + dw`, ≈2,8 unità su un riquadro
+  // 120) è il CAD stesso a lasciarlo — non una scelta di questo editor — e torna da sé dalle
+  // frazioni sopra, senza bisogno di scostare la girante a mano.
+  const vx = 0.226 * larghezza // 27,1
+  const vy = 0.362 * larghezza // 43,4
   const valvola = nodo.accessorio.valvoleSicurezza[0]
-  const conValvola = valvola
-    ? valvolaSicurezza(29.2, 46.7) + testo(23.2, 27.7, valvola.codice, 14, 'start')
-    : ''
+  const conValvola = valvola ? valvolaSicurezza(vx, vy) + testo(vx - 6, vy - 19, valvola.codice, 14, 'start') : ''
 
   return corpo + conGirante + testo(larghezza - 10, 20, nodo.id, 24, 'end') + disoleatore + conValvola
 }
@@ -392,6 +411,19 @@ export function simboloCompressore(nodo: SchemaNodo): string {
  * `definizioneDi`, symbols/index.ts). Passare `libreria` qui sarebbe un parametro morto, la
  * stessa categoria di `presaDi` e del vecchio `corpoNodo` (layout.ts, fix round 1 del Task 7).
  */
+
+/**
+ * Ascissa della valvola (e, specchiata, dello scarico) sul serbatoio orizzontale: unità
+ * assolute, non più la frazione `0,22×w`/`0,78×w` di prima, che usciva a 68,2/241,8pt, fuori
+ * dai multipli di 10 (Task 8, Blocco 3). 70 è il valore tondo più vicino (0,226×310, scarto
+ * 2,6% dalla frazione originale — non una misura CAD: il blocco non documenta questa quota a
+ * parte da `MARGINE_VALVOLA_SERBATOIO`); lo scarico usa il suo specchio `w - 70` = 240, così le
+ * due ascisse restano simmetriche per costruzione, come lo erano le frazioni. Esportata perché
+ * il registro (`REGISTRO_SIMBOLI` sotto) dichiara le stesse ascisse per le ancore
+ * `alto-in`/`basso-out`: una sola fonte, non due numeri scritti a mano da tenere allineati.
+ */
+export const OFFSET_VALVOLA_ORIZZONTALE = 70
+
 export function simboloSerbatoio(nodo: SchemaNodo): string {
   const { larghezza, altezza } = definizioneDi(nodo).dimensioni
   const orizzontale = nodo.orientamento === 'ORIZZONTALE'
@@ -405,9 +437,10 @@ export function simboloSerbatoio(nodo: SchemaNodo): string {
   const corpo = `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${raggio}" ry="${raggio}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
 
   // Nel serbatoio orizzontale il blocco CAD sposta le valvole ai due capi e il codice verso
-  // destra; in quello verticale sta tutto sull'asse.
-  const xValvole = orizzontale ? x + w * 0.22 : larghezza / 2
-  const xScarico = orizzontale ? x + w * 0.78 : larghezza / 2
+  // destra; in quello verticale sta tutto sull'asse. `xCodice` resta una frazione (0,62×w): è
+  // testo, non un'ancora, non deve cadere sulla griglia.
+  const xValvole = orizzontale ? x + OFFSET_VALVOLA_ORIZZONTALE : larghezza / 2
+  const xScarico = orizzontale ? x + w - OFFSET_VALVOLA_ORIZZONTALE : larghezza / 2
   const xCodice = orizzontale ? x + w * 0.62 : larghezza / 2
 
   const etichettaCodice = testo(xCodice, y + h / 2, nodo.id, 24)
@@ -471,10 +504,20 @@ function simboloRombo(
   scarico: 'apparecchio' | 'nessuno'
 ): string {
   const { larghezza, altezza } = DIMENSIONI[nodo.tipo]
-  const cx = larghezza / 2
-  const cy = altezza / 2 - 6
-  const semiL = larghezza / 2 - 6
-  const semiH = altezza / 2 - 16
+  // Il rombo non è centrato esattamente nel riquadro 110×110: cx/cy sono spostati di 5 unità dal
+  // centro vero (55,55), e semiL/semiH accorciati della stessa misura (semiH di 15, non 5, per
+  // lasciare la stessa aria sopra la sigla che dava il -16 di prima). Non è un ritocco estetico:
+  // è la condizione perché i quattro vertici del rombo — le ancore sx/dx/alto-in/basso-out —
+  // cadano sui multipli di 10 (PASSO_GRIGLIA) restando dentro un riquadro invariato, la stessa
+  // unità "rombo" su cui sono calibrati compressore/tanica/pacco bombole/serbatoi (Task 8,
+  // Blocco 3: prima gli offset erano 0/6/6/16 e i vertici uscivano a 55/6/104/10/88, fuori
+  // griglia). Gli offset non sono una misura CAD — la sagoma del rombo nel blocco
+  // `essiccatore`/`filtro`/`separatore` non dichiara un margine — sono la più piccola
+  // correzione che porta tutti e quattro i vertici sulla griglia.
+  const cx = larghezza / 2 - 5
+  const cy = altezza / 2 - 5
+  const semiL = larghezza / 2 - 5
+  const semiH = altezza / 2 - 15
 
   const rombo = traccia(
     `M ${cx} ${cy - semiH} L ${cx + semiL} ${cy} L ${cx} ${cy + semiH} L ${cx - semiL} ${cy} Z`
@@ -602,17 +645,18 @@ export function simboloTanica(nodo: SchemaNodo): string {
  * Passo = `larghezza / 4` (non `(larghezza - margine*2) / 4`: niente margine da sottrarre, per lo
  * stesso motivo). Bombola larga 13,38pt su un blocco di 53,40pt → rapporto larghezza:altezza
  * **1:4** (non l'1:2,9 che usciva dal margine sbagliato). Colletto largo 2,70pt, lo 0,20 del
- * passo — da cui l'offset ±3 delle due tacche sotto (0,20 di `r` = passo/2 = 16,125). Colletto
- * alto 3,12pt, lo 0,0584 del blocco → 8 unità su un riquadro di 129. L'arco del cielo resta un
- * semicerchio pieno (raggio = `r`, non i 5,31pt di sagitta misurati sul CAD): una semplificazione
- * già presente prima del Task 4, non una misura.
+ * passo — da cui l'offset ±3 delle due tacche sotto (0,20 di `r` = passo/2 = 15, su un riquadro
+ * sceso a 120 dal Task 8, Blocco 3 — vedi `DIMENSIONI.pacco_bombole`). Colletto alto 3,12pt, lo
+ * 0,0584 del blocco → 7 unità su un riquadro di 120 (era 8 su 129, la stessa frazione). L'arco
+ * del cielo resta un semicerchio pieno (raggio = `r`, non i 5,31pt di sagitta misurati sul CAD):
+ * una semplificazione già presente prima del Task 4, non una misura.
  */
 export function simboloPaccoBombole(nodo: SchemaNodo): string {
   const { larghezza, altezza } = DIMENSIONI.pacco_bombole
   const bombole = 4
   const passo = larghezza / bombole
   const r = passo / 2
-  const collo = 8 // 3,12pt su 53,40pt di blocco (0,0584) -> 129*0,0584 ~= 7,5, arrotondato a 8
+  const collo = 7 // 3,12pt su 53,40pt di blocco (0,0584) -> 120*0,0584 ~= 7,0
 
   const cilindri = Array.from({ length: bombole }, (_, i) => {
     const bx = i * passo
@@ -670,8 +714,12 @@ export function simboloGiunzione(_nodo: SchemaNodo): string {
  * esattamente ciò che faceva uscire la scritta dal riquadro.
  */
 const UTENZE = {
-  /** Ascissa del codolo, la stessa dell'ancora `in` nel registro. */
-  x: 12,
+  /**
+   * Ascissa del codolo, la stessa dell'ancora `in` nel registro: 10, non più 12 (Task 8, Blocco
+   * 3 — non una misura del disegno di riferimento del committente, solo il valore più vicino
+   * che cade sulla griglia).
+   */
+  x: 10,
   /** Rientro della scritta rispetto al codolo. */
   rientroScritta: 18,
   dimensioneScritta: 18,
@@ -729,12 +777,17 @@ export interface DefinizioneSimbolo {
   disegna: (nodo: SchemaNodo) => string
 }
 
-/** Ancore condivise da essiccatore e filtro, che hanno la stessa geometria e sono solo stadi della linea aria. */
+/**
+ * Ancore condivise da essiccatore e filtro, che hanno la stessa geometria e sono solo stadi
+ * della linea aria: i quattro vertici del rombo disegnato da `simboloRombo` (vedi i suoi
+ * `cx`/`cy`/`semiL`/`semiH`) — 6/104/49/10/88 prima del Task 8, Blocco 3, quando il rombo era
+ * centrato esattamente nel riquadro; ora 10/90/40/10/70, sulla griglia.
+ */
 const ANCORE_ROMBO: SchemaAncora[] = [
-  { id: 'sx', x: 6, y: 49, accetta: ['aria'] },
-  { id: 'dx', x: 104, y: 49, accetta: ['aria'] },
-  { id: 'alto-in', x: 55, y: 10, accetta: ['aria'] },
-  { id: 'basso-out', x: 55, y: 88, accetta: ['condensa'] },
+  { id: 'sx', x: 10, y: 40, accetta: ['aria'] },
+  { id: 'dx', x: 90, y: 40, accetta: ['aria'] },
+  { id: 'alto-in', x: 50, y: 10, accetta: ['aria'] },
+  { id: 'basso-out', x: 50, y: 70, accetta: ['condensa'] },
 ]
 
 /**
@@ -745,10 +798,10 @@ const ANCORE_ROMBO: SchemaAncora[] = [
  * di linea.
  */
 const ANCORE_SEPARATORE: SchemaAncora[] = [
-  { id: 'sx', x: 6, y: 49, accetta: ['aria', 'condensa'] },
-  { id: 'dx', x: 104, y: 49, accetta: ['aria', 'condensa'] },
-  { id: 'alto-in', x: 55, y: 10, accetta: ['aria'] },
-  { id: 'basso-out', x: 55, y: 88, accetta: ['condensa'] },
+  { id: 'sx', x: 10, y: 40, accetta: ['aria', 'condensa'] },
+  { id: 'dx', x: 90, y: 40, accetta: ['aria', 'condensa'] },
+  { id: 'alto-in', x: 50, y: 10, accetta: ['aria'] },
+  { id: 'basso-out', x: 50, y: 70, accetta: ['condensa'] },
 ]
 
 /**
@@ -761,38 +814,46 @@ const ANCORE_SEPARATORE: SchemaAncora[] = [
 export const REGISTRO_SIMBOLI: Record<ChiaveSimbolo, DefinizioneSimbolo> = {
   compressore: {
     dimensioni: DIMENSIONI.compressore,
-    // Centro del riquadro (129/2 = 64,5): il compressore è quadrato da questo Task 4, la vecchia
-    // x=80 era già il centro di 160.
+    // Centro del riquadro (120/2 = 60): il compressore è quadrato dal Task 4, e da 129 è sceso a
+    // 120 nel Task 8 (Blocco 3) perché 129/2 = 64,5 non cadeva sulla griglia — vedi il commento
+    // su `DIMENSIONI.compressore`.
     ancore: [
-      { id: 'alto-out', x: 64.5, y: 0, accetta: ['aria'] },
-      { id: 'basso-out', x: 64.5, y: 129, accetta: ['condensa'] },
+      { id: 'alto-out', x: 60, y: 0, accetta: ['aria'] },
+      { id: 'basso-out', x: 60, y: 120, accetta: ['condensa'] },
     ],
     disegna: simboloCompressore,
   },
   'serbatoio:VERTICALE': {
     dimensioni: DIMENSIONI.serbatoio,
-    // Corpo largo 103 (0 → 103, senza più margine laterale, Task 4): sx/dx sui suoi due fianchi,
-    // a metà della sua altezza (40 + 258/2 = 169); alto-in/basso-out sul centro (51,5),
-    // rispettivamente sul filo dove comincia il corpo e sul fondo del riquadro.
+    // Le cinque ancore chieste dal committente (Task 8, Blocco 3), non più le quattro di prima
+    // (sx/dx a metà altezza, alto-in/basso-out sull'asse): quattro sui fianchi, alle due quote
+    // dove le calotte — semicerchi di raggio 50, metà della larghezza 100 — incontrano il
+        // cilindro (40 + 50 = 90 in alto, 40 + 260 - 50 = 250 in basso, sui due fianchi x=0/100),
+    // più una in basso al centro (x=50) sulla valvola di scarico (y=300, il fondo del
+    // riquadro). Le quattro laterali accettano aria (compressore e stadio successivo si
+    // agganciano indifferentemente in alto o in basso); quella in basso condensa. `sx`/`dx`
+    // restano gli id del Task 4 (li legge `buildSchemaModel.ts` per la mandata dal compressore
+    // e per la catena di trattamento): sono la coppia alta, `sx-basso`/`dx-basso` la bassa.
     ancore: [
-      { id: 'sx', x: 0, y: 169, accetta: ['aria'] },
-      { id: 'dx', x: 103, y: 169, accetta: ['aria'] },
-      { id: 'alto-in', x: 51.5, y: 40, accetta: ['aria', 'valvola_sicurezza'] },
-      { id: 'basso-out', x: 51.5, y: 298, accetta: ['condensa'] },
+      { id: 'sx', x: 0, y: 90, accetta: ['aria'] },
+      { id: 'dx', x: 100, y: 90, accetta: ['aria'] },
+      { id: 'sx-basso', x: 0, y: 250, accetta: ['aria'] },
+      { id: 'dx-basso', x: 100, y: 250, accetta: ['aria'] },
+      { id: 'basso-out', x: 50, y: 300, accetta: ['condensa'] },
     ],
     disegna: simboloSerbatoio,
   },
   'serbatoio:ORIZZONTALE': {
     dimensioni: DIMENSIONI_SERBATOIO_ORIZZONTALE,
-    // Riquadro proprio (310×137, Task 4), non più quello del verticale: sx/dx sui due capi della
-    // capsula, a metà della sua altezza (40 + 97/2 = 88,5); alto-in/basso-out alle stesse ascisse
-    // che `simboloSerbatoio` usa per valvola (22% di 310 ≈ 68) e scarico (78% ≈ 242), sul filo
-    // sopra e sotto il corpo.
+    // Riquadro proprio (310×140, Task 4/8), non più quello del verticale: sx/dx sui due capi
+    // della capsula, a metà della sua altezza (40 + 100/2 = 90); alto-in/basso-out alle stesse
+    // ascisse che `simboloSerbatoio` usa per valvola e scarico (`OFFSET_VALVOLA_ORIZZONTALE`,
+    // 70 e il suo specchio 310-70=240), sul filo sopra e sotto il corpo.
     ancore: [
-      { id: 'sx', x: 0, y: 88.5, accetta: ['aria'] },
-      { id: 'dx', x: 310, y: 88.5, accetta: ['aria'] },
-      { id: 'alto-in', x: 68, y: 40, accetta: ['aria', 'valvola_sicurezza'] },
-      { id: 'basso-out', x: 242, y: 137, accetta: ['condensa'] },
+      { id: 'sx', x: 0, y: 90, accetta: ['aria'] },
+      { id: 'dx', x: 310, y: 90, accetta: ['aria'] },
+      { id: 'alto-in', x: OFFSET_VALVOLA_ORIZZONTALE, y: 40, accetta: ['aria', 'valvola_sicurezza'] },
+      { id: 'basso-out', x: 310 - OFFSET_VALVOLA_ORIZZONTALE, y: 140, accetta: ['condensa'] },
     ],
     disegna: simboloSerbatoio,
   },
@@ -801,16 +862,17 @@ export const REGISTRO_SIMBOLI: Record<ChiaveSimbolo, DefinizioneSimbolo> = {
   separatore: { dimensioni: DIMENSIONI.separatore, ancore: ANCORE_SEPARATORE, disegna: simboloSeparatore },
   tanica: {
     dimensioni: DIMENSIONI.tanica,
-    // Centro orizzontale (86/2 = 43), sul filo superiore (y=0): il rettangolo disegnato è ora il
-    // riquadro stesso (fix round 1, Task 4), non più rientrato di 6 unità.
-    ancore: [{ id: 'alto-in', x: 43, y: 0, accetta: ['condensa'] }],
+    // Centro orizzontale (80/2 = 40), sul filo superiore (y=0): il rettangolo disegnato è il
+    // riquadro stesso (fix round 1, Task 4); 80 invece di 86 dal Task 8 (Blocco 3), perché
+    // 86/2 = 43 non cadeva sulla griglia — vedi il commento su `DIMENSIONI.tanica`.
+    ancore: [{ id: 'alto-in', x: 40, y: 0, accetta: ['condensa'] }],
     disegna: simboloTanica,
   },
   pacco_bombole: {
     dimensioni: DIMENSIONI.pacco_bombole,
-    // Bordo destro del telaio (129, il riquadro stesso — fix round 1, Task 4), a metà altezza
-    // (129/2 = 64,5).
-    ancore: [{ id: 'dx', x: 129, y: 64.5, accetta: ['aria'] }],
+    // Bordo destro del telaio (120, il riquadro stesso — fix round 1, Task 4; sceso da 129 nel
+    // Task 8, Blocco 3, perché 129/2 = 64,5 non cadeva sulla griglia), a metà altezza (120/2 = 60).
+    ancore: [{ id: 'dx', x: 120, y: 60, accetta: ['aria'] }],
     disegna: simboloPaccoBombole,
   },
   giunzione: {
@@ -818,7 +880,8 @@ export const REGISTRO_SIMBOLI: Record<ChiaveSimbolo, DefinizioneSimbolo> = {
     // Quattro attacchi sempre disponibili, uno per lato: non c'è un «davanti», quindi non
     // c'è nulla da ruotare. Gli id sono i nomi dei quattro lati: sx/dx/alto/basso.
     //
-    // Le ANCORE stanno tutte al centro: i tubi convergono in un punto solo, e fra tubo e
+    // Le ANCORE stanno tutte al centro (10,10 su un riquadro sceso a 20 nel Task 8, Blocco 3 —
+    // 24/2 = 12 non cadeva sulla griglia): i tubi convergono in un punto solo, e fra tubo e
     // giunzione non resta buco a nessun raggio — è ciò che permette al pallino di scendere a
     // `DIAMETRO_GIUNZIONE` (osservazione 4 del committente). I PUNTI DI PRESA restano sulle
     // mezzerie dei lati, dove le ancore stavano fino al Blocco D2: il TEE si afferra e si
@@ -827,10 +890,10 @@ export const REGISTRO_SIMBOLI: Record<ChiaveSimbolo, DefinizioneSimbolo> = {
     // Il `lato` è dichiarato perché con quattro ancore coincidenti la deduzione di `latoDi`
     // (SchemaNodeSymbol.tsx) è degenere: le appoggerebbe tutte e quattro a sinistra.
     ancore: [
-      { id: 'sx', x: 12, y: 12, accetta: ['aria'], presa: { x: 0, y: 12 }, lato: 'sx' },
-      { id: 'dx', x: 12, y: 12, accetta: ['aria'], presa: { x: 24, y: 12 }, lato: 'dx' },
-      { id: 'alto', x: 12, y: 12, accetta: ['aria'], presa: { x: 12, y: 0 }, lato: 'alto' },
-      { id: 'basso', x: 12, y: 12, accetta: ['aria'], presa: { x: 12, y: 24 }, lato: 'basso' },
+      { id: 'sx', x: 10, y: 10, accetta: ['aria'], presa: { x: 0, y: 10 }, lato: 'sx' },
+      { id: 'dx', x: 10, y: 10, accetta: ['aria'], presa: { x: 20, y: 10 }, lato: 'dx' },
+      { id: 'alto', x: 10, y: 10, accetta: ['aria'], presa: { x: 10, y: 0 }, lato: 'alto' },
+      { id: 'basso', x: 10, y: 10, accetta: ['aria'], presa: { x: 10, y: 20 }, lato: 'basso' },
     ],
     disegna: simboloGiunzione,
   },
@@ -838,7 +901,8 @@ export const REGISTRO_SIMBOLI: Record<ChiaveSimbolo, DefinizioneSimbolo> = {
     dimensioni: DIMENSIONI.utenze,
     // Una sola: la linea aria ci arriva e finisce lì. Sta in fondo al codolo, dove il
     // tratteggio comincia, così la tubazione entrante e il codolo formano un tratto continuo.
-    ancore: [{ id: 'in', x: 12, y: 120, accetta: ['aria'] }],
+    // x=10 (UTENZE.x), non più 12 (Task 8, Blocco 3).
+    ancore: [{ id: 'in', x: 10, y: 120, accetta: ['aria'] }],
     disegna: simboloUtenze,
   },
 }

@@ -4,6 +4,7 @@ import type { SchemaNodo, SchemaNodoTipo } from '../types'
 import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloMuro, simboloUtenze, valvolaIntercettazione, riduttorePressione, valvolaScarico, testoMultiRiga, DIAMETRO_GIUNZIONE, campioneTubazione, TRATTEGGIO_CONDENSE, MARGINE_VALVOLA_SERBATOIO, simboloTrasformato, inviluppo } from '../symbols'
 import { capoValido } from '../agganci'
 import { TARATURA_NEUTRA, type Tarature } from '../libreria'
+import { PASSO_GRIGLIA } from '../griglia'
 
 describe('chiaveSimbolo', () => {
   it('distingue le due varianti del serbatoio', () => {
@@ -42,22 +43,62 @@ describe('registro dei simboli', () => {
     }
   })
 
+  // Task 8, Blocco 3: prima di questo task le ancore di fabbrica non cadevano sui multipli di
+  // 10 (es. `serbatoio:VERTICALE/sx` a (0,169), `essiccatore/alto-in` a (55,10)) — per questo
+  // esiste `agganciaQuota` (griglia.ts), che aggancia anche alle "quote preferite" perché la
+  // sola griglia non bastava. Da qui in poi ogni ancora dichiarata nel registro deve cadere
+  // esattamente su un multiplo di `PASSO_GRIGLIA`, sagoma per sagoma: dove un'ancora doveva
+  // stare su un punto notevole (il vertice di un rombo, la calotta di un serbatoio, il centro
+  // di un riquadro), è la sagoma che si è adattata (ingombri arrotondati ai multipli di 20, o
+  // 10 quando basta), non l'ancora spostata a un valore qualunque.
+  it('ogni ancora di ogni simbolo cade sulla griglia', () => {
+    const fuori: string[] = []
+    for (const [chiave, def] of Object.entries(REGISTRO_SIMBOLI)) {
+      for (const a of def.ancore) {
+        if (a.x % PASSO_GRIGLIA !== 0 || a.y % PASSO_GRIGLIA !== 0) {
+          fuori.push(`${chiave}/${a.id} (${a.x}, ${a.y})`)
+        }
+      }
+    }
+    expect(fuori).toEqual([])
+  })
+
+  // Le cinque ancore indicate dal committente su uno screenshot dei propri blocchi: quattro sui
+  // fianchi, alle due quote dove le calotte (semicerchi) incontrano il cilindro — sinistra e
+  // destra, in alto e in basso — più una in basso al centro sulla valvola di scarico. Prima di
+  // questo task ce n'erano quattro, in posti diversi (sx/dx a metà altezza, un'unica presa in
+  // alto per aria+valvola di sicurezza): il committente ne voleva cinque, non quattro spostate.
+  it('il serbatoio verticale ha le cinque ancore chieste dal committente', () => {
+    const ancore = REGISTRO_SIMBOLI['serbatoio:VERTICALE'].ancore
+    expect(ancore).toHaveLength(5)
+    expect(ancore.filter((a) => a.accetta.includes('aria'))).toHaveLength(4)
+    expect(ancore.filter((a) => a.accetta.includes('condensa'))).toHaveLength(1)
+  })
+
   it('il serbatoio orizzontale ha ancore diverse dal verticale', () => {
     const serbatoio = (orientamento: 'VERTICALE' | 'ORIZZONTALE') => ({
       id: 'S1', tipo: 'serbatoio' as const, orientamento, etichetta: 'S1', gruppo: 'SALA_COMPRESSORI' as const,
       valvoleSicurezza: [], origine: 'scheda' as const,
     })
-    const v = ancoraDi(serbatoio('VERTICALE'), 'sx')
-    const o = ancoraDi(serbatoio('ORIZZONTALE'), 'sx')
+    // 'dx', non più 'sx' (Task 8, Blocco 3): dal momento in cui sia la larghezza del verticale
+    // (100) sia l'altezza dell'orizzontale (100) sono scese a un multiplo di 20, i due raggi
+    // delle calotte coincidono (50), e con loro la quota 'sx' (0, 90) dei due orientamenti —
+    // stesso punto per coincidenza numerica, non perché la risoluzione della variante sia
+    // rotta. 'dx' invece resta diverso per costruzione: il verticale è largo 100, l'orizzontale
+    // 310, quindi la sua ascissa (310 contro 100) discrimina comunque i due registri.
+    const v = ancoraDi(serbatoio('VERTICALE'), 'dx')
+    const o = ancoraDi(serbatoio('ORIZZONTALE'), 'dx')
     expect(v).toBeDefined()
     expect(o).toBeDefined()
     expect(v).not.toEqual(o)
   })
 
   it('definizioneDi risolve la variante del nodo', () => {
-    // 310 e 86: gli ingombri del Task 4 (proporzioni dai blocchi CAD), non più 150 e 80.
+    // 310 e 80: gli ingombri del Task 4 (proporzioni dai blocchi CAD), non più 150 e 80... e la
+    // tanica è scesa ancora, da 86 a 80, nel Task 8 (Blocco 3), perché 86/2 = 43 non cadeva
+    // sulla griglia — vedi `DIMENSIONI.tanica`.
     expect(definizioneDi({ tipo: 'serbatoio', orientamento: 'ORIZZONTALE' }).dimensioni.larghezza).toBe(310)
-    expect(definizioneDi({ tipo: 'tanica' }).dimensioni.larghezza).toBe(86)
+    expect(definizioneDi({ tipo: 'tanica' }).dimensioni.larghezza).toBe(80)
   })
 })
 
@@ -73,9 +114,15 @@ describe('le proporzioni seguono i blocchi CAD', () => {
     definizioneDi({ tipo: chiave, orientamento } as SchemaNodo).dimensioni
   const rombo = lato('essiccatore').larghezza
 
-  it('il compressore è quadrato e largo 1,17 rombi', () => {
+  it('il compressore è quadrato e largo 1,09 rombi (1,17 sul CAD, arrotondato alla griglia)', () => {
     const { larghezza, altezza } = lato('compressore')
-    expect(larghezza / rombo).toBeCloseTo(1.17, 1)
+    // 120/110 = 1,09, non più 1,17 esatto: il riquadro è sceso da 129 a 120 (Task 8, Blocco 3)
+    // perché l'ancora (centro dell'orlo, `larghezza/2`) cadesse sulla griglia — vedi
+    // `DIMENSIONI.compressore`. Il vincolo di progetto è restare entro il decimo del valore
+    // CAD, non riprodurlo esatto: si verifica quello (uno `toBeCloseTo` a una cifra sola non
+    // lo lascerebbe passare, lo scarto è del 7%).
+    const rapportoCAD = 1.17
+    expect(Math.abs(larghezza / rombo - rapportoCAD) / rapportoCAD).toBeLessThan(0.1)
     expect(larghezza).toBe(altezza)
   })
 
@@ -93,11 +140,19 @@ describe('le proporzioni seguono i blocchi CAD', () => {
     // — che per costruzione è il solo corpo (CORPO_SERBATOIO_ORIZZONTALE) — con la misura
     // indipendente sul CAD, 2,82/0,88: cade se il corpo (larghezza o altezza) non rispetta più
     // quel rapporto, a prescindere da quanto vale il margine.
+    //
+    // Il residuo è 3,1 (310/100), non più 2,82/0,88 = 3,2045 esatto: l'altezza del corpo è
+    // scesa da 97 a 100 (Task 8, Blocco 3) perché l'ancora `sx`/`dx` (a metà altezza) cadesse
+    // sulla griglia — vedi `CORPO_SERBATOIO_ORIZZONTALE`. Il vincolo di progetto è restare
+    // entro il decimo del rapporto CAD (qui lo scarto è del 3,4%), non riprodurlo esatto: si
+    // verifica quello, non un `toBeCloseTo` a una cifra che il vecchio rapporto imponeva.
     const o = lato('serbatoio', 'ORIZZONTALE')
     const v = lato('serbatoio', 'VERTICALE')
     expect(o).not.toEqual(v)
     expect(o.larghezza).toBeGreaterThan(o.altezza)
-    expect(o.larghezza / (o.altezza - MARGINE_VALVOLA_SERBATOIO)).toBeCloseTo(2.82 / 0.88, 1)
+    const rapportoCAD = 2.82 / 0.88
+    const rapportoEditor = o.larghezza / (o.altezza - MARGINE_VALVOLA_SERBATOIO)
+    expect(Math.abs(rapportoEditor - rapportoCAD) / rapportoCAD).toBeLessThan(0.1)
   })
 
   it('la tanica è larga il doppio dell\'altezza', () => {
@@ -258,13 +313,16 @@ describe('simbolo «Alle utenze»', () => {
     // Il path completo (non il solo `fill="#000"`, che compare già sul <text> della scritta e
     // quindi non discriminerebbe un'implementazione priva del triangolo) prova che il
     // triangolo esiste davvero, con la geometria attesa.
-    expect(svg).toContain('<path d="M 6 27 L 12 14 L 18 27 Z" fill="#000" />')
+    // 4/10/16, non più 6/12/18: `UTENZE.x` è sceso a 10 (Task 8, Blocco 3, perché l'ancora
+    // cadesse sulla griglia — vedi il suo commento in symbols/index.ts), e la punta segue.
+    expect(svg).toContain('<path d="M 4 27 L 10 14 L 16 27 Z" fill="#000" />')
     expect(svg).not.toContain('marker-end')
   })
 
   it('dichiara una sola ancora, in basso al codolo, che accetta aria', () => {
     const def = definizioneDi(utenze)
-    expect(def.ancore).toEqual([{ id: 'in', x: 12, y: 120, accetta: ['aria'] }])
+    // x=10, non più 12 (Task 8, Blocco 3): vedi il commento su `UTENZE.x`, symbols/index.ts.
+    expect(def.ancore).toEqual([{ id: 'in', x: 10, y: 120, accetta: ['aria'] }])
     expect(def.dimensioni).toEqual({ larghezza: 190, altezza: 120 })
   })
 
@@ -354,9 +412,10 @@ describe('terminale utenze su più righe', () => {
   it('il codolo parte dal fondo del riquadro, che è dove si attacca la tubazione', () => {
     const lungo = terminale(Array.from({ length: 8 }, (_, i) => `riga ${i}`).join('\n'))
     const altezza = dimensioniDi(lungo).altezza
-    // 12 è `UTENZE.x`, l'ascissa del codolo: la costante non è esportata, quindi il test la
-    // fissa come letterale — se cambia, questo test deve accorgersene.
-    expect(simboloUtenze(lungo)).toContain(`M 12 ${altezza}`)
+    // 10 è `UTENZE.x` (non più 12, Task 8, Blocco 3), l'ascissa del codolo: la costante non è
+    // esportata, quindi il test la fissa come letterale — se cambia, questo test deve
+    // accorgersene.
+    expect(simboloUtenze(lungo)).toContain(`M 10 ${altezza}`)
     expect(ancoreDi(lungo).find((a) => a.id === 'in')!.y).toBe(altezza)
   })
 })
