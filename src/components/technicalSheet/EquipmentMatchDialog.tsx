@@ -74,11 +74,27 @@ export const EquipmentMatchDialog = ({
 }: EquipmentMatchDialogProps) => {
   const [scelto, setScelto] = useState<string>('')
 
+  // Chiave di contenuto, non di riferimento: `matchEquipment` oggi ricostruisce sempre
+  // l'array con `.map()`, ma i tipi non lo garantiscono. Se un consumatore (Task 8, coda del
+  // batch) ripassasse per errore un array con la stessa identità ma candidati diversi — da
+  // uno stato memoizzato, o non aggiornato — un effetto agganciato a `[candidati]` non
+  // scatterebbe e la scelta fatta sulla targhetta precedente resterebbe accesa sulla
+  // successiva, senza che l'interfaccia segnali nulla.
+  const chiaveCandidati = candidati.map((c) => c.riga.id).join('|')
+
   // La coda del batch riusa lo stesso dialog per targhette diverse: senza azzerare, la
   // selezione della precedente resterebbe accesa sulla successiva.
+  //
+  // Non si preseleziona mai in caso di `divergenza_specs`, nemmeno con un solo candidato: lì
+  // l'unica voce in elenco è già in contraddizione tecnica con la targhetta (ha campi
+  // marcati ✗), ed è il caso peggiore in cui accendere comunque la radio — un clic
+  // confermerebbe una corrispondenza che i dati letti hanno già smentito, cioè esattamente
+  // ciò che questo popup esiste per impedire. In quel caso l'operatore deve scegliere
+  // esplicitamente la voce (o uscire con «Nessuno di questi»).
   useEffect(() => {
-    setScelto(candidati.length === 1 ? candidati[0].riga.id : '')
-  }, [candidati])
+    setScelto(candidati.length === 1 && motivo !== 'divergenza_specs' ? candidati[0].riga.id : '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chiaveCandidati, motivo])
 
   const letto = [
     datiOcr.marca, datiOcr.modello,
