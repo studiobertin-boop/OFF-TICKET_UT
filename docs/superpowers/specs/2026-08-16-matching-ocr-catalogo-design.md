@@ -213,6 +213,21 @@ soglie andranno verificate per primo sul campo.
 
 ### 5. Regola di decisione
 
+**Passo 4 — collasso dei duplicati.** Il catalogo contiene righe che sono lo stesso oggetto
+scritto due volte. `SICC TECH s.r.l.` ha sia `500-12783` sia `500 - 12783`, con specs
+identiche (`ps` 11, `volume` 500, `ts` `-10 ÷ +120`, PED IV): la normalizzazione dei
+separatori le rende indistinguibili, e senza una regola apposita ogni targhetta di quel
+serbatoio produrrebbe un popup che chiede di scegliere fra due voci uguali.
+
+Due candidati si collassano quando hanno **la stessa ragione sociale** (confronto stretto,
+identità esatta) **e** le stesse specs sui campi di `specsMap`. Sopravvive quello con
+`usage_count` maggiore, a parità il primo.
+
+Il collasso **non** si applica fra ragioni sociali diverse: `SICC S.p.A. / 500 - 12783`,
+`SICC S.r.L. / 500 - 12783` e `SICC TECH s.r.l. / 500 - 12783` hanno le stesse identiche
+specs ma restano tre candidati distinti, perché scegliere fra le ragioni sociali è
+esattamente la decisione che spetta all'operatore.
+
 Le tre condizioni si valutano **in quest'ordine**, e `ambiguo` è il ripiego generale: ogni
 situazione che non soddisfa né `nessuno` né `certo` finisce davanti all'operatore. Non
 esistono casi non coperti.
@@ -334,8 +349,10 @@ interrogano il database.
 
 | caso | atteso |
 |---|---|
-| `SICC TECH s.r.l.` + modello esatto + volume e PS confermati | **certo**, riga TECH |
-| `SICC` + `500-12783` + 500 L + 11 bar | **ambiguo** `piu_candidati`, due candidati SpA e TECH |
+| `SICC TECH s.r.l.` + `500-12783` + 500 L + 11 bar | **certo** — le due righe TECH `500-12783` e `500 - 12783` si collassano in una |
+| `SICC` + `500-12783` + 500 L + 11 bar | **ambiguo** `piu_candidati`, tre candidati: SpA, S.r.L., TECH s.r.l. |
+| due righe stessa marca, stesse specs, separatori diversi | un solo candidato dopo il collasso, quello con `usage_count` maggiore |
+| tre righe stesse specs ma ragioni sociali diverse | tre candidati, nessun collasso |
 | candidato unico ma PS letta 11,5 contro 11 a catalogo | **ambiguo** `divergenza_specs` |
 | `SICC TECH s.r.l.` con modello presente solo sotto `SICC S.p.A.` | **ambiguo** `ragione_sociale_altra` |
 | candidato unico, compatibile, senza divergenze, ma `simModello` 0,9 | **ambiguo** `somiglianza_incerta` (mai `certo`) |
