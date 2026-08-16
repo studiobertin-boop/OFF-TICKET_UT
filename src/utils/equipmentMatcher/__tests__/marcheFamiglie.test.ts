@@ -23,6 +23,25 @@ describe('risolviFamiglia', () => {
     expect(risolviFamiglia('KAESER KOMPRESSOREN SE')).toBeNull()
     expect(risolviFamiglia('')).toBeNull()
   })
+
+  // 'FIAC AIR' non è la ragione sociale esatta di nessun membro della famiglia FIAC
+  // ('FIAC' e 'FIAC AIR COMPRESSORS S.p.A.'): risolve solo se il ramo per contenimento
+  // funziona. Verificato commentando quel ramo: il test diventa rosso (vedi report).
+  test('una marca che non è ragione sociale esatta di nessun membro risolve solo per contenimento', () => {
+    const famiglia = risolviFamiglia('FIAC AIR')
+    expect(famiglia).not.toBeNull()
+    expect(famiglia).toContain('FIAC')
+    expect(famiglia).toContain('FIAC AIR COMPRESSORS S.p.A.')
+  })
+
+  // Guardia sul confine di parola: 'SICCOMPRESSORI' e 'FIACOMPRESSORI' condividono i
+  // primi caratteri con 'SICC'/'FIAC' ma non sono la stessa parola. Se lo `startsWith`
+  // del ramo per contenimento perdesse lo spazio di confine (`${n} `), questi due
+  // agganciassero silenziosamente la famiglia sbagliata — verificato empiricamente.
+  test('un prefisso letterale senza confine di parola non aggancia la famiglia', () => {
+    expect(risolviFamiglia('SICCOMPRESSORI')).toBeNull()
+    expect(risolviFamiglia('FIACOMPRESSORI')).toBeNull()
+  })
 })
 
 describe('coerenza della mappa col catalogo', () => {
