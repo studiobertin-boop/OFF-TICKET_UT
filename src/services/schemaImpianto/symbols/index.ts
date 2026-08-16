@@ -707,9 +707,10 @@ export const TESTO_LIBERO = { dimensione: UTENZE.dimensioneScritta, larghezzaCar
  * simbolo in un `<svg>` suo, senza i `<defs>` che `renderSvg` dichiara, e un marker non
  * verrebbe disegnato affatto.
  *
- * `dimensioniDi(nodo)` senza `libreria`, di proposito: qui serve solo l'altezza NON tarata per
- * disegnare il codolo in coordinate locali — la stessa ragione di `simboloSerbatoio` sopra, non
- * applicare la trasformazione che `simboloTrasformato` applicherà già al risultato.
+ * `dimensioniDi(nodo)` senza `libreria`, di proposito: il codolo si disegna in coordinate locali,
+ * non tarate, e alla trasformazione pensa `simboloTrasformato` sul risultato. Con `libreria`
+ * l'altezza sarebbe l'`inviluppo(...)` della taratura, già scalato, e la scala finirebbe applicata
+ * due volte.
  */
 export function simboloUtenze(nodo: SchemaNodo): string {
   const { altezza } = dimensioniDi(nodo)
