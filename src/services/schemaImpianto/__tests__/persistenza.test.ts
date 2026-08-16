@@ -3,6 +3,7 @@ import { makeCompressore, makeDatiImpianto, makeEssiccatore, makeScheda, makeSep
 import { buildSchemaModel } from '../buildSchemaModel'
 import { layoutSchema, muroDaAscissa, DIMENSIONI_NODO } from '../layout'
 import { serializzaLayout, deserializzaLayout, riconcilia, layoutIniziale, layoutDaPersistere } from '../persistenza'
+import type { LayoutSalvato } from '../persistenza'
 import { dimensioniDi } from '../symbols'
 import type { SchemaLayout, SchemaModel } from '../types'
 
@@ -653,5 +654,90 @@ describe('testi liberi', () => {
     const modello = { nodi: [], archi: [] }
     const esito = riconcilia({ nodi: [], archi: [], testi: [testo] }, modello)
     expect(esito.layout.testi).toEqual([testo])
+  })
+})
+
+describe('taratura di pratica e riattacco degli archi orfani', () => {
+  /** Modello minimo con un compressore e una tanica, collegati: basta a isolare il
+   *  comportamento sull'ancora della tanica, senza portarsi dietro l'intero motore di scheda. */
+  function modelloDiRiferimento(): SchemaModel {
+    return {
+      nodi: [
+        {
+          id: 'C1', tipo: 'compressore', etichetta: 'Compressore', gruppo: 'SALA_COMPRESSORI',
+          valvoleSicurezza: [], origine: 'scheda',
+        },
+        {
+          id: 'T1', tipo: 'tanica', etichetta: 'Raccolta condense', gruppo: 'LINEA_DISTRIBUZIONE',
+          valvoleSicurezza: [], origine: 'scheda',
+        },
+      ],
+      archi: [],
+    }
+  }
+
+  /** Layout salvato con un solo arco C1→T1: il capo su C1 sta su un'ancora vera del registro
+   *  (così il test isola il comportamento all'ancora "sparita" sulla tanica), il capo su T1 su
+   *  `ancoraTanica`, quella che il test vuole rendere orfana con una taratura. */
+  function layoutConArcoVersoTanica(ancoraTanica: string, stile: SchemaLayout['archi'][number]['stile'] = 'standard'): LayoutSalvato {
+    return {
+      versione: 1,
+      nodi: [
+        {
+          id: 'C1', tipo: 'compressore', etichetta: 'Compressore', gruppo: 'SALA_COMPRESSORI',
+          valvoleSicurezza: [], origine: 'scheda', x: 40, y: 200,
+        },
+        {
+          id: 'T1', tipo: 'tanica', etichetta: 'Raccolta condense', gruppo: 'LINEA_DISTRIBUZIONE',
+          valvoleSicurezza: [], origine: 'scheda', x: 500, y: 500,
+        },
+      ],
+      archi: [{ id: 'A1', da: { nodo: 'C1', ancora: 'alto-out' }, a: { nodo: 'T1', ancora: ancoraTanica }, stile }],
+    }
+  }
+
+  it('un arco che cita un’ancora sparita si riattacca alla compatibile più vicina', () => {
+    const salvato: LayoutSalvato = {
+      ...layoutConArcoVersoTanica('sx'),
+      // Taratura di pratica: sulla tanica di QUESTA pratica 'sx' non c'è più (il committente
+      // l'ha tolta dal modo taratura), ma resta un'altra ancora che accetta ancora aria.
+      simboli: { tanica: { dx: 0, dy: 0, sx: 1, sy: 1, ancore: [{ id: 'ingresso', x: 60, y: 20, accetta: ['aria'] }] } },
+    }
+
+    const { layout } = layoutIniziale(salvato, modelloDiRiferimento())
+    const arco = layout.archi.find((a) => a.id === 'A1')!
+
+    expect(arco.a.ancora).not.toBe('sx')
+    expect(arco.a.ancora).toBe('ingresso') // l'unica compatibile disponibile
+  })
+
+  it('non si riattacca a un’ancora che accetta un altro fluido', () => {
+    // Un tubo d'aria (stile 'standard') non deve finire sull'ancora della condensa solo
+    // perché è la più vicina — anzi l'unica rimasta.
+    const salvato: LayoutSalvato = {
+      ...layoutConArcoVersoTanica('sx'),
+      simboli: { tanica: { dx: 0, dy: 0, sx: 1, sy: 1, ancore: [{ id: 'alto-in', x: 40, y: 0, accetta: ['condensa'] }] } },
+    }
+
+    const { layout } = layoutIniziale(salvato, modelloDiRiferimento())
+
+    // Nessuna ancora compatibile su T1: `riconcilia` tratta il capo come tratta oggi un
+    // riferimento a un NODO sparito (vedi il filtro su `idNodi` in riconcilia) — l'arco intero
+    // si scarta, non resta un capo a metà puntato su un id inesistente.
+    expect(layout.archi.some((a) => a.id === 'A1')).toBe(false)
+  })
+
+  it('la taratura di pratica entra nel salvato e non alza la versione', () => {
+    const t = { dx: -3, dy: 0, sx: 1.07, sy: 1, ancore: [{ id: 'sx', x: 30, y: 130, accetta: ['aria' as const] }] }
+
+    const salvato = serializzaLayout(layoutMinimo(), { tanica: t })
+
+    expect(salvato.simboli).toEqual({ tanica: t })
+    expect(salvato.versione).toBe(1)
+  })
+
+  it('un salvato senza taratura di pratica non scrive `simboli`: resta indistinguibile da un layout di prima del blocco', () => {
+    expect(serializzaLayout(layoutMinimo()).simboli).toBeUndefined()
+    expect(serializzaLayout(layoutMinimo(), {}).simboli).toBeUndefined()
   })
 })

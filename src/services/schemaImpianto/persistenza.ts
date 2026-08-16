@@ -5,10 +5,12 @@
  * riapertura le due cose vanno rimesse d'accordo senza buttare il lavoro di disposizione.
  * Del muro si salva la sola ascissa: l'altezza resta derivata dalle posizioni.
  */
+import { ancoraAmmette } from './agganci'
 import { layoutSchema, muroDaAscissa, DIMENSIONI_NODO, pozzoCondense } from './layout'
 import type { Tarature } from './libreria'
-import { dimensioniDi } from './symbols'
-import type { SchemaArco, SchemaLayout, SchemaModel, SchemaNodo, SchemaNodoPosizionato, SchemaTestoLibero } from './types'
+import { risolviLibreria } from './libreria'
+import { ancoraDi, ancoreDi, dimensioniDi } from './symbols'
+import type { SchemaArco, SchemaCapo, SchemaLayout, SchemaModel, SchemaNodo, SchemaNodoPosizionato, SchemaTestoLibero } from './types'
 
 const VERSIONE = 1
 
@@ -27,9 +29,25 @@ export interface LayoutSalvato {
    * (`muroDaAscissa`, layout.ts).
    */
   muroX?: number
+  /**
+   * Taratura di pratica: vale solo per la pratica aperta, sopra la taratura permanente
+   * (tabella `schema_simboli`, Task 9) e sotto nessuno — è l'ultimo strato che parla
+   * (`risolviLibreria`, libreria.ts). Assente: nessuna correzione locale, questa pratica
+   * disegna con permanente+registro come ogni altra. Campo nuovo e opzionale, non un cambio
+   * di formato — stessa ragione già decisa per `muroX`: alzare `VERSIONE` butterebbe via il
+   * layout salvato di OGNI pratica esistente, perché `deserializzaLayout` lo respinge in
+   * blocco quando la versione non combacia.
+   */
+  simboli?: Tarature
 }
 
-export function serializzaLayout(layout: SchemaLayout): LayoutSalvato {
+/**
+ * `simboli`: la taratura di questa pratica da scrivere insieme al layout, se questa sessione
+ * ne ha una. Non viene da `layout` — `SchemaLayout` non la porta, perché è un dato di
+ * libreria e non di geometria, esattamente come la libreria che ogni chiamante di
+ * `layoutSchema`/`renderSvg` passa già a parte — il chiamante la passa esplicita.
+ */
+export function serializzaLayout(layout: SchemaLayout, simboli?: Tarature): LayoutSalvato {
   // Copia profonda, non solo degli array: chi tiene il risultato deve avere un'istantanea
   // vera. Senza clonare anche i singoli nodi/archi, un trascinamento successivo nell'editor
   // (che muta x/y in place sullo stesso oggetto) si propagherebbe dentro al "salvato".
@@ -39,6 +57,9 @@ export function serializzaLayout(layout: SchemaLayout): LayoutSalvato {
     archi: structuredClone(layout.archi),
     testi: structuredClone(layout.testi ?? []),
     ...(layout.muro ? { muroX: layout.muro.x } : {}),
+    // Omesso, non `{}`, quando non c'è nulla da tarare: un `simboli: {}` scritto sempre
+    // renderebbe "assente" e "tarata a vuoto" indistinguibili nel salvato, come già per `muroX`.
+    ...(simboli && Object.keys(simboli).length > 0 ? { simboli: structuredClone(simboli) } : {}),
   }
 }
 
@@ -129,16 +150,23 @@ function identitaArco(arco: SchemaArco): string {
  * Da cosa parte l'editor all'apertura: il layout salvato se è ancora leggibile, altrimenti la
  * proposta automatica. Il controllo di versione sta qui e non nel componente React che chiama
  * questa funzione, così la strada che il dialog percorre davvero è la stessa che i test coprono.
+ *
+ * `libreria` è la sola taratura PERMANENTE (tabella `schema_simboli`): il chiamante non conosce
+ * quella di pratica, che vive dentro `salvato.simboli`. La fusione (`risolviLibreria`) avviene
+ * qui, non nel chiamante, perché questa è la sola strada che la produzione percorre davvero
+ * (vedi il commento sopra `riconcilia`): un secondo punto di fusione altrove potrebbe divergere
+ * in silenzio.
  */
 export function layoutIniziale(
   salvato: LayoutSalvato | null | undefined,
   modello: SchemaModel,
   libreria: Tarature = {}
 ): EsitoRiconciliazione {
-  const ripristinato = deserializzaLayout(salvato, libreria)
+  const risolta = risolviLibreria(libreria, salvato?.simboli ?? {})
+  const ripristinato = deserializzaLayout(salvato, risolta)
   if (!ripristinato)
-    return { layout: layoutSchema(modello, libreria), aggiunti: [], aggiuntiDaScheda: [], rimossi: [] }
-  return riconcilia(ripristinato, modello, libreria)
+    return { layout: layoutSchema(modello, risolta), aggiunti: [], aggiuntiDaScheda: [], rimossi: [] }
+  return riconcilia(ripristinato, modello, risolta)
 }
 
 /**
@@ -175,6 +203,38 @@ function posizioneTerminale(
     x: ultimo.x + dim.larghezza + 50,
     y: ultimo.y + dim.altezza / 2 - dimensioniDi(nodo, libreria).altezza,
   }
+}
+
+/**
+ * Se l'ancora di un capo non esiste più nella definizione corrente del suo nodo — una
+ * taratura, permanente o di pratica, gliel'ha tolta — il capo si riattacca all'ancora
+ * compatibile più vicina, invece di restare puntato su un id sparito. Compatibile secondo
+ * `accetta` (`ancoraAmmette`): un tubo d'aria non deve finire sull'ancora della condensa solo
+ * perché è la più vicina. "Più vicina" è misurata contro il CENTRO del nodo all'altro capo —
+ * l'unico riferimento geometrico disponibile qui: dove stava l'ancora sparita non è
+ * recuperabile, nessuna taratura precedente resta salvata da nessuna parte.
+ *
+ * Nessuna ancora compatibile: `null`. Il chiamante scarta l'intero arco — la stessa sorte che
+ * `riconcilia` riserva già oggi a un capo il cui NODO (non solo l'ancora) è sparito: un
+ * riferimento che non risolve si scarta, non si indovina (vedi il filtro su `idNodi` qui sotto).
+ */
+function capoRiattaccato(
+  capo: SchemaCapo,
+  nodo: SchemaNodoPosizionato,
+  altro: SchemaNodoPosizionato,
+  stile: SchemaArco['stile'],
+  libreria: Tarature
+): SchemaCapo | null {
+  if (ancoraDi(nodo, capo.ancora, libreria)) return capo
+  const compatibili = ancoreDi(nodo, libreria).filter((a) => ancoraAmmette(a, stile))
+  if (compatibili.length === 0) return null
+  const centroAltro = {
+    x: altro.x + dimensioniDi(altro, libreria).larghezza / 2,
+    y: altro.y + dimensioniDi(altro, libreria).altezza / 2,
+  }
+  const distanza2 = (a: { x: number; y: number }) => (nodo.x + a.x - centroAltro.x) ** 2 + (nodo.y + a.y - centroAltro.y) ** 2
+  const piuVicina = compatibili.reduce((migliore, corrente) => (distanza2(corrente) < distanza2(migliore) ? corrente : migliore))
+  return { nodo: capo.nodo, ancora: piuVicina.id }
 }
 
 /**
@@ -260,7 +320,23 @@ export function riconcilia(
       // accanto a quella salvata (S1→UTENZE), entrambe convergenti sul codolo.
       a.a.nodo !== idTerminale
   )
-  const archi = [...archiSalvati, ...archiNuovi].filter((a) => idNodi.has(a.da.nodo) && idNodi.has(a.a.nodo))
+  // Nodo esistente non basta più: se una taratura ha tolto l'ancora che l'arco cita, il capo
+  // va riattaccato (o l'arco scartato, se non c'è dove) prima di restituire il layout — vedi
+  // `capoRiattaccato`. `nodiPerId`, non `salvatiPerId`/`modelloPerId` sopra: quelle mappano
+  // sui nodi PRIMA della riconciliazione, questa sui nodi DOPO (posizioni e taratura di adesso,
+  // le sole con cui un capo riattaccato ha senso).
+  const nodiPerId = new Map(nodi.map((n) => [n.id, n]))
+  const archi = [...archiSalvati, ...archiNuovi]
+    .filter((a) => idNodi.has(a.da.nodo) && idNodi.has(a.a.nodo))
+    .map((arco) => {
+      const nodoDa = nodiPerId.get(arco.da.nodo)!
+      const nodoA = nodiPerId.get(arco.a.nodo)!
+      const capoDa = capoRiattaccato(arco.da, nodoDa, nodoA, arco.stile, libreria)
+      const capoA = capoRiattaccato(arco.a, nodoA, nodoDa, arco.stile, libreria)
+      if (!capoDa || !capoA) return null
+      return capoDa === arco.da && capoA === arco.a ? arco : { ...arco, da: capoDa, a: capoA }
+    })
+    .filter((a): a is SchemaArco => a !== null)
 
   // Invariante del terminale: ha sempre esattamente una tubazione entrante; se dopo la
   // riconciliazione non ne ha nessuna, si prende quella del modello. Il controllo va qui, DOPO
