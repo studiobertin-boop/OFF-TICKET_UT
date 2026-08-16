@@ -322,9 +322,13 @@ Ripartizione dei dati applicati:
 
 La seconda colonna è più larga di quanto sembri, ed è un punto facile da sbagliare: sulla
 stessa targhetta l'OCR legge anche i dati della valvola di sicurezza (sui tipi con
-`mandatoryValvola`), del manometro (sui serbatoi), il `materiale_n` dei compressori e il
-diametro delle valvole. Sono tutti dell'esemplare, non del modello, e nessuno di essi arriva
-dal catalogo: applicare la sola riga di catalogo li perderebbe.
+`mandatoryValvola`), del manometro (sui serbatoi) e il `materiale_n` dei compressori. Sono
+dell'esemplare, non del modello, non compaiono in alcun `specsMap`, e applicare la sola riga di
+catalogo li perderebbe.
+
+Unica eccezione fra i dati letti: il **diametro delle valvole**, che l'OCR estrae ma che
+`EQUIPMENT_DEFS.valvola.specsMap` dichiara — il catalogo lo sovrascrive, ed è giusto così,
+perché insieme alla Ptar è la chiave con cui si distinguono le varianti della stessa valvola.
 
 Il modo sicuro di applicare è quindi in due passate: prima si scrivono tutti i dati letti
 (`applyOcr`, la stessa strada del caso C), poi vi si sovrascrivono marca, modello e le specs
