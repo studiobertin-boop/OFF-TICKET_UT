@@ -40,6 +40,13 @@
  * 8 -> 4,5, rapporto ~1:2 misurato sul CAD anziché l'8:9 quasi quadrato di prima) — nel disegno e
  * nella riga di legenda "Valvola di scarico". Questo impianto non porta essiccatori, filtri né
  * separatori: il segno interno dei tre rombi (l'altra metà del task) non è coperto qui.
+ *
+ * Generato di nuovo al commit ebbde4c ("feat(schema): proporzioni dei simboli dai blocchi CAD,
+ * ingombro proprio per il serbatoio orizzontale"), Task 4 del Blocco 3: compressore e pacco
+ * bombole diventano quadrati (129×129, prima 160×150 e 120×100), il serbatoio orizzontale ha un
+ * riquadro proprio (310×137, prima condiviso col verticale 150×260) e la girante del compressore
+ * porta due corde oblique invece di una diagonale — cambiano `viewBox`, tutte le coordinate dei
+ * nodi e dei tubi, e il markup della girante. Il testo della tabella e delle legende non cambia.
  */
 export const RIGHE_SVG_RIFERIMENTO_SENZA_TESTI = [
   `<svg xmlns="http://www.w3.org/2000/svg" width="909" height="800" viewBox="0 0 909 800">`,
