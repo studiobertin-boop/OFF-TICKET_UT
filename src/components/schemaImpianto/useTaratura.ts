@@ -28,9 +28,6 @@ export function spostaAncora(t: TaraturaSimbolo, id: string, x: number, y: numbe
   }
 }
 
-/** I quattro lati che il registro usa già come prefisso d'id (vedi REGISTRO_SIMBOLI, symbols/index.ts). */
-const LATI: SchemaLatoAncora[] = ['sx', 'dx', 'alto', 'basso']
-
 /**
  * Il lato più vicino al punto `(x, y)`, misurato contro il baricentro delle ancore esistenti —
  * l'unico riferimento geometrico disponibile qui: `TaraturaSimbolo` non porta l'ingombro della
@@ -98,11 +95,11 @@ export function togliAncora(t: TaraturaSimbolo, id: string): TaraturaSimbolo {
  * Cambia cosa un'ancora accetta, mantenendo il suo id: il quarto gesto che il committente vuole
  * («decidere cosa ciascuno accetta»), accanto a spostare/aggiungere/togliere. Il gesto è
  * legittimo anche quando un tubo è già attaccato a quell'id — ma ha una conseguenza scoperta
- * nel Task 10: la riconciliazione (`capoRiattaccato`, agganci.ts) confronta l'ancora trovata per
- * id con lo stile del tubo collegato, e se il fluido non combacia più stacca quel capo (lo
- * tratta come se l'ancora fosse sparita, non diversamente da un id tolto con `togliAncora`).
- * Questa funzione non se ne preoccupa: decidere se un cambio è sicuro spetta a chi la chiama
- * (l'editor), non a un gesto puro che non conosce gli archi esistenti.
+ * nel Task 10: la riconciliazione confronta l'ancora trovata per id con lo stile del tubo
+ * collegato, e se il fluido non combacia più stacca quel capo (lo tratta come se l'ancora fosse
+ * sparita, non diversamente da un id tolto con `togliAncora`). Questa funzione non se ne
+ * preoccupa: decidere se un cambio è sicuro spetta a chi la chiama (l'editor), non a un gesto
+ * puro che non conosce gli archi esistenti.
  */
 export function impostaAccetta(t: TaraturaSimbolo, id: string, accetta: SchemaTipoAggancio[]): TaraturaSimbolo {
   return { ...t, ancore: t.ancore.map((a) => (a.id === id ? { ...a, accetta } : a)) }

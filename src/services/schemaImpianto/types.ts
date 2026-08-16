@@ -100,7 +100,7 @@ export interface SchemaAncora {
   id: string
   x: number
   y: number
-  /** Mai vuoto: un'ancora che non accetta nulla non serve. */
+  /** Di norma non vuoto: un'ancora che non accetta nulla non serve a una tubazione. */
   accetta: SchemaTipoAggancio[]
   /**
    * Dove si AFFERRA questo attacco sulla tela dell'editor, quando è diverso da dove il tubo ci

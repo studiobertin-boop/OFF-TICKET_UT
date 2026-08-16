@@ -52,7 +52,7 @@ function layoutMinimo(): SchemaLayout {
 
 /** Lo stesso modello di `layoutMinimo`, senza posizioni: la scheda che lo riconosce ancora. */
 function modelloMinimo(): SchemaModel {
-  return { nodi: layoutMinimo().nodi.map(({ x, y, ...n }) => n), archi: [] }
+  return { nodi: layoutMinimo().nodi.map(({ x: _x, y: _y, ...n }) => n), archi: [] }
 }
 
 describe('serializzazione', () => {
