@@ -298,11 +298,20 @@ export function corpoNodo(
   }
 
   if (nodo.tipo === 'essiccatore' || nodo.tipo === 'filtro' || nodo.tipo === 'separatore') {
-    const semiL = dim.larghezza / 2 - 6
-    const semiH = dim.altezza / 2 - 16
+    // Stesso rombo di `simboloRombo` (symbols/index.ts): `cx=cy=semiL = larghezza/2-5`,
+    // `semiH = altezza/2-15`. Duplicato qui, non importato, perché quella funzione disegna e
+    // questa misura — la stessa ragione per cui le altre variabili di questo file leggono
+    // `dimensioniDi` invece del registro (fix round 1, Task 8, Blocco 3: prima duplicava la
+    // vecchia geometria del rombo, -6/-16, invece di quella vera — lo stesso difetto trovato
+    // in `ANCORE_ROMBO` e `simboloSeparatore`, qui una terza volta). Il riquadro del corpo è il
+    // bounding box dei quattro vertici (dove le tubazioni si attaccano davvero), non il rombo.
+    const cx = dim.larghezza / 2 - 5
+    const cy = dim.altezza / 2 - 5
+    const semiL = dim.larghezza / 2 - 5
+    const semiH = dim.altezza / 2 - 15
     return {
-      x: nodo.x + dim.larghezza / 2 - semiL,
-      y: nodo.y + dim.altezza / 2 - 6 - semiH,
+      x: nodo.x + cx - semiL,
+      y: nodo.y + cy - semiH,
       larghezza: semiL * 2,
       altezza: semiH * 2,
     }
