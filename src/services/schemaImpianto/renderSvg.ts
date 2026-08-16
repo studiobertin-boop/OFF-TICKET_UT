@@ -179,7 +179,7 @@ export interface RigaTabella {
 
 /** Tipi di nodo il cui simbolo disegna la valvola di scarico. Il commento in testa a `types.ts`
  *  elencava anche separatore e disoleatore: `simboloSeparatore` la esclude di proposito
- *  (`conScarico: false`) e il compressore non la disegna affatto. */
+ *  e il compressore non la disegna affatto. */
 const CON_VALVOLA_SCARICO: SchemaNodoTipo[] = ['serbatoio', 'essiccatore', 'filtro']
 
 /**

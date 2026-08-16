@@ -698,9 +698,9 @@ describe('legenda dei simboli', () => {
   })
 
   it('mette la valvola di scarico solo se un simbolo la disegna davvero', () => {
-    // La disegnano serbatoio, essiccatore e filtro. NON il separatore (`conScarico: false`,
-    // «scarica da un codolo nudo») e non il compressore: il commento in testa a types.ts
-    // diceva il contrario, ed è il commento a sbagliare.
+    // La disegnano serbatoio, essiccatore e filtro. NON il separatore («scarica da un codolo
+    // nudo») e non il compressore: il commento in testa a types.ts diceva il contrario, ed è
+    // il commento a sbagliare.
     const conSerbatoio = layoutCon({ condense: false, essiccatore: false })
     expect(descrizioni(conSerbatoio)).toContain('Valvola di scarico')
 

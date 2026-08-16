@@ -188,8 +188,13 @@ export function riduttorePressione(
  * contro l'8:9 (quasi 1:1) di prima — non solo due misure diverse, una forma diversa.
  */
 export function valvolaScarico(x: number, y: number, misura: 'serbatoio' | 'apparecchio'): string {
-  // Base sul serbatoio: l:h = 4,5:9 = 1:2, il rapporto misurato sul blocco CAD. Rombi e filtri
-  // scalano al 70% (il rapporto 0,70 misurato fra le due misure del blocco «valvole»).
+  // Base sul serbatoio: l:h = 4,5:9 = 1:2, il rapporto misurato sul blocco CAD — ma il 9
+  // dell'altezza è ereditato dal codice precedente per continuità, non una misura in sé (il
+  // solo modo di leggere una dimensione assoluta dal CAD è calibrarla su un tratto già disegnato
+  // qui accanto, e il rombo di questo editor non è quadrato come quello del CAD: due tratti a
+  // scelta danno due fattori di scala che divergono di un buon 25%). Rombi e filtri scalano al
+  // 70% (il rapporto 0,70 misurato fra le due misure del blocco «valvole», questo sì confrontato
+  // direttamente fra le due farfalle e quindi indipendente dalla calibrazione assoluta).
   const scala = misura === 'serbatoio' ? 1 : 0.7
   const l = 4.5 * scala
   const h = 9 * scala
