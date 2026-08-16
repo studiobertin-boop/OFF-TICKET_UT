@@ -21,6 +21,7 @@ import {
 } from '@mui/material'
 import { AutoFixHigh as GeneraIcon, Edit as EditIcon } from '@mui/icons-material'
 import toast from 'react-hot-toast'
+import { useAuth } from '@/hooks/useAuth'
 import type { SchedaDatiCompleta } from '@/types/technicalSheet'
 import type { SchemaImpianto } from '@/services/relazione/types'
 import {
@@ -29,12 +30,14 @@ import {
   puoGenerareSchema,
 } from '@/services/schemaImpianto/buildSchemaModel'
 import { layoutSchema } from '@/services/schemaImpianto/layout'
+import type { Tarature, TaraturaSimbolo } from '@/services/schemaImpianto/libreria'
 import { risolviLibreria } from '@/services/schemaImpianto/libreria'
 import { renderSvg } from '@/services/schemaImpianto/renderSvg'
 import { rasterizzaSvg } from '@/services/schemaImpianto/rasterize'
 import type { LayoutSalvato } from '@/services/schemaImpianto/persistenza'
 import { layoutIniziale } from '@/services/schemaImpianto/persistenza'
-import type { SchemaLayout } from '@/services/schemaImpianto/types'
+import { scriviTaraturaPermanente } from '@/services/schemaImpianto/tarature'
+import type { ChiaveSimbolo, SchemaLayout } from '@/services/schemaImpianto/types'
 import { SchemaEditor } from '@/components/schemaImpianto/SchemaEditor'
 import { leggiPreferenze, scriviPreferenze, type PreferenzeEditor } from '@/components/schemaImpianto/preferenzeEditor'
 import { FORMATI_SCHEMA, leggiSchemaImpianto } from './schemaImpiantoFile'
@@ -59,6 +62,16 @@ export interface SchemaImpiantoSectionProps {
   layoutSalvato: LayoutSalvato | null | undefined
   /** Chiamata a ogni `disegna`, così il dialog ha sempre il layout corrente da persistere. */
   onLayoutChange: (layout: SchemaLayout | null) => void
+  /**
+   * La taratura di PRATICA (Task 12, il modo taratura sulla tela): letta all'apertura da
+   * `layoutSalvato.simboli` (chi monta questo componente, `RelazioneDataDialog`, la semina lì),
+   * amendata quando l'editor chiude il modo con «usa solo questa volta» o «rendi permanenti»
+   * (che la toglie di qui, per non lasciarla a fare ombra al valore appena reso permanente —
+   * vedi `SchemaEditor.tsx`, `rendiPermanenti`). È lo strato sotto la libreria di QUESTA
+   * pratica: `libreria` qui sotto la fonde col registro tramite `risolviLibreria`.
+   */
+  taraturaPratica: Tarature
+  onTaraturaPraticaChange: (taraturaPratica: Tarature) => void
   disabled?: boolean
 }
 
@@ -69,8 +82,15 @@ export function SchemaImpiantoSection({
   onSchemaChange,
   layoutSalvato,
   onLayoutChange,
+  taraturaPratica,
+  onTaraturaPraticaChange,
   disabled = false,
 }: SchemaImpiantoSectionProps) {
+  // Letto qui e non dentro `SchemaEditor` (che riceve `isAdmin` come prop): `useAuth` importa
+  // `services/supabase.ts`, che senza le variabili d'ambiente lancia al solo caricamento del
+  // modulo, e `codiceLibero.test.ts` importa una funzione pura da SchemaEditor.tsx senza montare
+  // né un provider né un ambiente Supabase.
+  const { isAdmin } = useAuth()
   const [layout, setLayout] = useState<SchemaLayout | null>(null)
   const [origine, setOrigine] = useState<Origine | null>(null)
   const [inCorso, setInCorso] = useState(false)
@@ -112,11 +132,32 @@ export function SchemaImpiantoSection({
   const note = useMemo(() => notaTubazioni(scheda), [scheda])
   // Punto unico di risoluzione della libreria per questa pratica: sia per la generazione del
   // documento (`disegna`/`rigenera` qui sotto) sia per l'editor, che la riceve come prop invece
-  // di risolversi la propria — le tarature di pratica vivranno nel layout salvato, che questa
-  // Section possiede, non l'editor che monta. Permanenti e di pratica non esistono ancora
-  // (arriveranno col Blocco 3 Task 9, dalla tabella delle tarature e dal layout salvato), quindi
-  // resta vuota — ma il chiamante è già quello giusto, così quel task tocca un solo file.
-  const libreria = useMemo(() => risolviLibreria({}, {}), [])
+  // di risolversi la propria. `taraturaPratica` (Task 12, il modo taratura sulla tela) è lo
+  // strato di pratica; quello permanente (tabella `schema_simboli`, Task 9) resta `{}` qui —
+  // nessun chiamante lo legge ancora dal database, un filo che questo task non doveva chiudere
+  // (il suo, «usa solo questa volta», passa da `taraturaPratica`; «rendi permanenti» scrive in
+  // tabella ma questa Section non la rilegge in questa stessa sessione dell'editor).
+  const libreria = useMemo(() => risolviLibreria({}, taraturaPratica), [taraturaPratica])
+
+  // «Torna a default» (`taratura: null`) toglie la voce; «usa solo questa volta»/«rendi
+  // permanenti» (che la toglie di pratica dopo aver scritto in tabella, vedi SchemaEditor.tsx) la
+  // scrivono. Un'unica funzione qui, non lasciata al chiamante: solo questa Section possiede
+  // `taraturaPratica`, la sola con cui calcolare la mappa aggiornata.
+  const impostaTaraturaPratica = useCallback(
+    (chiave: ChiaveSimbolo, taratura: TaraturaSimbolo | null) => {
+      if (taratura === null) {
+        // `delete` su una copia, non destrutturazione con variabile scartata (`{[chiave]:
+        // _, ...resto}`): la seconda lascerebbe una variabile mai letta, e il gate di lint del
+        // progetto non ha `varsIgnorePattern` per assorbirla (solo `argsIgnorePattern`).
+        const resto = { ...taraturaPratica }
+        delete resto[chiave]
+        onTaraturaPraticaChange(resto)
+      } else {
+        onTaraturaPraticaChange({ ...taraturaPratica, [chiave]: taratura })
+      }
+    },
+    [taraturaPratica, onTaraturaPraticaChange]
+  )
 
   useEffect(() => {
     return () => {
@@ -428,6 +469,9 @@ export function SchemaImpiantoSection({
               layout={layout}
               noteTubazioni={note}
               libreria={libreria}
+              isAdmin={isAdmin}
+              onTaraturaPratica={impostaTaraturaPratica}
+              onScriviTaraturaPermanente={scriviTaraturaPermanente}
               preferenze={preferenze}
               onCambiaPreferenze={cambiaPreferenze}
               onAnnulla={() => setEditorAperto(false)}

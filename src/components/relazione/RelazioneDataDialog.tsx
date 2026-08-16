@@ -43,6 +43,7 @@ import { relazioneDocumentiApi } from '@/services/api/relazioneDocumenti'
 import { buildRelazioneModel } from '@/services/relazione/buildRelazioneModel'
 import { validateRelazione, haErrori } from '@/services/relazione/preflight'
 import type { AdditionalInfo, PraticaInfo, SchemaImpianto, TipoGiri } from '@/services/relazione/types'
+import type { Tarature } from '@/services/schemaImpianto/libreria'
 import type { LayoutSalvato } from '@/services/schemaImpianto/persistenza'
 import { layoutDaPersistere } from '@/services/schemaImpianto/persistenza'
 import type { SchemaLayout } from '@/services/schemaImpianto/types'
@@ -156,6 +157,14 @@ export default function RelazioneDataDialog({
   // salvataggio, non quello letto all'apertura.
   const [layoutSalvato, setLayoutSalvato] = useState<LayoutSalvato | null | undefined>(undefined)
   const [layout, setLayout] = useState<SchemaLayout | null>(null)
+  // La taratura di PRATICA (Task 12, il modo taratura sulla tela): seminata da
+  // `layoutSalvato.simboli` alla stessa sincronizzazione qui sotto, poi tenuta aggiornata da
+  // `SchemaImpiantoSection` mentre l'editor chiude il modo con «usa solo questa volta» o «rendi
+  // permanenti» (che la toglie di qui dopo averla scritta in tabella, vedi SchemaEditor.tsx). È
+  // il filo che il Task 10 aveva lasciato aperto apposta: senza, `layoutDaPersistere` qui sotto
+  // continuerebbe a scrivere sempre `simboli: undefined`, e «usa solo questa volta» non
+  // sopravviverebbe al salvataggio.
+  const [taraturaPratica, setTaraturaPratica] = useState<Tarature>({})
   // Vero non appena `SchemaImpiantoSection` ha ricalcolato il layout almeno una volta in
   // questa apertura del dialog (successo o scelta deliberata di azzerarlo — non importa
   // quale): distingue «nessun layout» da «layout non ancora ricalcolato» in
@@ -181,6 +190,10 @@ export default function RelazioneDataDialog({
       // troverebbe ancora valorizzato col layout della sessione precedente, per lo spazio fra
       // il remount e il momento in cui questo stesso effetto lo sincronizza di nuovo.
       setLayoutSalvato(undefined)
+      // Stessa cautela di `layoutSalvato` qui sopra: senza azzerarla, la taratura di pratica
+      // della sessione precedente resterebbe visibile fra il remount e la prossima
+      // sincronizzazione.
+      setTaraturaPratica({})
       return
     }
     if (sincronizzatoRef.current) return
@@ -208,6 +221,11 @@ export default function RelazioneDataDialog({
     setLayout(null)
     setLayoutRicalcolato(false)
     setLayoutSalvato(info.schemaLayout ?? null)
+    // La taratura di pratica salvata in una sessione precedente: `SchemaImpiantoSection` la
+    // legge già da `layoutSalvato.simboli` per riconciliare le posizioni (Task 10), ma questo
+    // stato è il canale SEPARATO da cui la ri-scrive al prossimo salvataggio — vedi il commento
+    // sulla sua dichiarazione.
+    setTaraturaPratica(info.schemaLayout?.simboli ?? {})
   }, [open, initialAdditionalInfo, customer, schedaCodes])
 
   const setGiroFor = (code: string, value: TipoGiri) =>
@@ -223,9 +241,19 @@ export default function RelazioneDataDialog({
       compressoriGiri: giri,
       spessimetrica,
       collegamentiCompressoriSerbatoi: collegamenti,
-      schemaLayout: layoutDaPersistere(layout, layoutRicalcolato, layoutSalvato),
+      schemaLayout: layoutDaPersistere(layout, layoutRicalcolato, layoutSalvato, taraturaPratica),
     }),
-    [descrizioneAttivita, dataEmissione, giri, spessimetrica, collegamenti, layout, layoutRicalcolato, layoutSalvato]
+    [
+      descrizioneAttivita,
+      dataEmissione,
+      giri,
+      spessimetrica,
+      collegamenti,
+      layout,
+      layoutRicalcolato,
+      layoutSalvato,
+      taraturaPratica,
+    ]
   )
 
   /**
@@ -608,6 +636,8 @@ export default function RelazioneDataDialog({
               setLayout(nuovo)
               setLayoutRicalcolato(true)
             }}
+            taraturaPratica={taraturaPratica}
+            onTaraturaPraticaChange={setTaraturaPratica}
             disabled={saving}
           />
 

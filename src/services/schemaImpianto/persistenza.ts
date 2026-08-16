@@ -102,13 +102,19 @@ export function deserializzaLayout(
  * scelta, e senza ripiego un salvataggio in quel momento cancellerebbe la disposizione già
  * persistita. `true` con layout `null` è invece una scelta esplicita dell'utente (disegno
  * AutoCAD caricato, o «Rimuovi»): lì non si ripiega, si scrive «nessun layout» per davvero.
+ *
+ * `simboli`: la taratura di pratica accumulata in questa sessione (Task 12, il modo taratura
+ * sulla tela — «usa solo questa volta»), inoltrata a `serializzaLayout` senza altra logica qui:
+ * questa funzione decide SE scrivere un layout, non COSA porta con sé quando lo fa. Assente:
+ * nessuna taratura di pratica da salvare, come ogni chiamante prima del Task 12.
  */
 export function layoutDaPersistere(
   layoutCorrente: SchemaLayout | null,
   layoutRicalcolato: boolean,
-  layoutSalvato: LayoutSalvato | null | undefined
+  layoutSalvato: LayoutSalvato | null | undefined,
+  simboli?: Tarature
 ): LayoutSalvato | undefined {
-  if (layoutCorrente) return serializzaLayout(layoutCorrente)
+  if (layoutCorrente) return serializzaLayout(layoutCorrente, simboli)
   if (layoutRicalcolato) return undefined
   return layoutSalvato ?? undefined
 }

@@ -22,6 +22,15 @@ export interface SchemaNodeData extends Record<string, unknown> {
    * (`layoutAFlow`, conversioneFlow.ts).
    */
   libreria: Tarature
+  /**
+   * Vero per il solo nodo che il modo taratura sta modificando (`BarraTaratura.tsx`, Task 12).
+   * Spegne le sue maniglie di connessione: in quel modo i tubi non si tracciano
+   * (`nodesConnectable={false}` su `<ReactFlow>`, SchemaEditor.tsx) e le maniglie della
+   * taratura, disegnate sopra sugli stessi punti (`ManiglieTaratura`), ne prendono il posto —
+   * due coppie di pallini sovrapposti sullo stesso punto sarebbero solo confusione. Assente o
+   * `false` per ogni altro nodo, tarato o no.
+   */
+  taraturaAttiva?: boolean
 }
 
 /**
@@ -79,7 +88,7 @@ export function latoDi(ancora: SchemaAncora, dim: { larghezza: number; altezza: 
 }
 
 export function SchemaNodeSymbol({ data, selected }: NodeProps) {
-  const { nodo, libreria } = data as SchemaNodeData
+  const { nodo, libreria, taraturaAttiva } = data as SchemaNodeData
   // Ingombro effettivo, non quello del registro: la scritta del terminale utenze è libera, e con
   // la larghezza fissa il `<svg>` qui sotto la taglierebbe appena supera i 17-18 caratteri.
   const dimensioni = dimensioniDi(nodo, libreria)
@@ -96,7 +105,21 @@ export function SchemaNodeSymbol({ data, selected }: NodeProps) {
         // Sulla PRESA, non sull'ancora: quando un simbolo dichiara una presa, il tubo arriva
         // all'ancora ma il simbolo si afferra altrove (`presaDi`, symbols/index.ts).
         const presa = presaDi(ancora)
-        const stile = { ...stileAncora, left: presa.x, top: presa.y, transform: 'translate(-50%, -50%)' }
+        // In modo taratura sul nodo attivo gli handle restano MONTATI ma invisibili e inerti:
+        // react-flow risolve la posizione di un capo dal proprio Handle nel DOM, e un
+        // trascinamento passato senza di lui (provato togliendolo del tutto, `!taraturaAttiva &&`
+        // qui davanti) faceva sparire dalla tela la tubazione collegata, non solo la sua
+        // maniglia — errore #008 di react-flow. Le maniglie della taratura, disegnate sopra
+        // nello stesso punto (`ManiglieTaratura`), coprono comunque il pallino sottostante: gli
+        // resta solo il compito che il connettore non deve più fare da sé, con
+        // `nodesConnectable={false}` acceso (SchemaEditor.tsx).
+        const stile = {
+          ...stileAncora,
+          left: presa.x,
+          top: presa.y,
+          transform: 'translate(-50%, -50%)',
+          ...(taraturaAttiva ? { opacity: 0, pointerEvents: 'none' as const } : {}),
+        }
         const lato = latoDi(ancora, dimensioni)
         // L'ordine qui non è indifferente: due handle sovrapposti senza z-index si
         // contendono il mousedown, e vince l'ultimo nel DOM. In connectionMode Strict
@@ -140,7 +163,10 @@ export function SchemaNodeSymbol({ data, selected }: NodeProps) {
           // riquadro di un'apparecchiatura sono stati intercettati dal nodo, nessuno sfuggito
           // alla tela.
           pointerEvents: 'all',
-          outline: selected ? '2px solid #1976d2' : 'none',
+          // Tratteggio viola, distinto dal blu della sola selezione react-flow: mentre il nodo è
+          // in taratura la sua "selezione" ha un significato diverso (sta per essere tarato, non
+          // solo evidenziato), e le due cose non devono leggersi uguali sulla tela.
+          outline: taraturaAttiva ? '2px dashed #9c27b0' : selected ? '2px solid #1976d2' : 'none',
         }}
         // Il simbolo è generato dal nostro codice a partire da dati della scheda, non da
         // input esterni, e le etichette passano già da escapeXml in symbols/index.ts.
