@@ -80,7 +80,30 @@ export const EquipmentMatchDialog = ({
   // uno stato memoizzato, o non aggiornato — un effetto agganciato a `[candidati]` non
   // scatterebbe e la scelta fatta sulla targhetta precedente resterebbe accesa sulla
   // successiva, senza che l'interfaccia segnali nulla.
-  const chiaveCandidati = candidati.map((c) => c.riga.id).join('|')
+  //
+  // Includere solo i candidati e il motivo non basta: due targhette diverse possono produrre
+  // esattamente gli stessi candidati con lo stesso motivo — è il caso di due serbatoi SICC
+  // identici nella stessa scheda, uno del 2003 e uno del 2015, entrambe le targhette leggono
+  // solo "SICC" e quindi generano lo stesso terzetto `piu_candidati` (SICC S.p.A. / S.r.L. /
+  // TECH s.r.l.). È esattamente il caso da cui nasce questo lavoro: il cambio di ragione
+  // sociale nel tempo. Se la chiave non distinguesse le due targhette, la scelta fatta sulla
+  // prima (es. SICC S.p.A., dal certificato del 2003) resterebbe accesa e già confermabile
+  // sulla seconda, la cui risposta corretta è un'altra riga. `origine` e `passo?.corrente`
+  // sono i due dati con cui il chiamante identifica la targhetta nella coda del batch — li si
+  // aggiunge alla chiave per quello scopo, non per il contenuto dei candidati. Sull'uso a riga
+  // singola (Task 7) restano `undefined` per entrambe le targhette successive, ma lì il
+  // dialog viene smontato e rimontato ad ogni apertura e il problema non si pone.
+  //
+  // Rischio residuo: se il chiamante del batch (Task 8) riaprisse il dialog per una targhetta
+  // diversa senza far avanzare né `origine` né `passo.corrente`, la chiave non se ne
+  // accorgerebbe e il problema tornerebbe. Non è qualcosa che questo componente può garantire
+  // da solo: distinguere le targhette nella coda è responsabilità del chiamante, che deve
+  // passare `origine`/`passo` coerenti con l'elemento davvero in esame.
+  const chiaveCandidati = [
+    origine ?? '',
+    passo?.corrente ?? '',
+    candidati.map((c) => c.riga.id).join('|'),
+  ].join('::')
 
   // La coda del batch riusa lo stesso dialog per targhette diverse: senza azzerare, la
   // selezione della precedente resterebbe accesa sulla successiva.
