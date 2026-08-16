@@ -159,7 +159,11 @@ function posizioneTerminale(
   const inLinea = nodi.filter((n) => n.tipo !== 'compressore' && n.tipo !== 'utenze' && n.id !== pozzo?.id)
   if (inLinea.length === 0) return null
   const ultimo = inLinea.reduce((a, b) => (a.x > b.x ? a : b))
-  const dim = DIMENSIONI_NODO[ultimo.tipo]
+  // `dimensioniDi`, non `DIMENSIONI_NODO[ultimo.tipo]`: stesso difetto già corretto in
+  // `calcolaMuro`/`ascissaProposta` (Task 4) — se il nodo più a destra è un serbatoio
+  // orizzontale, l'ingombro indicizzato sul verticale (103×298 invece di 310×137) metterebbe il
+  // terminale utenze sopra il serbatoio invece che alla sua destra.
+  const dim = dimensioniDi(ultimo)
   return {
     x: ultimo.x + dim.larghezza + 50,
     y: ultimo.y + dim.altezza / 2 - dimensioniDi(nodo).altezza,

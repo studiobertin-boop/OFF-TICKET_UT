@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { chiaveSimbolo } from '../types'
-import type { SchemaNodo } from '../types'
-import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloMuro, simboloUtenze, valvolaIntercettazione, riduttorePressione, valvolaScarico, testoMultiRiga, DIAMETRO_GIUNZIONE, campioneTubazione, TRATTEGGIO_CONDENSE } from '../symbols'
+import type { SchemaNodo, SchemaNodoTipo } from '../types'
+import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloMuro, simboloUtenze, valvolaIntercettazione, riduttorePressione, valvolaScarico, testoMultiRiga, DIAMETRO_GIUNZIONE, campioneTubazione, TRATTEGGIO_CONDENSE, MARGINE_VALVOLA_SERBATOIO } from '../symbols'
 import { capoValido } from '../agganci'
 
 describe('chiaveSimbolo', () => {
@@ -79,16 +79,24 @@ describe('le proporzioni seguono i blocchi CAD', () => {
   })
 
   it('il serbatoio orizzontale ha un ingombro suo, più largo che alto', () => {
-    // Il riquadro non è il solo corpo (2,82×0,88 rombi, capsula isolata da valvola e scarico
-    // sul CAD — vedi CORPO_SERBATOIO_ORIZZONTALE in symbols/index.ts): ci sale sopra lo spazio
-    // per la valvola di sicurezza (MARGINE_VALVOLA_SERBATOIO, 40 unità, lo stesso riservato al
-    // verticale). Rapporto atteso: 310 / (97 + 40) = 310/137 ≈ 2,26 — largo più del doppio
-    // dell'altezza, ma meno dei 3,2 del solo corpo.
+    // Il riquadro non è il solo corpo (2,82×0,88 rombi, capsula isolata da valvola e scarico sul
+    // CAD — vedi CORPO_SERBATOIO_ORIZZONTALE in symbols/index.ts): ci sale sopra
+    // MARGINE_VALVOLA_SERBATOIO, lo spazio per la valvola e la sua sigla (una scelta di questo
+    // editor, non una misura CAD — il CAD non ha bisogno di riservare spazio per un'etichetta
+    // che nel blocco vive fuori dal riquadro, sulla pagina).
+    //
+    // `toBeCloseTo(larghezza/altezza, 1)` contro `larghezza`/`altezza` letti dallo stesso
+    // registro sarebbe tautologico (fix round 1, revisione): il numero atteso e quello ottenuto
+    // sarebbero la stessa costante scritta due volte, e nessuna mutazione della costante
+    // potrebbe mai far cadere il test. Si sottrae invece il margine e si confronta il RESIDUO
+    // — che per costruzione è il solo corpo (CORPO_SERBATOIO_ORIZZONTALE) — con la misura
+    // indipendente sul CAD, 2,82/0,88: cade se il corpo (larghezza o altezza) non rispetta più
+    // quel rapporto, a prescindere da quanto vale il margine.
     const o = lato('serbatoio', 'ORIZZONTALE')
     const v = lato('serbatoio', 'VERTICALE')
     expect(o).not.toEqual(v)
     expect(o.larghezza).toBeGreaterThan(o.altezza)
-    expect(o.larghezza / o.altezza).toBeCloseTo(310 / 137, 1)
+    expect(o.larghezza / (o.altezza - MARGINE_VALVOLA_SERBATOIO)).toBeCloseTo(2.82 / 0.88, 1)
   })
 
   it('la tanica è larga il doppio dell\'altezza', () => {
@@ -99,6 +107,70 @@ describe('le proporzioni seguono i blocchi CAD', () => {
   it('il pacco bombole è quadrato', () => {
     const { larghezza, altezza } = lato('pacco_bombole')
     expect(larghezza).toBe(altezza)
+  })
+
+  // Fix round 1 (revisione del Task 4): sul riquadro quadrato più piccolo (129, prima 160) la
+  // girante spostata a destra per il disoleatore sconfinava nel suo riquadro per ~8×17 unità
+  // (prima del task, ~2×31 su un riquadro più grande). Non una misura CAD — il blocco non porta
+  // questa variante — ma una scelta geometrica di questo editor: qui si blocca la proprietà che
+  // conta, che i due riquadri non si tocchino in proiezione X (e quindi non si sovrappongano a
+  // nessuna quota Y).
+  it('la girante e il riquadro del disoleatore non si sovrappongono', () => {
+    const nodo = {
+      id: 'C1', tipo: 'compressore' as const, etichetta: 'C1', gruppo: 'SALA_COMPRESSORI' as const,
+      valvoleSicurezza: [], origine: 'scheda' as const,
+      accessorio: { codice: 'C1.1', etichetta: 'disoleatore', valvoleSicurezza: [] },
+    } as SchemaNodo
+    const svg = simboloDi(nodo)
+
+    const cerchio = svg.match(/<circle cx="([\d.]+)" cy="([\d.]+)" r="([\d.]+)"/)
+    expect(cerchio).not.toBeNull()
+    const [, cxStr, , rStr] = cerchio!
+    const bordoSinistroGirante = Number(cxStr) - Number(rStr)
+
+    // Il primo `<rect>` è il corpo (x="0"): il disoleatore è il successivo, con x diverso da 0.
+    const rettangoli = [...svg.matchAll(/<rect x="([\d.]+)" y="[\d.]+" width="([\d.]+)" height="[\d.]+"/g)]
+    const disoleatore = rettangoli.find((m) => m[1] !== '0')
+    expect(disoleatore).toBeDefined()
+    const bordoDestroDisoleatore = Number(disoleatore![1]) + Number(disoleatore![2])
+
+    expect(bordoSinistroGirante).toBeGreaterThan(bordoDestroDisoleatore)
+  })
+})
+
+// Fix round 1 (revisione del Task 4): il describe sopra guarda solo `DIMENSIONI` (il riquadro
+// dichiarato). Per tanica e pacco bombole il DISEGNO aveva un rientro/margine che il riquadro non
+// mostrava — il test sul rapporto passava lo stesso, perché misurava il riquadro, non il
+// rettangolo/le bombole effettivamente tracciati sul foglio. Qui si guarda l'SVG prodotto.
+describe('il disegno rispetta le proporzioni misurate, non solo il riquadro dichiarato', () => {
+  const nodo = (tipo: SchemaNodoTipo, id: string): SchemaNodo =>
+    ({ id, tipo, etichetta: id, gruppo: 'ALTRO', valvoleSicurezza: [], origine: 'scheda' }) as SchemaNodo
+
+  it('la tanica disegna il rettangolo esteso quanto il riquadro, non rientrato', () => {
+    // Il blocco CAD `tanica` è un solo rettangolo 35,52×17,76pt (2:1 esatto): la cornice È il
+    // blocco, non un rettangolo più piccolo dentro un riquadro più grande.
+    const { larghezza, altezza } = definizioneDi({ tipo: 'tanica' }).dimensioni
+    const svg = simboloDi(nodo('tanica', 'RC'))
+    expect(svg).toContain(`<rect x="0" y="0" width="${larghezza}" height="${altezza}"`)
+  })
+
+  it('il pacco bombole affianca le quattro bombole a bordo pieno, cornice = riquadro', () => {
+    // Il primo sotto-elemento del gruppo CAD `pacco-bombole` è un quadrato 53,40×53,40pt che
+    // coincide col riquadro dell'intero blocco: niente margine, niente telaio più piccolo.
+    const { larghezza, altezza } = definizioneDi({ tipo: 'pacco_bombole' }).dimensioni
+    const svg = simboloDi(nodo('pacco_bombole', 'PB1'))
+    expect(svg).toContain(`<rect x="0" y="0" width="${larghezza}" height="${altezza}"`)
+
+    // Le quattro bombole affiancano a bordo pieno (passo = larghezza/4, senza margine da
+    // sottrarre prima di dividere): la prima parte dal bordo sinistro del riquadro (x=0), la
+    // quarta finisce sul bordo destro (x=larghezza).
+    const passo = larghezza / 4
+    expect(svg).toContain(`M 0 ${altezza} L 0 `)
+    expect(svg).toContain(`M ${3 * passo} ${altezza} L ${3 * passo} `)
+
+    // Rapporto larghezza:altezza di ciascuna bombola ≈ 1:4 (13,38pt su un blocco di 53,40pt),
+    // non l'1:2,9 che usciva quando il passo sottraeva un margine che il CAD non ha.
+    expect(passo / altezza).toBeCloseTo(13.38 / 53.4, 1)
   })
 })
 

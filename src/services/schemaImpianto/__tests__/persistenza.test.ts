@@ -485,6 +485,34 @@ describe('terminale utenze nei layout salvati prima che esistesse', () => {
     expect(utenze.x).not.toBe(sep1.x + dimSep1.larghezza + 50)
   })
 
+  // Fix round 1 (revisione del Task 4): `posizioneTerminale` leggeva `DIMENSIONI_NODO[ultimo.tipo]`,
+  // che per 'serbatoio' è sempre l'ingombro del verticale (103×298) — innocuo finché i due
+  // orientamenti condividevano lo stesso ingombro, un bug vero ora che l'orizzontale ne ha uno
+  // proprio (310×137). Col difetto il terminale finirebbe posizionato come se il serbatoio fosse
+  // largo 103, cioè dentro il suo stesso riquadro (che è largo 310).
+  it('lo mette a destra del vero bordo del serbatoio orizzontale, non di quello del verticale', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ codice: 'C1', ha_disoleatore: false })],
+      disoleatori: [], essiccatori: [], scambiatori: [], filtri: [],
+      serbatoi: [makeSerbatoio({ orientamento: 'ORIZZONTALE' })],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const modello = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    const salvato = salvatoSenzaUtenze(modello)
+    const esito = riconcilia(salvato, modello)
+    const utenze = esito.layout.nodi.find((n) => n.tipo === 'utenze')!
+
+    const s1 = salvato.nodi.find((n) => n.id === 'S1')!
+    const dimVeraS1 = dimensioniDi(s1)
+    expect(dimVeraS1.larghezza).toBe(310)
+    expect(utenze.x).toBe(s1.x + dimVeraS1.larghezza + 50)
+
+    // Col difetto (larghezza del verticale, 103) il terminale finirebbe a x = s1.x + 103 + 50,
+    // ben dentro il riquadro vero del serbatoio (che arriva a s1.x + 310): la differenza fra i
+    // due bordi è 207 unità, non un errore di arrotondamento.
+    expect(utenze.x).not.toBe(s1.x + 103 + 50)
+  })
+
   it('non lo duplica se il layout salvato ce l’ha già, e non ne sposta la posizione', () => {
     const modello = modelloDiProva(['C1'])
     const salvato = { ...salvatoSenzaUtenze(modello) }

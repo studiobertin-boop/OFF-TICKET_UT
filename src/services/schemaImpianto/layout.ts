@@ -151,13 +151,25 @@ export function muroDaAscissa(x: number, nodi: SchemaNodoPosizionato[]): SchemaM
 }
 
 /**
- * Dispone i nodi di una riga da sinistra a destra a partire da `xIniziale`, allineandoli
- * per centro verticale su `yCentro`. Ritorna i nodi posizionati e la x raggiunta.
+ * Dispone i nodi di una riga da sinistra a destra a partire da `xIniziale`, allineati sul
+ * riferimento verticale `quota`: per centro (`'centro'`, il default) o per base (`'basso'`).
+ *
+ * `'basso'` allinea la BASE di ciascun nodo a `quota`, letta dalla sua altezza vera
+ * (`dimensioniDi`) — non dall'altezza di un tipo assunta uniforme per l'intera riga. Serve al
+ * solo `rigaSerbatoi` (Task 4 fix round 1): un serbatoio orizzontale è alto meno di metà di uno
+ * verticale, e centrarlo sulla stessa quota calcolata per il verticale (il difetto di prima)
+ * portava la sua base a decine di unità sopra quella dei compressori — il commento su
+ * `layoutSchema`, "i serbatoi... sono allineati in modo che la loro base resti sulla stessa
+ * quota della base dei compressori", era vero solo per un serbatoio verticale. Gli altri
+ * chiamanti (compressori, catena, raccolta) hanno un'altezza uniforme per tipo: per loro
+ * centro e base producono la stessa x/y di prima, `'centro'` resta il default apposta per non
+ * toccarli.
  */
 function disponiInRiga(
   nodi: SchemaNodo[],
   xIniziale: number,
-  yCentro: number
+  quota: number,
+  allineamento: 'centro' | 'basso' = 'centro'
 ): { posizionati: SchemaNodoPosizionato[]; xFinale: number } {
   let x = xIniziale
   const posizionati = nodi.map((nodo) => {
@@ -166,7 +178,8 @@ function disponiInRiga(
     // resta sempre l'ingombro del verticale — leggerlo qui centrerebbe e spazierebbe il nodo
     // sbagliato, quello che l'auto-layout non disegna.
     const dim = dimensioniDi(nodo)
-    const collocato = posiziona(nodo, x, yCentro - dim.altezza / 2)
+    const y = allineamento === 'basso' ? quota - dim.altezza : quota - dim.altezza / 2
+    const collocato = posiziona(nodo, x, y)
     x += dim.larghezza + PASSO_ORIZZONTALE
     return collocato
   })
@@ -185,8 +198,9 @@ export function layoutSchema(model: SchemaModel): SchemaLayout {
   const altezzaCompressore = DIMENSIONI_NODO.compressore.altezza
   const altezzaSerbatoio = DIMENSIONI_NODO.serbatoio.altezza
 
-  // I compressori stanno in basso a sinistra; i serbatoi, più alti, sono allineati in modo
-  // che la loro base resti sulla stessa quota della base dei compressori.
+  // I compressori stanno in basso a sinistra; i serbatoi sono allineati in modo che la base di
+  // OGNUNO (non solo del tipo, letta con `dimensioniDi`: fix round 1 del Task 4) resti sulla
+  // stessa quota della base dei compressori — `yBase`, allineamento 'basso' su `disponiInRiga`.
   const yBase = MARGINE_SUPERIORE + altezzaSerbatoio
   const yCentroCompressori = yBase - altezzaCompressore / 2
   const yCentroSerbatoi = yBase - altezzaSerbatoio / 2
@@ -195,7 +209,8 @@ export function layoutSchema(model: SchemaModel): SchemaLayout {
   const rigaSerbatoi = disponiInRiga(
     serbatoi,
     rigaCompressori.xFinale + PASSO_VERTICALE,
-    yCentroSerbatoi
+    yBase,
+    'basso'
   )
   // La catena di trattamento sta a valle dei serbatoi, sulla stessa fascia orizzontale.
   const rigaCatena = disponiInRiga(catena, rigaSerbatoi.xFinale, yCentroSerbatoi)
@@ -276,10 +291,8 @@ export function corpoNodo(nodo: SchemaNodoPosizionato): {
     }
   }
 
-  if (nodo.tipo === 'tanica') {
-    return { x: nodo.x + 6, y: nodo.y + 6, larghezza: dim.larghezza - 12, altezza: dim.altezza - 12 }
-  }
-
+  // La tanica non ha più un caso a sé (fix round 1, Task 4): il rettangolo disegnato è il
+  // riquadro stesso, non più rientrato di 6 unità — coincide col ramo generico qui sotto.
   return { x: nodo.x, y: nodo.y, larghezza: dim.larghezza, altezza: dim.altezza }
 }
 

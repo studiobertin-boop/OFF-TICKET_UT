@@ -45,11 +45,20 @@ export const FONT = 'Arial, Helvetica, sans-serif'
 /**
  * Spazio sopra il corpo dei serbatoi, riservato alla valvola di sicurezza e alla sua sigla: nel
  * blocco CAD, verticale e orizzontale, la valvola sta sempre appena sopra il corpo, mai di fianco
- * (vedi `cad-serbatoio-verticale.png`/`cad-serbatoio-orizzontale.png`, Task 1). Non è una misura
- * CAD in unità assolute — leggerne una richiederebbe calibrarla su un tratto già disegnato qui
- * accanto, come fa il commento di `valvolaScarico` per lo stesso problema — resta il margine che
- * il file aveva già per il verticale prima del Task 4, ora condiviso da entrambi gli orientamenti
- * invece di un centraggio diverso per ciascuno.
+ * (vedi `cad-serbatoio-verticale.png`/`cad-serbatoio-orizzontale.png`, Task 1).
+ *
+ * NON è la sola estensione della valvola misurata sul CAD: quella è misurabile — valvola 9,4pt
+ * sopra il corpo, scarico 10,1pt sotto, ~19,5pt in totale, la stessa cifra nei due orientamenti
+ * — e vale ~0,43 rombi, ~47 unità qui, non 40. La differenza è che nel blocco CAD la SIGLA della
+ * valvola (`S1.1`) è un testo separato, posato sulla pagina fuori dal riquadro del blocco; qui
+ * invece è disegnata dentro il riquadro del nodo (`simboloSerbatoio`, la linea/quadratino/sigla
+ * sopra il corpo), che deve contenerla per intero o verrebbe tagliata nell'editor e nel PNG. 40
+ * è quindi la cifra che il file aveva già per il verticale prima del Task 4 (non toccata, perché
+ * dà margine sufficiente alla sigla — verificato nel confronto visivo), condivisa ora da entrambi
+ * gli orientamenti invece di un centraggio diverso per ciascuno: una scelta di leggibilità di
+ * questo editor, non la misura del CAD (fix round 1, revisione: il test sul rapporto del
+ * serbatoio orizzontale non usa più questa costante come bersaglio, per non restare tautologico
+ * — vedi `simboli.test.ts`).
  *
  * Esportata perché non la legge solo `simboloSerbatoio`: `corpoNodo` (layout.ts), il riquadro a
  * cui le tubazioni si attaccano davvero, disegna la stessa geometria e deve restare d'accordo con
@@ -321,12 +330,20 @@ export function simboloCompressore(nodo: SchemaNodo): string {
 
   // Disoleatore: riquadro in basso a sinistra, con sopra la propria valvola di sicurezza. Non è
   // una voce fra i ritagli misurati del Task 1 (il CAD non porta una variante «con disoleatore»
-  // a sé): la composizione resta quella di prima del Task 4, solo proporzionata al nuovo riquadro
-  // quadrato (fattori 129/160 in larghezza, 129/150 in altezza, gli ingombri prima e dopo).
-  const cx = larghezza - raggio - 15
+  // a sé): la composizione resta quella di prima del Task 4, proporzionata al nuovo riquadro
+  // quadrato (fattori 129/160 in larghezza, 129/150 in altezza, gli ingombri prima e dopo), con
+  // `cx`/`dw` corretti in un secondo giro (fix round 1) perché la sola proporzione diretta
+  // lasciava la girante sconfinare nell'angolo del disoleatore: girante e box hanno entrambi una
+  // proiezione X che si divide il riquadro quasi a metà (raggio 32,25 su 129 di larghezza), e la
+  // vecchia `cx = larghezza - raggio - 15` (bordo sinistro della girante a x=49,5) si sovrapponeva
+  // al vecchio `dw=52` (bordo destro del disoleatore a x=58) per ~8,5 unità. Qui il bordo sinistro
+  // della girante (`cx - raggio` = 55,5) e il bordo destro del disoleatore (`dx + dw` = 52) sono
+  // scelti per non toccarsi (~3,5 unità di margine): non è una misura CAD, è geometria di questo
+  // editor per evitare la sovrapposizione.
+  const cx = larghezza - raggio - 9
   const conGirante = girante(cx, altezza / 2 + 7)
 
-  const dw = 52
+  const dw = 46
   const dh = 46
   const dx = 6
   const dy = altezza - dh - 7
@@ -534,59 +551,69 @@ export function simboloSeparatore(nodo: SchemaNodo): string {
   )
 }
 
-/** Tanica raccolta condense: riquadro chiuso col solo codice dentro. */
+/**
+ * Tanica raccolta condense: riquadro chiuso col solo codice dentro.
+ *
+ * Fix round 1 (revisione del Task 4): il blocco CAD `tanica` è un SOLO rettangolo, 35,52×17,76pt
+ * (2:1 esatto) — non un rettangolo rientrato dentro un riquadro più grande. Il rientro di 6 unità
+ * per lato che il codice disegnava prima (rettangolo 74×31, rapporto 2,39:1) non era nel CAD:
+ * faceva passare il test sul `DIMENSIONI` (il riquadro) senza che il DISEGNO rispettasse lo
+ * stesso rapporto. Ora il rettangolo disegnato è il riquadro stesso.
+ */
 export function simboloTanica(nodo: SchemaNodo): string {
   const { larghezza, altezza } = DIMENSIONI.tanica
-  const x = 6
-  const y = 6
-  const w = larghezza - 12
-  const h = altezza - 12
   return [
-    `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`,
-    testo(larghezza / 2, y + h / 2, nodo.id, 20),
+    `<rect x="0" y="0" width="${larghezza}" height="${altezza}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`,
+    testo(larghezza / 2, altezza / 2, nodo.id, 20),
   ].join('')
 }
 
 /**
- * Pacco bombole: quattro bombole a fondo piatto e cielo arrotondato, col codice sopra il telaio.
+ * Pacco bombole: quattro bombole a fondo piatto e cielo arrotondato, col codice dentro il telaio.
  *
- * Passo e colletti misurati sul blocco CAD `pacco-bombole` (Blocchi.pdf, riquadro quadrato
- * 53,40×53,40pt, quattro bombole affiancate a bordo pieno, senza spazio fra loro): ogni bombola è
- * larga 13,38pt — il passo è `larghezza/4`, perché il CAD non lascia margine fra una e l'altra —
- * e il colletto è largo 2,70pt, lo 0,20 del passo: da cui l'offset ±3 delle due tacche qui sotto
- * (0,20 di `r`≈14,6, cioè `bw/2` su un passo di 29,25). Il telaio (`yTelaio`/`margine`) resta
- * invece una cornice di lettura che il CAD non disegna (le bombole vi affiancano a pieno bordo,
- * senza rettangolo attorno): qui è la stessa proporzione che il file aveva già per il vecchio
- * riquadro 120×100, scalata al nuovo riquadro quadrato 129×129 (Task 4).
+ * Fix round 1 (revisione del Task 4): il giro precedente diceva «nessun rettangolo di cornice nel
+ * CAD» — falso. Riestraendo il gruppo `pacco-bombole` da `Blocchi.pdf`, il PRIMO sotto-elemento
+ * è un quadrato di 53,40×53,40pt che coincide esattamente col riquadro dell'intero blocco (non un
+ * `re` esplicito ma un quad di stroke, `qu` — per questo era sfuggito isolando solo i comandi
+ * `l`/`c`). **La cornice esiste, ed È il blocco**: le quattro bombole vi affiancano a bordo pieno
+ * (prima a x=436,68, quarta a x=490,08 — gli stessi bordi del quadrato), senza margine.
+ *
+ * Passo = `larghezza / 4` (non `(larghezza - margine*2) / 4`: niente margine da sottrarre, per lo
+ * stesso motivo). Bombola larga 13,38pt su un blocco di 53,40pt → rapporto larghezza:altezza
+ * **1:4** (non l'1:2,9 che usciva dal margine sbagliato). Colletto largo 2,70pt, lo 0,20 del
+ * passo — da cui l'offset ±3 delle due tacche sotto (0,20 di `r` = passo/2 = 16,125). Colletto
+ * alto 3,12pt, lo 0,0584 del blocco → 8 unità su un riquadro di 129. L'arco del cielo resta un
+ * semicerchio pieno (raggio = `r`, non i 5,31pt di sagitta misurati sul CAD): una semplificazione
+ * già presente prima del Task 4, non una misura.
  */
 export function simboloPaccoBombole(nodo: SchemaNodo): string {
   const { larghezza, altezza } = DIMENSIONI.pacco_bombole
   const bombole = 4
-  const yTelaio = 28
-  const hTelaio = altezza - yTelaio - 5
-  const margine = 6
-  const passo = (larghezza - margine * 2) / bombole
+  const passo = larghezza / bombole
+  const r = passo / 2
+  const collo = 8 // 3,12pt su 53,40pt di blocco (0,0584) -> 129*0,0584 ~= 7,5, arrotondato a 8
 
   const cilindri = Array.from({ length: bombole }, (_, i) => {
-    const bx = margine + i * passo
-    const bw = passo
-    const r = bw / 2
-    const cielo = yTelaio + 10
-    const fondo = yTelaio + hTelaio
-    // Corpo a U rovesciata: fianchi dritti, cielo arrotondato, fondo aperto sul telaio. Le bombole
-    // affiancano a bordo pieno (`bx`/`bw` = passo intero, senza scarto fra loro): il fianco destro
-    // dell'una coincide col fianco sinistro della successiva, come nel blocco CAD.
+    const bx = i * passo
+    const cielo = collo
+    const fondo = altezza
+    // Corpo a U rovesciata: fianchi dritti, cielo arrotondato, fondo sul bordo del telaio (che è
+    // il riquadro stesso). Le bombole affiancano a bordo pieno (`bx`/passo intero, senza scarto
+    // fra loro): il fianco destro dell'una coincide col fianco sinistro della successiva, e la
+    // prima/l'ultima coincidono coi due lati del telaio — come nel blocco CAD.
     const corpo = traccia(
-      `M ${bx} ${fondo} L ${bx} ${cielo + r} A ${r} ${r} 0 0 1 ${bx + bw} ${cielo + r} L ${bx + bw} ${fondo}`
+      `M ${bx} ${fondo} L ${bx} ${cielo + r} A ${r} ${r} 0 0 1 ${bx + passo} ${cielo + r} L ${bx + passo} ${fondo}`
     )
-    const collo = traccia(`M ${bx + r - 3} ${cielo} L ${bx + r - 3} ${cielo - 8} M ${bx + r + 3} ${cielo} L ${bx + r + 3} ${cielo - 8}`)
-    return corpo + collo
+    // Le due tacche del colletto occupano l'intera fascia sopra il cielo (da y=0, il bordo alto
+    // del telaio, fino a y=cielo, dove comincia l'arco): la fascia stessa è il colletto.
+    const tacche = traccia(`M ${bx + r - 3} ${cielo} L ${bx + r - 3} 0 M ${bx + r + 3} ${cielo} L ${bx + r + 3} 0`)
+    return corpo + tacche
   }).join('')
 
   return [
-    `<rect x="${margine}" y="${yTelaio}" width="${larghezza - margine * 2}" height="${hTelaio}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`,
+    `<rect x="0" y="0" width="${larghezza}" height="${altezza}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`,
     cilindri,
-    testo(margine, 10, nodo.id, 16, 'start'),
+    testo(6, 12, nodo.id, 14, 'start'),
   ].join('')
 }
 
@@ -748,16 +775,16 @@ export const REGISTRO_SIMBOLI: Record<ChiaveSimbolo, DefinizioneSimbolo> = {
   separatore: { dimensioni: DIMENSIONI.separatore, ancore: ANCORE_SEPARATORE, disegna: simboloSeparatore },
   tanica: {
     dimensioni: DIMENSIONI.tanica,
-    // Centro del riquadro (86/2 = 43): la tanica non aveva margini a cambiare, solo il rapporto
-    // 2:1 del Task 4 le ha spostato il centro da 40 a 43.
-    ancore: [{ id: 'alto-in', x: 43, y: 6, accetta: ['condensa'] }],
+    // Centro orizzontale (86/2 = 43), sul filo superiore (y=0): il rettangolo disegnato è ora il
+    // riquadro stesso (fix round 1, Task 4), non più rientrato di 6 unità.
+    ancore: [{ id: 'alto-in', x: 43, y: 0, accetta: ['condensa'] }],
     disegna: simboloTanica,
   },
   pacco_bombole: {
     dimensioni: DIMENSIONI.pacco_bombole,
-    // Bordo destro del telaio (129 - margine 6 = 123), a metà della sua altezza (28 + 96/2 = 76):
-    // stessa posizione relativa di prima del Task 4, sul nuovo riquadro quadrato.
-    ancore: [{ id: 'dx', x: 123, y: 76, accetta: ['aria'] }],
+    // Bordo destro del telaio (129, il riquadro stesso — fix round 1, Task 4), a metà altezza
+    // (129/2 = 64,5).
+    ancore: [{ id: 'dx', x: 129, y: 64.5, accetta: ['aria'] }],
     disegna: simboloPaccoBombole,
   },
   giunzione: {

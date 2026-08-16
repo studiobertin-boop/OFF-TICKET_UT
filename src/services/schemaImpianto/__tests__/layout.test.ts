@@ -113,6 +113,31 @@ describe('layoutSchema', () => {
     expect(baseCompressore).toBeCloseTo(baseSerbatoio, 5)
   })
 
+  // Fix round 1 (revisione del Task 4): con un serbatoio orizzontale (137 di altezza, meno di
+  // metà del verticale, 298) `disponiInRiga` lo centrava sulla stessa quota calcolata per il
+  // verticale — la base finiva decine di unità più in alto di quella dei compressori, mentre il
+  // commento sopra la funzione promette il contrario. L'allineamento 'basso' legge l'altezza
+  // vera di OGNI nodo (`dimensioniDi`), non un'altezza di riga assunta uniforme: qui il
+  // serbatoio è orizzontale apposta, il caso che prima non tornava.
+  it('allinea la base anche di un serbatoio orizzontale, alta meno della metà del verticale', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ codice: 'C1', ha_disoleatore: false })],
+      disoleatori: [], essiccatori: [], scambiatori: [], filtri: [],
+      serbatoi: [makeSerbatoio({ orientamento: 'ORIZZONTALE' })],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+
+    const layout = layoutSchema(model)
+    const s1 = nodo(layout, 'S1')
+    expect(dimensioniDi(s1).altezza).toBe(137)
+
+    const baseCompressore = nodo(layout, 'C1').y + DIMENSIONI_NODO.compressore.altezza
+    const baseSerbatoio = s1.y + dimensioniDi(s1).altezza
+
+    expect(baseCompressore).toBeCloseTo(baseSerbatoio, 5)
+  })
+
   it('colloca il pozzo di raccolta condense sotto la fascia delle apparecchiature', () => {
     const model = buildSchemaModel({
       scheda: schedaTrePiuUno(),
@@ -573,15 +598,16 @@ describe('quoteInstradamento', () => {
   })
 
   it('mette la corsia condense 40 unità sopra il corpo del pozzo di raccolta', () => {
-    // Tanica a y=900, il suo corpo comincia 6 più in basso (corpoNodo): 906 - 40 = 866.
-    expect(quoteInstradamento(layoutDiProva()).yCorsiaCondense).toBe(866)
+    // Tanica a y=900: il suo corpo (corpoNodo) coincide col riquadro dal fix round 1 del Task 4
+    // (il rettangolo disegnato non è più rientrato di 6 unità) -> 900 - 40 = 860.
+    expect(quoteInstradamento(layoutDiProva()).yCorsiaCondense).toBe(860)
   })
 
   it('senza pozzo di raccolta la corsia va in fondo al disegno', () => {
     const layout = layoutDiProva()
     layout.nodi = layout.nodi.filter((n) => n.tipo !== 'tanica')
     layout.archi = []
-    // Nessun pozzo: la corsia scende a mezzo margine dal fondo della tela, non resta a 866.
+    // Nessun pozzo: la corsia scende a mezzo margine dal fondo della tela, non resta a 860.
     const attesa = dimensioniLayout(layout).altezza - 20
     expect(quoteInstradamento(layout).yCorsiaCondense).toBe(attesa)
   })
