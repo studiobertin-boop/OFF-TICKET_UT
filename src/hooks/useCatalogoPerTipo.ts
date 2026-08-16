@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import { useQueries, useQuery, type QueryClient } from '@tanstack/react-query'
 import { equipmentCatalogApi } from '@/services/api/equipmentCatalog'
 import type { EquipmentCatalogItem, EquipmentCatalogType } from '@/types'
@@ -32,24 +31,27 @@ export function useCatalogoPerTipo(tipo: EquipmentCatalogType | undefined) {
  * violerebbe le regole degli hook appena una riga viene aggiunta o eliminata.
  */
 export function useCatalogoPerTipi(tipi: EquipmentCatalogType[]) {
-  const risultati = useQueries({
+  // L'indicizzazione per tipo passa da `combine` e non da un `useMemo` a valle: a valle non
+  // stabilizzerebbe niente, perché l'array restituito da `useQueries` è un riferimento nuovo a
+  // ogni render e come dipendenza cambia sempre. `combine` invece viene applicato dentro
+  // l'observer e il suo risultato passa per `replaceEqualDeep`, che restituisce l'oggetto
+  // precedente finché i dati sono profondamente uguali: la referenza resta stabile davvero.
+  // Serve perché a valle questo oggetto finisce in dipendenze di effetti e callback, dove un
+  // riferimento instabile vanifica la memoizzazione o fa rieseguire l'effetto a vuoto.
+  return useQueries({
     queries: tipi.map((tipo) => ({
       queryKey: chiave(tipo),
       queryFn: () => equipmentCatalogApi.findByTipo(tipo),
       staleTime: STALE,
     })),
+    combine: (risultati) => {
+      const perTipo = {} as Record<EquipmentCatalogType, EquipmentCatalogItem[]>
+      tipi.forEach((tipo, i) => {
+        perTipo[tipo] = (risultati[i]?.data ?? []) as EquipmentCatalogItem[]
+      })
+      return perTipo
+    },
   })
-
-  // Come `manufacturers` in useCIVAData: senza useMemo l'oggetto è un riferimento nuovo a ogni
-  // render, e a valle (Task 7) finisce in dipendenze di effetti e callback dove un riferimento
-  // instabile vanifica la memoizzazione o fa rieseguire l'effetto senza che i dati siano cambiati.
-  return useMemo(() => {
-    const perTipo = {} as Record<EquipmentCatalogType, EquipmentCatalogItem[]>
-    tipi.forEach((tipo, i) => {
-      perTipo[tipo] = (risultati[i]?.data ?? []) as EquipmentCatalogItem[]
-    })
-    return perTipo
-  }, [risultati, tipi])
 }
 
 /**

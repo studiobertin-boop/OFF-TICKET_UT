@@ -32,8 +32,9 @@ match esatto case-insensitive e, fallendo quello, ripiega sulla RPC `search_equi
 ```
 
 La dichiarazione `RETURNS TABLE` in
-`supabase/migrations/20251113100000_enhance_equipment_catalog.sql:126` dichiara
-`created_at TIMESTAMP` mentre la colonna è `TIMESTAMPTZ`. Ogni chiamata solleva
+`supabase/migrations/20251113100000_enhance_equipment_catalog.sql:126-139` dichiara
+`last_used TIMESTAMP` (ottava colonna del risultato) mentre il valore che ci finisce dentro
+è `ec.updated_at`, che è `TIMESTAMPTZ`. Ogni chiamata solleva
 l'eccezione, quindi **ogni fuzzy match fallisce silenziosamente** e resta operativo solo il
 confronto esatto — che su `SICC` contro `SICC S.p.A.` non scatta mai. Lo stesso vale per
 `fuzzy_matches` nella risposta della edge function

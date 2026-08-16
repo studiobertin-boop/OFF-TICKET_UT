@@ -27,6 +27,7 @@ import { useHydrateCatalogOrigini, VALVOLE_ROW_PREFIX } from '@/hooks/useHydrate
 import { rowKeyOf, useEquipmentCatalogContext } from './EquipmentCatalogContext'
 import { codiciValvoleDisoleatore, codiciValvoleSerbatoio } from '@/utils/valvoleImpianto'
 import { caricaCatalogoPerTipo } from '@/hooks/useCatalogoPerTipo'
+import { equipmentCatalogApi } from '@/services/api/equipmentCatalog'
 import { normalizeDiametroValvola, readSpec } from '@/services/equipmentAudit'
 import { matchEquipment, type Candidato, type MotivoAmbiguita } from '@/utils/equipmentMatcher'
 import { type MovimentoPratica } from '@/services/fascicolo/scadenza'
@@ -673,6 +674,18 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
       setOrigine(rowKey, { catalogItem: p.catalogItem, appliedSpecs: p.appliedSpecs })
     }
 
+    // Voci usate, contate anche qui e non solo sul percorso a riga singola. `usage_count` decide
+    // quale riga sopravvive al collasso dei duplicati e ordina i candidati proposti: il batch è
+    // la via d'ingresso dominante — venti targhette per volta — e non contarlo mai sbilancerebbe
+    // la classifica verso le sole righe scelte a mano, peggiorando col tempo proprio la scelta
+    // automatica che il batch fa da sé. Si deduplica per `id` perché venti targhette dello stesso
+    // modello sono una voce sola: una richiesta per voce distinta, non una per foto. Come sul
+    // percorso singolo non si aspetta e il fallimento si ingoia — la scheda è già scritta — ma il
+    // `catch` deve esserci: `incrementUsage` rilancia l'errore e nessuno raccoglierebbe il rifiuto.
+    for (const id of new Set(provenienze.map((p) => p.catalogItem.id))) {
+      equipmentCatalogApi.incrementUsage(id).catch(() => {})
+    }
+
     return skipped
   }
 
@@ -703,24 +716,47 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
     const decisioni: DecisioneBatch[] = []
     const daChiedere: AmbiguitaBatch[] = []
 
+    // Il tipo di catalogo si ricava dal `kind`, non da `parsedType`: sulle valvole i due non
+    // coincidono, e cercare una valvola fra i serbatoi non troverebbe mai niente.
+    const tipoDelFile = (item: BatchOCRItem): EquipmentCatalogType | undefined => {
+      const kind = kindDelFile(item)
+      return kind ? EQUIPMENT_DEFS[kind].catalogType : undefined
+    }
+
+    /**
+     * Cataloghi dei tipi che servono, caricati **prima** del ciclo e tutti insieme.
+     *
+     * Un `await caricaCatalogoPerTipo` dentro il ciclo è innocuo finché la rete risponde
+     * (`fetchQuery` deduplica per chiave: al massimo nove richieste, una per tipo). A rete giù
+     * no: l'errore non viene memorizzato, il `QueryClient` dell'app non imposta `retry` — vale
+     * quindi il default di 3 tentativi con backoff di circa 7 secondi — e ogni targhetta ripaga
+     * il conto da capo. Venti foto diventavano oltre due minuti di stallo, con la finestra del
+     * batch ferma al 100% e nessun segnale. Qui il conto si paga una volta sola, in parallelo.
+     */
+    const catalogoPerTipo = new Map<EquipmentCatalogType, EquipmentCatalogItem[]>()
+    const tipiRichiesti = [...new Set(
+      completedItems.map(tipoDelFile).filter(Boolean) as EquipmentCatalogType[]
+    )]
+    await Promise.all(
+      tipiRichiesti.map(async (tipo) => {
+        try {
+          catalogoPerTipo.set(tipo, await caricaCatalogoPerTipo(queryClient, tipo))
+        } catch (e) {
+          // Un catalogo irraggiungibile non deve far perdere le letture: senza righe non c'è
+          // riconoscimento possibile e le targhette di quel tipo prendono la strada di sempre.
+          // Lasciar propagare l'errore invece abbandonerebbe l'intero batch prima di scrivere
+          // qualsiasi cosa — per questo il `catch` è per tipo e non attorno al `Promise.all`.
+          console.error('[Batch OCR] catalogo non caricato per', tipo, e)
+        }
+      })
+    )
+
     for (const item of completedItems) {
       const kind = kindDelFile(item)
       const dati = item.result?.data
       if (!kind || !dati) { decisioni.push({ item, candidato: null }); continue }
 
-      // Il tipo di catalogo si ricava dal `kind`, non da `parsedType`: sulle valvole i due non
-      // coincidono, e cercare una valvola fra i serbatoi non troverebbe mai niente.
-      const tipo = EQUIPMENT_DEFS[kind].catalogType
-
-      let righeCatalogo: EquipmentCatalogItem[] = []
-      try {
-        righeCatalogo = await caricaCatalogoPerTipo(queryClient, tipo)
-      } catch (e) {
-        // Un catalogo irraggiungibile non deve far perdere le letture: senza righe non c'è
-        // riconoscimento possibile e la targhetta prende la strada di sempre. Lasciar propagare
-        // l'errore invece abbandonerebbe l'intero batch prima di scrivere qualsiasi cosa.
-        console.error('[Batch OCR] catalogo non caricato per', tipo, e)
-      }
+      const righeCatalogo = catalogoPerTipo.get(EQUIPMENT_DEFS[kind].catalogType) ?? []
 
       const esito = matchEquipment(kind, dati, righeCatalogo)
       if (esito.esito === 'certo') {

@@ -1,7 +1,8 @@
 -- supabase/migrations/20260816000000_drop_search_equipment_fuzzy.sql
 --
 -- `search_equipment_fuzzy` è rotta da sempre in produzione: la RETURNS TABLE dichiara
--- `created_at TIMESTAMP` mentre la colonna è `TIMESTAMPTZ`, e ogni chiamata solleva
+-- `last_used TIMESTAMP` mentre il valore che ci finisce dentro è `ec.updated_at`, che è
+-- `TIMESTAMPTZ` (colonna 8 della tabella di ritorno), e ogni chiamata solleva
 -- 42804 «structure of query does not match function result type». I due soli consumatori
 -- — `equipmentCatalogApi.searchFuzzy` e `searchFuzzyMatches` nella edge function —
 -- ricevevano quindi sempre l'errore, che veniva assorbito senza risultati.

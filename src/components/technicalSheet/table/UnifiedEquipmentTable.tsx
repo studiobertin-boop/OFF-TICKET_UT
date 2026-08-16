@@ -674,9 +674,12 @@ export const UnifiedEquipmentTable = ({
     setValue(`${base}.marca`, candidato.riga.marca)
     setValue(`${base}.modello`, candidato.riga.modello)
     applica((candidato.riga.specs ?? {}) as Record<string, any>, candidato.riga)
-    // A voce usata: è il conteggio che ordina i suggerimenti dell'autocomplete. Non si
-    // aspetta né si segnala un fallimento — la scheda è già compilata comunque.
-    void equipmentCatalogApi.incrementUsage(candidato.riga.id)
+    // A voce usata: è il conteggio che ordina i suggerimenti dell'autocomplete. Non si aspetta
+    // e il fallimento si ingoia — la scheda è già compilata comunque. Il `catch` vuoto serve:
+    // `incrementUsage` rilancia l'errore e `void` scarta il valore, non il rifiuto, che senza
+    // handler diventerebbe una unhandled rejection (nel progetto non c'è alcun listener
+    // `unhandledrejection` che la raccolga).
+    equipmentCatalogApi.incrementUsage(candidato.riga.id).catch(() => {})
   }
 
   /**
