@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { chiaveSimbolo } from '../types'
 import type { SchemaNodo, SchemaNodoTipo } from '../types'
-import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloMuro, simboloUtenze, valvolaIntercettazione, riduttorePressione, valvolaScarico, testoMultiRiga, DIAMETRO_GIUNZIONE, campioneTubazione, TRATTEGGIO_CONDENSE, MARGINE_VALVOLA_SERBATOIO } from '../symbols'
+import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloMuro, simboloUtenze, valvolaIntercettazione, riduttorePressione, valvolaScarico, testoMultiRiga, DIAMETRO_GIUNZIONE, campioneTubazione, TRATTEGGIO_CONDENSE, MARGINE_VALVOLA_SERBATOIO, simboloTrasformato, inviluppo } from '../symbols'
 import { capoValido } from '../agganci'
+import { TARATURA_NEUTRA } from '../libreria'
 
 describe('chiaveSimbolo', () => {
   it('distingue le due varianti del serbatoio', () => {
@@ -528,5 +529,39 @@ describe('simboloMuro', () => {
     // le aperture non si fondono da sole.
     const svg = simboloMuro(0, 0, 300, [100, 220])
     expect([...svg.matchAll(/<rect/g)]).toHaveLength(3)
+  })
+})
+
+describe('la trasformazione della sagoma', () => {
+  const t = { dx: -3, dy: 0, sx: 1.07, sy: 1, ancore: [] }
+
+  it('avvolge la sagoma in un g con translate e scale', () => {
+    expect(simboloTrasformato('<circle cx="10" cy="10" r="5" />', t))
+      .toBe('<g transform="translate(-3 0) scale(1.07 1)"><circle cx="10" cy="10" r="5" /></g>')
+  })
+
+  it('la taratura neutra non aggiunge nulla', () => {
+    // Senza questo, ogni simbolo non tarato guadagnerebbe un <g> inutile e TUTTI i
+    // riferimenti SVG cambierebbero senza che sia cambiato niente.
+    expect(simboloTrasformato('<circle />', TARATURA_NEUTRA)).toBe('<circle />')
+  })
+
+  it('contro-scala le scritte, che altrimenti si stirerebbero', () => {
+    const svg = simboloTrasformato('<text x="10" y="10">S1</text>', { ...t, sx: 2, sy: 1 })
+    // La scritta porta una scala inversa a quella del gruppo: 1/2 in orizzontale.
+    expect(svg).toMatch(/<text[^>]*transform="[^"]*scale\(0\.5 1\)/)
+  })
+})
+
+describe("l'ingombro è l'inviluppo di sagoma trasformata e ancore", () => {
+  it('cresce se un ancora sta fuori dal disegno', () => {
+    const ancore = [{ id: 'alto', x: 75, y: -20, accetta: ['valvola_sicurezza' as const] }]
+    const misure = inviluppo({ larghezza: 150, altezza: 260 }, TARATURA_NEUTRA, ancore)
+    expect(misure.altezza).toBeGreaterThan(260)
+  })
+
+  it('segue la scala della sagoma', () => {
+    const misure = inviluppo({ larghezza: 100, altezza: 100 }, { ...TARATURA_NEUTRA, sx: 2, sy: 1 }, [])
+    expect(misure.larghezza).toBe(200)
   })
 })

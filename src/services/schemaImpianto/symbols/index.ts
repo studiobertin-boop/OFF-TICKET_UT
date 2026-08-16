@@ -16,6 +16,7 @@
 import { ondula } from '../tratti'
 import type { SchemaArcoStile, SchemaNodoTipo, SchemaNodo, SchemaAncora, SchemaLatoAncora, ChiaveSimbolo } from '../types'
 import { chiaveSimbolo } from '../types'
+import type { TaraturaSimbolo } from '../libreria'
 
 export const TRATTO = 2
 /**
@@ -987,4 +988,85 @@ export function simboloMuro(x: number, yMin: number, yMax: number, varchi: numbe
     .join(' ')
 
   return segmenti + `<path d="${tratti}" fill="none" stroke="#000" stroke-width="1" />`
+}
+
+/**
+ * Contro-scala ogni `<text>` del frammento: la sagoma può stirarsi (è la deformazione che chi
+ * tara ha scelto), ma una scritta stirata diventerebbe illeggibile. Il gruppo che avvolge la
+ * sagoma applicherà `scale(sx sy)`; questa funzione anticipa l'inverso sul singolo `<text>`,
+ * ancorato al suo stesso punto `x`/`y` (`translate(x y) scale(1/sx 1/sy) translate(-x -y)`), così
+ * l'anello sagoma-scritta si annulla per la sola FORMA della scritta e la sua POSIZIONE segue
+ * comunque la trasformazione del gruppo, come ogni altro elemento.
+ *
+ * Non tocca `<tspan>`: nel solo consumatore multi-riga di questo file (`testoMultiRiga`) il
+ * `<text>` che li contiene non porta `x`/`y` propri (stanno sui singoli `tspan`) — un caso che
+ * nessun simbolo tarato usa oggi e che questa funzione, non sapendo dove ancorare la contro-scala,
+ * lascerebbe con l'ancora di default (0,0) se mai comparisse.
+ */
+function controScalaTesti(svg: string, t: TaraturaSimbolo): string {
+  if (t.sx === 1 && t.sy === 1) return svg
+  const invSx = 1 / t.sx
+  const invSy = 1 / t.sy
+  return svg.replace(/<text\b([^>]*)>/g, (_intero, attributi: string) => {
+    const x = Number(/\sx="(-?[\d.]+)"/.exec(attributi)?.[1] ?? 0)
+    const y = Number(/\sy="(-?[\d.]+)"/.exec(attributi)?.[1] ?? 0)
+    const transform = `translate(${x} ${y}) scale(${invSx} ${invSy}) translate(${-x} ${-y})`
+    return `<text${attributi} transform="${transform}">`
+  })
+}
+
+/**
+ * Il meccanismo portante del Blocco 3: avvolge la sagoma (già disegnata in coordinate locali,
+ * vedi il commento di testa al file) in un `<g>` che la trasla e la scala secondo la taratura,
+ * mentre le ANCORE — dichiarate a parte in `t.ancore`, già sui multipli della griglia — non
+ * passano di qui e non subiscono nulla: è questo a rendere possibile il gesto di chi tara, far
+ * scorrere il disegno sotto pallini che restano fermi (vedi `TaraturaSimbolo` in `libreria.ts`).
+ *
+ * A taratura NEUTRA restituisce la stringa invariata, senza avvolgerla in un `<g>`: è ciò che
+ * tiene fermi tutti i simboli non tarati, e con loro i riferimenti SVG committati (vedi
+ * `simboli.test.ts`, test «la taratura neutra non aggiunge nulla»). Se emettesse un `<g>` anche
+ * qui, ogni simbolo del documento cambierebbe senza che nulla sia davvero cambiato.
+ */
+export function simboloTrasformato(svg: string, t: TaraturaSimbolo): string {
+  if (t.dx === 0 && t.dy === 0 && t.sx === 1 && t.sy === 1) return svg
+  const controScalato = controScalaTesti(svg, t)
+  return `<g transform="translate(${t.dx} ${t.dy}) scale(${t.sx} ${t.sy})">${controScalato}</g>`
+}
+
+/**
+ * Ingombro dopo la taratura: l'inviluppo del riquadro della sagoma trasformata e di ogni ancora.
+ * Non riceve l'SVG e non lo parsa — sarebbe fragile, e il registro dichiara già `dimensioni`, la
+ * sola cosa che serve. Le ancore vivono già nel sistema finale (`TaraturaSimbolo.ancore`, sui
+ * multipli della griglia) e NON subiscono la trasformazione (vedi `simboloTrasformato`): possono
+ * quindi cadere fuori dal riquadro scalato della sagoma — è il caso, ad esempio, di un'ancora
+ * spostata più in alto del disegno per far posto a una valvola — e quando succede l'ingombro deve
+ * allargarsi per contenerle, o il nodo le taglierebbe fuori sulla tela.
+ */
+export function inviluppo(
+  dimensioni: { larghezza: number; altezza: number },
+  t: TaraturaSimbolo,
+  ancore: SchemaAncora[]
+): { larghezza: number; altezza: number } {
+  // Riquadro della sagoma trasformata: parte da (0,0) — l'origine locale della sagoma — e finisce
+  // in (larghezza*sx, altezza*sy), poi entrambi i capi si traslano di dx/dy. Min/max invece di
+  // dare per scontato che il capo "0" resti il minimo: sx/sy negativi (una specchiatura) lo
+  // capovolgerebbero, anche se nessuna taratura di oggi lo chiede.
+  const x0 = t.dx
+  const y0 = t.dy
+  const x1 = t.dx + dimensioni.larghezza * t.sx
+  const y1 = t.dy + dimensioni.altezza * t.sy
+
+  let minX = Math.min(x0, x1)
+  let maxX = Math.max(x0, x1)
+  let minY = Math.min(y0, y1)
+  let maxY = Math.max(y0, y1)
+
+  for (const a of ancore) {
+    minX = Math.min(minX, a.x)
+    maxX = Math.max(maxX, a.x)
+    minY = Math.min(minY, a.y)
+    maxY = Math.max(maxY, a.y)
+  }
+
+  return { larghezza: maxX - minX, altezza: maxY - minY }
 }
