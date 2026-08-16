@@ -232,7 +232,11 @@ export function righeLegenda(layout: SchemaLayout): RigaTabella[] {
     righe.push({ sinistra: { simbolo: riduttorePressione(0, 0) }, descrizione: 'Riduttore di pressione' })
   }
   if (layout.nodi.some((n) => CON_VALVOLA_SCARICO.includes(n.tipo))) {
-    righe.push({ sinistra: { simbolo: valvolaScarico(0, -4) }, descrizione: 'Valvola di scarico' })
+    // Le due misure (Task 3) non hanno una riga di legenda ciascuna: quella del serbatoio, se
+    // presente, è la più rappresentativa — un disegno senza serbatoi la disegna nella misura
+    // dei rombi/filtri, l'unica che ha.
+    const misura = layout.nodi.some((n) => n.tipo === 'serbatoio') ? 'serbatoio' : 'apparecchio'
+    righe.push({ sinistra: { simbolo: valvolaScarico(0, -4, misura) }, descrizione: 'Valvola di scarico' })
   }
   if (stili.has('standard')) {
     righe.push({ sinistra: { simbolo: campioneTubazione('standard') }, descrizione: 'Tubazione rigida' })

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { chiaveSimbolo } from '../types'
-import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloMuro, simboloUtenze, valvolaIntercettazione, riduttorePressione, testoMultiRiga, DIAMETRO_GIUNZIONE, campioneTubazione, TRATTEGGIO_CONDENSE } from '../symbols'
+import type { SchemaNodo } from '../types'
+import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloMuro, simboloUtenze, valvolaIntercettazione, riduttorePressione, valvolaScarico, testoMultiRiga, DIAMETRO_GIUNZIONE, campioneTubazione, TRATTEGGIO_CONDENSE } from '../symbols'
 import { capoValido } from '../agganci'
 
 describe('chiaveSimbolo', () => {
@@ -336,6 +337,47 @@ describe('campioneTubazione', () => {
   it('il campione di legenda delle condense usa la costante del tratteggio', () => {
     expect(campioneTubazione('condensa')).toContain(`stroke-dasharray="${TRATTEGGIO_CONDENSE}"`)
     expect(TRATTEGGIO_CONDENSE).toBe('10 7')
+  })
+})
+
+describe('i tre rombi si distinguono per il segno interno', () => {
+  const rombo = (tipo: 'essiccatore' | 'filtro' | 'separatore') =>
+    definizioneDi({ tipo } as SchemaNodo).disegna(
+      { id: 'X1', tipo, etichetta: '', gruppo: 'ALTRO', valvoleSicurezza: [], origine: 'scheda' } as SchemaNodo
+    )
+
+  // La firma della valvola di scarico: il vertice dove le due punte della farfalla si toccano,
+  // seguito dall'inizio del secondo triangolo — letta chiamando DAVVERO `valvolaScarico`, nella
+  // stessa posizione (55, 100) in cui `simboloRombo` la posa sotto un rombo 110×110 (essiccatore,
+  // filtro e separatore condividono quell'ingombro). Non è una stringa immaginata: se la
+  // geometria della farfalla cambiasse, questa costante smetterebbe di comparire nel disegno
+  // vero e il test lo scoprirebbe da sé, invece di restare verde per una coincidenza.
+  const FIRMA_VALVOLA_SCARICO = 'L 55 100 Z M 51.85 106.3'
+  it('la firma è davvero prodotta da valvolaScarico', () => {
+    expect(valvolaScarico(55, 100, 'apparecchio')).toContain(FIRMA_VALVOLA_SCARICO)
+  })
+
+  it("l'essiccatore ha due tratti orizzontali, non uno", () => {
+    // Il pattern intercetta ogni segmento orizzontale del disegno, compresi gli attacchi ai
+    // fianchi (larghi 10 unità) e le basi dei due triangoli della valvola di scarico (larghe
+    // ~6 unità): un filtro sull'ampiezza (>20) tiene solo i segni interni del rombo, larghi
+    // ~41 (due volte semiL per la frazione di larghezza del segno), senza dover conoscere le
+    // coordinate esatte di attacchi e valvola.
+    const orizzontali = [...rombo('essiccatore').matchAll(/M (\d+(?:\.\d+)?) (\d+(?:\.\d+)?) L (\d+(?:\.\d+)?) \2\b/g)]
+      .filter((m) => Math.abs(Number(m[3]) - Number(m[1])) > 20)
+    expect(orizzontali).toHaveLength(2)
+  })
+
+  it('il filtro ha una verticale tratteggiata', () => {
+    expect(rombo('filtro')).toMatch(/stroke-dasharray="[^"]+"/)
+  })
+
+  it('il separatore ha un rettangolo interno e nessuna valvola a farfalla', () => {
+    const svg = rombo('separatore')
+    expect(svg).toContain('<rect')
+    // La farfalla della valvola di scarico è due triangoli che si toccano sulla punta: la sua
+    // firma è il tratto orizzontale accanto al vertice. Vedi `valvolaScarico`.
+    expect(svg).not.toContain(FIRMA_VALVOLA_SCARICO)
   })
 })
 

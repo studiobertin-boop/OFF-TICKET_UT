@@ -27,6 +27,15 @@ export const TRATTO = 2
  */
 export const TRATTEGGIO_CONDENSE = '10 7'
 /**
+ * Tratteggio della verticale interna del filtro (`simboloRombo`, segno `verticale-tratteggiata`).
+ * Rapporto dash:gap ≈ 4:1, misurato sui quattro trattini che il blocco CAD `filtro` disegna fra
+ * il vertice alto del rombo e il tratto orizzontale basso (dash ≈ 6,4pt, gap ≈ 1,62pt:
+ * 6,4/1,62 ≈ 3,95). Non è `TRATTEGGIO_CONDENSE` (10 7, rapporto ≈1,43:1): è un segno diverso,
+ * con un ritmo diverso — usare lo stesso tratteggio dei due li renderebbe indistinguibili se mai
+ * comparissero nello stesso disegno.
+ */
+export const TRATTEGGIO_FILTRO = '8 2'
+/**
  * Esportato perché non lo usa solo l'SVG: l'editor rende le annotazioni libere in HTML sulla
  * tela (TestiLiberi.tsx) e deve usare lo STESSO carattere del documento, non una seconda
  * dichiarazione uguale che nessuno terrebbe allineata a questa.
@@ -167,15 +176,29 @@ export function riduttorePressione(
   return base + stelo
 }
 
-/** Valvola di scarico: farfalla verticale con stelo. `x`/`y` al centro della farfalla. */
-export function valvolaScarico(x: number, y: number): string {
-  const l = 8
-  const h = 9
+/**
+ * Valvola di scarico: farfalla verticale con stelo. `x`/`y` al centro della farfalla.
+ *
+ * Il blocco CAD «valvole» (Blocchi.pdf) ne porta DUE misure, non una: quella sotto i serbatoi
+ * è 4,44×8,94pt, quella sotto rombi e filtri 3,12×6,30pt — rapporto larghezza 3,12/4,44 = 0,70,
+ * rapporto altezza 6,30/8,94 = 0,70 (stesso 0,70 su entrambi gli assi). Fino al Blocco 3 Task 3
+ * un'unica misura (l=8, h=9) copriva i due casi, ed era più grande di entrambe — non solo della
+ * più piccola. Il CAD mostra anche una farfalla molto più STRETTA di quella che questo codice
+ * disegnava: rapporto larghezza:altezza ≈ 1:2 su entrambe le misure (3,12:6,30 e 4,44:8,94),
+ * contro l'8:9 (quasi 1:1) di prima — non solo due misure diverse, una forma diversa.
+ */
+export function valvolaScarico(x: number, y: number, misura: 'serbatoio' | 'apparecchio'): string {
+  // Base sul serbatoio: l:h = 4,5:9 = 1:2, il rapporto misurato sul blocco CAD. Rombi e filtri
+  // scalano al 70% (il rapporto 0,70 misurato fra le due misure del blocco «valvole»).
+  const scala = misura === 'serbatoio' ? 1 : 0.7
+  const l = 4.5 * scala
+  const h = 9 * scala
+  const stelo = 8 * scala
   return [
     traccia(
       `M ${x - l} ${y - h} L ${x + l} ${y - h} L ${x} ${y} Z M ${x - l} ${y + h} L ${x + l} ${y + h} L ${x} ${y} Z`
     ),
-    traccia(`M ${x} ${y + h} L ${x} ${y + h + 8}`),
+    traccia(`M ${x} ${y + h} L ${x} ${y + h + stelo}`),
   ].join('')
 }
 
@@ -279,20 +302,49 @@ export function simboloSerbatoio(nodo: SchemaNodo): string {
     })
     .join('')
 
-  const scarico = valvolaScarico(xScarico, y + h + 10)
+  const scarico = valvolaScarico(xScarico, y + h + 10, 'serbatoio')
   return corpo + etichettaCodice + valvole + scarico
 }
 
 /**
- * Simbolo a rombo (essiccatore, filtro, separatore). Nei blocchi CAD i tre si distinguono
- * per il segno interno — il filtro ha un tratto verticale, l'essiccatore e il separatore un
- * tratto orizzontale in basso — e tutti portano due attacchi che sporgono ai fianchi, dove
- * si innestano le tubazioni.
+ * Quota dei segni interni dei rombi che stanno SOPRA il centro, in frazione del semiasse
+ * verticale (`semiH`) del rombo: letta sul blocco CAD `essiccatore` (linea superiore a
+ * 10,2/17,76 = 0,574 del semiasse) e sul blocco `separatore` (bordo superiore del rettangolo
+ * interno a 10,41/17,73 = 0,587) — media 0,58.
+ */
+const FRAZIONE_SEGNO_ALTO = 0.58
+/**
+ * Quota dei segni interni che stanno SOTTO il centro, stessa unità della precedente: letta sulla
+ * linea inferiore dell'essiccatore (9,9/17,76 = 0,557), sul tratto orizzontale in fondo alla
+ * verticale del filtro (9,84/17,76 = 0,554) e sul bordo inferiore del rettangolo del separatore
+ * (9,87/17,73 = 0,557) — le tre misure coincidono (0,554–0,557): è la stessa quota che il CAD usa
+ * per «chiudere» il segno interno in tutti e tre i rombi, arrotondata a 0,56.
+ */
+const FRAZIONE_SEGNO_BASSO = 0.56
+/**
+ * Semilarghezza dei segni interni, in frazione del semiasse orizzontale (`semiL`): letta sui due
+ * tratti dell'essiccatore (7,53 e 7,89 su 17,76 = 0,42–0,44) e sul rettangolo del separatore
+ * (7,56/17,76 = 0,4256). Il codice disegnava già l'unico tratto che aveva a 0,42: la misura lo
+ * conferma, non lo smentisce.
+ */
+const FRAZIONE_SEGNO_LARGHEZZA = 0.42
+
+/**
+ * Simbolo a rombo (essiccatore, filtro, separatore). Nei blocchi CAD i tre si distinguono per il
+ * segno interno, non per la sagoma esterna, che è la stessa per tutti e tre — rombo con due
+ * attacchi che sporgono ai fianchi, dove si innestano le tubazioni:
+ * - l'essiccatore porta DUE tratti orizzontali, uno sopra e uno sotto la sigla;
+ * - il filtro porta una verticale TRATTEGGIATA che scende dal vertice alto fino alla quota del
+ *   tratto basso (non attraversa tutto il rombo), più un tratto orizzontale alla stessa quota;
+ * - il separatore porta un rettangolo verticale, ai bordi delle stesse due quote.
+ * Le tre quote (alto/basso/larghezza) sono condivise perché nel CAD coincidono fra i tre blocchi
+ * (vedi le costanti `FRAZIONE_SEGNO_*` sopra): è la ragione per cui il rettangolo del separatore
+ * e i due tratti dell'essiccatore, se sovrapposti, hanno gli stessi quattro angoli.
  */
 function simboloRombo(
   nodo: SchemaNodo,
-  segno: 'verticale' | 'orizzontale',
-  conScarico: boolean
+  segno: 'due-tratti' | 'verticale-tratteggiata' | 'rettangolo',
+  scarico: 'apparecchio' | 'nessuno'
 ): string {
   const { larghezza, altezza } = DIMENSIONI[nodo.tipo]
   const cx = larghezza / 2
@@ -306,54 +358,94 @@ function simboloRombo(
   const attacchi = traccia(
     `M ${cx - semiL - 10} ${cy} L ${cx - semiL} ${cy} M ${cx + semiL} ${cy} L ${cx + semiL + 10} ${cy}`
   )
-  const interno =
-    segno === 'verticale'
-      ? traccia(`M ${cx} ${cy - semiH} L ${cx} ${cy + semiH}`)
-      : traccia(`M ${cx - semiL * 0.42} ${cy + semiH * 0.5} L ${cx + semiL * 0.42} ${cy + semiH * 0.5}`)
+
+  const yAlto = cy - semiH * FRAZIONE_SEGNO_ALTO
+  const yBasso = cy + semiH * FRAZIONE_SEGNO_BASSO
+  const xSx = cx - semiL * FRAZIONE_SEGNO_LARGHEZZA
+  const xDx = cx + semiL * FRAZIONE_SEGNO_LARGHEZZA
+
+  let interno: string
+  if (segno === 'due-tratti') {
+    interno = traccia(`M ${xSx} ${yAlto} L ${xDx} ${yAlto}`) + traccia(`M ${xSx} ${yBasso} L ${xDx} ${yBasso}`)
+  } else if (segno === 'verticale-tratteggiata') {
+    // `traccia()` non prende un tratteggio: qui serve, quindi il `<path>` è scritto a mano come
+    // fa già `simboloUtenze` per il proprio codolo tratteggiato.
+    const verticale = `<path d="M ${cx} ${cy - semiH} L ${cx} ${yBasso}" fill="none" stroke="#000" stroke-width="${TRATTO}" stroke-linecap="round" stroke-dasharray="${TRATTEGGIO_FILTRO}" />`
+    interno = verticale + traccia(`M ${xSx} ${yBasso} L ${xDx} ${yBasso}`)
+  } else {
+    interno = `<rect x="${xSx}" y="${yAlto}" width="${xDx - xSx}" height="${yBasso - yAlto}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
+  }
 
   const haAccessorio = Boolean(nodo.accessorio)
   const etichettaCodice = testo(cx, haAccessorio ? cy - 12 : cy, nodo.id, haAccessorio ? 16 : 18)
 
-  // L'accessorio ha una resa propria: riquadro per il recipiente filtro, esagono del
-  // circuito frigorifero per lo scambiatore dell'essiccatore.
+  // L'accessorio ha una resa propria: uno stadio (rettangolo dagli angoli arrotondati a mezza
+  // altezza, non un riquadro appena smussato) per il recipiente del filtro; un cerchio col
+  // serpentino a zigzag del circuito frigorifero, a cavallo del tratto basso, per lo
+  // scambiatore dell'essiccatore — così nei blocchi CAD `filtro-recipiente` ed
+  // `essiccatore-scambiatore`.
   let accessorio = ''
   if (nodo.accessorio && nodo.tipo === 'filtro') {
     const rw = 40
     const rh = 18
+    // Raggio a metà altezza: uno stadio pieno, come lo ha descritto il committente
+    // guardando il blocco ingrandito («uno stadio, non un riquadro squadrato»). Il CAD misura
+    // un raggio più piccolo (≈0,35 dell'altezza, 2,67/7,68pt) ma a questa scala un raggio
+    // parziale si legge come un rettangolo smussato, non come uno stadio.
+    const raggio = rh / 2
     accessorio =
-      `<rect x="${cx - rw / 2}" y="${cy + 2}" width="${rw}" height="${rh}" rx="4" ry="4" fill="none" stroke="#000" stroke-width="${TRATTO}" />` +
+      `<rect x="${cx - rw / 2}" y="${cy + 2}" width="${rw}" height="${rh}" rx="${raggio}" ry="${raggio}" fill="none" stroke="#000" stroke-width="${TRATTO}" />` +
       testo(cx, cy + 2 + rh / 2, nodo.accessorio.codice, 11)
   } else if (nodo.accessorio) {
     const r = 9
-    const ey = cy + 26
-    const esagono = Array.from({ length: 6 }, (_, i) => {
-      const a = (Math.PI / 3) * i + Math.PI / 6
-      return `${(cx + r * Math.cos(a)).toFixed(1)} ${(ey + r * Math.sin(a)).toFixed(1)}`
-    })
+    // Stessa quota del tratto basso dell'essiccatore: nel CAD il cerchio è centrato lì,
+    // «a cavallo» del tratto (il cerchio ne copre il tratto centrale, non lo sostituisce).
+    const cyCerchio = cy + semiH * FRAZIONE_SEGNO_BASSO
+    const zigzag = [
+      [cx - r * 0.7, cyCerchio],
+      [cx - r * 0.25, cyCerchio - r * 0.45],
+      [cx + r * 0.25, cyCerchio + r * 0.45],
+      [cx + r * 0.7, cyCerchio],
+    ]
+      .map(([px, py]) => `${px.toFixed(1)} ${py.toFixed(1)}`)
+      .join(' L ')
     accessorio =
       testo(cx, cy + 6, nodo.accessorio.codice, 12) +
-      traccia(`M ${esagono.join(' L ')} Z`)
+      `<circle cx="${cx}" cy="${cyCerchio}" r="${r}" fill="none" stroke="#000" stroke-width="${TRATTO}" />` +
+      traccia(`M ${zigzag}`)
   }
 
-  const scarico = conScarico ? valvolaScarico(cx, cy + semiH + 12) : ''
-  return rombo + attacchi + interno + etichettaCodice + accessorio + scarico
+  const scaricoSvg = scarico === 'apparecchio' ? valvolaScarico(cx, cy + semiH + 12, 'apparecchio') : ''
+  return rombo + attacchi + interno + etichettaCodice + accessorio + scaricoSvg
 }
 
 export function simboloEssiccatore(nodo: SchemaNodo): string {
-  return simboloRombo(nodo, 'orizzontale', true)
+  return simboloRombo(nodo, 'due-tratti', 'apparecchio')
 }
 
 export function simboloFiltro(nodo: SchemaNodo): string {
-  return simboloRombo(nodo, 'verticale', true)
+  return simboloRombo(nodo, 'verticale-tratteggiata', 'apparecchio')
 }
 
-/** Il separatore scarica da un codolo nudo, senza valvola: così nel blocco di riferimento. */
+/**
+ * Il separatore non porta la valvola di scarico degli altri due rombi: nel blocco CAD scarica da
+ * un tratto nudo che scende dal vertice basso e, staccato da un vuoto, un secondo segmento più
+ * in basso — non una farfalla. Il CAD misura 2,28pt/4,8pt/2,22pt (tratto/vuoto/segmento, rapporto
+ * ≈1:2:1); qui in unità assolute (5/10/5, stesso rapporto) perché l'ingombro del nodo (Task 4,
+ * non questo) lascia poco margine sotto il vertice basso — a 110 di altezza e vertice a y=88
+ * restano solo 22 unità prima del bordo dichiarato, e il secondo segmento le riempie appena.
+ */
 export function simboloSeparatore(nodo: SchemaNodo): string {
   const { larghezza, altezza } = DIMENSIONI.separatore
   const cx = larghezza / 2
   const cy = altezza / 2 - 6
   const semiH = altezza / 2 - 16
-  return simboloRombo(nodo, 'orizzontale', false) + traccia(`M ${cx} ${cy + semiH} L ${cx} ${cy + semiH + 14}`)
+  const yVertice = cy + semiH
+  return (
+    simboloRombo(nodo, 'rettangolo', 'nessuno') +
+    traccia(`M ${cx} ${yVertice} L ${cx} ${yVertice + 5}`) +
+    traccia(`M ${cx} ${yVertice + 15} L ${cx} ${yVertice + 20}`)
+  )
 }
 
 /** Tanica raccolta condense: riquadro chiuso col solo codice dentro. */

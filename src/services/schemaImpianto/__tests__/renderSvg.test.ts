@@ -94,8 +94,10 @@ describe('renderSvg', () => {
     const condense = layout.archi.filter((a) => a.stile === 'condensa')
 
     expect(condense.length).toBeGreaterThan(0)
-    // Una linea tratteggiata per ogni scarico condensa, più il codolo del terminale utenze.
-    expect(tratteggiate).toHaveLength(condense.length + 1)
+    // Una linea tratteggiata per ogni scarico condensa, più il codolo del terminale utenze, più
+    // la verticale tratteggiata del filtro (Blocco 3 Task 3: `makeScheda` porta un filtro di
+    // default, ed è l'unico dei tre rombi il cui segno interno è tratteggiato).
+    expect(tratteggiate).toHaveLength(condense.length + 2)
   })
 
   it('disegna l’uscita verso le utenze come nodo, non più come freccia d’ufficio', () => {
