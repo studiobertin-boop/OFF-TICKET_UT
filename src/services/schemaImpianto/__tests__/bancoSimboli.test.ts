@@ -66,8 +66,9 @@ describe('banco del Blocco 3', () => {
   // con un `layoutSchema` che calcolasse la riga una volta sola e la riusasse per l'altro
   // orientamento.
   //
-  // Dal Task 4 il serbatoio orizzontale ha un riquadro proprio (310×137, contro 103×298 del
-  // verticale — `DIMENSIONI_SERBATOIO_ORIZZONTALE` in symbols/index.ts), e `disponiInRiga`
+  // Dal Task 4 il serbatoio orizzontale ha un riquadro proprio (310×140, contro 100×300 del
+  // verticale dopo gli arrotondamenti del Task 8 — `DIMENSIONI_SERBATOIO_ORIZZONTALE` in
+  // symbols/index.ts), e `disponiInRiga`
   // (layout.ts) legge quell'ingombro con `dimensioniDi(nodo)` invece di `DIMENSIONI_NODO[tipo]`:
   // un serbatoio più largo sposta davvero a destra tutto ciò che la riga colloca dopo di lui. La
   // scheda porta un essiccatore apposta, per lo stesso motivo del caso sopra: senza un nodo a

@@ -364,8 +364,8 @@ export function renderSvg(layout: SchemaLayout, libreria: Tarature = {}, options
     `<svg xmlns="http://www.w3.org/2000/svg" width="${larghezzaTotale}" height="${altezzaTotale}" viewBox="0 0 ${larghezzaTotale} ${altezzaTotale}">`,
     // viewBox 15×10 (rapporto 1,5), non più 10×10 (1,0): il blocco CAD `freccia`
     // (Blocchi.pdf, «freccia direzione flusso») misura 5,58×3,72pt, rapporto 1,50 — un
-    // triangolo più allungato di quello disegnato finora (che era un triangolo rettangolo
-    // isoscele, base=altezza). `markerHeight` resta 6 (la stessa scala 0,6 di prima
+    // triangolo più allungato di quello disegnato finora (isoscele con base pari all'altezza,
+    // quindi apice a 53,13° e non retto). `markerHeight` resta 6 (la stessa scala 0,6 di prima
     // sull'asse verticale, che determina lo spessore percepito della punta);
     // `markerWidth` sale a 9 = 15×0,6 per restare alla stessa scala sul nuovo viewBox più largo.
     // `refX=14` mantiene lo stesso margine di 1 unità dall'apice (15) che aveva prima (9 su un

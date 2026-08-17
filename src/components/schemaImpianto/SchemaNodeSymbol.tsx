@@ -45,12 +45,12 @@ export const LATO_HANDLE = 10
 
 /**
  * Lato dell'handle per un nodo di dimensioni date: `LATO_HANDLE`, ma non oltre un terzo del
- * lato minore del riquadro. Sulla giunzione (24×24, quattro punti di presa sulle mezzerie dei
+ * lato minore del riquadro. Sulla giunzione (20×20, quattro punti di presa sulle mezzerie dei
  * lati del riquadro) un handle di 10px si sovrapponeva al vicino e copriva quasi tutta la
  * superficie, lasciando solo qualche pixel al centro da cui trascinare il nodo invece di
- * avviare una connessione — inutilizzabile allo zoom con cui l'editor si apre. Sugli altri
- * simboli, il più piccolo dei quali è la tanica (80×70), il limite non scatta mai: resta
- * `LATO_HANDLE`.
+ * avviare una connessione — inutilizzabile allo zoom con cui l'editor si apre. La tanica, il
+ * simbolo più piccolo dopo di lei, è 80×40: un terzo di 40 fa 13,3, sopra `LATO_HANDLE`, quindi
+ * su di lei e su tutti gli altri il limite non scatta mai.
  */
 function latoHandle(dim: { larghezza: number; altezza: number }): number {
   return Math.min(LATO_HANDLE, Math.min(dim.larghezza, dim.altezza) / 3)

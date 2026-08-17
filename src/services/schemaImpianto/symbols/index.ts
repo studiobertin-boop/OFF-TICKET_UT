@@ -25,7 +25,8 @@ export const TRATTO = 2
  * Fino al Blocco D4 il numero era scritto due volte con due valori diversi ('10 7' qui, '8 6' in
  * SchemaEdgeTubazione.tsx): finche' la tela era nera la differenza non si notava, su fondo bianco
  * il confronto con l'anteprima e' immediato. Non e' il tratteggio del codolo del terminale utenze
- * (`simboloUtenze`), che porta lo stesso numero per coincidenza e vuol dire un'altra cosa.
+ * (`simboloUtenze`), che vuol dire un'altra cosa ed e' rimasto a '10 7' — il valore che questa
+ * costante aveva fino al Task 13, e con cui non coincide piu'.
  *
  * '7 10' (Task 13, Blocco 3), non più '10 7': il blocco CAD `linea-condense` (Blocchi.pdf) non
  * disegna un dash-array nativo — la tratteggia con dieci trattini separati, letti uno per uno
@@ -37,9 +38,11 @@ export const TRATTO = 2
 export const TRATTEGGIO_CONDENSE = '7 10'
 /**
  * Tratteggio della verticale interna del filtro (`simboloRombo`, segno `verticale-tratteggiata`).
- * Rapporto dash:gap ≈ 4:1, misurato sui quattro trattini che il blocco CAD `filtro` disegna fra
- * il vertice alto del rombo e il tratto orizzontale basso (dash ≈ 6,4pt, gap ≈ 1,62pt:
- * 6,4/1,62 ≈ 3,95). Non è `TRATTEGGIO_CONDENSE` (7 10, rapporto ≈0,7:1): è un segno diverso,
+ * Rapporto dash:gap fra 3:1 e 4:1, misurato sui quattro trattini che il blocco CAD `filtro`
+ * disegna fra il vertice alto del rombo e il tratto orizzontale basso: 4,98 / 6,42 / 6,36 / 4,98pt
+ * — i due centrali più lunghi dei due esterni — su gap di 1,62pt esatti, cioè da 3,07 a 3,96 volte
+ * il gap (media ≈3,5). '8 2' è la cifra tonda di quella famiglia, non la misura di un trattino in
+ * particolare. Non è `TRATTEGGIO_CONDENSE` (7 10, rapporto ≈0,7:1): è un segno diverso,
  * con un ritmo diverso — usare lo stesso tratteggio dei due li renderebbe indistinguibili se mai
  * comparissero nello stesso disegno.
  */
@@ -264,7 +267,7 @@ export function valvolaIntercettazione(
  * ridotta — non uno stelo di regolazione aggiunto sopra. Fino a questo task il commento diceva
  * «simbolo segnaposto... non un blocco CAD del committente»: falso, ed è la terza volta in
  * questo blocco che un commento dichiara assente qualcosa che nel CAD c'era (le prime due, Task
- * 4: pacco bombole e compressore-disoleatore) — il blocco esiste (indice 11 di `NOMI`,
+ * 4: pacco bombole e compressore-disoleatore) — il blocco esiste (`riduttore` in `NOMI`,
  * `scripts/blocchi-cad.py`), con l'etichetta «Riduttore di pressione» accanto (letta con
  * `page.get_text("words")`, non solo dedotta dall'ordine).
  *
@@ -409,12 +412,13 @@ export function simboloCompressore(nodo: SchemaNodo): string {
   // Fix round 2 (revisione): il giro precedente diceva «il CAD non porta una variante "con
   // disoleatore" a sé» — falso, e la seconda volta in questo file che una costante viene
   // dichiarata non misurabile a torto (la prima è stata il pacco bombole, fix round 1). Il
-  // blocco esiste: `compressore-disoleatore`, indice 2 di `NOMI` in `scripts/blocchi-cad.py`,
-  // il caso esplicito che `scripts/confronto-simboli.ts` genera apposta perché ometterlo
-  // «mente per omissione» (il suo stesso commento di testa, Task 1).
+  // blocco esiste: `compressore-disoleatore` in `NOMI` (`scripts/blocchi-cad.py`), il caso
+  // esplicito che `scripts/confronto-simboli.ts` genera apposta perché ometterlo «mente per
+  // omissione» (il suo stesso commento di testa, Task 1).
   //
-  // Misurato isolando i sotto-elementi del gruppo (`dettaglio-items.py`, stessa tecnica delle
-  // altre costanti di questo file): riquadro 53,40×53,34pt — lo stesso quadrato del compressore
+  // Misurato isolando i sotto-elementi del gruppo (`scripts/blocchi-cad.py`, misura manuale sui
+  // sotto-elementi come per le altre costanti di questo file — vedi `CORPO_SERBATOIO_VERTICALE`):
+  // riquadro 53,40×53,34pt — lo stesso quadrato del compressore
   // semplice, stesso raggio 0,25×larghezza. Girante: centro a (37,35; 29,31)pt dall'angolo del
   // blocco → frazioni (0,699; 0,549). Box del disoleatore: origine a (1,44; 24,00)pt, dimensioni
   // 21,30×26,70pt → frazioni origine (0,027; 0,450), dimensioni (0,399; 0,501) — un box più alto
@@ -896,7 +900,7 @@ export const REGISTRO_SIMBOLI: Record<ChiaveSimbolo, DefinizioneSimbolo> = {
     // Le cinque ancore chieste dal committente (Task 8, Blocco 3), non più le quattro di prima
     // (sx/dx a metà altezza, alto-in/basso-out sull'asse): quattro sui fianchi, alle due quote
     // dove le calotte — semicerchi di raggio 50, metà della larghezza 100 — incontrano il
-        // cilindro (40 + 50 = 90 in alto, 40 + 260 - 50 = 250 in basso, sui due fianchi x=0/100),
+    // cilindro (40 + 50 = 90 in alto, 40 + 260 - 50 = 250 in basso, sui due fianchi x=0/100),
     // più una in basso al centro (x=50) sulla valvola di scarico (y=300, il fondo del
     // riquadro). Le quattro laterali accettano aria (compressore e stadio successivo si
     // agganciano indifferentemente in alto o in basso); quella in basso condensa. `sx`/`dx`

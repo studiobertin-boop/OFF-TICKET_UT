@@ -231,7 +231,7 @@ function posizioneTerminale(
   const ultimo = inLinea.reduce((a, b) => (a.x > b.x ? a : b))
   // `dimensioniDi`, non `DIMENSIONI_NODO[ultimo.tipo]`: stesso difetto già corretto in
   // `calcolaMuro`/`ascissaProposta` (Task 4) — se il nodo più a destra è un serbatoio
-  // orizzontale, l'ingombro indicizzato sul verticale (103×298 invece di 310×137) metterebbe il
+  // orizzontale, l'ingombro indicizzato sul verticale (100×300 invece di 310×140) metterebbe il
   // terminale utenze sopra il serbatoio invece che alla sua destra.
   const dim = dimensioniDi(ultimo, libreria)
   return {
@@ -263,7 +263,7 @@ function capoRiattaccato(
   stile: SchemaArco['stile'],
   libreria: Tarature
 ): SchemaCapo | null {
-  // Non basta che l'id si trovi ancora (`ancoraDi`): và anche verificato che quell'ancora
+  // Non basta che l'id si trovi ancora (`ancoraDi`): va anche verificato che quell'ancora
   // ammetta tuttora lo stile dell'arco, o un id rimasto ma riassegnato a un altro fluido
   // (accetta cambiato da una taratura, senza toccare l'id) sfuggirebbe al riattacco.
   const attuale = ancoraDi(nodo, capo.ancora, libreria)

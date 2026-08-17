@@ -23,18 +23,33 @@ import type { ChiaveSimbolo } from './types'
 function taraturaValida(v: unknown): v is TaraturaSimbolo {
   if (!v || typeof v !== 'object') return false
   const t = v as Record<string, unknown>
-  if (typeof t.dx !== 'number' || typeof t.dy !== 'number') return false
-  if (typeof t.sx !== 'number' || typeof t.sy !== 'number') return false
+  if (!numeroFinito(t.dx) || !numeroFinito(t.dy)) return false
+  // Le scale, oltre che finite, devono essere POSITIVE. `typeof === 'number'` da solo lasciava
+  // passare `0` e `NaN`, che è esattamente la riga scritta a mano da cui questa funzione difende:
+  // `controScalaTesti` (symbols/index.ts) calcola `1 / sx`, e con zero ne esce un `Infinity` che
+  // finisce dentro il `transform` di ogni scritta del simbolo; con `NaN` un `transform` che il
+  // browser scarta in blocco, facendo sparire la scritta senza un errore da nessuna parte. Una
+  // scala negativa non è impossibile in sé (specchierebbe la sagoma) ma nessun gesto la produce —
+  // `fattoreDeforma` (useTaratura.ts) rifiuta già di attraversare lo zero — quindi trovarla qui
+  // vuol dire riga corrotta, non taratura esotica.
+  if (!numeroFinito(t.sx) || !numeroFinito(t.sy)) return false
+  if (t.sx <= 0 || t.sy <= 0) return false
   if (!Array.isArray(t.ancore)) return false
   return t.ancore.every(
     (a) =>
       Boolean(a) &&
       typeof a === 'object' &&
       typeof (a as Record<string, unknown>).id === 'string' &&
-      typeof (a as Record<string, unknown>).x === 'number' &&
-      typeof (a as Record<string, unknown>).y === 'number' &&
+      numeroFinito((a as Record<string, unknown>).x) &&
+      numeroFinito((a as Record<string, unknown>).y) &&
       Array.isArray((a as Record<string, unknown>).accetta)
   )
+}
+
+/** `typeof === 'number'` non basta: `NaN` e gli infiniti sono numeri, e in una coordinata o in una
+ *  scala portano avanti un valore da cui nessun calcolo a valle sa più uscire. */
+function numeroFinito(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v)
 }
 
 /**

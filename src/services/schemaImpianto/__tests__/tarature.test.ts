@@ -33,6 +33,34 @@ describe('taratureDaRighe', () => {
     expect(risolte.compressore).toBeUndefined()
   })
 
+  it('scarta una scala nulla, negativa o non finita', () => {
+    // Il caso concreto da cui `taraturaValida` esiste per difendere: `controScalaTesti`
+    // (symbols/index.ts) calcola `1 / sx` per ogni scritta del simbolo. Con `sx: 0` ne esce
+    // `Infinity` dentro un `transform`; con `NaN` un `transform` che il browser scarta in blocco,
+    // e la scritta sparisce senza un errore da nessuna parte. `typeof === 'number'` da solo li
+    // lasciava passare tutti e tre.
+    const corpo = (scala: unknown) => ({ dx: 0, dy: 0, sx: scala, sy: 1, ancore: [] })
+
+    expect(taratureDaRighe([{ chiave: 'compressore', taratura: corpo(0) }])).toEqual({})
+    expect(taratureDaRighe([{ chiave: 'compressore', taratura: corpo(-1) }])).toEqual({})
+    expect(taratureDaRighe([{ chiave: 'compressore', taratura: corpo(Number.NaN) }])).toEqual({})
+    expect(taratureDaRighe([{ chiave: 'compressore', taratura: corpo(Number.POSITIVE_INFINITY) }])).toEqual({})
+  })
+
+  it('scarta una traslazione o una coordinata di ancora non finita', () => {
+    expect(
+      taratureDaRighe([{ chiave: 'compressore', taratura: { dx: Number.NaN, dy: 0, sx: 1, sy: 1, ancore: [] } }])
+    ).toEqual({})
+    expect(
+      taratureDaRighe([
+        {
+          chiave: 'compressore',
+          taratura: { dx: 0, dy: 0, sx: 1, sy: 1, ancore: [{ id: 'a', x: Number.NaN, y: 0, accetta: ['aria'] }] },
+        },
+      ])
+    ).toEqual({})
+  })
+
   it('righe vuote producono una libreria vuota', () => {
     expect(taratureDaRighe([])).toEqual({})
   })
