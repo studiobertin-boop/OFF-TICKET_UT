@@ -77,6 +77,20 @@ export interface SchemaNodo {
    * di origine 'scheda': un nodo aggiunto a mano dalla palette è una scelta deliberata.
    */
   origine: 'scheda' | 'manuale'
+  /**
+   * Il codice che l'utente VEDE, quando l'ha scritto a mano: sul disegno dentro il simbolo, e in
+   * tabella nella lista apparecchiature. Assente — il caso di ogni nodo di scheda, di ogni layout
+   * salvato prima del 17-08-2026 e di ogni nodo manuale mai rinominato — vale `id`, che è ciò che
+   * si mostrava prima che questo campo esistesse.
+   *
+   * Sta a parte dall'`id` di proposito, e non lo rimpiazza: l'`id` è l'identificativo con cui
+   * archi, capi, segni, cronologia e taratura si riferiscono al nodo, e sui nodi manuali porta il
+   * prefisso `M-` proprio per non collidere con un codice di scheda comparso PIÙ TARDI (vedi
+   * `codiceLibero`, SchemaEditor.tsx). Lasciare rinominare l'`id` riaprirebbe quella collisione,
+   * che al momento della scrittura non si può nemmeno controllare — il codice rivale ancora non
+   * esiste. Questo campo no: al peggio due righe uguali in tabella, visibili e correggibili.
+   */
+  codice?: string
 }
 
 /** Cosa può agganciarsi a un punto di attacco di un simbolo. */
