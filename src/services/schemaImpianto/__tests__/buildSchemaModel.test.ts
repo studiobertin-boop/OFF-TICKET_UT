@@ -401,7 +401,8 @@ describe('terminale verso le utenze', () => {
 
     const utenze = modello.nodi.find((n) => n.tipo === 'utenze')!
     expect(utenze.id).toBe('UTENZE')
-    expect(utenze.etichetta).toBe('Utenze aria')
+    // Due righe: «aria» va a capo sotto «Utenze» (richiesta del committente, 17-08-2026).
+    expect(utenze.etichetta).toBe('Utenze\naria')
     expect(utenze.origine).toBe('scheda')
 
     // La catena è E1 → F1 (i filtri di linea stanno a valle dell'essiccatore): l'ultimo è F1.

@@ -258,7 +258,10 @@ function nodoUtenze(): SchemaNodo {
   return {
     id: ID_UTENZE,
     tipo: 'utenze',
-    etichetta: 'Utenze aria',
+    // Due righe dal 17-08-2026: il committente vuole «aria» a capo sotto «Utenze». L'a capo sta
+    // nell'etichetta e non in una regola che spezza da sé sull'ultima parola — così resta
+    // modificabile dal dialogo, e nessun'altra etichetta se lo ritrova imposto.
+    etichetta: 'Utenze\naria',
     gruppo: 'LINEA_DISTRIBUZIONE',
     valvoleSicurezza: [],
     // Origine 'scheda' e non 'manuale': fa parte della proposta automatica, quindi la

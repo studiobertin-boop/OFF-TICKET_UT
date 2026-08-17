@@ -14,6 +14,7 @@
  * si limita a riesportare `DIMENSIONI_NODO` per i consumatori esistenti.
  */
 import { arrotonda, ondula } from '../tratti'
+import { PASSO_GRIGLIA } from '../griglia'
 import type { SchemaArcoStile, SchemaNodoTipo, SchemaNodo, SchemaAncora, SchemaLatoAncora, ChiaveSimbolo } from '../types'
 import { chiaveSimbolo } from '../types'
 import type { Tarature, TaraturaSimbolo } from '../libreria'
@@ -137,7 +138,9 @@ const DIMENSIONI: Record<SchemaNodoTipo, { larghezza: number; altezza: number }>
   // Arrotondato a 120×120 come il compressore (Task 8, Blocco 3, stessa misura CAD, stesso
   // vincolo sull'ancora `dx`: y legge `altezza/2`, che vuole `altezza` multiplo di 20).
   pacco_bombole: { larghezza: 120, altezza: 120 },
-  utenze: { larghezza: 190, altezza: 120 },
+  // 200, non 190 (17-08-2026): l'ancora `in` sta a metà larghezza da quando la scritta è
+  // centrata sopra la punta, e 95 non cade sulla griglia.
+  utenze: { larghezza: 200, altezza: 120 },
   // 24 → 20 (Task 8, Blocco 3): le quattro ancore coincidono nel centro (`larghezza/2`), che
   // cade sulla griglia solo se `larghezza` è multiplo di 20. Non è una misura CAD (la giunzione
   // è un segnaposto, vedi `simboloGiunzione`): 20 resta ampiamente più largo del pallino
@@ -814,25 +817,26 @@ export function simboloGiunzione(_nodo: SchemaNodo): string {
  * esattamente ciò che faceva uscire la scritta dal riquadro.
  */
 const UTENZE = {
-  /**
-   * Ascissa del codolo, la stessa dell'ancora `in` nel registro: 10, non più 12 (Task 8, Blocco
-   * 3 — non una misura del disegno di riferimento del committente, solo il valore più vicino
-   * che cade sulla griglia).
-   */
-  x: 10,
-  /** Rientro della scritta rispetto al codolo. */
-  rientroScritta: 18,
   dimensioneScritta: 18,
-  /** Aria fra la fine della scritta e il bordo destro del riquadro. */
-  margineDestro: 12,
+  /** Aria fra la fine della scritta e il bordo del riquadro, su entrambi i lati. */
+  margineLaterale: 12,
   /**
    * Larghezza media di un carattere, in frazione della dimensione del font. Per Arial 0,5 è una
    * buona approssimazione: serve a decidere quanto allargare la tela, non a comporre
    * tipograficamente, e misurare i glifi richiederebbe un DOM che queste funzioni non hanno.
    */
   larghezzaCarattere: 0.5,
-  /** Aria fra l'ultima riga della scritta e il fondo del riquadro. */
-  margineInferiore: 10,
+  /** Aria fra il bordo alto del riquadro e la cima della prima riga della scritta. */
+  margineSopra: 10,
+  /** Aria fra il fondo dell'ultima riga e il vertice della punta di freccia. */
+  ariaSottoLaScritta: 6,
+  /**
+   * Dal vertice della punta all'ancora `in`, in fondo al codolo tratteggiato. Era implicita nella
+   * differenza fra l'altezza del registro e la quota fissa della punta; da quando la punta si
+   * abbassa col numero di righe serve esplicita, o disegno e ingombro la calcolerebbero in due
+   * modi diversi — è già successo su questo simbolo.
+   */
+  lunghezzaCodolo: 94,
 }
 
 /**
@@ -844,6 +848,49 @@ const UTENZE = {
  * altrimenti potrebbero divergere in silenzio se una sola delle due venisse mai ritoccata.
  */
 export const TESTO_LIBERO = { dimensione: UTENZE.dimensioneScritta, larghezzaCarattere: UTENZE.larghezzaCarattere }
+
+/**
+ * Le tre misure del terminale utenze, in un posto solo: le leggono sia chi lo disegna
+ * (`simboloUtenze`) sia chi ne calcola l'ingombro (`riquadroDi`). Erano due formule scritte a
+ * mano in due punti, ed e' il genere di duplicazione che su questo simbolo ha gia' fatto
+ * divergere disegno e riquadro.
+ *
+ * Dal 17-08-2026 la scritta sta SOPRA la punta di freccia e centrata su di essa (richiesta del
+ * committente), non piu' di fianco al codolo. Da qui una conseguenza obbligata: il codolo non
+ * puo' piu' stare sul bordo sinistro, o meta' della scritta cadrebbe fuori dal riquadro e il
+ * documento la taglierebbe. Codolo e ancora `in` stanno quindi a meta' larghezza, e l'ingombro
+ * si allarga con la riga piu' lunga.
+ */
+function altezzaScrittaUtenze(etichetta: string): number {
+  const righe = etichetta.split('\n')
+  return (righe.length - 1) * UTENZE.dimensioneScritta * INTERLINEA_TESTO + UTENZE.dimensioneScritta
+}
+
+/** Quota del vertice della punta: scende di quanto occupano le righe posate sopra di essa. */
+function quotaPuntaUtenze(etichetta: string): number {
+  return UTENZE.margineSopra + altezzaScrittaUtenze(etichetta) + UTENZE.ariaSottoLaScritta
+}
+
+/**
+ * Ingombro del terminale. Larghezza e altezza sono arrotondate per eccesso a multipli di
+ * `PASSO_GRIGLIA * 2` e `PASSO_GRIGLIA`: l'ancora `in` sta a meta' larghezza e in fondo al
+ * codolo, e deve cadere sulla griglia come ogni altra ancora di fabbrica (Blocco 3, Task 8).
+ * Prima di questa rifinitura l'altezza dinamica non lo faceva — un terminale con l'etichetta su
+ * piu' righe portava la propria ancora fuori griglia senza che nessuno se ne accorgesse.
+ */
+function ingombroUtenze(etichetta: string): { larghezza: number; altezza: number } {
+  const piuLunga = Math.max(...etichetta.split('\n').map((r) => r.length))
+  const scritta = piuLunga * UTENZE.dimensioneScritta * UTENZE.larghezzaCarattere
+  const larghezza = Math.max(
+    DIMENSIONI.utenze.larghezza,
+    Math.ceil((scritta + 2 * UTENZE.margineLaterale) / (PASSO_GRIGLIA * 2)) * (PASSO_GRIGLIA * 2)
+  )
+  const altezza = Math.max(
+    DIMENSIONI.utenze.altezza,
+    Math.ceil((quotaPuntaUtenze(etichetta) + 12 + UTENZE.lunghezzaCodolo) / PASSO_GRIGLIA) * PASSO_GRIGLIA
+  )
+  return { larghezza, altezza }
+}
 
 /**
  * Terminale «Alle utenze»: codolo tratteggiato che sale dall'ancora, punta di freccia e la
@@ -860,13 +907,15 @@ export const TESTO_LIBERO = { dimensione: UTENZE.dimensioneScritta, larghezzaCar
  * due volte.
  */
 export function simboloUtenze(nodo: SchemaNodo): string {
-  const { altezza } = dimensioniDi(nodo)
-  const x = UTENZE.x
-  const yPunta = 14
+  const { larghezza, altezza } = dimensioniDi(nodo)
+  const x = larghezza / 2
+  const yPunta = quotaPuntaUtenze(nodo.etichetta)
+  // `dominant-baseline="central"`: la y passata e' il centro della prima riga, non la sua base.
+  const yPrimaRiga = UTENZE.margineSopra + UTENZE.dimensioneScritta / 2
   return [
     `<path d="M ${x} ${altezza} L ${x} ${yPunta + 12}" fill="none" stroke="#000" stroke-width="${TRATTO}" stroke-dasharray="10 7" />`,
     `<path d="M ${x - 6} ${yPunta + 13} L ${x} ${yPunta} L ${x + 6} ${yPunta + 13} Z" fill="#000" />`,
-    testoMultiRiga(x + UTENZE.rientroScritta, yPunta + 6, nodo.etichetta, UTENZE.dimensioneScritta, 'start'),
+    testoMultiRiga(x, yPrimaRiga, nodo.etichetta, UTENZE.dimensioneScritta, 'middle'),
   ].join('')
 }
 
@@ -1009,8 +1058,9 @@ export const REGISTRO_SIMBOLI: Record<ChiaveSimbolo, DefinizioneSimbolo> = {
     dimensioni: DIMENSIONI.utenze,
     // Una sola: la linea aria ci arriva e finisce lì. Sta in fondo al codolo, dove il
     // tratteggio comincia, così la tubazione entrante e il codolo formano un tratto continuo.
-    // x=10 (UTENZE.x), non più 12 (Task 8, Blocco 3).
-    ancore: [{ id: 'in', x: 10, y: 120, accetta: ['aria'] }],
+    // Questi due valori sono quelli del terminale più piccolo: `ancoreDi` li rifà entrambi
+    // sull'ingombro vero, che cresce con la scritta.
+    ancore: [{ id: 'in', x: 100, y: 120, accetta: ['aria'] }],
     disegna: simboloUtenze,
   },
 }
@@ -1045,8 +1095,11 @@ export function definizioneDi(
 export function ancoreDi(nodo: SchemaNodo, libreria: Tarature = {}): SchemaAncora[] {
   const ancore = definizioneDi(nodo, libreria).ancore
   if (nodo.tipo !== 'utenze') return ancore
-  const { altezza } = dimensioniDi(nodo, libreria)
-  return ancore.map((a) => (a.id === 'in' ? { ...a, y: altezza } : a))
+  // Segue l'ingombro su tutti e due gli assi: dal 17-08-2026 il codolo sta a metà larghezza (la
+  // scritta gli sta sopra, centrata), e la larghezza cresce con la riga più lunga come già
+  // faceva l'altezza col numero di righe.
+  const { larghezza, altezza } = dimensioniDi(nodo, libreria)
+  return ancore.map((a) => (a.id === 'in' ? { ...a, x: larghezza / 2, y: altezza } : a))
 }
 
 export function ancoraDi(nodo: SchemaNodo, id: string, libreria: Tarature = {}): SchemaAncora | undefined {
@@ -1139,19 +1192,7 @@ export function riquadroDi(
   const dimensioni = definizioneDi(nodo, libreria).dimensioni
   if (nodo.tipo !== 'utenze') return { x: 0, y: 0, ...dimensioni }
 
-  const righe = nodo.etichetta.split('\n')
-  const piuLunga = Math.max(...righe.map((r) => r.length))
-  const scritta = piuLunga * UTENZE.dimensioneScritta * UTENZE.larghezzaCarattere
-  const larghezzaNecessaria = UTENZE.x + UTENZE.rientroScritta + scritta + UTENZE.margineDestro
-  // La prima riga è centrata a `yPunta + 6` = 20; ogni riga successiva scende di un'interlinea.
-  const ultimaRiga = 20 + (righe.length - 1) * UTENZE.dimensioneScritta * INTERLINEA_TESTO
-  const altezzaNecessaria = ultimaRiga + UTENZE.margineInferiore
-  return {
-    x: 0,
-    y: 0,
-    larghezza: Math.max(dimensioni.larghezza, Math.ceil(larghezzaNecessaria)),
-    altezza: Math.max(dimensioni.altezza, Math.ceil(altezzaNecessaria)),
-  }
+  return { x: 0, y: 0, ...ingombroUtenze(nodo.etichetta) }
 }
 
 /** Ingombri per tipo, ricavati dal registro. Conserva la forma che `layout.ts` già usa. */

@@ -313,17 +313,18 @@ describe('simbolo «Alle utenze»', () => {
     // Il path completo (non il solo `fill="#000"`, che compare già sul <text> della scritta e
     // quindi non discriminerebbe un'implementazione priva del triangolo) prova che il
     // triangolo esiste davvero, con la geometria attesa.
-    // 4/10/16, non più 6/12/18: `UTENZE.x` è sceso a 10 (Task 8, Blocco 3, perché l'ancora
-    // cadesse sulla griglia — vedi il suo commento in symbols/index.ts), e la punta segue.
-    expect(svg).toContain('<path d="M 4 27 L 10 14 L 16 27 Z" fill="#000" />')
+    // Centrata sul riquadro (100 = 200/2) e abbassata sotto la scritta, che dal 17-08-2026 le
+    // sta sopra: la punta non è più a quota fissa 14 sull'ascissa 10 del bordo sinistro.
+    expect(svg).toContain('<path d="M 94 47 L 100 34 L 106 47 Z" fill="#000" />')
     expect(svg).not.toContain('marker-end')
   })
 
   it('dichiara una sola ancora, in basso al codolo, che accetta aria', () => {
     const def = definizioneDi(utenze)
-    // x=10, non più 12 (Task 8, Blocco 3): vedi il commento su `UTENZE.x`, symbols/index.ts.
-    expect(def.ancore).toEqual([{ id: 'in', x: 10, y: 120, accetta: ['aria'] }])
-    expect(def.dimensioni).toEqual({ larghezza: 190, altezza: 120 })
+    // I valori del registro sono quelli del terminale più piccolo: `ancoreDi` rifà x e y
+    // sull'ingombro vero, che cresce con la scritta. x=100 è metà della larghezza minima.
+    expect(def.ancore).toEqual([{ id: 'in', x: 100, y: 120, accetta: ['aria'] }])
+    expect(def.dimensioni).toEqual({ larghezza: 200, altezza: 120 })
   })
 
   // La spec promette «ingombro largo abbastanza da contenere la scritta, così `dimensioniLayout`
@@ -336,9 +337,9 @@ describe('simbolo «Alle utenze»', () => {
     const piuLunga = dimensioniDi({ ...utenze, etichetta: 'Utenze aria compressa reparto 2 e 3' })
 
     // Una scritta breve non stringe il riquadro sotto il minimo del registro.
-    expect(corta.larghezza).toBe(190)
+    expect(corta.larghezza).toBe(200)
     // Una lunga lo allarga, e la scritta ci sta dentro per intero.
-    expect(lunga.larghezza).toBeGreaterThan(190)
+    expect(lunga.larghezza).toBeGreaterThan(200)
     expect(simboloDi({ ...utenze, etichetta: 'Utenze aria compressa reparto 2' })).toContain(
       '>Utenze aria compressa reparto 2</tspan>'
     )
@@ -367,6 +368,45 @@ describe('simbolo «Alle utenze»', () => {
   })
 })
 
+describe('la scritta del terminale sta sopra la punta, centrata', () => {
+  const terminale = (etichetta: string) => ({
+    id: 'UTENZE', tipo: 'utenze' as const, etichetta, gruppo: 'LINEA_DISTRIBUZIONE' as const,
+    valvoleSicurezza: [], origine: 'scheda' as const,
+  })
+
+  it('incolonna le righe sul codolo, con giustificazione centrata', () => {
+    const nodo = terminale('Utenze\naria')
+    const svg = simboloUtenze(nodo)
+    expect(svg).toContain('text-anchor="middle"')
+
+    const tspan = [...svg.matchAll(/<tspan x="([\d.]+)" y="([\d.]+)">([^<]*)<\/tspan>/g)]
+    expect(tspan.map((m) => m[3])).toEqual(['Utenze', 'aria'])
+    // Sull'ascissa del codolo, non rientrate a destra come prima del 17-08-2026.
+    const ascissaCodolo = Number(/M ([\d.]+) [\d.]+ L/.exec(svg)![1])
+    expect(tspan.map((m) => Number(m[1]))).toEqual([ascissaCodolo, ascissaCodolo])
+  })
+
+  it('le righe stanno tutte sopra il vertice della punta', () => {
+    const svg = simboloUtenze(terminale('Utenze\naria'))
+    const puntaY = Number(/L [\d.]+ ([\d.]+) L/.exec(svg)![1])
+    const ordinate = [...svg.matchAll(/<tspan x="[\d.]+" y="([\d.]+)">/g)].map((m) => Number(m[1]))
+    for (const y of ordinate) expect(y).toBeLessThan(puntaY)
+  })
+
+  it('la scritta ci sta dentro: non sporge dal riquadro nemmeno se lunga', () => {
+    // Centrata sul codolo, una scritta lunga sporge da ENTRAMBI i lati: se il riquadro non
+    // crescesse abbastanza, la metà sinistra finirebbe a coordinate negative e il documento la
+    // taglierebbe. È la ragione per cui il codolo è dovuto passare al centro dell'ingombro.
+    const nodo = terminale('Utenze aria compressa reparto verniciatura')
+    const { larghezza } = dimensioniDi(nodo)
+    const svg = simboloUtenze(nodo)
+    const riga = /<tspan x="([\d.]+)" y="[\d.]+">([^<]*)<\/tspan>/.exec(svg)!
+    const meta = (riga[2].length * 18 * 0.5) / 2
+    expect(Number(riga[1]) - meta).toBeGreaterThanOrEqual(0)
+    expect(Number(riga[1]) + meta).toBeLessThanOrEqual(larghezza)
+  })
+})
+
 describe('terminale utenze su più righe', () => {
   const terminale = (etichetta: string) => ({
     id: 'UTENZE', tipo: 'utenze' as const, etichetta, gruppo: 'LINEA_DISTRIBUZIONE' as const,
@@ -386,37 +426,45 @@ describe('terminale utenze su più righe', () => {
     // mutazione plausibile di «riga più lunga») il risultato è comunque minore di 231, quindi il
     // confronto passerebbe con entrambe le implementazioni sbagliate. La riga più lunga di
     // «Utenze aria» / «reparto 2» è 11 caratteri, sotto quanto serve a superare il minimo del
-    // registro: fissare il valore atteso a 190 (quel minimo) è l'unico modo che scopre la
+    // registro: fissare il valore atteso a 200 (quel minimo) è l'unico modo che scopre la
     // differenza.
     const dueRigheCorte = dimensioniDi(terminale('Utenze aria\nreparto 2'))
     const unaRigaLunga = dimensioniDi(terminale('Utenze aria reparto 2'))
-    expect(dueRigheCorte.larghezza).toBe(190)
+    expect(dueRigheCorte.larghezza).toBe(200)
     expect(dueRigheCorte.larghezza).toBeLessThan(unaRigaLunga.larghezza)
   })
 
-  it('l’altezza cresce col numero di righe, e solo quando serve', () => {
+  it('l’altezza cresce a ogni riga in più, e le quote restano sulla griglia', () => {
     const una = dimensioniDi(terminale('Utenze aria'))
     const due = dimensioniDi(terminale('Utenze aria\nreparto 2'))
     const otto = dimensioniDi(terminale(Array.from({ length: 8 }, (_, i) => `riga ${i}`).join('\n')))
-    expect(due.altezza).toBe(una.altezza)
-    expect(otto.altezza).toBeGreaterThan(una.altezza)
-    // Valore atteso ESATTO, non solo un limite inferiore: un `toBeGreaterThanOrEqual` non si
-    // accorgerebbe se `UTENZE.margineInferiore` (symbols/index.ts) cambiasse — l'altezza
-    // crescerebbe comunque, e resterebbe sopra la soglia. 20 è il centro della prima riga
-    // (`yPunta + 6`), 7 * 18 * 1,25 (INTERLINEA_TESTO) porta all'ultima delle otto righe, e
-    // `margineInferiore` (10) è l'aria fra quella riga e il fondo del riquadro; il risultato è
-    // arrotondato per eccesso.
-    expect(otto.altezza).toBe(188)
+
+    // Valori attesi ESATTI, non semplici disuguaglianze: un `toBeGreaterThan` non si accorgerebbe
+    // se i margini attorno alla scritta cambiassero. Fino al 17-08-2026 la scritta stava di
+    // fianco al codolo e due righe ci stavano dentro senza far crescere il riquadro; da quando
+    // sta sopra la punta, ogni riga in più alza il terminale.
+    expect(una.altezza).toBe(140)
+    expect(due.altezza).toBe(170)
+    expect(otto.altezza).toBe(300)
+
+    // Sulla griglia, tutte e tre: l'ancora `in` sta in fondo al codolo e ne segue l'altezza, e
+    // un'ancora fuori griglia è precisamente ciò che il Blocco 3 ha tolto di mezzo. Prima di
+    // questa rifinitura un terminale su più righe la portava fuori (188, per otto righe).
+    for (const misura of [una, due, otto]) {
+      expect(misura.altezza % PASSO_GRIGLIA).toBe(0)
+      expect((misura.larghezza / 2) % PASSO_GRIGLIA).toBe(0)
+    }
   })
 
   it('il codolo parte dal fondo del riquadro, che è dove si attacca la tubazione', () => {
     const lungo = terminale(Array.from({ length: 8 }, (_, i) => `riga ${i}`).join('\n'))
     const altezza = dimensioniDi(lungo).altezza
-    // 10 è `UTENZE.x` (non più 12, Task 8, Blocco 3), l'ascissa del codolo: la costante non è
-    // esportata, quindi il test la fissa come letterale — se cambia, questo test deve
-    // accorgersene.
-    expect(simboloUtenze(lungo)).toContain(`M 10 ${altezza}`)
-    expect(ancoreDi(lungo).find((a) => a.id === 'in')!.y).toBe(altezza)
+    // Il codolo sta a metà larghezza da quando la scritta gli sta sopra centrata: l'ancora `in`
+    // lo segue su entrambi gli assi, ed è il punto in cui la tubazione si attacca.
+    const larghezza = dimensioniDi(lungo).larghezza
+    expect(simboloUtenze(lungo)).toContain(`M ${larghezza / 2} ${altezza}`)
+    const ancora = ancoreDi(lungo).find((a) => a.id === 'in')!
+    expect(ancora).toMatchObject({ x: larghezza / 2, y: altezza })
   })
 })
 

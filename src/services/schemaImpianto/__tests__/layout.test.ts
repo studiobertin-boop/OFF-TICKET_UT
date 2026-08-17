@@ -546,17 +546,19 @@ describe('layoutSchema', () => {
       const utenze = layout.nodi.find((n) => n.tipo === 'utenze')!
       const essiccatore = layout.nodi.find((n) => n.tipo === 'essiccatore')!
 
-      // L'ancora `in` sta in fondo al codolo: la sua quota assoluta è y + altezza.
-      const quotaAncora = utenze.y + DIMENSIONI_NODO.utenze.altezza
+      // L'ancora `in` sta in fondo al codolo: la sua quota assoluta è y + altezza VERA, non
+      // quella del registro — il riquadro del terminale cresce con la scritta, e dal 17-08-2026
+      // l'etichetta di default è già su due righe. Con `DIMENSIONI_NODO.utenze.altezza` questo
+      // test tornava lo stesso, ma solo finché l'etichetta stava sotto la soglia di crescita.
+      const quotaAncora = utenze.y + dimensioniDi(utenze).altezza
       const centroEssiccatore = essiccatore.y + DIMENSIONI_NODO.essiccatore.altezza / 2
 
       expect(quotaAncora).toBe(centroEssiccatore)
     })
 
     it('mette l’ancora alla quota della fascia anche con un’etichetta su molte righe', () => {
-      // Sotto le 6 righe l'altezza necessaria (vedi `dimensioniDi`) non supera il minimo del
-      // registro (120): il riquadro non crescerebbe affatto e il test non discriminerebbe dal
-      // caso a riga singola sopra. Con 8 lo supera davvero.
+      // Otto righe: un terminale molto più alto del minimo del registro, per esercitare la
+      // crescita su una scala che il caso di default (due righe) non copre.
       const etichetta = Array.from({ length: 8 }, (_, i) => `riga ${i}`).join('\n')
       const layout = layoutConUtenze(etichetta)
       const utenze = layout.nodi.find((n) => n.tipo === 'utenze')!
