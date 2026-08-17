@@ -955,14 +955,22 @@ della tabella e due frasi che promettevano cose non più vere. **Questo task non
 
 - [ ] **Step 1: avviare il dev server e verificare da dove gira**
 
-Il `--port` non è una prova: risalire al processo proprietario della porta.
+Il `--port` non è una prova: risalire sempre al processo proprietario della porta. **Su questa
+macchina la 5173 è di un altro progetto** (`CLAUDE CODE\APP-AMICI`), verificato il 17-08-2026:
+puntarci il browser mostrerebbe l'applicazione sbagliata, con un aspetto abbastanza simile da non
+accorgersene subito.
+
+Prima si guarda cosa c'è già in ascolto:
 
 ```powershell
-Get-NetTCPConnection -LocalPort 5173 -State Listen | ForEach-Object { (Get-CimInstance Win32_Process -Filter "ProcessId = $($_.OwningProcess)").CommandLine }
+Get-NetTCPConnection -State Listen | Where-Object { $_.LocalPort -ge 5170 -and $_.LocalPort -le 5200 } | ForEach-Object { $p = Get-CimInstance Win32_Process -Filter "ProcessId = $($_.OwningProcess)"; "$($_.LocalPort) -> $($p.CommandLine)" }
 ```
 
-Se il percorso non è quello del lavoro in corso, fermarlo e riavviarlo da qui. **Un dev server
-avviato in background da un comando che poi si chiude muore con lui.**
+Se una porta risponde già **dal percorso del lavoro in corso**, si riusa quella. Altrimenti se ne
+sceglie una libera e si verifica di nuovo, con lo stesso comando, che sia davvero la propria.
+**Un dev server avviato in background da un comando che poi si chiude muore con lui**, e uno
+avviato da un worktree precedente sopravvive alla sessione che l'ha acceso: il 17-08-2026 se n'è
+trovato uno vivo sulla 5180, orfano da giorni, che teneva in ostaggio i file del suo worktree.
 
 - [ ] **Step 2: chiedere le credenziali al committente ed entrare**
 
