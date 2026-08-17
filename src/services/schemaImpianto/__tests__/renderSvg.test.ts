@@ -170,12 +170,24 @@ describe('renderSvg', () => {
     expect(codici).not.toContain('M-G1')
   })
 
-  it('la tubazione che arriva al terminale non porta una seconda punta di freccia, le altre sì', () => {
+  it('nessuna tubazione porta più una punta di freccia d’ufficio', () => {
+    // Rovesciato il 17-08-2026 (rifinitura R1): fino a quel giorno ogni tratto portava
+    // `marker-end="url(#freccia)"` e questo test verificava che ne fosse esente il solo tratto
+    // verso il terminale, che ha già la propria punta in cima al codolo. Ora le frecce si posano
+    // a mano, quindi non ne deve comparire nessuna da sé — e con loro sparisce il `<marker>` dai
+    // `<defs>`, che senza chi lo usi resterebbe dichiarato in ogni documento.
+    const svg = svgMinimo()
+    expect(svg).not.toContain('marker-end')
+    expect(svg).not.toContain('url(#freccia)')
+    expect(svg).not.toContain('<marker')
+  })
+
+  it('disegna una freccia dove il segno è posato, orientata come il tratto', () => {
     const scheda = makeScheda({
       compressori: [makeCompressore({ ha_disoleatore: false })],
       disoleatori: [],
-      serbatoi: [makeSerbatoio()],
-      essiccatori: [makeEssiccatore()],
+      serbatoi: [makeSerbatoio({ orientamento: 'ORIZZONTALE' })],
+      essiccatori: [],
       scambiatori: [],
       filtri: [],
       dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
@@ -183,30 +195,41 @@ describe('renderSvg', () => {
     const layout = layoutSchema(
       buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
     )
-    const svg = renderSvg(layout)
-    const indice = new Map(layout.nodi.map((n) => [n.id, n]))
+    // Il tratto verso il terminale utenze fa (610,360) → (645,360) → (645,260) → (680,260): a
+    // t=0,1 lo si percorre verso destra, a t=0,5 verso l'alto. Due frecce sullo stesso arco, su
+    // due giaciture diverse: se seguissero un orientamento fisso invece del tubo, una delle due
+    // uscirebbe di traverso.
+    const terminale = layout.nodi.find((n) => n.tipo === 'utenze')!
+    const arco = layout.archi.find((a) => a.a.nodo === terminale.id)!
+    const senza = renderSvg(layout)
+    arco.segni = [
+      { id: 'F1', tipo: 'freccia_direzione', t: 0.1 },
+      { id: 'F2', tipo: 'freccia_direzione', t: 0.5 },
+    ]
+    const con = renderSvg(layout)
 
-    // Un conteggio totale non basta a discriminare: una condizione invertita toglierebbe la
-    // punta all'arco sbagliato e la lascerebbe su quello verso il terminale, ricreando il
-    // difetto (doppia punta) con lo stesso totale di marker. Si guarda quindi, arco per arco,
-    // il path che vi arriva — individuato dal punto dove finisce, non dalla posizione
-    // nell'array — e si verifica che sia proprio e solo quello verso il terminale a mancarne.
-    // Il flessibile arriva con una curva (comando Q), non con un segmento retto (L): il punto
-    // finale va cercato dopo l'uno o l'altro comando, non solo dopo "L".
-    for (const arco of layout.archi) {
-      const nodoA = indice.get(arco.a.nodo)!
-      const fine = posizioneAncora(nodoA, arco.a.ancora)
-      const finePattern = new RegExp(`(?:L|Q [-\\d.]+ [-\\d.]+) ${fine.x} ${fine.y}"`)
-      const path = svg
-        .match(/<path d="[^"]*"[^>]*\/>/g)
-        ?.find((p) => finePattern.test(p))
-      expect(path, `nessun path trovato per l'arco verso ${arco.a.nodo}`).toBeDefined()
-      if (nodoA.tipo === 'utenze') {
-        expect(path).not.toContain('marker-end')
-      } else {
-        expect(path).toContain('marker-end')
-      }
-    }
+    // Un triangolo pieno in più: si conta la differenza, non un letterale, perché il disegno ne
+    // porta già altri (la punta del codolo utenze, le farfalle delle valvole). Solo il disegno,
+    // non la tabella: la freccia posata aggiunge anche la propria riga di legenda, che porta un
+    // secondo triangolo e falserebbe il conto.
+    const soloDisegno = (svg: string) => svg.slice(0, svg.indexOf('LISTA APPARECCHIATURE'))
+    const pieni = (svg: string) => (soloDisegno(svg).match(/fill="#000" \/>/g) ?? []).length
+    expect(pieni(con)).toBe(pieni(senza) + 2)
+
+    const triangoli = soloDisegno(con)
+      .match(/<path d="M [-\d.]+ [-\d.]+ L [-\d.]+ [-\d.]+ L [-\d.]+ [-\d.]+ Z" fill="#000" \/>/g)!
+      .filter((p) => !senza.includes(p))
+      .map((p) => [...p.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]))
+    expect(triangoli).toHaveLength(2)
+
+    // Sul tratto orizzontale: i due capi della base condividono l'ascissa e la punta è a destra.
+    const [orizzontale, verticale] = triangoli
+    expect(orizzontale[1][0]).toBe(orizzontale[2][0])
+    expect(orizzontale[0][0]).toBeGreaterThan(orizzontale[1][0])
+
+    // Sul montante che sale: la base condivide l'ordinata e la punta sta più in alto (y minore).
+    expect(verticale[1][1]).toBe(verticale[2][1])
+    expect(verticale[0][1]).toBeLessThan(verticale[1][1])
   })
 
   // La scritta sporgeva oltre il bordo destro: nel PNG finiva tagliata a metà.
@@ -265,7 +288,10 @@ describe('renderSvg', () => {
 
   it('disegna il flessibile ondulato per tutta la lunghezza, non a riccioli', () => {
     const svg = svgMinimo()
-    const flessibile = svg.match(/<path d="M [^"]*Q [^"]*" fill="none" stroke="#000"[^>]*marker-end/g) ?? []
+    // La firma del flessibile è il suo tracciato a curve (comandi Q). Fino al 17-08-2026 questo
+    // pattern finiva su `marker-end`, la punta che ogni tratto portava in coda: ora le frecce si
+    // posano a mano e quel pezzo non c'è più.
+    const flessibile = svg.match(/<path d="M [^"]*Q [^"]*" fill="none" stroke="#000"[^>]*\/>/g) ?? []
 
     expect(flessibile.length).toBeGreaterThan(0)
     // Molte onde, non le quattro del vecchio ricciolo da 40 unità.
@@ -394,7 +420,7 @@ describe('attacco alle ancore', () => {
       /<path d="M ([\d.]+) ([\d.]+) L ([\d.]+) ([\d.]+) L ([\d.]+) ([\d.]+) L ([\d.]+) ([\d.]+) Z"/
     )!
     const [vertSx, vertSy] = [Number(rombo[7]), Number(rombo[8])]
-    const atteso = `L ${sep.x + vertSx} ${sep.y + vertSy}" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="7 10" marker-end="url(#freccia)" />`
+    const atteso = `L ${sep.x + vertSx} ${sep.y + vertSy}" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="7 10" />`
     expect(svg).toContain(atteso)
   })
 
@@ -716,6 +742,14 @@ describe('legenda dei simboli', () => {
     expect(descrizioni(layoutCon({ condense: false, essiccatore: true }))).not.toContain('Linea condense')
   })
 
+  it('nomina la direzione del flusso solo se una freccia è stata posata', () => {
+    const layout = layoutCon({ condense: false, essiccatore: true })
+    expect(descrizioni(layout)).not.toContain('Direzione del flusso')
+
+    layout.archi[0].segni = [{ id: 'F1', tipo: 'freccia_direzione', t: 0.5 }]
+    expect(descrizioni(layout)).toContain('Direzione del flusso')
+  })
+
   it('mette la valvola di scarico solo se un simbolo la disegna davvero', () => {
     // La disegnano serbatoio, essiccatore e filtro. NON il separatore («scarica da un codolo
     // nudo») e non il compressore: il commento in testa a types.ts diceva il contrario, ed è
@@ -866,11 +900,13 @@ describe('testi liberi', () => {
     // In SVG chi viene disegnato dopo sta sopra: se le annotazioni finissero prima di nodi e
     // tubazioni nella stringa concatenata, un tubo o un simbolo posati sullo stesso punto
     // coprirebbero la scritta. Niente in questo test lo impedirebbe se non l'ordine delle
-    // sottostringhe: `marker-end="url(#freccia)"` è la firma di ogni tratto di tubazione,
+    // sottostringhe: `stroke-dasharray="10 7"` è il codolo del terminale utenze, l'ultimo pezzo
+    // di disegno emesso prima dei nodi (fino al 17-08-2026 qui si usava `marker-end`, che ogni
+    // tratto portava in coda e che non esiste più),
     // `<circle cx="60" cy="60"` è la girante del compressore (unico nodo di questa fixture,
     // centrata sul riquadro 120×120 — 60,60, non più 64,5/64,5 su 129×129, Task 8, Blocco 3).
     const svg = renderSvg(layoutConTesti([{ id: 'T1', x: 300, y: 400, contenuto: 'Sopra il tubo' }]))
-    const indiceTubo = svg.indexOf('marker-end="url(#freccia)"')
+    const indiceTubo = svg.indexOf('stroke-dasharray="10 7"')
     const indiceNodo = svg.indexOf('<circle cx="60" cy="60"')
     const indiceTesto = svg.indexOf('>Sopra il tubo</tspan>')
     expect(indiceTubo).toBeGreaterThan(-1)

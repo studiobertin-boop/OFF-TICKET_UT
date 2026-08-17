@@ -1252,6 +1252,13 @@ function SchemaEditorInterno({
         >
           + Riduttore
         </Button>
+        <Button
+          size="small"
+          onClick={() => selezione.edges[0] && aggiungiSegno(selezione.edges[0].id, 'freccia_direzione')}
+          disabled={selezione.edges.length !== 1 || modoTaratura}
+        >
+          + Freccia
+        </Button>
 
         <Divider orientation="vertical" flexItem />
 

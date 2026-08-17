@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { chiaveSimbolo } from '../types'
 import type { SchemaNodo, SchemaNodoTipo } from '../types'
-import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloMuro, simboloUtenze, valvolaIntercettazione, riduttorePressione, valvolaScarico, testoMultiRiga, campioneTubazione, TRATTEGGIO_CONDENSE, MARGINE_VALVOLA_SERBATOIO, simboloTrasformato, inviluppo, riquadroDi } from '../symbols'
+import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloMuro, simboloUtenze, valvolaIntercettazione, riduttorePressione, valvolaScarico, testoMultiRiga, frecciaDirezione, campioneTubazione, TRATTEGGIO_CONDENSE, MARGINE_VALVOLA_SERBATOIO, simboloTrasformato, inviluppo, riquadroDi } from '../symbols'
 import { capoValido } from '../agganci'
 import { TARATURA_NEUTRA, type Tarature } from '../libreria'
 import { PASSO_GRIGLIA } from '../griglia'
@@ -308,8 +308,8 @@ describe('simbolo «Alle utenze»', () => {
     const svg = simboloDi(utenze)
     // Tratteggio come le altre linee di servizio del disegno.
     expect(svg).toContain('stroke-dasharray="10 7"')
-    // La punta è un triangolo pieno, non un marker: nell'editor il simbolo vive in un <svg>
-    // suo, dove i <defs> di renderSvg non esistono e un marker-end non verrebbe disegnato.
+    // La punta è un triangolo pieno, non un marker: nell'editor il simbolo vive in un <svg> suo,
+    // dove un marker dichiarato altrove non verrebbe disegnato.
     // Il path completo (non il solo `fill="#000"`, che compare già sul <text> della scritta e
     // quindi non discriminerebbe un'implementazione priva del triangolo) prova che il
     // triangolo esiste davvero, con la geometria attesa.
@@ -540,6 +540,42 @@ describe('riduttorePressione', () => {
     expect(riduttorePressione(100, 50, 'verticale')).toContain(
       '<rect x="95.5" y="41" width="9" height="14.399999999999999" fill="#fff" stroke="none" />'
     )
+  })
+})
+
+describe('frecciaDirezione', () => {
+  /** Le tre coppie di coordinate del triangolo, nell'ordine in cui il path le emette. */
+  function vertici(svg: string): number[][] {
+    return [...svg.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])])
+  }
+
+  it('punta nel verso della direzione, centrata sul punto', () => {
+    // Misura: il 70% della punta che ogni tubazione portava in coda fino al 17-08-2026 — quel
+    // `marker-end` rendeva 18x12 unità, quindi 12,6x8,4, cioè semiassi 6,3 e 4,2.
+    const punti = vertici(frecciaDirezione(100, 50, { x: 1, y: 0 }))
+    expect(punti).toHaveLength(3)
+    expect(punti[0]).toEqual([106.3, 50])
+    expect(punti.slice(1)).toEqual([
+      [93.7, 54.2],
+      [93.7, 45.8],
+    ])
+  })
+
+  it('gira col tratto: su un montante che scende la punta guarda in giù', () => {
+    const [punta] = vertici(frecciaDirezione(100, 50, { x: 0, y: 1 }))
+    expect(punta).toEqual([100, 56.3])
+  })
+
+  it('si orienta anche sulle diagonali, dove «orizzontale o verticale» non direbbe nulla', () => {
+    const [punta] = vertici(frecciaDirezione(0, 0, { x: 3, y: 4 }))
+    // Versore (0,6; 0,8) per il semiasse 6,3: la punta cade sulla diagonale, non su un asse.
+    expect(punta).toEqual([3.78, 5.04])
+  })
+
+  it('è piena, come la punta che sostituisce, e non copre il tubo con un rettangolo', () => {
+    const svg = frecciaDirezione(0, 0, { x: 1, y: 0 })
+    expect(svg).toContain('fill="#000"')
+    expect(svg).not.toContain('<rect')
   })
 })
 

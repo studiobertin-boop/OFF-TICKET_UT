@@ -34,8 +34,8 @@ function comandiQ(d: string): [number, number, number, number][] {
 
 /**
  * Angolo, in gradi, fra la tangente finale del tracciato e la direzione data. Per una curva
- * quadratica la tangente in arrivo è `E − C`, ed è su quella che l'attributo `marker-end`
- * orienta la punta di freccia: se non coincide con l'asse del tubo, la punta arriva storta.
+ * quadratica la tangente in arrivo è `E − C`: se non coincide con l'asse del tubo, il flessibile
+ * entra di traverso nel raccordo invece che dritto come nei blocchi CAD.
  */
 function angoloTangenteFinale(d: string, direzione: { x: number; y: number }): number {
   const comandi = comandiQ(d)
@@ -137,11 +137,10 @@ describe('ondula', () => {
     expect(arriviQ(d)[0]).toEqual([1, 0])
   })
 
-  // La punta di freccia della tubazione la disegna `marker-end`, che si orienta sulla tangente
-  // finale del tracciato. Finché l'ultimo semiperiodo aveva il punto di controllo scostato di
-  // AMPIEZZA_ONDA, quella tangente formava 64° con l'asse del tubo e la punta arrivava ruotata,
-  // ora in su ora in giù secondo la parità del semiperiodo: in ogni disegno consegnato, perché
-  // la mandata compressore→serbatoio è flessibile in ogni impianto.
+  // Il flessibile deve entrare dritto nel raccordo, come nei blocchi CAD. Finché l'ultimo
+  // semiperiodo aveva il punto di controllo scostato di AMPIEZZA_ONDA, la tangente finale formava
+  // 64° con l'asse del tubo: si vedeva in ogni disegno consegnato, perché la mandata
+  // compressore→serbatoio è flessibile in ogni impianto.
   it('entra in asse: la tangente finale punta come il tubo, non di traverso', () => {
     expect(angoloTangenteFinale(ondula([{ x: 0, y: 0 }, { x: 34, y: 0 }]), { x: 1, y: 0 })).toBeLessThan(1)
   })
@@ -178,8 +177,8 @@ describe('ondula', () => {
       // Lungo l'asse: il controllo sta a metà semiperiodo, l'arrivo alla sua fine.
       expect(cx).toBe(PASSO_ONDA * (k + 0.5))
       expect(ex).toBe(PASSO_ONDA * (k + 1))
-      // In perpendicolare: l'ampiezza piena, tranne l'ultimo semiperiodo che va in asse perché
-      // la punta di freccia si orienta lì sopra (vedi il test sulla tangente finale).
+      // In perpendicolare: l'ampiezza piena, tranne l'ultimo semiperiodo che va in asse perché il
+      // flessibile deve entrare dritto nel raccordo (vedi il test sulla tangente finale).
       expect(Math.abs(cy)).toBe(k === semiperiodi - 1 ? 0 : AMPIEZZA_ONDA)
     })
   })

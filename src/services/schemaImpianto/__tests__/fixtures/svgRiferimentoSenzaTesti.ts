@@ -75,12 +75,16 @@
  * metà delle ondulazioni sulla stessa lunghezza, come chiesto dal committente. Cambiano solo i
  * tracciati ondulati (la mandata del compressore e il campione "Tubazione flessibile" della
  * legenda); nessuna posizione di nodo e nessun capo di tubo si sposta.
+*
+ * Generato di nuovo il 17-08-2026 (rifinitura R1): le tubazioni non portano più la punta di
+ * freccia d'ufficio. Spariscono `marker-end="url(#freccia)"` da ogni tratto e il `<marker>` dai
+ * `<defs>`; le frecce ora si posano a mano dall'editor, e questi layout non ne hanno. Nessuna
+ * posizione si sposta.
  */
 export const RIGHE_SVG_RIFERIMENTO_SENZA_TESTI = [
   `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="802" viewBox="0 0 900 802">`,
-  `<defs><marker id="freccia" viewBox="0 0 15 10" refX="14" refY="5" markerWidth="9" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 15 5 L 0 10 z" fill="#000" /></marker></defs>`,
   `<rect width="900" height="802" fill="#fff" />`,
-  `<path d="M 100 290 Q 105 285 100 280 Q 95 275 100 270 Q 105 265 100 260 Q 95 255 100 250 Q 104.88 255 109.76 250 Q 114.65 245 119.53 250 Q 124.41 255 129.29 250 Q 134.18 245 139.06 250 Q 143.94 255 148.82 250 Q 153.71 245 158.59 250 Q 163.47 255 168.35 250 Q 173.24 245 178.12 250 Q 183 255 187.88 250 Q 192.76 245 197.65 250 Q 202.53 255 207.41 250 Q 212.29 245 217.18 250 Q 222.06 255 226.94 250 Q 231.82 245 236.71 250 Q 241.59 255 246.47 250 Q 251.35 245 256.24 250 Q 261.12 255 266 250 Q 261 255 266 260 Q 271 265 266 270 Q 261 275 266 280 Q 271 285 266 290 Q 261 295 266 300 Q 271 305 266 310 Q 261 315 266 320 Q 271 325 266 330 Q 261 335 266 340 Q 271 345 266 350 Q 261 355 266 360 Q 271.67 365 277.33 360 Q 283 355 288.67 360 Q 294.33 360 300 360" fill="none" stroke="#000" stroke-width="2" marker-end="url(#freccia)" />`,
+  `<path d="M 100 290 Q 105 285 100 280 Q 95 275 100 270 Q 105 265 100 260 Q 95 255 100 250 Q 104.88 255 109.76 250 Q 114.65 245 119.53 250 Q 124.41 255 129.29 250 Q 134.18 245 139.06 250 Q 143.94 255 148.82 250 Q 153.71 245 158.59 250 Q 163.47 255 168.35 250 Q 173.24 245 178.12 250 Q 183 255 187.88 250 Q 192.76 245 197.65 250 Q 202.53 255 207.41 250 Q 212.29 245 217.18 250 Q 222.06 255 226.94 250 Q 231.82 245 236.71 250 Q 241.59 255 246.47 250 Q 251.35 245 256.24 250 Q 261.12 255 266 250 Q 261 255 266 260 Q 271 265 266 270 Q 261 275 266 280 Q 271 285 266 290 Q 261 295 266 300 Q 271 305 266 310 Q 261 315 266 320 Q 271 325 266 330 Q 261 335 266 340 Q 271 345 266 350 Q 261 355 266 360 Q 271.67 365 277.33 360 Q 283 355 288.67 360 Q 294.33 360 300 360" fill="none" stroke="#000" stroke-width="2" />`,
   `<rect x="226" y="245.5" width="18" height="9" fill="#fff" stroke="none" />`,
   `<path d="M 226 245.5 L 226 254.5 L 235 250 Z M 244 245.5 L 244 254.5 L 235 250 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" />`,
   `<path d="M 610 360 L 645 360 L 645 260 L 680 260" fill="none" stroke="#000" stroke-width="2" />`,

@@ -12,7 +12,7 @@
  */
 import { useCallback } from 'react'
 import { BaseEdge, EdgeLabelRenderer, useReactFlow, type EdgeProps } from '@xyflow/react'
-import { riduttorePressione, valvolaIntercettazione, TRATTEGGIO_CONDENSE } from '@/services/schemaImpianto/symbols'
+import { frecciaDirezione, riduttorePressione, valvolaIntercettazione, TRATTEGGIO_CONDENSE } from '@/services/schemaImpianto/symbols'
 import {
   ondula,
   percorso,
@@ -239,6 +239,9 @@ interface SchemaSegnoProps {
   tipo: SchemaSegnoTuboTipo
   polilinea: Punto[]
   orientamento: 'orizzontale' | 'verticale'
+  /** Versore del tratto nel punto in cui il segno sta: lo usa la freccia, che ha bisogno del
+   *  verso e non della sola giacitura. */
+  direzione: Punto
   onSposta?: (indice: number, t: number, concluso: boolean) => void
   onRimuovi?: (indice: number) => void
   /** Modo taratura acceso: vedi `SchemaGomitoProps.bloccato`. */
@@ -257,7 +260,17 @@ interface SchemaSegnoProps {
  * parametrico su `x`/`y`, quindi si chiama con `(0, 0)` e si trasla il contenitore, non il
  * simbolo.
  */
-function SchemaSegno({ indice, punto, tipo, polilinea, orientamento, onSposta, onRimuovi, bloccato }: SchemaSegnoProps) {
+function SchemaSegno({
+  indice,
+  punto,
+  tipo,
+  polilinea,
+  orientamento,
+  direzione,
+  onSposta,
+  onRimuovi,
+  bloccato,
+}: SchemaSegnoProps) {
   const { screenToFlowPosition } = useReactFlow()
   // Cattura, guardia «si è mosso» e chiusura (rilascio/annullamento) sono `useGestoPuntatore.ts`,
   // lo stesso pattern di `SchemaGomito` qui sopra e dell'area di trascinamento del tratto sotto.
@@ -298,7 +311,10 @@ function SchemaSegno({ indice, punto, tipo, polilinea, orientamento, onSposta, o
     [indice, onRimuovi]
   )
 
-  const disegna = tipo === 'riduttore_pressione' ? riduttorePressione : valvolaIntercettazione
+  const markup =
+    tipo === 'freccia_direzione'
+      ? frecciaDirezione(0, 0, direzione)
+      : (tipo === 'riduttore_pressione' ? riduttorePressione : valvolaIntercettazione)(0, 0, orientamento)
 
   return (
     <div
@@ -323,7 +339,7 @@ function SchemaSegno({ indice, punto, tipo, polilinea, orientamento, onSposta, o
         height={40}
         viewBox="-20 -20 40 40"
         style={{ overflow: 'visible' }}
-        dangerouslySetInnerHTML={{ __html: disegna(0, 0, orientamento) }}
+        dangerouslySetInnerHTML={{ __html: markup }}
       />
     </div>
   )
@@ -442,7 +458,7 @@ export function SchemaEdgeTubazione({
           />
         ))}
         {(edgeData?.segni ?? []).map((segno, indice) => {
-          const { punto, orizzontale } = puntoSuTratto(polilinea, segno.t)
+          const { punto, orizzontale, direzione } = puntoSuTratto(polilinea, segno.t)
           return (
             <SchemaSegno
               key={`${id}-segno-${indice}`}
@@ -451,6 +467,7 @@ export function SchemaEdgeTubazione({
               tipo={segno.tipo}
               polilinea={polilinea}
               orientamento={orizzontale ? 'orizzontale' : 'verticale'}
+              direzione={direzione}
               onSposta={edgeData?.onSpostaSegno}
               onRimuovi={edgeData?.onRimuoviSegno}
               bloccato={bloccato}

@@ -147,13 +147,16 @@ export function trascinaTratto(
  * distanza: un tubo che non tocca il bocchello è un errore di disegno visibile.
  *
  * L'**ultimo semiperiodo dell'ultimo tratto** ha il punto di controllo sull'asse invece che
- * scostato: `marker-end` orienta la punta di freccia sulla tangente finale della curva (`E − C`),
- * e con un controllo scostato quella tangente formava 64° con l'asse del tubo — la punta arrivava
- * ruotata, ora in su ora in giù secondo la parità del semiperiodo, in ogni disegno consegnato.
- * Siccome i capi di ogni semiperiodo stanno già sull'asse, un controllo sull'asse rende quel
- * pezzetto rettilineo e la tangente coincide con la direzione del tubo: è anche ciò che si vede
- * nei blocchi CAD, dove il flessibile entra dritto nel raccordo. Un flessibile talmente corto da
- * avere un solo semiperiodo diventa rettilineo, ed è invisibile a quella scala.
+ * scostato: siccome i capi di ogni semiperiodo stanno già sull'asse, un controllo sull'asse rende
+ * quel pezzetto rettilineo, ed è ciò che si vede nei blocchi CAD, dove il flessibile entra dritto
+ * nel raccordo. Un flessibile talmente corto da avere un solo semiperiodo diventa rettilineo, ed è
+ * invisibile a quella scala.
+ *
+ * Nota storica: fino al 17-08-2026 la ragione principale era un'altra — ogni tratto portava in
+ * coda una punta di freccia (`marker-end`), che si orienta sulla tangente finale della curva; con
+ * un controllo scostato quella tangente formava 64° con l'asse e la punta arrivava ruotata, ora in
+ * su ora in giù secondo la parità del semiperiodo, in ogni disegno consegnato. Quelle punte non
+ * esistono più (si posano a mano), ma la ragione CAD basta da sola a tenere il comportamento.
  *
  * La polilinea passata resta la verità geometrica del percorso — chi calcola i varchi nel muro
  * continua a lavorare su quella, non su questo tracciato.
@@ -206,8 +209,10 @@ export function ondula(punti: Punto[]): string {
   return parti.join(' ')
 }
 
-/** Due decimali bastano al disegno e tengono l'SVG leggibile nei test. */
-function arrotonda(valore: number): number {
+/** Due decimali bastano al disegno e tengono l'SVG leggibile nei test. Esportata perché la usa
+ *  anche `frecciaDirezione` (symbols/index.ts), che su un tratto diagonale produrrebbe altrimenti
+ *  code di decimali: una sola regola di arrotondamento per tutto il disegno. */
+export function arrotonda(valore: number): number {
   return Math.round(valore * 100) / 100
 }
 

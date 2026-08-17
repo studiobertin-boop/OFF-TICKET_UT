@@ -140,13 +140,16 @@ export function chiaveSimbolo(nodo: { tipo: SchemaNodoTipo; orientamento?: 'VERT
 
 export type SchemaArcoStile = 'standard' | 'flessibile' | 'condensa'
 
-export type SchemaSegnoTuboTipo = 'valvola_intercettazione' | 'riduttore_pressione'
+export type SchemaSegnoTuboTipo = 'valvola_intercettazione' | 'riduttore_pressione' | 'freccia_direzione'
 
 /**
- * Segno che vive SULLA tubazione, non un nodo: valvola di intercettazione o riduttore di
- * pressione. Scorre lungo il tratto e lo segue quando un'apparecchiatura si sposta perché la
- * sua posizione è relativa alla polilinea (`t`), non assoluta — a differenza della giunzione,
- * che è un nodo vero con tre attacchi propri.
+ * Segno che vive SULLA tubazione, non un nodo: valvola di intercettazione, riduttore di pressione
+ * o freccia di direzione. Scorre lungo il tratto e lo segue quando un'apparecchiatura si sposta
+ * perché la sua posizione è relativa alla polilinea (`t`), non assoluta — a differenza della
+ * giunzione, che è un nodo vero con tre attacchi propri.
+ *
+ * La freccia è un segno come gli altri dal 17-08-2026: prima ogni tratto ne portava una in coda,
+ * disegnata d'ufficio e non spostabile, e il committente le ha volute da posare a mano.
  */
 export interface SchemaSegnoTubo {
   id: string

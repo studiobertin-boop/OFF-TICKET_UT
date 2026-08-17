@@ -11,6 +11,7 @@ import {
   ancoraDi,
   campioneTubazione,
   escapeXml,
+  frecciaDirezione,
   latoImposto,
   riduttorePressione,
   simboloDi,
@@ -70,7 +71,7 @@ export interface RenderSvgOptions {
  * Mandata compressore → serbatoio, resa ondulata come i flessibili dei blocchi di riferimento.
  * La FORMA la decide `instrada` (tratti.ts), condivisa con la tela dell'editor — che la chiama
  * tramite `polilineaDellArco` (`conversioneFlow.ts`, cablata in `SchemaEdgeTubazione.tsx`): qui
- * resta solo la resa grafica — l'onda e la punta di freccia.
+ * resta solo la resa grafica: l'onda.
  */
 function renderMandataCompressore(
   da: SchemaNodoPosizionato,
@@ -88,7 +89,7 @@ function renderMandataCompressore(
     da: latoImposto(da, ancoraDa, libreria),
     a: latoImposto(a, ancoraA, libreria),
   })
-  const svg = `<path d="${ondula(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" marker-end="url(#freccia)" />`
+  const svg = `<path d="${ondula(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
   return { svg, punti }
 }
 
@@ -101,7 +102,6 @@ function renderMandataLinea(
   stile: SchemaArcoStile,
   quote: QuoteInstradamento,
   gomiti?: Punto[],
-  frecciaFinale = true,
   libreria: Tarature = {}
 ): { svg: string; punti: Punto[] } {
   const pDa = posizioneAncora(da, ancoraDa, libreria)
@@ -110,8 +110,7 @@ function renderMandataLinea(
     da: latoImposto(da, ancoraDa, libreria),
     a: latoImposto(a, ancoraA, libreria),
   })
-  const freccia = frecciaFinale ? ' marker-end="url(#freccia)"' : ''
-  const svg = `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}"${freccia} />`
+  const svg = `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
   return { svg, punti }
 }
 
@@ -132,7 +131,7 @@ function renderLineaCondense(
     da: latoImposto(da, ancoraDa, libreria),
     a: latoImposto(a, ancoraA, libreria),
   })
-  const svg = `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" stroke-dasharray="${TRATTEGGIO_CONDENSE}" marker-end="url(#freccia)" />`
+  const svg = `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" stroke-dasharray="${TRATTEGGIO_CONDENSE}" />`
   return { svg, punti }
 }
 
@@ -152,9 +151,6 @@ function renderArchi(
   const parti: string[] = []
   const varchi: number[] = []
 
-  // La tubazione che finisce sul terminale utenze non porta la propria punta di freccia: quel
-  // simbolo ne disegna già una in cima al codolo, e due punte sulla stessa linea a poche decine
-  // di unità l'una dall'altra si leggono come due terminali distinti.
   for (const arco of layout.archi) {
     const da = indice.get(arco.da.nodo)
     const a = indice.get(arco.a.nodo)
@@ -165,21 +161,16 @@ function renderArchi(
         ? renderLineaCondense(da, arco.da.ancora, a, arco.a.ancora, arco.stile, quote, arco.punti, libreria)
         : arco.stile === 'flessibile'
           ? renderMandataCompressore(da, arco.da.ancora, a, arco.a.ancora, arco.stile, quote, arco.punti, libreria)
-          : renderMandataLinea(
-              da,
-              arco.da.ancora,
-              a,
-              arco.a.ancora,
-              arco.stile,
-              quote,
-              arco.punti,
-              a.tipo !== 'utenze',
-              libreria
-            )
+          : renderMandataLinea(da, arco.da.ancora, a, arco.a.ancora, arco.stile, quote, arco.punti, libreria)
 
     parti.push(reso.svg)
     for (const segno of arco.segni ?? []) {
-      const { punto, orizzontale } = puntoSuTratto(reso.punti, segno.t)
+      const { punto, orizzontale, direzione } = puntoSuTratto(reso.punti, segno.t)
+      // La freccia prende la direzione: le serve il verso, che `orizzontale` non porta.
+      if (segno.tipo === 'freccia_direzione') {
+        parti.push(frecciaDirezione(punto.x, punto.y, direzione))
+        continue
+      }
       const disegnaSegno = segno.tipo === 'riduttore_pressione' ? riduttorePressione : valvolaIntercettazione
       parti.push(disegnaSegno(punto.x, punto.y, orizzontale ? 'orizzontale' : 'verticale'))
     }
@@ -254,6 +245,11 @@ export function righeLegenda(layout: SchemaLayout): RigaTabella[] {
   }
   if (segni.some((s) => s.tipo === 'riduttore_pressione')) {
     righe.push({ sinistra: { simbolo: riduttorePressione(0, 0) }, descrizione: 'Riduttore di pressione' })
+  }
+  // Il campione punta a destra: nel disegno la freccia segue il tratto, in legenda sta da sola e
+  // deve solo farsi riconoscere.
+  if (segni.some((s) => s.tipo === 'freccia_direzione')) {
+    righe.push({ sinistra: { simbolo: frecciaDirezione(0, 0, { x: 1, y: 0 }) }, descrizione: 'Direzione del flusso' })
   }
   if (layout.nodi.some((n) => CON_VALVOLA_SCARICO.includes(n.tipo))) {
     // Le due misure (Task 3) non hanno una riga di legenda ciascuna: quella del serbatoio, se
@@ -362,15 +358,6 @@ export function renderSvg(layout: SchemaLayout, libreria: Tarature = {}, options
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${larghezzaTotale}" height="${altezzaTotale}" viewBox="0 0 ${larghezzaTotale} ${altezzaTotale}">`,
-    // viewBox 15×10 (rapporto 1,5), non più 10×10 (1,0): il blocco CAD `freccia`
-    // (Blocchi.pdf, «freccia direzione flusso») misura 5,58×3,72pt, rapporto 1,50 — un
-    // triangolo più allungato di quello disegnato finora (isoscele con base pari all'altezza,
-    // quindi apice a 53,13° e non retto). `markerHeight` resta 6 (la stessa scala 0,6 di prima
-    // sull'asse verticale, che determina lo spessore percepito della punta);
-    // `markerWidth` sale a 9 = 15×0,6 per restare alla stessa scala sul nuovo viewBox più largo.
-    // `refX=14` mantiene lo stesso margine di 1 unità dall'apice (15) che aveva prima (9 su un
-    // apice a 10), l'ancoraggio che fa combaciare la punta con la fine del tratto.
-    `<defs><marker id="freccia" viewBox="0 0 15 10" refX="14" refY="5" markerWidth="9" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 15 5 L 0 10 z" fill="#000" /></marker></defs>`,
     `<rect width="${larghezzaTotale}" height="${altezzaTotale}" fill="#fff" />`,
     muro,
     archi.svg,

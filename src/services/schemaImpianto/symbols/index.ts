@@ -13,7 +13,7 @@
  * disegna i simboli, quindi il registro (`REGISTRO_SIMBOLI`) è la fonte unica e `layout.ts`
  * si limita a riesportare `DIMENSIONI_NODO` per i consumatori esistenti.
  */
-import { ondula } from '../tratti'
+import { arrotonda, ondula } from '../tratti'
 import type { SchemaArcoStile, SchemaNodoTipo, SchemaNodo, SchemaAncora, SchemaLatoAncora, ChiaveSimbolo } from '../types'
 import { chiaveSimbolo } from '../types'
 import type { Tarature, TaraturaSimbolo } from '../libreria'
@@ -314,6 +314,44 @@ export function riduttorePressione(
       : [hGrande, hGrande, lGrande, lPiccola]
   const copertura = `<rect x="${x - xMeno}" y="${y - yMeno}" width="${xMeno + xPiu}" height="${yMeno + yPiu}" fill="#fff" stroke="none" />`
   return copertura + traccia(d)
+}
+
+/**
+ * Misura della freccia di direzione: il 70% chiesto dal committente della punta che fino al
+ * 17-08-2026 ogni tubazione portava in coda. Quel `marker-end` rendeva 18×12 unità utente — il
+ * marker dichiarava 9×6, e `markerUnits`, non specificato, vale `strokeWidth`, che qui è 2.
+ */
+const FRECCIA = { lunghezza: 12.6, altezza: 8.4 }
+
+/**
+ * Freccia di direzione posata a mano sulla tubazione: triangolo pieno centrato sul punto, con la
+ * punta nel verso in cui il tratto è percorso.
+ *
+ * Prende la direzione e non un orientamento ('orizzontale' | 'verticale') come gli altri due
+ * segni: una freccia deve distinguere i due versi della stessa giacitura, e i tratti possono
+ * essere diagonali. Gliela passa chi la disegna, leggendola da `puntoSuTratto` (tratti.ts).
+ *
+ * Non copre il tubo con un rettangolo bianco come fanno valvola e riduttore: la freccia sta SOPRA
+ * la linea, non la interrompe.
+ */
+export function frecciaDirezione(x: number, y: number, direzione: { x: number; y: number }): string {
+  // Un vettore nullo non ha verso: si ripiega sull'orizzontale verso destra, la stessa convenzione
+  // dei rami degeneri di `puntoSuTratto`.
+  const lunghezza = Math.hypot(direzione.x, direzione.y) || 1
+  const ux = direzione.x / lunghezza
+  const uy = direzione.y / lunghezza
+  const px = -uy
+  const py = ux
+  const semiL = FRECCIA.lunghezza / 2
+  const semiH = FRECCIA.altezza / 2
+  const punta = { x: x + ux * semiL, y: y + uy * semiL }
+  const baseA = { x: x - ux * semiL + px * semiH, y: y - uy * semiL + py * semiH }
+  const baseB = { x: x - ux * semiL - px * semiH, y: y - uy * semiL - py * semiH }
+  const d =
+    `M ${arrotonda(punta.x)} ${arrotonda(punta.y)} ` +
+    `L ${arrotonda(baseA.x)} ${arrotonda(baseA.y)} ` +
+    `L ${arrotonda(baseB.x)} ${arrotonda(baseB.y)} Z`
+  return `<path d="${d}" fill="#000" />`
 }
 
 /**
@@ -813,9 +851,8 @@ export const TESTO_LIBERO = { dimensione: UTENZE.dimensioneScritta, larghezzaCar
  * (`DOCUMENTAZIONE/relazione/schema.png`), dove il tratteggio è corto e il tratto prima è
  * tubazione vera.
  *
- * La punta è un triangolo pieno e non un `marker-end`: nell'editor `SchemaNodeSymbol` monta il
- * simbolo in un `<svg>` suo, senza i `<defs>` che `renderSvg` dichiara, e un marker non
- * verrebbe disegnato affatto.
+ * La punta è disegnata come triangolo pieno, non come marker: nell'editor `SchemaNodeSymbol`
+ * monta il simbolo in un `<svg>` suo, dove un marker dichiarato altrove non verrebbe disegnato.
  *
  * `dimensioniDi(nodo)` senza `libreria`, di proposito: il codolo si disegna in coordinate locali,
  * non tarate, e alla trasformazione pensa `simboloTrasformato` sul risultato. Con `libreria`
