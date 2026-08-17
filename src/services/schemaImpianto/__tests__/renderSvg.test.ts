@@ -1175,3 +1175,41 @@ describe('libreria delle tarature', () => {
     expect(nodoTarato.y).not.toBe(nodoBase.y)
   })
 })
+
+describe('righeLista e il codice scritto a mano', () => {
+  /** Un solo nodo manuale, con o senza codice scritto a mano. */
+  function layoutConNodo(codice?: string): SchemaLayout {
+    return {
+      nodi: [
+        {
+          id: 'M-S1',
+          ...(codice ? { codice } : {}),
+          tipo: 'serbatoio',
+          etichetta: 'Serbatoio di riserva',
+          gruppo: 'LINEA_DISTRIBUZIONE',
+          valvoleSicurezza: [],
+          origine: 'manuale',
+          x: 0,
+          y: 0,
+        },
+      ],
+      archi: [],
+      muro: null,
+      testi: [],
+    }
+  }
+
+  it("stampa il codice scritto a mano, non l'identificativo interno", () => {
+    // L'identificativo resta `M-S1` perché archi, capi e segni si riferiscono a lui: cambiarlo
+    // riaprirebbe la collisione che il prefisso `M-` esiste per evitare. In tabella però il
+    // committente deve leggere il codice che ha scritto.
+    expect(righeLista(layoutConNodo('S9'))).toEqual([
+      { sinistra: { codice: 'S9' }, descrizione: 'Serbatoio di riserva' },
+    ])
+  })
+
+  it("ricade sull'identificativo quando il codice a mano non c'è", () => {
+    // Ogni layout salvato prima del 17-08-2026, e ogni apparecchiatura di scheda.
+    expect(righeLista(layoutConNodo())[0].sinistra).toEqual({ codice: 'M-S1' })
+  })
+})

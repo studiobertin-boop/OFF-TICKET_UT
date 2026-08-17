@@ -17,6 +17,7 @@ import { arrotonda, ondula } from '../tratti'
 import { PASSO_GRIGLIA } from '../griglia'
 import type { SchemaArcoStile, SchemaNodoTipo, SchemaNodo, SchemaAncora, SchemaLatoAncora, ChiaveSimbolo } from '../types'
 import { chiaveSimbolo } from '../types'
+import { codiceVisibile } from '../codici'
 import type { Tarature, TaraturaSimbolo } from '../libreria'
 import { taraturaDi } from '../libreria'
 
@@ -447,7 +448,7 @@ export function simboloCompressore(nodo: SchemaNodo): string {
   }
 
   if (!nodo.accessorio) {
-    return corpo + girante(larghezza / 2, altezza / 2) + testo(10, 20, nodo.id, 24, 'start')
+    return corpo + girante(larghezza / 2, altezza / 2) + testo(10, 20, codiceVisibile(nodo), 24, 'start')
   }
 
   // Disoleatore: riquadro in basso a sinistra, con sopra la propria valvola di sicurezza.
@@ -495,7 +496,7 @@ export function simboloCompressore(nodo: SchemaNodo): string {
   const valvola = nodo.accessorio.valvoleSicurezza[0]
   const conValvola = valvola ? valvolaSicurezza(vx, vy) + testo(vx - 6, vy - 19, valvola.codice, 14, 'start') : ''
 
-  return corpo + conGirante + testo(larghezza - 10, 20, nodo.id, 24, 'end') + disoleatore + conValvola
+  return corpo + conGirante + testo(larghezza - 10, 20, codiceVisibile(nodo), 24, 'end') + disoleatore + conValvola
 }
 
 /**
@@ -547,7 +548,7 @@ export function simboloSerbatoio(nodo: SchemaNodo): string {
   const xScarico = orizzontale ? x + w - OFFSET_VALVOLA_ORIZZONTALE : larghezza / 2
   const xCodice = orizzontale ? x + w * 0.62 : larghezza / 2
 
-  const etichettaCodice = testo(xCodice, y + h / 2, nodo.id, 24)
+  const etichettaCodice = testo(xCodice, y + h / 2, codiceVisibile(nodo), 24)
 
   // Le valvole di sicurezza si appoggiano sulla sommità, affiancate quando sono più d'una.
   const valvole = nodo.valvoleSicurezza
@@ -648,7 +649,7 @@ function simboloRombo(
   }
 
   const haAccessorio = Boolean(nodo.accessorio)
-  const etichettaCodice = testo(cx, haAccessorio ? cy - 12 : cy, nodo.id, haAccessorio ? 16 : 18)
+  const etichettaCodice = testo(cx, haAccessorio ? cy - 12 : cy, codiceVisibile(nodo), haAccessorio ? 16 : 18)
 
   // L'accessorio ha una resa propria: uno stadio (rettangolo dagli angoli arrotondati a mezza
   // altezza, non un riquadro appena smussato) per il recipiente del filtro; un cerchio col
@@ -734,7 +735,7 @@ export function simboloTanica(nodo: SchemaNodo): string {
   const { larghezza, altezza } = DIMENSIONI.tanica
   return [
     `<rect x="0" y="0" width="${larghezza}" height="${altezza}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`,
-    testo(larghezza / 2, altezza / 2, nodo.id, 20),
+    testo(larghezza / 2, altezza / 2, codiceVisibile(nodo), 20),
   ].join('')
 }
 
@@ -784,7 +785,7 @@ export function simboloPaccoBombole(nodo: SchemaNodo): string {
   return [
     `<rect x="0" y="0" width="${larghezza}" height="${altezza}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`,
     cilindri,
-    testo(6, 12, nodo.id, 14, 'start'),
+    testo(6, 12, codiceVisibile(nodo), 14, 'start'),
   ].join('')
 }
 

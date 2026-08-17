@@ -825,3 +825,35 @@ describe("l'ingombro è l'inviluppo di sagoma trasformata e ancore", () => {
     expect(riquadroDi(tanica, libreria)).toMatchObject({ x: -30, y: -20 })
   })
 })
+
+describe('il codice disegnato dentro il simbolo', () => {
+  // Il codice non sta solo in tabella: ogni simbolo di apparecchiatura se lo porta scritto dentro.
+  // Se `simboloDi` continuasse a leggere l'identificativo, il disegno direbbe `M-X1` e la tabella
+  // `X9` — due nomi per la stessa apparecchiatura nello stesso documento.
+  const tipi: SchemaNodoTipo[] = [
+    'compressore',
+    'serbatoio',
+    'essiccatore',
+    'filtro',
+    'separatore',
+    'tanica',
+    'pacco_bombole',
+  ]
+
+  for (const tipo of tipi) {
+    it(`${tipo} disegna il codice scritto a mano e non l'identificativo`, () => {
+      const nodo: SchemaNodo = {
+        id: 'M-X1',
+        codice: 'X9',
+        tipo,
+        etichetta: 'Apparecchiatura',
+        gruppo: 'LINEA_DISTRIBUZIONE',
+        valvoleSicurezza: [],
+        origine: 'manuale',
+      }
+      const svg = simboloDi(nodo)
+      expect(svg, tipo).toContain('>X9<')
+      expect(svg, tipo).not.toContain('>M-X1<')
+    })
+  }
+})

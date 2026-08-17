@@ -14,6 +14,7 @@ import { useCallback, useState } from 'react'
 import { BaseEdge, EdgeLabelRenderer, useReactFlow, type EdgeProps } from '@xyflow/react'
 import { Divider, ListItemText, Menu, MenuItem, Typography } from '@mui/material'
 import { frecciaDirezione, riduttorePressione, valvolaIntercettazione, TRATTEGGIO_CONDENSE } from '@/services/schemaImpianto/symbols'
+import { codiceVisibile } from '@/services/schemaImpianto/codici'
 import {
   ondula,
   tronconi,
@@ -492,13 +493,14 @@ export function SchemaEdgeTubazione({
   // di prima. L'evidenziazione vince sulla selezione, e valgono per tutti i pezzi: un tubo mezzo
   // blu e mezzo nero si leggerebbe come due tubi diversi.
   const pezzi = tronconi(polilinea, stile, edgeData?.segni ?? [])
-  // Come si chiamano i due capi sul disegno: l'id (C1, S1...) è quello che il committente vede
-  // scritto dentro l'apparecchiatura. Il terminale utenze non ne ha uno parlante, e porta invece
-  // la propria scritta — su una riga sola, perché dal 17-08-2026 ne ha due.
+  // Come si chiamano i due capi sul disegno: il codice (C1, S1...) è quello che il committente
+  // vede scritto dentro l'apparecchiatura — e dal 17-08-2026 può divergere dall'identificativo,
+  // se l'ha riscritto a mano. Il terminale utenze non ne ha uno parlante, e porta invece la
+  // propria scritta — su una riga sola, perché dal 17-08-2026 ne ha due.
   const nomeDelNodo = (idNodo: string): string => {
     const nodo = getNode(idNodo)?.data as SchemaNodeData | undefined
     if (!nodo?.nodo) return idNodo
-    return nodo.nodo.tipo === 'utenze' ? nodo.nodo.etichetta.replace(/\n/g, ' ') : nodo.nodo.id
+    return nodo.nodo.tipo === 'utenze' ? nodo.nodo.etichetta.replace(/\n/g, ' ') : codiceVisibile(nodo.nodo)
   }
   const nomiDeiCapi = { da: nomeDelNodo(source), a: nomeDelNodo(target) }
   const coloreTratto = {
