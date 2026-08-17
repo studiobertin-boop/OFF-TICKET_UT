@@ -30,6 +30,7 @@ import {
   percorso,
   puntoSuTratto,
   quoteAttraversamento,
+  tronconi,
   type Punto,
   type QuoteInstradamento,
 } from './tratti'
@@ -38,6 +39,7 @@ import type {
   SchemaLayout,
   SchemaNodoPosizionato,
   SchemaNodoTipo,
+  SchemaSegnoTubo,
   SchemaTestoLibero,
 } from './types'
 
@@ -68,19 +70,31 @@ export interface RenderSvgOptions {
 }
 
 /**
- * Mandata compressore → serbatoio, resa ondulata come i flessibili dei blocchi di riferimento.
- * La FORMA la decide `instrada` (tratti.ts), condivisa con la tela dell'editor — che la chiama
- * tramite `polilineaDellArco` (`conversioneFlow.ts`, cablata in `SchemaEdgeTubazione.tsx`): qui
- * resta solo la resa grafica: l'onda.
+ * Un arco disegnato. La FORMA la decide `instrada` (tratti.ts), condivisa con la tela dell'editor
+ * — che la chiama tramite `polilineaDellArco` (`conversioneFlow.ts`, cablata in
+ * `SchemaEdgeTubazione.tsx`): qui resta la resa.
+ *
+ * Dal 17-08-2026 la resa può cambiare lungo il tubo: i segni che dichiarano uno `stileAValle` lo
+ * dividono in tronconi, ognuno col proprio tratto. Senza cambi è un `<path>` solo, identico a
+ * prima — ed è la ragione per cui i riferimenti SVG committati non si sono mossi.
+ *
+ * La rotta resta quella dello stile dell'ARCO: `instrada` la sceglie una volta (il flessibile
+ * scende al collettore, la condensa corre sulla propria corsia, la linea va dritta), e i tronconi
+ * non la ridiscutono. Cambia il tratto disegnato, non il tragitto.
+ *
+ * Fino a questa data erano tre funzioni — `renderMandataCompressore`, `renderMandataLinea`,
+ * `renderLineaCondense` — che calcolavano la stessa polilinea e si distinguevano solo nell'ultima
+ * riga: quella differenza vive ora in `trattoSvg`, una volta per troncone.
  */
-function renderMandataCompressore(
+function renderArco(
   da: SchemaNodoPosizionato,
   ancoraDa: string,
   a: SchemaNodoPosizionato,
   ancoraA: string,
   stile: SchemaArcoStile,
   quote: QuoteInstradamento,
-  gomiti?: Punto[],
+  gomiti: Punto[] | undefined,
+  segni: SchemaSegnoTubo[],
   libreria: Tarature = {}
 ): { svg: string; punti: Punto[] } {
   const pDa = posizioneAncora(da, ancoraDa, libreria)
@@ -89,50 +103,19 @@ function renderMandataCompressore(
     da: latoImposto(da, ancoraDa, libreria),
     a: latoImposto(a, ancoraA, libreria),
   })
-  const svg = `<path d="${ondula(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
+  const svg = tronconi(punti, stile, segni)
+    .map((tratto) => trattoSvg(tratto.punti, tratto.stile))
+    .join('')
   return { svg, punti }
 }
 
-/** Mandata di linea fra due stadi di trattamento. Forma da `instrada`, resa continua. */
-function renderMandataLinea(
-  da: SchemaNodoPosizionato,
-  ancoraDa: string,
-  a: SchemaNodoPosizionato,
-  ancoraA: string,
-  stile: SchemaArcoStile,
-  quote: QuoteInstradamento,
-  gomiti?: Punto[],
-  libreria: Tarature = {}
-): { svg: string; punti: Punto[] } {
-  const pDa = posizioneAncora(da, ancoraDa, libreria)
-  const pA = posizioneAncora(a, ancoraA, libreria)
-  const punti = instrada(stile, pDa, pA, gomiti, quote, {
-    da: latoImposto(da, ancoraDa, libreria),
-    a: latoImposto(a, ancoraA, libreria),
-  })
-  const svg = `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
-  return { svg, punti }
-}
-
-/** Linea condense. Forma da `instrada`, resa tratteggiata. */
-function renderLineaCondense(
-  da: SchemaNodoPosizionato,
-  ancoraDa: string,
-  a: SchemaNodoPosizionato,
-  ancoraA: string,
-  stile: SchemaArcoStile,
-  quote: QuoteInstradamento,
-  gomiti?: Punto[],
-  libreria: Tarature = {}
-): { svg: string; punti: Punto[] } {
-  const pDa = posizioneAncora(da, ancoraDa, libreria)
-  const pA = posizioneAncora(a, ancoraA, libreria)
-  const punti = instrada(stile, pDa, pA, gomiti, quote, {
-    da: latoImposto(da, ancoraDa, libreria),
-    a: latoImposto(a, ancoraA, libreria),
-  })
-  const svg = `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" stroke-dasharray="${TRATTEGGIO_CONDENSE}" />`
-  return { svg, punti }
+/** Il tracciato di un troncone, col tratto del suo tipo. */
+function trattoSvg(punti: Punto[], stile: SchemaArcoStile): string {
+  if (stile === 'flessibile') {
+    return `<path d="${ondula(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
+  }
+  const tratteggio = stile === 'condensa' ? ` stroke-dasharray="${TRATTEGGIO_CONDENSE}"` : ''
+  return `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}"${tratteggio} />`
 }
 
 /**
@@ -156,12 +139,17 @@ function renderArchi(
     const a = indice.get(arco.a.nodo)
     if (!da || !a) continue
 
-    const reso =
-      arco.stile === 'condensa'
-        ? renderLineaCondense(da, arco.da.ancora, a, arco.a.ancora, arco.stile, quote, arco.punti, libreria)
-        : arco.stile === 'flessibile'
-          ? renderMandataCompressore(da, arco.da.ancora, a, arco.a.ancora, arco.stile, quote, arco.punti, libreria)
-          : renderMandataLinea(da, arco.da.ancora, a, arco.a.ancora, arco.stile, quote, arco.punti, libreria)
+    const reso = renderArco(
+      da,
+      arco.da.ancora,
+      a,
+      arco.a.ancora,
+      arco.stile,
+      quote,
+      arco.punti,
+      arco.segni ?? [],
+      libreria
+    )
 
     parti.push(reso.svg)
     for (const segno of arco.segni ?? []) {
@@ -233,7 +221,12 @@ export function righeLista(layout: SchemaLayout): RigaTabella[] {
  * codificata identifica.
  */
 export function righeLegenda(layout: SchemaLayout): RigaTabella[] {
-  const stili = new Set(layout.archi.map((a) => a.stile))
+  // Anche i tipi che entrano da un cambio a metà tubo (`stileAValle`): senza, un disegno con un
+  // troncone flessibile su un tubo rigido mostrerebbe una legenda che il disegno smentisce.
+  const stili = new Set([
+    ...layout.archi.map((a) => a.stile),
+    ...layout.archi.flatMap((a) => (a.segni ?? []).flatMap((s) => (s.stileAValle ? [s.stileAValle] : []))),
+  ])
   const segni = layout.archi.flatMap((a) => a.segni ?? [])
   const righe: RigaTabella[] = []
 

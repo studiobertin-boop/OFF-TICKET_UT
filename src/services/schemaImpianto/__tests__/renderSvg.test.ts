@@ -182,6 +182,35 @@ describe('renderSvg', () => {
     expect(svg).not.toContain('<marker')
   })
 
+  it('disegna due tratti di tipo diverso quando una valvola lo dichiara', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ ha_disoleatore: false })],
+      disoleatori: [],
+      serbatoi: [makeSerbatoio({ orientamento: 'ORIZZONTALE' })],
+      essiccatori: [],
+      scambiatori: [],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const layout = layoutSchema(
+      buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    )
+    const flessibile = layout.archi.find((a) => a.stile === 'flessibile')!
+    const valvola = flessibile.segni![0]
+
+    // Il confronto è con lo STESSO disegno prima del cambio: contare i tratti dritti in assoluto
+    // non discrimina, perché il disegno ne porta già altri (la linea verso il terminale).
+    const disegnoDi = (svg: string) => svg.slice(0, svg.indexOf('LISTA APPARECCHIATURE'))
+    const primaDi = disegnoDi(renderSvg(layout))
+    valvola.stileAValle = 'standard'
+    const dopo = disegnoDi(renderSvg(layout))
+
+    const tubi = (disegno: string) => (disegno.match(/<path d="M [^"]*" fill="none" stroke="#000"/g) ?? []).length
+    expect(tubi(dopo)).toBe(tubi(primaDi) + 1)
+    // Il pezzo nuovo è dritto e quello prima resta ondulato: sullo stesso tubo, ora, tutti e due.
+    expect(dopo.match(/<path d="M [^"]*Q [^"]*"/g) ?? []).not.toHaveLength(0)
+  })
+
   it('disegna una freccia dove il segno è posato, orientata come il tratto', () => {
     const scheda = makeScheda({
       compressori: [makeCompressore({ ha_disoleatore: false })],
@@ -748,6 +777,18 @@ describe('legenda dei simboli', () => {
 
     layout.archi[0].segni = [{ id: 'F1', tipo: 'freccia_direzione', t: 0.5 }]
     expect(descrizioni(layout)).toContain('Direzione del flusso')
+  })
+
+  it('nomina anche i tipi che entrano da un cambio, non solo quelli degli archi', () => {
+    // 'condensa' e non 'flessibile': questo impianto ha gia' una mandata flessibile, e con quella
+    // la prima asserzione passerebbe senza discriminare nulla.
+    const layout = layoutCon({ condense: false, essiccatore: true })
+    expect(descrizioni(layout)).not.toContain('Linea condense')
+
+    layout.archi[0].segni = [
+      { id: 'V1', tipo: 'valvola_intercettazione', t: 0.5, stileAValle: 'condensa' },
+    ]
+    expect(descrizioni(layout)).toContain('Linea condense')
   })
 
   it('mette la valvola di scarico solo se un simbolo la disegna davvero', () => {
