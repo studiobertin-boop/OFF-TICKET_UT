@@ -12,7 +12,9 @@ import {
   rottaCondensa,
   rottaFlessibile,
   rottaLinea,
+  tronconi,
 } from '../tratti'
+import type { SchemaArcoStile, SchemaSegnoTubo } from '../types'
 
 /** Coppie (x,y) di tutti i punti d'arrivo dei comandi Q, nell'ordine. */
 function arriviQ(d: string): [number, number][] {
@@ -771,5 +773,74 @@ describe('quoteAttraversamento', () => {
 
   it('non conta un tratto verticale, che il muro non lo attraversa mai', () => {
     expect(quoteAttraversamento([{ x: 50, y: 0 }, { x: 50, y: 100 }], 50)).toEqual([])
+  })
+})
+
+describe('tronconi', () => {
+  const dritta = [
+    { x: 0, y: 0 },
+    { x: 100, y: 0 },
+  ]
+  const segno = (t: number, stileAValle?: SchemaArcoStile): SchemaSegnoTubo => ({
+    id: `s-${t}`,
+    tipo: 'valvola_intercettazione',
+    t,
+    ...(stileAValle ? { stileAValle } : {}),
+  })
+
+  it('senza cambi restituisce un troncone solo, con la polilinea intera', () => {
+    expect(tronconi(dritta, 'flessibile', [])).toEqual([{ punti: dritta, stile: 'flessibile' }])
+  })
+
+  it('ignora i segni che non dichiarano un tipo', () => {
+    // Una valvola posata e basta non spezza niente: è il caso di ogni disegno esistente.
+    expect(tronconi(dritta, 'standard', [segno(0.5)])).toEqual([{ punti: dritta, stile: 'standard' }])
+  })
+
+  it('un cambio a metà dà due tronconi che si toccano nel punto del segno', () => {
+    const esito = tronconi(dritta, 'flessibile', [segno(0.5, 'standard')])
+    expect(esito.map((tratto) => tratto.stile)).toEqual(['flessibile', 'standard'])
+    // Si toccano: la fine del primo è l'inizio del secondo, e insieme coprono tutto il tubo.
+    expect(esito[0].punti[esito[0].punti.length - 1]).toEqual({ x: 50, y: 0 })
+    expect(esito[1].punti[0]).toEqual({ x: 50, y: 0 })
+    expect(esito[0].punti[0]).toEqual(dritta[0])
+    expect(esito[1].punti[esito[1].punti.length - 1]).toEqual(dritta[1])
+  })
+
+  it('due cambi danno tre tronconi, nell’ordine del tubo e non in quello di creazione', () => {
+    // Il secondo segno dell'array sta PRIMA lungo il tubo: chi ordina per creazione sbaglia.
+    const esito = tronconi(dritta, 'standard', [segno(0.75, 'condensa'), segno(0.25, 'flessibile')])
+    expect(esito.map((tratto) => tratto.stile)).toEqual(['standard', 'flessibile', 'condensa'])
+    expect(esito[1].punti[0]).toEqual({ x: 25, y: 0 })
+    expect(esito[2].punti[0]).toEqual({ x: 75, y: 0 })
+  })
+
+  it('fonde due tronconi consecutivi dello stesso tipo', () => {
+    // Scegliere per il tratto a valle il tipo che aveva già non deve lasciare due tracciati
+    // identici attaccati: invisibili a occhio, ma non nel markup né nei riferimenti SVG.
+    expect(tronconi(dritta, 'standard', [segno(0.5, 'standard')])).toEqual([
+      { punti: dritta, stile: 'standard' },
+    ])
+  })
+
+  it('tiene i vertici della polilinea nel troncone che li contiene', () => {
+    const conAngolo = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 100 },
+    ]
+    // Il vertice (100,0) sta a t=0.5: il taglio a 0.75 lo lascia al primo troncone.
+    const esito = tronconi(conAngolo, 'standard', [segno(0.75, 'flessibile')])
+    expect(esito[0].punti).toEqual([{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 50 }])
+    expect(esito[1].punti).toEqual([{ x: 100, y: 50 }, { x: 100, y: 100 }])
+  })
+
+  it('un cambio sui capi non produce tronconi vuoti', () => {
+    // t=0 e t=1 sono posizioni legittime (il segno si trascina fino al capo): il risultato deve
+    // restare una lista di tronconi veri, ognuno con almeno due punti.
+    for (const t of [0, 1]) {
+      const esito = tronconi(dritta, 'standard', [segno(t, 'flessibile')])
+      for (const tratto of esito) expect(tratto.punti.length).toBeGreaterThanOrEqual(2)
+    }
   })
 })

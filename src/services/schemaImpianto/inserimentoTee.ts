@@ -7,7 +7,7 @@
  * Sta fra i servizi e non fra i componenti per la stessa ragione di `griglia.ts`: un calcolo
  * dentro un componente è un calcolo che nessuno prova.
  */
-import { puntoSuTratto, tSuTratto, type Punto } from './tratti'
+import { puntoSuTratto, quoteDeiVertici, tSuTratto, type Punto } from './tratti'
 import type { SchemaSegnoTubo } from './types'
 
 /**
@@ -92,23 +92,6 @@ export function spezzaArco(
             : segni.filter((s) => s.t > tTaglio).map((s) => ({ ...s, t: (s.t - tTaglio) / (1 - tTaglio) })),
     },
   }
-}
-
-/** La `t` di ogni vertice della polilinea, con la stessa metrica di `puntoSuTratto`: frazione
- *  della lunghezza totale, non del numero di segmenti. */
-function quoteDeiVertici(punti: Punto[]): number[] {
-  const lunghezze = punti.slice(1).map((p, i) => Math.hypot(p.x - punti[i].x, p.y - punti[i].y))
-  const totale = lunghezze.reduce((s, l) => s + l, 0)
-  const ts = [0]
-  let percorsa = 0
-  for (const l of lunghezze) {
-    percorsa += l
-    // Con tutti i punti coincidenti `totale` è nullo: senza la guardia le quote sarebbero NaN.
-    // Si ferma qui e non ai confronti a valle — falsi con NaN per proprietà del confronto, non
-    // per garanzia di questo modulo.
-    ts.push(totale === 0 ? 0 : percorsa / totale)
-  }
-  return ts
 }
 
 /**

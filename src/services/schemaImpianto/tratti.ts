@@ -5,7 +5,7 @@
  * senza chiudere un ciclo, e perché è geometria pura, verificabile senza DOM.
  */
 
-import type { SchemaArcoStile, SchemaLatoAncora } from './types'
+import type { SchemaArcoStile, SchemaLatoAncora, SchemaSegnoTubo } from './types'
 import { agganciaQuota } from './griglia'
 
 export interface Punto {
@@ -303,6 +303,81 @@ export function tSuTratto(punti: Punto[], p: Punto): number {
     percorsa += l
   }
   return migliore.t
+}
+
+/** La `t` di ogni vertice della polilinea, con la stessa metrica di `puntoSuTratto`: frazione
+ *  della lunghezza totale, non del numero di segmenti. */
+export function quoteDeiVertici(punti: Punto[]): number[] {
+  const lunghezze = punti.slice(1).map((p, i) => Math.hypot(p.x - punti[i].x, p.y - punti[i].y))
+  const totale = lunghezze.reduce((s, l) => s + l, 0)
+  const ts = [0]
+  let percorsa = 0
+  for (const l of lunghezze) {
+    percorsa += l
+    // Con tutti i punti coincidenti `totale` è nullo: senza la guardia le quote sarebbero NaN.
+    // Si ferma qui e non ai confronti a valle — falsi con NaN per proprietà del confronto, non
+    // per garanzia di questo modulo.
+    ts.push(totale === 0 ? 0 : percorsa / totale)
+  }
+  return ts
+}
+
+/**
+ * Il pezzo di polilinea fra due quote (`t`), estremi compresi: comincia esattamente sul punto `da`
+ * e finisce esattamente su quello `a`, con in mezzo i soli vertici che ci cadono. Serve a disegnare
+ * un troncone di tubo che cambia tipo a metà.
+ */
+export function sottoPolilinea(punti: Punto[], da: number, a: number): Punto[] {
+  const inizio = puntoSuTratto(punti, da).punto
+  const fine = puntoSuTratto(punti, a).punto
+  const quote = quoteDeiVertici(punti)
+  const interni = punti.filter((_, i) => quote[i] > da && quote[i] < a)
+  // Un capo che coincide col primo vertice interno lo renderebbe doppio: il tracciato non
+  // cambierebbe forma, ma il markup porterebbe un comando in più a ogni disegno.
+  const senzaDoppioni = [inizio, ...interni, fine].filter(
+    (p, i, arr) => i === 0 || p.x !== arr[i - 1].x || p.y !== arr[i - 1].y
+  )
+  // Un troncone di lunghezza nulla (cambio posato esattamente su un capo) resta comunque un
+  // segmento: `ondula` e `percorso` vogliono almeno due punti.
+  return senzaDoppioni.length >= 2 ? senzaDoppioni : [inizio, fine]
+}
+
+/**
+ * I tronconi in cui i segni con `stileAValle` dividono la polilinea, ciascuno col proprio tipo di
+ * tubazione. Senza cambi è un troncone solo con la polilinea intera — il disegno di sempre.
+ *
+ * I confini si prendono ORDINATI per `t`, non per ordine di creazione: trascinare una valvola oltre
+ * un'altra riordina i tronconi da sé, e non lascia stati impossibili. Due tronconi consecutivi
+ * dello stesso tipo si fondono, o resterebbero due tracciati identici attaccati — invisibili a
+ * occhio, ma non nel markup.
+ */
+export function tronconi(
+  punti: Punto[],
+  stileArco: SchemaArcoStile,
+  segni: SchemaSegnoTubo[]
+): { punti: Punto[]; stile: SchemaArcoStile }[] {
+  const cambi = segni
+    .filter((s): s is SchemaSegnoTubo & { stileAValle: SchemaArcoStile } => !!s.stileAValle)
+    .sort((primo, secondo) => primo.t - secondo.t)
+  if (cambi.length === 0) return [{ punti, stile: stileArco }]
+
+  const quote = [0, ...cambi.map((c) => Math.max(0, Math.min(1, c.t))), 1]
+  const stili = [stileArco, ...cambi.map((c) => c.stileAValle)]
+
+  const esito: { punti: Punto[]; stile: SchemaArcoStile }[] = []
+  for (let i = 0; i < stili.length; i++) {
+    const precedente = esito[esito.length - 1]
+    if (precedente && precedente.stile === stili[i]) {
+      // Stesso tipo del troncone che precede: si allunga quello invece di aprirne un altro. La
+      // quota di partenza scende con lui, così un terzo tratto dello stesso tipo si attacca al
+      // risultato già fuso e non a quello di mezzo.
+      esito[esito.length - 1] = { punti: sottoPolilinea(punti, quote[i - 1], quote[i + 1]), stile: stili[i] }
+      quote[i] = quote[i - 1]
+      continue
+    }
+    esito.push({ punti: sottoPolilinea(punti, quote[i], quote[i + 1]), stile: stili[i] })
+  }
+  return esito
 }
 
 /**

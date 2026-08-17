@@ -156,6 +156,15 @@ export interface SchemaSegnoTubo {
   tipo: SchemaSegnoTuboTipo
   /** Posizione lungo la polilinea del tratto: 0 = capo Da, 1 = capo A. */
   t: number
+  /**
+   * Tipo di tubazione che comincia da questo segno e vale fino al segno successivo che ne dichiara
+   * uno, o fino al capo dell'arco. Assente: qui il tubo non cambia tipo — è il caso di ogni segno
+   * posato prima del 17-08-2026 e di ogni layout salvato, che si leggono senza conversione.
+   *
+   * Lo dichiarano solo valvola di intercettazione e riduttore di pressione: la freccia di direzione
+   * indica il verso del flusso, non un componente della linea (deciso col committente).
+   */
+  stileAValle?: SchemaArcoStile
 }
 
 export interface SchemaArco {
