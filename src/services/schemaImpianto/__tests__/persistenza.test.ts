@@ -739,6 +739,50 @@ describe('taratura di pratica e riattacco degli archi orfani', () => {
     expect(layout.archi.some((a) => a.id === 'A1')).toBe(false)
   })
 
+  it('l’arco scartato viene contato, non fatto sparire in silenzio', () => {
+    // Stesso caso del test qui sopra visto dall'altra parte: sparire è giusto, sparire senza
+    // dirlo no. Una taratura permanente che cambi `accetta` fa cadere tubi da OGNI pratica
+    // riaperta, e finora nessuno se ne accorgeva se non guardando il disegno (revisione finale,
+    // rilievo Importante).
+    const salvato: LayoutSalvato = {
+      ...layoutConArcoVersoTanica('sx'),
+      simboli: { tanica: { dx: 0, dy: 0, sx: 1, sy: 1, ancore: [{ id: 'alto-in', x: 40, y: 0, accetta: ['condensa'] }] } },
+    }
+
+    expect(apri(salvato, modelloDiRiferimento()).archiScartati).toBe(1)
+  })
+
+  it('non conta come scartato un arco che si è solo riattaccato altrove', () => {
+    // La distinzione che rende utile l'avviso: qui l'ancora citata non c'è più, ma il tubo ha
+    // trovato dove riattaccarsi e resta disegnato. Contarlo direbbe all'utente di ritracciare una
+    // tubazione che è ancora lì.
+    const salvato: LayoutSalvato = {
+      ...layoutConArcoVersoTanica('sx'),
+      simboli: { tanica: { dx: 0, dy: 0, sx: 1, sy: 1, ancore: [{ id: 'ingresso', x: 60, y: 20, accetta: ['aria'] }] } },
+    }
+
+    const esito = apri(salvato, modelloDiRiferimento())
+
+    expect(esito.layout.archi.some((a) => a.id === 'A1')).toBe(true)
+    expect(esito.archiScartati).toBe(0)
+  })
+
+  it('non conta come scartato un arco caduto insieme al suo nodo, che `rimossi` racconta già', () => {
+    // Il compressore sparisce dalla scheda: l'arco C1→T1 cade col nodo, e `rimossi` lo dice già
+    // nominando C1. Contarlo anche qui sarebbe lo stesso fatto annunciato due volte, la seconda
+    // con una causa sbagliata («nessun attacco accetta più quel fluido»).
+    const salvato = layoutConArcoVersoTanica('sx')
+    const senzaCompressore: SchemaModel = {
+      nodi: modelloDiRiferimento().nodi.filter((n) => n.id !== 'C1'),
+      archi: [],
+    }
+
+    const esito = apri(salvato, senzaCompressore)
+
+    expect(esito.rimossi).toContain('C1')
+    expect(esito.archiScartati).toBe(0)
+  })
+
   it('non basta che l’id dell’ancora sia rimasto: se non accetta più lo stile dell’arco si tratta come sparita', () => {
     // Il modo taratura (task successivi) può riassegnare un id esistente a un altro fluido
     // SENZA toglierlo: 'sx' c'è ancora nella definizione corrente, ma ora accetta condensa. Un

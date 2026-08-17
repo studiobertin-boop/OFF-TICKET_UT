@@ -140,6 +140,7 @@ export function SchemaImpiantoSection({
   const [esitoRiconciliazione, setEsitoRiconciliazione] = useState<{
     aggiunti: string[]
     rimossi: string[]
+    archiScartati: number
   } | null>(null)
 
   const puoGenerare = puoGenerareSchema({ scheda, collegamentiCompressoriSerbatoi })
@@ -218,6 +219,42 @@ export function SchemaImpiantoSection({
     [taraturaPratica, onTaraturaPraticaChange]
   )
 
+  /**
+   * La taratura di pratica com'era quando l'editor si è aperto, per poterla rimettere se si esce
+   * senza confermare. «Usa solo questa volta» e «rendi permanenti» scrivono subito qui nel
+   * genitore — devono, perché la tela deve mostrare l'esito prima che il modo taratura si chiuda —
+   * e senza questa istantanea quella scrittura sopravviveva a «Annulla modifiche»: il PNG
+   * consegnato restava quello vecchio mentre `additional_info.schemaLayout.simboli` veniva salvato
+   * tarato, cioè documento e layout salvati che raccontano due cose diverse. «Annulla» vuol dire
+   * che tutto torna com'era (ruling della revisione finale).
+   *
+   * Un `useRef` e non uno stato: nessun render dipende da questo valore, serve solo alla chiusura.
+   * `null` fuori dall'editor, per distinguere «niente da rimettere» da una mappa vuota, che è
+   * invece un valore legittimo da rimettere (nessuna taratura di pratica all'apertura).
+   */
+  const taraturaPraticaAllApertura = useRef<Tarature | null>(null)
+
+  const apriEditor = useCallback(() => {
+    taraturaPraticaAllApertura.current = taraturaPratica
+    setEditorAperto(true)
+  }, [taraturaPratica])
+
+  /**
+   * Chiude l'editor SCARTANDO: «Annulla modifiche», Escape e il clic sullo sfondo passano tutti
+   * di qui — sono la stessa uscita vista da tre gesti diversi, e la scelta di uno solo di essi non
+   * deve valere meno delle altre.
+   *
+   * Non disfa la taratura resa PERMANENTE: quella è una scrittura in tabella, dichiarata come tale
+   * («vale per ogni pratica dell'applicazione, comprese quelle già consegnate», nel dialogo a tre
+   * vie) e decisa a parte da un amministratore. Qui si rimette solo lo strato di questa pratica.
+   */
+  const chiudiEditorScartando = useCallback(() => {
+    setEditorAperto(false)
+    const allApertura = taraturaPraticaAllApertura.current
+    taraturaPraticaAllApertura.current = null
+    if (allApertura !== null && allApertura !== taraturaPratica) onTaraturaPraticaChange(allApertura)
+  }, [taraturaPratica, onTaraturaPraticaChange])
+
   useEffect(() => {
     return () => {
       if (anteprimaUrl) URL.revokeObjectURL(anteprimaUrl)
@@ -279,8 +316,8 @@ export function SchemaImpiantoSection({
     // `aggiuntiDaScheda`, non `aggiunti`: il secondo comprende anche il terminale utenze, che
     // non è un'apparecchiatura e non viene dalla scheda (vedi `EsitoRiconciliazione`).
     setEsitoRiconciliazione(
-      esito.aggiuntiDaScheda.length > 0 || esito.rimossi.length > 0
-        ? { aggiunti: esito.aggiuntiDaScheda, rimossi: esito.rimossi }
+      esito.aggiuntiDaScheda.length > 0 || esito.rimossi.length > 0 || esito.archiScartati > 0
+        ? { aggiunti: esito.aggiuntiDaScheda, rimossi: esito.rimossi, archiScartati: esito.archiScartati }
         : null
     )
     void disegna(esito.layout)
@@ -369,6 +406,15 @@ export function SchemaImpiantoSection({
             esitoRiconciliazione.rimossi.length > 0
               ? `Rimosse perché non più in scheda: ${esitoRiconciliazione.rimossi.join(', ')}.`
               : null,
+            // Il gemello, alla riapertura, della guardia che l'editor tiene dentro la sessione: lì
+            // un'ancora occupata non si può togliere; qui la taratura che l'ha tolta (o le ha
+            // cambiato fluido) è già stata decisa altrove — magari permanente, magari da un altro
+            // amministratore — e il tubo è già caduto. Restava da dirlo.
+            esitoRiconciliazione.archiScartati > 0
+              ? esitoRiconciliazione.archiScartati === 1
+                ? 'Una tubazione è stata scartata: nessun attacco del suo simbolo accetta più quel fluido (una taratura del simbolo l’ha cambiato). Ritracciala dall’editor.'
+                : `${esitoRiconciliazione.archiScartati} tubazioni sono state scartate: nessun attacco dei loro simboli accetta più quel fluido (una taratura dei simboli l’ha cambiato). Ritracciale dall’editor.`
+              : null,
           ]
             .filter(Boolean)
             .join(' ')}
@@ -436,7 +482,7 @@ export function SchemaImpiantoSection({
                 size="small"
                 variant="contained"
                 startIcon={<EditIcon />}
-                onClick={() => setEditorAperto(true)}
+                onClick={apriEditor}
                 disabled={disabled || inCorso}
               >
                 Rifinisci schema
@@ -522,7 +568,7 @@ export function SchemaImpiantoSection({
           invece di tagliarla fuori dalla vista. */}
       <Dialog
         open={editorAperto}
-        onClose={() => setEditorAperto(false)}
+        onClose={chiudiEditorScartando}
         fullScreen={preferenze.schermoIntero}
         maxWidth={false}
         PaperProps={{
@@ -552,8 +598,11 @@ export function SchemaImpiantoSection({
               onScriviTaraturaPermanente={scriviPermanente}
               preferenze={preferenze}
               onCambiaPreferenze={cambiaPreferenze}
-              onAnnulla={() => setEditorAperto(false)}
+              onAnnulla={chiudiEditorScartando}
               onConferma={(modificato) => {
+                // Confermando, la taratura decisa nel dialogo RESTA: si dimentica l'istantanea
+                // invece di rimetterla, e si ridisegna col valore di adesso.
+                taraturaPraticaAllApertura.current = null
                 setEditorAperto(false)
                 void disegna(modificato)
               }}

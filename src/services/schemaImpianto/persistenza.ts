@@ -141,6 +141,23 @@ export interface EsitoRiconciliazione {
    */
   aggiuntiDaScheda: string[]
   rimossi: string[]
+  /**
+   * Quante tubazioni salvate sono state buttate perché nessuno dei loro capi trovava più
+   * un'ancora che accettasse quel fluido (`capoRiattaccato` → `null`). Un numero e non un elenco:
+   * gli id degli archi non sono stabili fra una scheda e la successiva (vedi `identitaArco`),
+   * quindi nominarli direbbe all'utente meno di quanto sembri.
+   *
+   * Va detto, e finora non lo era: una taratura permanente che cambi `accetta` fa sparire tubi da
+   * ogni pratica riaperta, senza che nessuno se ne accorga finché non guarda il disegno. La
+   * guardia gemella dentro la sessione esiste già (`togliAncoraSelezionata`/`tornaADefault`,
+   * SchemaEditor.tsx), che rifiutano il gesto invece di lasciar cadere il tubo: qui il gesto è già
+   * stato fatto, altrove e magari da un altro, e resta solo da dirlo (revisione finale, rilievo
+   * Importante).
+   *
+   * NON conta gli archi caduti insieme al loro NODO: quelli sono già raccontati da `rimossi`, e
+   * contarli due volte trasformerebbe una rimozione annunciata in un allarme in più.
+   */
+  archiScartati: number
 }
 
 /**
@@ -177,7 +194,13 @@ export function layoutIniziale(
 ): EsitoRiconciliazione {
   const ripristinato = deserializzaLayout(salvato, libreria)
   if (!ripristinato)
-    return { layout: layoutSchema(modello, libreria), aggiunti: [], aggiuntiDaScheda: [], rimossi: [] }
+    return {
+      layout: layoutSchema(modello, libreria),
+      aggiunti: [],
+      aggiuntiDaScheda: [],
+      rimossi: [],
+      archiScartati: 0,
+    }
   return riconcilia(ripristinato, modello, libreria)
 }
 
@@ -345,6 +368,10 @@ export function riconcilia(
   // sui nodi PRIMA della riconciliazione, questa sui nodi DOPO (posizioni e taratura di adesso,
   // le sole con cui un capo riattaccato ha senso).
   const nodiPerId = new Map(nodi.map((n) => [n.id, n]))
+  // Il conto degli archi buttati per mancanza di ancore compatibili si tiene QUI e non a valle
+  // confrontando le lunghezze: fra `archiSalvati + archiNuovi` e il risultato ci sono anche il
+  // filtro sui nodi assenti e l'aggiunta della tubazione del terminale, che scartati non sono.
+  let archiScartati = 0
   const archi = [...archiSalvati, ...archiNuovi]
     .filter((a) => idNodi.has(a.da.nodo) && idNodi.has(a.a.nodo))
     .map((arco) => {
@@ -352,7 +379,10 @@ export function riconcilia(
       const nodoA = nodiPerId.get(arco.a.nodo)!
       const capoDa = capoRiattaccato(arco.da, nodoDa, nodoA, arco.stile, libreria)
       const capoA = capoRiattaccato(arco.a, nodoA, nodoDa, arco.stile, libreria)
-      if (!capoDa || !capoA) return null
+      if (!capoDa || !capoA) {
+        archiScartati += 1
+        return null
+      }
       return capoDa === arco.da && capoA === arco.a ? arco : { ...arco, da: capoDa, a: capoA }
     })
     .filter((a): a is SchemaArco => a !== null)
@@ -386,5 +416,5 @@ export function riconcilia(
   // vedi il commento sulla firma di questa funzione.
   const muro = salvato.muro ? muroDaAscissa(salvato.muro.x, nodi, libreria) : null
 
-  return { layout: { nodi, archi, muro, testi }, aggiunti, aggiuntiDaScheda, rimossi }
+  return { layout: { nodi, archi, muro, testi }, aggiunti, aggiuntiDaScheda, rimossi, archiScartati }
 }
