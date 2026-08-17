@@ -386,6 +386,7 @@ function SchemaSegno({
       : (tipo === 'riduttore_pressione' ? riduttorePressione : valvolaIntercettazione)(0, 0, orientamento)
 
   return (
+    <>
     <div
       className="nopan"
       onPointerDown={suInizio}
@@ -411,6 +412,15 @@ function SchemaSegno({
         style={{ overflow: 'visible' }}
         dangerouslySetInnerHTML={{ __html: markup }}
       />
+    </div>
+      {/*
+       * FUORI dal <div> qui sopra, non dentro: il menu vive in un portale del DOM, ma gli eventi
+       * di React risalgono l'albero dei COMPONENTI. Annidato là dentro, il `pointerdown` su una
+       * voce arrivava fino al gestore del trascinamento del segno, che catturava il puntatore e
+       * si teneva anche il `pointerup`: alla voce non arrivava mai il `click`, e il menu restava
+       * aperto senza fare niente. Misurato in pagina il 17-08-2026 — `tsc`, i test e il lint non
+       * possono vederlo.
+       */}
       {conMenu && (
         <Menu anchorEl={menu} open={!!menu} onClose={() => setMenu(null)}>
           {(['da', 'a'] as const).map((lato, i) => [
@@ -439,7 +449,7 @@ function SchemaSegno({
           </MenuItem>
         </Menu>
       )}
-    </div>
+    </>
   )
 }
 
