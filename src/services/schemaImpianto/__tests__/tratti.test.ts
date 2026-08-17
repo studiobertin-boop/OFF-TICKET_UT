@@ -225,6 +225,33 @@ describe('puntoSuTratto', () => {
     expect(risultato.orizzontale).toBe(false)
     expect(risultato.punto.x).toBe(100)
   })
+
+  it('riporta il versore del tratto, col verso di percorrenza', () => {
+    expect(puntoSuTratto(orizzontale, 0.5).direzione).toEqual({ x: 1, y: 0 })
+
+    // Stessa giacitura, percorsa al contrario: `orizzontale` non distingue i due casi, la
+    // direzione sì — ed è la differenza fra una freccia che indica il flusso e una che lo nega.
+    const alContrario = puntoSuTratto([...orizzontale].reverse(), 0.5)
+    expect(alContrario.orizzontale).toBe(true)
+    expect(alContrario.direzione).toEqual({ x: -1, y: 0 })
+
+    // Su una diagonale il versore è normalizzato: chi disegna lo moltiplica per la propria misura.
+    const diagonale = puntoSuTratto(
+      [
+        { x: 0, y: 0 },
+        { x: 30, y: 40 },
+      ],
+      0.5
+    )
+    expect(diagonale.direzione.x).toBeCloseTo(0.6)
+    expect(diagonale.direzione.y).toBeCloseTo(0.8)
+  })
+
+  it('prende il versore del segmento su cui cade t, non del primo', () => {
+    // Oltre l'angolo di `conAngolo`, dove il tratto scende: se il versore venisse dal primo
+    // segmento, una freccia posata qui punterebbe avanti invece che in giù.
+    expect(puntoSuTratto(conAngolo, 0.9).direzione).toEqual({ x: 0, y: 1 })
+  })
 })
 
 describe('tSuTratto', () => {

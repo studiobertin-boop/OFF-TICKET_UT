@@ -235,9 +235,14 @@ export function quoteAttraversamento(punti: Punto[], x: number): number[] {
  * se il tratto locale è orizzontale, per orientare il simbolo (`valvolaIntercettazione` e
  * `riduttorePressione` vogliono sapere se sono su un montante o su un tratto in linea).
  */
-export function puntoSuTratto(punti: Punto[], t: number): { punto: Punto; orizzontale: boolean } {
-  if (punti.length === 0) return { punto: { x: 0, y: 0 }, orizzontale: true }
-  if (punti.length === 1) return { punto: punti[0], orizzontale: true }
+export function puntoSuTratto(
+  punti: Punto[],
+  t: number
+): { punto: Punto; orizzontale: boolean; direzione: Punto } {
+  // Senza un tratto vero non c'è una direzione da riportare: `{1,0}` è la stessa convenzione con
+  // cui questi due rami dichiarano già `orizzontale: true`.
+  if (punti.length === 0) return { punto: { x: 0, y: 0 }, orizzontale: true, direzione: { x: 1, y: 0 } }
+  if (punti.length === 1) return { punto: punti[0], orizzontale: true, direzione: { x: 1, y: 0 } }
 
   const lunghezze = punti.slice(1).map((p, i) => Math.hypot(p.x - punti[i].x, p.y - punti[i].y))
   const totale = lunghezze.reduce((s, l) => s + l, 0)
@@ -253,11 +258,17 @@ export function puntoSuTratto(punti: Punto[], t: number): { punto: Punto; orizzo
       return {
         punto: { x: a.x + (b.x - a.x) * frazioneLocale, y: a.y + (b.y - a.y) * frazioneLocale },
         orizzontale: a.y === b.y,
+        // Versore del segmento su cui `t` cade, nel verso in cui la polilinea lo percorre: è
+        // questo a orientare la freccia di direzione, che `orizzontale` non saprebbe orientare —
+        // non distingue i due versi della stessa giacitura, e sulle diagonali non dice nulla.
+        // Segmento di lunghezza nulla (gomito posato sull'ancora): niente da normalizzare, vale
+        // la convenzione dei rami degeneri qui sopra.
+        direzione: l === 0 ? { x: 1, y: 0 } : { x: (b.x - a.x) / l, y: (b.y - a.y) / l },
       }
     }
     percorsa += l
   }
-  return { punto: punti[punti.length - 1], orizzontale: true }
+  return { punto: punti[punti.length - 1], orizzontale: true, direzione: { x: 1, y: 0 } }
 }
 
 /**
