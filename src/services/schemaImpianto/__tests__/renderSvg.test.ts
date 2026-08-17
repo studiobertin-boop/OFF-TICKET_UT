@@ -394,7 +394,7 @@ describe('attacco alle ancore', () => {
       /<path d="M ([\d.]+) ([\d.]+) L ([\d.]+) ([\d.]+) L ([\d.]+) ([\d.]+) L ([\d.]+) ([\d.]+) Z"/
     )!
     const [vertSx, vertSy] = [Number(rombo[7]), Number(rombo[8])]
-    const atteso = `L ${sep.x + vertSx} ${sep.y + vertSy}" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="10 7" marker-end="url(#freccia)" />`
+    const atteso = `L ${sep.x + vertSx} ${sep.y + vertSy}" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="7 10" marker-end="url(#freccia)" />`
     expect(svg).toContain(atteso)
   })
 

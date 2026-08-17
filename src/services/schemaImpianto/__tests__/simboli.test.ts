@@ -496,26 +496,48 @@ describe('testoMultiRiga', () => {
 })
 
 describe('riduttorePressione', () => {
-  it('contiene la farfalla della valvola di intercettazione più uno stelo di regolazione', () => {
-    const valvola = valvolaIntercettazione(50, 50)
+  // Task 13, Blocco 3: il blocco CAD «riduttore» (Blocchi.pdf) non porta uno stelo — due
+  // triangoli asimmetrici che condividono l'apice, l'ala piccola al 60% dell'ala grande (vedi il
+  // commento della funzione). Non contiene più `valvolaIntercettazione` per intero: l'ala grande
+  // ha la STESSA `d`/misura di un'ala della valvola, ma la seconda ala è diversa, quindi la
+  // stringa intera della valvola (due ali uguali) non compare mai dentro il riduttore.
+  it('due triangoli che condividono l’apice, non uno stelo', () => {
     const riduttore = riduttorePressione(50, 50)
-    // Stesso corpo della valvola (farfalla), riconoscibile perché il riduttore lo contiene
-    // per intero: è la valvola con un elemento in più, non un disegno indipendente.
-    expect(riduttore).toContain(valvola)
-    expect(riduttore).not.toBe(valvola)
-    expect(riduttore).toContain('<rect')
+    // Un solo `<rect>` (la copertura bianca): lo stelo di prima ne aggiungeva un secondo, a
+    // contorno nero, per il box di regolazione — che qui non esiste più.
+    expect([...riduttore.matchAll(/<rect/g)]).toHaveLength(1)
+    // Le due ali toccano entrambe l'apice (50,50): la Z di chiusura di ciascun triangolo.
+    expect([...riduttore.matchAll(/L 50 50 Z/g)]).toHaveLength(2)
   })
 
-  it('ruota lo stelo con l’orientamento, come la valvola sottostante', () => {
+  it('l’ala piccola è il 60% dell’ala grande, misurato sul blocco CAD', () => {
+    // Ala grande: apice-base 9 (M 41 ... a x=50, cioè 50-41=9). Ala piccola: apice-base 5,4
+    // (55,4-50). Rapporto 5,4/9 = 0,6, la SCALA_ALA_PICCOLA misurata sul CAD (3,36/5,64≈0,596).
+    const d = riduttorePressione(50, 50)
+    expect(d).toContain('M 41 45.5 L 41 54.5 L 50 50 Z')
+    expect(d).toContain('M 55.4 47.3 L 55.4 52.7 L 50 50 Z')
+  })
+
+  it('ruota con l’orientamento, come la valvola di intercettazione', () => {
     const orizzontale = riduttorePressione(50, 50, 'orizzontale')
     const verticale = riduttorePressione(50, 50, 'verticale')
     expect(orizzontale).not.toBe(verticale)
   })
 
-  // Il riduttore non ha una copertura sua: costruisce sopra la valvola, quindi la eredita. Se un
-  // giorno smettesse di farlo, questo test lo dice prima che lo dica il documento del cliente.
-  it('il riduttore di pressione eredita la copertura della valvola', () => {
-    expect(riduttorePressione(100, 50)).toContain('fill="#fff"')
+  // La copertura non può più derivare da un solo [larghezza, altezza] raddoppiato (come la
+  // valvola simmetrica): qui l'ala grande sporge più della piccola, e il rettangolo bianco deve
+  // seguirla asimmetricamente o taglierebbe l'ala grande / lascerebbe scoperto il tubo oltre la
+  // piccola.
+  it('la copertura è larga quanto le due ali insieme, non il doppio della sola ala grande', () => {
+    const svg = riduttorePressione(100, 50)
+    expect(svg.indexOf('fill="#fff"')).toBeLessThan(svg.indexOf('<path'))
+    expect(svg).toContain('<rect x="91" y="45.5" width="14.399999999999999" height="9" fill="#fff" stroke="none" />')
+  })
+
+  it('la copertura ruota con la farfalla sul montante', () => {
+    expect(riduttorePressione(100, 50, 'verticale')).toContain(
+      '<rect x="95.5" y="41" width="9" height="14.399999999999999" fill="#fff" stroke="none" />'
+    )
   })
 })
 
@@ -523,15 +545,18 @@ describe('copertura della valvola di intercettazione', () => {
   // Osservazione 6 del committente: «la linea attraversa la valvola invece di interrompersi».
   // Il rettangolo bianco va PRIMA dei tratti, o coprirebbe la farfalla invece del tubo, ed e'
   // esattamente grande quanto la farfalla: ogni unita' in piu' e' disegno altrui cancellato.
+  //
+  // 18×9, non più 18×16 (Task 13, Blocco 3): l'altezza segue il rapporto 2:1 misurato sul CAD
+  // (`RAPPORTO_ALA_FARFALLA`), la larghezza (`l=9`) è invariata.
   it('la valvola di intercettazione copre il tubo con un rettangolo bianco, prima dei tratti', () => {
     const svg = valvolaIntercettazione(100, 50)
     expect(svg.indexOf('fill="#fff"')).toBeLessThan(svg.indexOf('<path'))
-    expect(svg).toContain('<rect x="91" y="42" width="18" height="16" fill="#fff" stroke="none" />')
+    expect(svg).toContain('<rect x="91" y="45.5" width="18" height="9" fill="#fff" stroke="none" />')
   })
 
   it('il rettangolo bianco ruota con la farfalla sul montante', () => {
     expect(valvolaIntercettazione(100, 50, 'verticale')).toContain(
-      '<rect x="92" y="41" width="16" height="18" fill="#fff" stroke="none" />'
+      '<rect x="95.5" y="41" width="9" height="18" fill="#fff" stroke="none" />'
     )
   })
 })
@@ -542,7 +567,9 @@ describe('campioneTubazione', () => {
   // differenza non si notava. Il test fissa la costante, non il numero scritto due volte.
   it('il campione di legenda delle condense usa la costante del tratteggio', () => {
     expect(campioneTubazione('condensa')).toContain(`stroke-dasharray="${TRATTEGGIO_CONDENSE}"`)
-    expect(TRATTEGGIO_CONDENSE).toBe('10 7')
+    // '7 10', non più '10 7' (Task 13, Blocco 3): il blocco CAD `linea-condense` disegna dash più
+    // corti dei gap (≈3,2pt contro ≈4,8pt, rapporto 2:3) — vedi il commento della costante.
+    expect(TRATTEGGIO_CONDENSE).toBe('7 10')
   })
 })
 

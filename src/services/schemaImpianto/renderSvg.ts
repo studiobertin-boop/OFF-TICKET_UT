@@ -362,7 +362,15 @@ export function renderSvg(layout: SchemaLayout, libreria: Tarature = {}, options
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${larghezzaTotale}" height="${altezzaTotale}" viewBox="0 0 ${larghezzaTotale} ${altezzaTotale}">`,
-    `<defs><marker id="freccia" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000" /></marker></defs>`,
+    // viewBox 15×10 (rapporto 1,5), non più 10×10 (1,0): il blocco CAD `freccia`
+    // (Blocchi.pdf, «freccia direzione flusso») misura 5,58×3,72pt, rapporto 1,50 — un
+    // triangolo più allungato di quello disegnato finora (che era un triangolo rettangolo
+    // isoscele, base=altezza). `markerHeight` resta 6 (la stessa scala 0,6 di prima
+    // sull'asse verticale, che determina lo spessore percepito della punta);
+    // `markerWidth` sale a 9 = 15×0,6 per restare alla stessa scala sul nuovo viewBox più largo.
+    // `refX=14` mantiene lo stesso margine di 1 unità dall'apice (15) che aveva prima (9 su un
+    // apice a 10), l'ancoraggio che fa combaciare la punta con la fine del tratto.
+    `<defs><marker id="freccia" viewBox="0 0 15 10" refX="14" refY="5" markerWidth="9" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 15 5 L 0 10 z" fill="#000" /></marker></defs>`,
     `<rect width="${larghezzaTotale}" height="${altezzaTotale}" fill="#fff" />`,
     muro,
     archi.svg,

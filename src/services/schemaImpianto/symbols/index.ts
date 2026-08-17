@@ -26,13 +26,20 @@ export const TRATTO = 2
  * SchemaEdgeTubazione.tsx): finche' la tela era nera la differenza non si notava, su fondo bianco
  * il confronto con l'anteprima e' immediato. Non e' il tratteggio del codolo del terminale utenze
  * (`simboloUtenze`), che porta lo stesso numero per coincidenza e vuol dire un'altra cosa.
+ *
+ * '7 10' (Task 13, Blocco 3), non più '10 7': il blocco CAD `linea-condense` (Blocchi.pdf) non
+ * disegna un dash-array nativo — la tratteggia con dieci trattini separati, letti uno per uno
+ * (`page.get_drawings()`, coordinate assolute) — dash ≈3,2pt, passo fra un trattino e il
+ * successivo ≈8,0pt, quindi gap ≈4,8pt: rapporto dash:gap ≈ 3,2:4,8 = 2:3, l'ESATTO opposto di
+ * '10 7' (dash più lungo del gap, ≈1,43:1). Somma invariata (17→17, qui 7+10) per continuità di
+ * scala: cambia solo quale dei due numeri è il dash e quale il gap.
  */
-export const TRATTEGGIO_CONDENSE = '10 7'
+export const TRATTEGGIO_CONDENSE = '7 10'
 /**
  * Tratteggio della verticale interna del filtro (`simboloRombo`, segno `verticale-tratteggiata`).
  * Rapporto dash:gap ≈ 4:1, misurato sui quattro trattini che il blocco CAD `filtro` disegna fra
  * il vertice alto del rombo e il tratto orizzontale basso (dash ≈ 6,4pt, gap ≈ 1,62pt:
- * 6,4/1,62 ≈ 3,95). Non è `TRATTEGGIO_CONDENSE` (10 7, rapporto ≈1,43:1): è un segno diverso,
+ * 6,4/1,62 ≈ 3,95). Non è `TRATTEGGIO_CONDENSE` (7 10, rapporto ≈0,7:1): è un segno diverso,
  * con un ritmo diverso — usare lo stesso tratteggio dei due li renderebbe indistinguibili se mai
  * comparissero nello stesso disegno.
  */
@@ -211,8 +218,24 @@ export function valvolaSicurezza(x: number, y: number): string {
 }
 
 /**
+ * Semiasse orizzontale (apice-base, lungo il tubo) di un'ala di farfalla, in unità del semiasse
+ * verticale (`h` di quell'ala): rapporto l:h = 2:1, misurato isolando il gruppo CAD «valvole»
+ * (Blocchi.pdf, script `scripts/blocchi-cad.py`) — l'icona «Valvola di intercettazione» è un
+ * quad 11,22×5,58pt (apice-base 5,61, mezza-base 2,79, 5,61/2,79 ≈ 2,01) e l'ala grande del
+ * gruppo «riduttore» (sotto) misura 5,64×5,64pt (apice-base 5,64, mezza-base 2,82, rapporto
+ * identico entro l'1%). Prima di questo task l=9/h=8 (rapporto 1,125): una farfalla troppo
+ * alta e stretta, non la sagoma bassa e larga che il CAD disegna.
+ */
+const RAPPORTO_ALA_FARFALLA = 2
+
+/**
  * Valvola di intercettazione: farfalla con l'asse lungo la tubazione. Su un montante va
  * ruotata: nel blocco CAD la farfalla è sempre in linea col tubo, mai di traverso.
+ *
+ * `l=9` è ereditato dal codice precedente per continuità (nessuna misura CAD affidabile lo
+ * fissa in assoluto, la stessa ambiguità di calibrazione già documentata su `valvolaScarico`);
+ * `h=4,5` viene invece dal rapporto misurato (`RAPPORTO_ALA_FARFALLA`) applicato a quell'`l` —
+ * prima era 8, quasi il doppio di quanto il CAD disegna.
  */
 export function valvolaIntercettazione(
   x: number,
@@ -220,7 +243,7 @@ export function valvolaIntercettazione(
   orientamento: 'orizzontale' | 'verticale' = 'orizzontale'
 ): string {
   const l = 9
-  const h = 8
+  const h = l / RAPPORTO_ALA_FARFALLA
   const d =
     orientamento === 'orizzontale'
       ? `M ${x - l} ${y - h} L ${x - l} ${y + h} L ${x} ${y} Z M ${x + l} ${y - h} L ${x + l} ${y + h} L ${x} ${y} Z`
@@ -237,23 +260,57 @@ export function valvolaIntercettazione(
 }
 
 /**
- * Riduttore di pressione: la stessa farfalla della valvola di intercettazione più uno stelo
- * di regolazione, per distinguerlo a colpo d'occhio. Simbolo segnaposto (vedi nota di testa
- * al file sui simboli nuovi di questo blocco), non un blocco CAD del committente.
+ * Riduttore di pressione: la STESSA farfalla della valvola di intercettazione, ma con un'ala
+ * ridotta — non uno stelo di regolazione aggiunto sopra. Fino a questo task il commento diceva
+ * «simbolo segnaposto... non un blocco CAD del committente»: falso, ed è la terza volta in
+ * questo blocco che un commento dichiara assente qualcosa che nel CAD c'era (le prime due, Task
+ * 4: pacco bombole e compressore-disoleatore) — il blocco esiste (indice 11 di `NOMI`,
+ * `scripts/blocchi-cad.py`), con l'etichetta «Riduttore di pressione» accanto (letta con
+ * `page.get_text("words")`, non solo dedotta dall'ordine).
+ *
+ * Isolando i tracciati del gruppo (coordinate assolute, non solo il bounding box): due triangoli
+ * che condividono l'apice — (452,58; 1034,72) per entrambi — non un bowtie simmetrico. Il primo,
+ * (446,94; 1031,90)-(446,94; 1037,54), è 5,64×5,64pt: apice-base 5,64, mezza-base 2,82, lo
+ * STESSO rapporto 2:1 (`RAPPORTO_ALA_FARFALLA`) e la STESSA misura assoluta (entro l'1%)
+ * dell'ala della valvola di intercettazione. Il secondo, (455,94; 1033,04)-(455,94; 1036,40), è
+ * 3,36×3,36pt: rapporto fra le due ali 3,36/5,64 = 0,596 ≈ 0,60 — è questo, non uno stelo, a
+ * distinguere il riduttore dalla valvola nel disegno del committente.
+ *
+ * Convenzione di orientamento (non misurabile dal CAD, che non instrada tubi): l'ala grande
+ * resta a sinistra/in alto e la piccola a destra/in basso, indipendentemente dal verso di
+ * percorrenza del tubo — lo stesso limite di `valvolaIntercettazione`, che non conosce la
+ * direzione del flusso.
  */
 export function riduttorePressione(
   x: number,
   y: number,
   orientamento: 'orizzontale' | 'verticale' = 'orizzontale'
 ): string {
-  const base = valvolaIntercettazione(x, y, orientamento)
-  const stelo =
+  const lGrande = 9 // stessa `l` della valvola di intercettazione (vedi il suo commento)
+  const hGrande = lGrande / RAPPORTO_ALA_FARFALLA
+  const SCALA_ALA_PICCOLA = 0.6 // 3,36/5,64 ≈ 0,596, misurato sul blocco CAD «riduttore»
+  const lPiccola = lGrande * SCALA_ALA_PICCOLA
+  const hPiccola = hGrande * SCALA_ALA_PICCOLA
+
+  const d =
     orientamento === 'orizzontale'
-      ? traccia(`M ${x} ${y - 8} L ${x} ${y - 16}`) +
-        `<rect x="${x - 5}" y="${y - 22}" width="10" height="6" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
-      : traccia(`M ${x + 8} ${y} L ${x + 16} ${y}`) +
-        `<rect x="${x + 16}" y="${y - 5}" width="6" height="10" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
-  return base + stelo
+      ? `M ${x - lGrande} ${y - hGrande} L ${x - lGrande} ${y + hGrande} L ${x} ${y} Z ` +
+        `M ${x + lPiccola} ${y - hPiccola} L ${x + lPiccola} ${y + hPiccola} L ${x} ${y} Z`
+      : `M ${x - hGrande} ${y - lGrande} L ${x + hGrande} ${y - lGrande} L ${x} ${y} Z ` +
+        `M ${x - hPiccola} ${y + lPiccola} L ${x + hPiccola} ${y + lPiccola} L ${x} ${y} Z`
+
+  // Copertura come in `valvolaIntercettazione`, ma qui l'ingombro NON è simmetrico rispetto al
+  // centro (l'ala grande sporge più della piccola): i quattro margini (sinistra/destra o
+  // sopra/sotto) vanno calcolati a parte invece di raddoppiare un solo [larghezza, altezza].
+  // Orizzontale: l'ala grande sta a sinistra (margine `lGrande`) e la piccola a destra
+  // (`lPiccola`); l'altezza è simmetrica sui due lati, dominata dall'ala grande (`hGrande` >
+  // `hPiccola`). Verticale: stesso ragionamento con gli assi scambiati.
+  const [xMeno, xPiu, yMeno, yPiu] =
+    orientamento === 'orizzontale'
+      ? [lGrande, lPiccola, hGrande, hGrande]
+      : [hGrande, hGrande, lGrande, lPiccola]
+  const copertura = `<rect x="${x - xMeno}" y="${y - yMeno}" width="${xMeno + xPiu}" height="${yMeno + yPiu}" fill="#fff" stroke="none" />`
+  return copertura + traccia(d)
 }
 
 /**
