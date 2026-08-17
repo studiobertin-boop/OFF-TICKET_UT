@@ -41,8 +41,11 @@ export interface TechnicalSheetHeaderProps {
   onBack: () => void
   onShare: () => void
   onCivaSummary: () => void
+  onSchemaImpianto: () => void
   onRelazione: () => void
   onDichiarazioni: () => void
+  /** Presente quando lo schema d'impianto è già pronto in questa sessione. */
+  schemaGenerato: boolean
   /** Presente quando la relazione è già stata generata e salvata. */
   relazionePronta: boolean
   /** Presente quando le dichiarazioni sono già state generate e salvate. */
@@ -86,8 +89,10 @@ export const TechnicalSheetHeader = ({
   onBack,
   onShare,
   onCivaSummary,
+  onSchemaImpianto,
   onRelazione,
   onDichiarazioni,
+  schemaGenerato,
   relazionePronta,
   dichiarazioniPronte,
   onScaricaRelazione,
@@ -229,6 +234,13 @@ export const TechnicalSheetHeader = ({
                   />
                 )
               })}
+
+              <ChipAzione
+                sigla="SC"
+                testo={schemaGenerato ? 'Schema d’impianto pronto' : 'Genera schema d’impianto'}
+                fatto={schemaGenerato}
+                onClick={onSchemaImpianto}
+              />
 
               <ChipAzione
                 sigla="R"

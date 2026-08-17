@@ -70,6 +70,8 @@ const props = {
 const monta = (extra: {
   relazionePronta: boolean
   dichiarazioniPronte: boolean
+  schemaGenerato?: boolean
+  onSchemaImpianto?: () => void
   onRelazione?: () => void
   onDichiarazioni?: () => void
   onScaricaRelazione?: () => void
@@ -89,6 +91,8 @@ const monta = (extra: {
               onScaricaRelazione={() => {}}
               onScaricaDichiarazioni={() => {}}
               onScaricaCompleta={() => {}}
+              onSchemaImpianto={() => {}}
+              schemaGenerato={false}
               {...extra}
             />
           </AperturaApparecchiaturaProvider>
@@ -128,6 +132,8 @@ describe('TechnicalSheetHeader — i traguardi in barra titolo', () => {
                 onScaricaRelazione={() => {}}
                 onScaricaDichiarazioni={() => {}}
                 onScaricaCompleta={() => {}}
+                onSchemaImpianto={() => {}}
+                schemaGenerato={false}
               />
             </AperturaApparecchiaturaProvider>
           </FormProvider>
@@ -153,6 +159,33 @@ describe('TechnicalSheetHeader — i traguardi in barra titolo', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Genera relazione' }))
     fireEvent.click(screen.getByRole('button', { name: 'Genera dichiarazioni' }))
     expect(chiamate).toEqual(['relazione', 'dichiarazioni'])
+  })
+
+  it('mostra il chip "SC" a sinistra di "R", e lo dà per fatto solo con lo schema pronto', () => {
+    const chiamate: string[] = []
+    monta({
+      relazionePronta: false,
+      dichiarazioniPronte: false,
+      schemaGenerato: false,
+      onSchemaImpianto: () => chiamate.push('schema'),
+    })
+
+    const chip = screen.getByRole('button', { name: 'Genera schema d’impianto' })
+    expect(chip.className).not.toContain('filledSuccess')
+    fireEvent.click(chip)
+    expect(chiamate).toEqual(['schema'])
+  })
+
+  it('il chip "SC" diventa verde con lo schema pronto', () => {
+    monta({
+      relazionePronta: false,
+      dichiarazioniPronte: false,
+      schemaGenerato: true,
+    })
+
+    expect(screen.getByRole('button', { name: 'Schema d’impianto pronto' }).className).toContain(
+      'filledSuccess'
+    )
   })
 
   it('a dichiarazioni generate diventa verde e offre scarica o rigenera, come la relazione', () => {
@@ -208,6 +241,8 @@ describe('TechnicalSheetHeader — i traguardi in barra titolo', () => {
                 onScaricaRelazione={() => {}}
                 onScaricaDichiarazioni={() => {}}
                 onScaricaCompleta={() => chiamate.push('completa')}
+                onSchemaImpianto={() => {}}
+                schemaGenerato={false}
               />
             </AperturaApparecchiaturaProvider>
           </FormProvider>
