@@ -24,7 +24,7 @@ import {
 import type { SelectChangeEvent } from '@mui/material'
 import { GruppoCampi } from '@/components/common'
 import type { SchedaDatiCompleta } from '@/types/technicalSheet'
-import type { SchemaImpianto } from '@/services/relazione/types'
+import type { SchemaImpianto, SchemaPreferenze } from '@/services/relazione/types'
 import type { Tarature } from '@/services/schemaImpianto/libreria'
 import type { LayoutSalvato } from '@/services/schemaImpianto/persistenza'
 import type { SchemaLayout } from '@/services/schemaImpianto/types'
@@ -39,6 +39,9 @@ export interface SchemaImpiantoDialogProps {
   droppedRefs: string[]
   collegamenti: Record<string, string[]>
   onCollegamentiChange: (collegamenti: Record<string, string[]>) => void
+  /** Ordine, condense e gruppi by-pass scelti dall'operatore. Li consuma il pannello (Task 4). */
+  preferenze: SchemaPreferenze
+  onPreferenzeChange: (preferenze: SchemaPreferenze) => void
   schema: SchemaImpianto | null
   onSchemaChange: (schema: SchemaImpianto | null) => void
   layoutSalvato: LayoutSalvato | null | undefined

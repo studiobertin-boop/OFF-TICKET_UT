@@ -30,8 +30,16 @@ metà tubo.
 - **`additionalInfoSchema` è un `z.object` senza `passthrough`: Zod scarta le chiavi che non
   conosce.** Un campo nuovo va dichiarato sia in `src/services/relazione/schema.ts` sia nel
   letterale di `RelazioneDataDialog.tsx:161-171`, o sparisce alla prima relazione generata.
-- Gate a ogni task: `npx vitest run`, `npx tsc --noEmit`, e
-  `npx eslint <percorsi toccati> --max-warnings 0`. Niente `prettier --write`.
+- Gate a ogni task: `npx vitest run`, `npx tsc --noEmit`, e `npx eslint <percorsi toccati>`.
+  Niente `prettier --write`.
+- **Il conto dei warning eslint non è zero ovunque: è «non uno più di prima».** Misurato sul
+  commit base di questo ramo (17-08-2026): `src/services/schemaImpianto` **0**;
+  `src/components/schemaImpianto` **3** (i due `react-refresh` di `SchemaEditor.tsx` e
+  `SchemaNodeSymbol.tsx`, l'`exhaustive-deps` di `TestiLiberi.tsx`, tollerati da prima);
+  `src/services/relazione` + `src/components/relazione` + `src/pages/TechnicalDetails.tsx` +
+  `src/utils/equipmentCodes.ts` **18** (`no-explicit-any` in `engine/esiti.ts`, nel suo test e in
+  `TechnicalDetails.tsx`). Un `--max-warnings 0` su questi percorsi fallisce anche senza toccarli:
+  il modo per accorgersi di aver peggiorato è rimisurare, non fidarsi della soglia.
 - Lingua di commenti, messaggi di commit e testi a schermo: italiano.
 
 ## File Structure
@@ -594,19 +602,13 @@ npx eslint src/services/relazione src/services/schemaImpianto src/components/rel
 ```
 Expected: tutto verde; nessuna fixture SVG toccata.
 
-- [ ] **Step 11: Verifica dal vivo che il campo sopravvive davvero**
+- [ ] ~~**Step 11: Verifica dal vivo che il campo sopravvive davvero**~~ — **spostata al Task 4.**
 
-Il test copre Zod. Questo copre la catena intera, che è dove il difetto vivrebbe. Su una pratica di
-prova (**non** ORVED né LOWA R&D):
-
-```bash
-# leggere additional_info prima
-curl -s "$VITE_SUPABASE_URL/rest/v1/dm329_technical_data?select=additional_info&request_id=eq.<ID>" \
-  -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY"
-```
-
-Poi in pagina: aprire SC, chiudere, generare la relazione dalla finestra R, e rileggere. Il campo
-`schemaPreferenze` (anche solo `{}`) deve esserci **dopo** la generazione.
+Motivo: qui `preferenzeSchema` vale sempre `{}`, e un `{}` che sopravvive al giro dimostra molto
+meno di un ordine e un by-pass veri. La stessa prova, fatta al punto 5 della verifica del Task 4,
+copre la catena intera con dati che si distinguono da un valore di partenza. Il rischio di
+rimandarla è nullo: fra qui e là non si tocca nessuno dei due punti che potrebbero cancellare il
+campo.
 
 - [ ] **Step 12: Commit**
 

@@ -23,6 +23,17 @@ export const additionalInfoSchema = z.object({
    * vera la fa `deserializzaLayout`, che sa riconoscere una versione che non capisce.
    */
   schemaLayout: z.any().optional(),
+  /**
+   * Scelte dell'operatore sulla forma dello schema. Struttura libera per Zod, come `schemaLayout`
+   * qui sopra e per la stessa ragione: la validazione vera la fa `risolviPreferenze`, che sa
+   * scartare un riferimento a un'apparecchiatura sparita senza far fallire l'intero salvataggio.
+   * Un `z.object` severo qui bloccherebbe la generazione della relazione per un dato storto in un
+   * campo che non la riguarda.
+   *
+   * DEVE restare dichiarato: questo schema è un `z.object` senza `passthrough`, e `handleGenera`
+   * salva `parsed.data` — una chiave non dichiarata viene cancellata in silenzio.
+   */
+  schemaPreferenze: z.any().optional(),
 })
 
 export type AdditionalInfoParsed = z.infer<typeof additionalInfoSchema>

@@ -298,8 +298,55 @@ export function pruneAdditionalInfo(
     return false
   })
 
+  // Le preferenze dello schema citano codici di scheda in quattro posti. Si potano tutti, ma non
+  // si "aggiusta" mai un gruppo by-pass: la contiguità la ricontrolla `risolviPreferenze`, che ha
+  // sott'occhio l'ordine effettivo — qui l'informazione non c'è. Il campo resta `undefined`
+  // quando non c'era, così una scheda che non ha mai aperto il pannello resta indistinguibile.
+  let schemaPreferenze = src.schemaPreferenze
+  if (schemaPreferenze) {
+    const vivi = (codici: string[] | undefined, etichetta: string) =>
+      (codici ?? []).filter((c) => {
+        if (codes.has(c)) return true
+        dropped.push(`${etichetta} ${c}`)
+        return false
+      })
+
+    const condense: Record<string, boolean> = {}
+    for (const [code, valore] of Object.entries(schemaPreferenze.condense ?? {})) {
+      if (codes.has(code)) condense[code] = valore
+      else dropped.push(`condense schema ${code}`)
+    }
+
+    const bypass = (schemaPreferenze.bypass ?? [])
+      .map((gruppo) => ({
+        id: gruppo.id,
+        stadi: (gruppo.stadi ?? []).filter((c) => {
+          if (codes.has(c)) return true
+          dropped.push(`by-pass ${gruppo.id} → ${c}`)
+          return false
+        }),
+      }))
+      .filter((gruppo) => {
+        if (gruppo.stadi.length > 0) return true
+        dropped.push(`by-pass ${gruppo.id}`)
+        return false
+      })
+
+    schemaPreferenze = {
+      ...schemaPreferenze,
+      ...(schemaPreferenze.ordineStadi
+        ? { ordineStadi: vivi(schemaPreferenze.ordineStadi, 'ordine schema') }
+        : {}),
+      ...(schemaPreferenze.ordineSerbatoi
+        ? { ordineSerbatoi: vivi(schemaPreferenze.ordineSerbatoi, 'ordine schema') }
+        : {}),
+      ...(schemaPreferenze.condense ? { condense } : {}),
+      ...(schemaPreferenze.bypass ? { bypass } : {}),
+    }
+  }
+
   return {
-    info: { ...src, compressoriGiri, spessimetrica, collegamentiCompressoriSerbatoi },
+    info: { ...src, compressoriGiri, spessimetrica, collegamentiCompressoriSerbatoi, schemaPreferenze },
     dropped,
   }
 }

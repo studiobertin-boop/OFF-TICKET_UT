@@ -27,7 +27,7 @@ import { ShareDialog } from '@/components/technicalSheet/ShareDialog'
 import RelazioneDataDialog from '@/components/relazione/RelazioneDataDialog'
 import DichiarazioniDialog from '@/components/dichiarazioni/DichiarazioniDialog'
 import { risolviSitoProduttivo } from '@/services/dichiarazioni/sitoProduttivo'
-import type { AdditionalInfo, SchemaImpianto } from '@/services/relazione/types'
+import type { AdditionalInfo, SchemaImpianto, SchemaPreferenze } from '@/services/relazione/types'
 import { EquipmentCatalogProvider } from '@/components/technicalSheet/EquipmentCatalogContext'
 import type { DM329TechnicalData, SchedaDatiCompleta, OCRExtractedData, FuzzyMatch, OCRReviewData } from '@/types'
 import { isDM329Family } from '@/utils/workflow'
@@ -92,6 +92,10 @@ export const TechnicalDetails = () => {
   const [dichiarazioniDialogOpen, setDichiarazioniDialogOpen] = useState(false)
   const [schemaDialogOpen, setSchemaDialogOpen] = useState(false)
   const [collegamenti, setCollegamenti] = useState<Record<string, string[]>>({})
+  // Le preferenze dello schema stanno qui accanto a `collegamenti`, e per la stessa ragione: le
+  // scrive la finestra SCHEMA IMPIANTO, le rilegge la finestra Relazione per non cancellarle
+  // generando il .docx.
+  const [preferenzeSchema, setPreferenzeSchema] = useState<SchemaPreferenze>({})
   const [schema, setSchema] = useState<SchemaImpianto | null>(null)
   const [schemaLayoutSalvato, setSchemaLayoutSalvato] = useState<LayoutSalvato | null | undefined>(undefined)
   const [schemaLayout, setSchemaLayout] = useState<SchemaLayout | null>(null)
@@ -199,6 +203,7 @@ export const TechnicalDetails = () => {
       schedaCodes
     )
     setCollegamenti(info.collegamentiCompressoriSerbatoi ?? {})
+    setPreferenzeSchema(info.schemaPreferenze ?? {})
     setSchemaLayoutSalvato(info.schemaLayout ?? null)
     setTaraturaPratica(info.schemaLayout?.simboli ?? {})
     setSchemaDroppedRefs(dropped.filter((d) => d.startsWith('collegament')))
@@ -279,6 +284,7 @@ export const TechnicalDetails = () => {
           ...(technicalData.additional_info as AdditionalInfo | undefined),
           collegamentiCompressoriSerbatoi: collegamenti,
           schemaLayout: schemaLayoutDaPersistere,
+          schemaPreferenze: preferenzeSchema,
         },
         schedaCodes
       )
@@ -297,7 +303,7 @@ export const TechnicalDetails = () => {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Salvataggio dello schema non riuscito')
     }
-  }, [id, technicalData, schedaCodes, collegamenti, schemaLayoutDaPersistere])
+  }, [id, technicalData, schedaCodes, collegamenti, preferenzeSchema, schemaLayoutDaPersistere])
 
   // Autosave function (senza alert/snackbar)
   const handleAutoSave = useCallback(async (data: SchedaDatiCompleta) => {
@@ -738,6 +744,7 @@ export const TechnicalDetails = () => {
             }}
             initialAdditionalInfo={technicalData.additional_info as AdditionalInfo | undefined}
             collegamentiCompressoriSerbatoi={collegamenti}
+            schemaPreferenze={preferenzeSchema}
             schemaImpianto={schema}
             schemaLayoutDaPersistere={schemaLayoutDaPersistere}
             fileName={nomeFileRelazione(codicePratica, customerName)}
@@ -761,6 +768,8 @@ export const TechnicalDetails = () => {
             droppedRefs={schemaDroppedRefs}
             collegamenti={collegamenti}
             onCollegamentiChange={setCollegamenti}
+            preferenze={preferenzeSchema}
+            onPreferenzeChange={setPreferenzeSchema}
             schema={schema}
             onSchemaChange={setSchema}
             layoutSalvato={schemaLayoutSalvato}

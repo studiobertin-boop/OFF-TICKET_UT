@@ -469,3 +469,50 @@ describe('pruneSchedaRefs', () => {
     expect(pruneSchedaRefs({}).changed).toBe(false)
   })
 })
+
+describe('pruneAdditionalInfo — schemaPreferenze', () => {
+  const codici = new Set(['S1', 'E1', 'F1', 'F2'])
+
+  test('toglie dagli ordini i codici spariti e lo dice', () => {
+    const { info, dropped } = pruneAdditionalInfo(
+      { schemaPreferenze: { ordineStadi: ['F1', 'F9', 'E1'], ordineSerbatoi: ['S1', 'S7'] } },
+      codici
+    )
+    expect(info.schemaPreferenze?.ordineStadi).toEqual(['F1', 'E1'])
+    expect(info.schemaPreferenze?.ordineSerbatoi).toEqual(['S1'])
+    expect(dropped).toContain('ordine schema F9')
+    expect(dropped).toContain('ordine schema S7')
+  })
+
+  test('toglie dalle condense i codici spariti', () => {
+    const { info, dropped } = pruneAdditionalInfo(
+      { schemaPreferenze: { condense: { S1: true, S9: false } } },
+      codici
+    )
+    expect(info.schemaPreferenze?.condense).toEqual({ S1: true })
+    expect(dropped).toContain('condense schema S9')
+  })
+
+  test('accorcia un gruppo by-pass che perde un membro ma ne conserva due', () => {
+    const { info, dropped } = pruneAdditionalInfo(
+      { schemaPreferenze: { bypass: [{ id: 'bp1', stadi: ['E1', 'F9', 'F2'] }] } },
+      codici
+    )
+    expect(info.schemaPreferenze?.bypass).toEqual([{ id: 'bp1', stadi: ['E1', 'F2'] }])
+    expect(dropped).toContain('by-pass bp1 → F9')
+  })
+
+  test('scarta un gruppo by-pass rimasto senza membri', () => {
+    const { info, dropped } = pruneAdditionalInfo(
+      { schemaPreferenze: { bypass: [{ id: 'bp1', stadi: ['F8', 'F9'] }] } },
+      codici
+    )
+    expect(info.schemaPreferenze?.bypass).toEqual([])
+    expect(dropped).toContain('by-pass bp1')
+  })
+
+  test('lascia stare una scheda senza preferenze', () => {
+    const { info } = pruneAdditionalInfo({ spessimetrica: ['S1'] }, codici)
+    expect(info.schemaPreferenze).toBeUndefined()
+  })
+})

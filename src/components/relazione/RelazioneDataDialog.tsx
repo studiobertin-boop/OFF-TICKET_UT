@@ -38,7 +38,13 @@ import { generateAndDownloadRelazione } from '@/services/relazione/generateRelaz
 import { relazioneDocumentiApi } from '@/services/api/relazioneDocumenti'
 import { buildRelazioneModel } from '@/services/relazione/buildRelazioneModel'
 import { validateRelazione, haErrori } from '@/services/relazione/preflight'
-import type { AdditionalInfo, PraticaInfo, SchemaImpianto, TipoGiri } from '@/services/relazione/types'
+import type {
+  AdditionalInfo,
+  PraticaInfo,
+  SchemaImpianto,
+  SchemaPreferenze,
+  TipoGiri,
+} from '@/services/relazione/types'
 import type { LayoutSalvato } from '@/services/schemaImpianto/persistenza'
 import { collectCodes, pruneAdditionalInfo } from '@/utils/equipmentCodes'
 import { oggiISO } from '@/services/relazione/helpers'
@@ -57,6 +63,12 @@ interface RelazioneDataDialogProps {
   pratica: PraticaInfo
   /** Collegamenti compressori → serbatoi: di proprietà della finestra SCHEMA IMPIANTO. */
   collegamentiCompressoriSerbatoi: Record<string, string[]>
+  /**
+   * Preferenze sulla forma dello schema, di proprietà della finestra SCHEMA IMPIANTO. Questo
+   * dialog non le modifica: le ripassa così come sono, perché `handleGenera` riscrive l'intera
+   * colonna `additional_info` e ometterle le cancellerebbe in silenzio.
+   */
+  schemaPreferenze: SchemaPreferenze
   /** Il PNG dello schema d'impianto già pronto, o `null` se non generato/caricato. */
   schemaImpianto: SchemaImpianto | null
   /** Layout da scrivere in `additional_info.schemaLayout`, già calcolato dal chiamante. */
@@ -78,6 +90,7 @@ export default function RelazioneDataDialog({
   customer,
   pratica,
   collegamentiCompressoriSerbatoi,
+  schemaPreferenze,
   schemaImpianto,
   schemaLayoutDaPersistere,
   initialAdditionalInfo,
@@ -166,8 +179,19 @@ export default function RelazioneDataDialog({
       spessimetrica,
       collegamentiCompressoriSerbatoi,
       schemaLayout: schemaLayoutDaPersistere,
+      // Ripassato invariato: senza, `handleGenera` scriverebbe una colonna senza questo campo e
+      // le scelte fatte nella finestra SCHEMA IMPIANTO sparirebbero a ogni relazione generata.
+      schemaPreferenze,
     }),
-    [descrizioneAttivita, dataEmissione, giri, spessimetrica, collegamentiCompressoriSerbatoi, schemaLayoutDaPersistere]
+    [
+      descrizioneAttivita,
+      dataEmissione,
+      giri,
+      spessimetrica,
+      collegamentiCompressoriSerbatoi,
+      schemaLayoutDaPersistere,
+      schemaPreferenze,
+    ]
   )
 
   /**

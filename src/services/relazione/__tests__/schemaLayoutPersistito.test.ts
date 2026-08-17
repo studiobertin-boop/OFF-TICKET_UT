@@ -13,3 +13,23 @@ describe('schemaLayout in additional_info', () => {
     expect(esito.schemaLayout).toBeUndefined()
   })
 })
+
+describe('schemaPreferenze in additional_info', () => {
+  // Zod scarta le chiavi che `additionalInfoSchema` non dichiara, e `handleGenera` salva
+  // `parsed.data`: un campo non dichiarato sparirebbe alla prima relazione generata. Questo test
+  // è la sola guardia contro una perdita silenziosa di lavoro dell'operatore.
+  it('conserva le preferenze attraverso il parse', () => {
+    const preferenze = {
+      ordineStadi: ['F1', 'E1', 'F2'],
+      condense: { S1: true, F2: false },
+      bypass: [{ id: 'bp1', stadi: ['E1', 'F2'] }],
+    }
+    const esito = additionalInfoSchema.parse({ descrizioneAttivita: 'prova', schemaPreferenze: preferenze })
+    expect(esito.schemaPreferenze).toEqual(preferenze)
+  })
+
+  it('resta valido quando le preferenze non ci sono', () => {
+    const esito = additionalInfoSchema.parse({ descrizioneAttivita: 'prova' })
+    expect(esito.schemaPreferenze).toBeUndefined()
+  })
+})

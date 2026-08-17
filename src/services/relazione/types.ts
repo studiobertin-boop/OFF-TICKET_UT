@@ -19,6 +19,43 @@ import type { LayoutSalvato } from '@/services/schemaImpianto/persistenza'
 export type { TipoGiri } from '@/types/technicalSheet'
 import type { TipoGiri } from '@/types/technicalSheet'
 
+/** Un gruppo di apparecchiature scavalcate da un solo by-pass. */
+export interface SchemaPreferenzeBypass {
+  /**
+   * Stabile per la vita del gruppo, assegnato alla creazione come primo intero libero (`bp1`,
+   * `bp2`, …) e mai riusato. Da qui nascono gli id dei due nodi giunzione del disegno: ricavarli
+   * invece dagli stadi scavalcati li renderebbe instabili — riordinare le righe nel pannello
+   * cambierebbe l'id, e il layout salvato perderebbe i suoi TEE.
+   */
+  id: string
+  /** Codici degli stadi scavalcati. Devono essere contigui nell'ordine risolto. */
+  stadi: string[]
+}
+
+/**
+ * Scelte dell'operatore sulla forma dello schema, prese nel pannello della finestra SCHEMA
+ * IMPIANTO. Sono un INGRESSO della generazione, come `collegamentiCompressoriSerbatoi`, e per
+ * questo stanno accanto a `schemaLayout` e non dentro: quello sparisce legittimamente quando si
+ * carica un disegno AutoCAD o si preme «Rimuovi», gesti che con queste scelte non c'entrano.
+ *
+ * Tutto opzionale, tutto ricostruibile: una pratica che non ha mai aperto il pannello genera con
+ * i default di sempre. La traduzione da qui all'ordine effettivo la fa `risolviPreferenze`
+ * (`services/schemaImpianto/preferenze.ts`), che è anche l'unico vero validatore di questi dati.
+ */
+export interface SchemaPreferenze {
+  /** Ordine degli stadi di trattamento. Chi non è nominato segue in coda, nell'ordine di default. */
+  ordineStadi?: string[]
+  /** Ordine dei serbatoi. Default: per `ubicazione` di scheda. */
+  ordineSerbatoi?: string[]
+  /**
+   * Chi scarica condensa, per codice. Chiave assente = regola per tipo di `scaricaCondensa`
+   * (buildSchemaModel.ts): è ciò che rende indolore il passaggio da «selezione per tipo» a «flag
+   * per apparecchiatura» sulle pratiche salvate prima che questo campo esistesse.
+   */
+  condense?: Record<string, boolean>
+  bypass?: SchemaPreferenzeBypass[]
+}
+
 export interface AdditionalInfo {
   /** Descrizione attività ATECO (testo libero) */
   descrizioneAttivita?: string
@@ -41,6 +78,8 @@ export interface AdditionalInfo {
   collegamentiCompressoriSerbatoi?: Record<string, string[]>
   /** §2.3 — disposizione dello schema salvata dall'editor. Vedi schemaImpianto/persistenza. */
   schemaLayout?: LayoutSalvato
+  /** §2.3 — scelte dell'operatore sulla forma dello schema. Vedi `SchemaPreferenze` qui sopra. */
+  schemaPreferenze?: SchemaPreferenze
 }
 
 // ============================================================================
