@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { chiaveSimbolo } from '../types'
 import type { SchemaNodo, SchemaNodoTipo } from '../types'
-import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloMuro, simboloUtenze, valvolaIntercettazione, riduttorePressione, valvolaScarico, testoMultiRiga, DIAMETRO_GIUNZIONE, campioneTubazione, TRATTEGGIO_CONDENSE, MARGINE_VALVOLA_SERBATOIO, simboloTrasformato, inviluppo, riquadroDi } from '../symbols'
+import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloMuro, simboloUtenze, valvolaIntercettazione, riduttorePressione, valvolaScarico, testoMultiRiga, campioneTubazione, TRATTEGGIO_CONDENSE, MARGINE_VALVOLA_SERBATOIO, simboloTrasformato, inviluppo, riquadroDi } from '../symbols'
 import { capoValido } from '../agganci'
 import { TARATURA_NEUTRA, type Tarature } from '../libreria'
 import { PASSO_GRIGLIA } from '../griglia'
@@ -458,13 +458,15 @@ describe('giunzione', () => {
     expect(per('basso').presa).toEqual({ x: larghezza / 2, y: altezza })
   })
 
-  it('il pallino ha il diametro dei punti di ancoraggio delle apparecchiature, e contiene le ancore', () => {
+  it('il pallino ha raggio 2,5 e sta dentro il riquadro, con le ancore nel centro', () => {
+    // Misura letta dal disegno e confrontata con un letterale: la riga di prima diceva
+    // `expect(raggio).toBe(DIAMETRO_GIUNZIONE / 2)` accanto a `expect(DIAMETRO_GIUNZIONE).toBe(10)`
+    // — la prima confrontava la costante con se stessa e sarebbe rimasta verde a qualunque valore.
     // Il vincolo vecchio — raggio uguale a metà larghezza, per toccare le ancore sui bordi —
     // non esiste più: le ancore stanno nel CENTRO del pallino, quindi non c'è buco a nessun
-    // raggio, ed è precisamente ciò che permette al pallino di rimpicciolire (osservazione 4).
+    // raggio, ed è precisamente ciò che permette al pallino di rimpicciolire.
     const raggio = Number(/r="([\d.]+)"/.exec(simboloGiunzione(nodo))![1])
-    expect(raggio).toBe(DIAMETRO_GIUNZIONE / 2)
-    expect(DIAMETRO_GIUNZIONE).toBe(10)
+    expect(raggio).toBe(2.5)
     expect(raggio).toBeLessThan(REGISTRO_SIMBOLI.giunzione.dimensioni.larghezza / 2)
   })
 })

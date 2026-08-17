@@ -926,8 +926,8 @@ describe('riferimento SVG del TEE', () => {
   }
 
   // Riferimento ESTERNO al codice corrente, non un self-comparison: `renderSvg(x) === renderSvg(x)`
-  // non discrimina nulla. Fissa la geometria del TEE decisa nel Blocco D3 — pallino a diametro
-  // 10 e tubi che convergono nel centro — che senza di questo nessun test del documento vede.
+  // non discrimina nulla. Fissa la geometria del TEE — pallino al centro del riquadro e tubi che
+  // vi convergono — che senza di questo nessun test del documento vede.
   it('un impianto con un TEE resta identico al riferimento', () => {
     expect(renderSvg(layoutConTee())).toBe(SVG_RIFERIMENTO_CON_TEE)
   })

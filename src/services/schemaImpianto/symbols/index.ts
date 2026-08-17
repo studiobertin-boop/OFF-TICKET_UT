@@ -141,7 +141,7 @@ const DIMENSIONI: Record<SchemaNodoTipo, { larghezza: number; altezza: number }>
   // 24 → 20 (Task 8, Blocco 3): le quattro ancore coincidono nel centro (`larghezza/2`), che
   // cade sulla griglia solo se `larghezza` è multiplo di 20. Non è una misura CAD (la giunzione
   // è un segnaposto, vedi `simboloGiunzione`): 20 resta ampiamente più largo del pallino
-  // (`DIAMETRO_GIUNZIONE`, 10), la sola cosa che deve contenere.
+  // (`DIAMETRO_GIUNZIONE`), la sola cosa che deve contenere.
   giunzione: { larghezza: 20, altezza: 20 },
 }
 
@@ -746,13 +746,12 @@ export function simboloPaccoBombole(nodo: SchemaNodo): string {
 }
 
 /**
- * Diametro del pallino della giunzione: lo stesso dei punti di ancoraggio delle
- * apparecchiature sulla tela (`LATO_HANDLE`, SchemaNodeSymbol.tsx), come chiesto dal
- * committente. Il numero è ripetuto qui invece di essere importato perché questo è un
- * servizio, che il documento usa e che non deve dipendere dai componenti: il legame è
- * scritto, non cablato.
+ * Diametro del pallino della giunzione. Fino al 17-08-2026 era lo stesso dei punti di ancoraggio
+ * delle apparecchiature sulla tela (`LATO_HANDLE`, SchemaNodeSymbol.tsx); il committente lo ha
+ * poi chiesto dimezzato, e i due valori non sono più legati — gli attacchi restano dove sono,
+ * cambia solo il cerchio disegnato.
  */
-export const DIAMETRO_GIUNZIONE = 10
+export const DIAMETRO_GIUNZIONE = 5
 
 /**
  * Giunzione (TEE): un punto pieno, senza monconi. Fino al Blocco B disegnava tre tratti verso

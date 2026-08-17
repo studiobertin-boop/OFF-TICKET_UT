@@ -71,6 +71,10 @@
  * ai blocchi"), Task 13 del Blocco 3: stesso cambiamento del gemello `svgRiferimentoSenzaTesti.ts`
  * (stesso impianto di base) — la farfalla della valvola di intercettazione e il marker della
  * freccia di flusso cambiano rapporto. Nessuna posizione di nodo o percorso di tubo si sposta.
+ *
+ * Generato di nuovo il 17-08-2026 (rifinitura R4): il pallino della giunzione dimezza il raggio su
+ * richiesta del committente. Una riga sola cambia, il `<circle>` dentro il `<g>` della giunzione;
+ * le ancore restano dove sono, quindi nessuna coordinata di nodo o di tubo si sposta.
  */
 export const RIGHE_SVG_RIFERIMENTO_CON_TEE = [
   `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="802" viewBox="0 0 900 802">`,
@@ -84,7 +88,7 @@ export const RIGHE_SVG_RIFERIMENTO_CON_TEE = [
   `<g transform="translate(40 290)"><rect x="0" y="0" width="120" height="120" fill="none" stroke="#000" stroke-width="2" /><circle cx="60" cy="60" r="30" fill="none" stroke="#000" stroke-width="2" /><path d="M 46.5 33.3 L 86.1 45" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M 46.5 86.7 L 86.1 75" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><text x="10" y="20" font-family="Arial, Helvetica, sans-serif" font-size="24" text-anchor="start" dominant-baseline="central" fill="#000">C1</text></g>`,
   `<g transform="translate(300 270)"><rect x="0" y="40" width="310" height="100" rx="50" ry="50" fill="none" stroke="#000" stroke-width="2" /><text x="192.2" y="90" font-family="Arial, Helvetica, sans-serif" font-size="24" text-anchor="middle" dominant-baseline="central" fill="#000">S1</text><path d="M 70 40 L 70 34" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><rect x="64" y="22" width="12" height="12" fill="none" stroke="#000" stroke-width="2" /><path d="M 64 25 L 76 25 M 64 28 L 76 28 M 64 31 L 76 31" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><text x="70" y="10" font-family="Arial, Helvetica, sans-serif" font-size="14" text-anchor="middle" dominant-baseline="central" fill="#000">S1.1</text><path d="M 235.5 141 L 244.5 141 L 240 150 Z M 235.5 159 L 244.5 159 L 240 150 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M 240 159 L 240 167" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /></g>`,
   `<g transform="translate(670 140)"><path d="M 10 120 L 10 26" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="10 7" /><path d="M 4 27 L 10 14 L 16 27 Z" fill="#000" /><text font-family="Arial, Helvetica, sans-serif" font-size="18" text-anchor="start" dominant-baseline="central" fill="#000"><tspan x="28" y="20">Utenze aria</tspan></text></g>`,
-  `<g transform="translate(635 350)"><circle cx="10" cy="10" r="5" fill="#000" /></g>`,
+  `<g transform="translate(635 350)"><circle cx="10" cy="10" r="2.5" fill="#000" /></g>`,
   `<rect x="40" y="490" width="820" height="34" fill="none" stroke="#000" stroke-width="2" />`,
   `<text x="450" y="507" font-family="Arial, Helvetica, sans-serif" font-size="20" text-anchor="middle" dominant-baseline="central" fill="#000">LISTA APPARECCHIATURE</text>`,
   `<rect x="40" y="524" width="820" height="34" fill="none" stroke="#000" stroke-width="1" />`,
