@@ -38,17 +38,34 @@ import { fattoreDeforma } from './useTaratura'
  * Il pulsante e il gruppo di comandi della barra strumenti
  * ------------------------------------------------------------------------------------------ */
 
+/**
+ * Cosa un'ancora può accettare, per come lo si decide dall'interfaccia: i due soli fluidi che una
+ * TUBAZIONE porta. Non è l'elenco intero di `SchemaTipoAggancio`, e la differenza è voluta
+ * (decisione della revisione finale, rilievo Importante): `valvola_sicurezza` resta nel modello dei
+ * dati — le ancore delle valvole di sicurezza lo usano — ma non è uno stile di arco, quindi
+ * `tipoAggancioPerStile` (agganci.ts) non lo produce mai. Offerto qui, un'ancora impostata sulla
+ * SOLA valvola di sicurezza superava il controllo «almeno un tipo» qui sotto e non accettava più
+ * nulla: i tubi già attaccati si staccavano alla riapertura (`capoRiattaccato`, persistenza.ts) e
+ * i nuovi venivano rifiutati senza spiegazione.
+ */
 const TIPI_AGGANCIO: { valore: SchemaTipoAggancio; etichetta: string }[] = [
   { valore: 'aria', etichetta: 'Aria' },
   { valore: 'condensa', etichetta: 'Condensa' },
-  { valore: 'valvola_sicurezza', etichetta: 'Valvola sicurezza' },
 ]
 
 export interface BarraTaraturaProps {
   attivo: boolean
-  /** Esattamente un nodo selezionato: l'unica condizione per poter ENTRARE nel modo (il
-   *  brief: «tarare senza sapere quale simbolo non vuol dire nulla»). Non serve per USCIRNE. */
+  /** Esattamente un nodo selezionato, e di un tipo tarabile: le due condizioni per poter ENTRARE
+   *  nel modo (il brief: «tarare senza sapere quale simbolo non vuol dire nulla»). Non servono per
+   *  USCIRNE. */
   puoAttivare: boolean
+  /**
+   * Perché il pulsante è spento quando il simbolo selezionato non è tarabile
+   * (`motivoNonTarabile`, useTaratura.ts), altrimenti `null`: diventa il titolo del pulsante. Con
+   * `null` il titolo resta quello generico sulla selezione — l'altra ragione per cui può essere
+   * spento — e i due casi non si confondono.
+   */
+  motivoNonTarabile: string | null
   onAttiva: () => void
   /** Non spegne il modo da sé: apre il dialogo a tre vie (nessuna uscita implicita). */
   onEsci: () => void
@@ -68,6 +85,7 @@ export interface BarraTaraturaProps {
 export function BarraTaratura({
   attivo,
   puoAttivare,
+  motivoNonTarabile,
   onAttiva,
   onEsci,
   taratura,
@@ -87,7 +105,7 @@ export function BarraTaratura({
             ? 'Chiudi il modo taratura'
             : puoAttivare
               ? 'Modifica ancore e sagoma del simbolo selezionato'
-              : 'Seleziona un solo simbolo per tararlo'
+              : (motivoNonTarabile ?? 'Seleziona un solo simbolo per tararlo')
         }
       >
         <span>
@@ -123,8 +141,16 @@ export function BarraTaratura({
               // scende sotto uno (Step 3 del brief). Il rifiuto va DETTO, come già si fa per
               // l'ultima ancora rimasta (`togliAncoraSelezionata`, SchemaEditor.tsx): un
               // interruttore che si riaccende da solo senza spiegazione si legge come un guasto.
-              if (valori.length === 0) {
-                toast.error('Un’ancora deve accettare almeno un tipo: per toglierla del tutto usa il tasto Canc.')
+              //
+              // Si contano i soli tipi OFFERTI qui, non l'intero array: un'ancora di fabbrica può
+              // portarne anche uno che questo gruppo non mostra (`alto-in` del serbatoio
+              // orizzontale accetta `['aria', 'valvola_sicurezza']`), e MUI lo conserva nel valore
+              // che riconsegna. Contando l'array intero, spegnere «Aria» lì avrebbe lasciato
+              // `['valvola_sicurezza']` — lunghezza 1, controllo superato, ancora che non accetta
+              // più nessuna tubazione: lo stesso esito che togliere l'interruttore doveva chiudere.
+              const fluidi = valori.filter((v) => TIPI_AGGANCIO.some((t) => t.valore === v))
+              if (fluidi.length === 0) {
+                toast.error('Un’ancora deve accettare almeno un tipo di tubazione: per toglierla del tutto usa il tasto Canc.')
                 return
               }
               onCambiaAccetta(valori)

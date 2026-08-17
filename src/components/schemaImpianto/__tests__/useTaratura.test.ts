@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { TARATURA_NEUTRA } from '@/services/schemaImpianto/libreria'
 import type { TaraturaSimbolo } from '@/services/schemaImpianto/libreria'
-import type { SchemaAncora, SchemaTipoAggancio } from '@/services/schemaImpianto/types'
+import type { SchemaAncora, SchemaNodoTipo, SchemaTipoAggancio } from '@/services/schemaImpianto/types'
 import {
   spostaAncora,
   aggiungiAncora,
@@ -11,6 +11,7 @@ import {
   trasla,
   deforma,
   fattoreDeforma,
+  motivoNonTarabile,
   useTaratura,
 } from '../useTaratura'
 
@@ -28,6 +29,39 @@ function conDueAncore(): TaraturaSimbolo {
     ],
   }
 }
+
+/**
+ * La porta del modo taratura. Non è una preferenza di interfaccia: `utenze` e `giunzione` hanno
+ * una geometria che il modo taratura non sa reggere (vedi `motivoNonTarabile`), e lasciarli
+ * entrare produce tarature che non attecchiscono o ancore senza verso — difetti silenziosi, non
+ * un comando che non risponde.
+ */
+describe('quali simboli il modo taratura accetta', () => {
+  it('chiude la porta su utenze e giunzione, e dice perché di ciascuno', () => {
+    const utenze = motivoNonTarabile('utenze')
+    const giunzione = motivoNonTarabile('giunzione')
+
+    expect(utenze).not.toBeNull()
+    expect(giunzione).not.toBeNull()
+    // Due ragioni diverse, non lo stesso messaggio generico riusato: chi legge il titolo del
+    // pulsante deve capire cosa c'è di speciale in QUEL simbolo.
+    expect(utenze).not.toBe(giunzione)
+  })
+
+  it('lascia passare ogni altro simbolo del registro', () => {
+    const altri: SchemaNodoTipo[] = [
+      'compressore',
+      'serbatoio',
+      'essiccatore',
+      'filtro',
+      'separatore',
+      'tanica',
+      'pacco_bombole',
+    ]
+
+    for (const tipo of altri) expect(motivoNonTarabile(tipo), tipo).toBeNull()
+  })
+})
 
 describe('i gesti della taratura', () => {
   it("l ancora si posa sempre sulla griglia, anche a metà passo", () => {

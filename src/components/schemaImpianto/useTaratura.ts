@@ -17,8 +17,35 @@
 import { useCallback, useRef } from 'react'
 import { PASSO_GRIGLIA, allineaAllaGriglia } from '@/services/schemaImpianto/griglia'
 import type { TaraturaSimbolo } from '@/services/schemaImpianto/libreria'
-import type { SchemaAncora, SchemaLatoAncora, SchemaTipoAggancio } from '@/services/schemaImpianto/types'
+import type { SchemaAncora, SchemaLatoAncora, SchemaNodoTipo, SchemaTipoAggancio } from '@/services/schemaImpianto/types'
 import { useSchemaHistory } from './useSchemaHistory'
+
+/**
+ * Perché il modo taratura non è disponibile su questo simbolo, `null` quando lo è. La frase è il
+ * titolo del pulsante spento: un comando che non risponde e non dice perché si legge come un
+ * guasto (stessa cautela già presa sugli interruttori di `BarraTaratura`).
+ *
+ * Due tipi restano fuori, e per una ragione loro, non per comodo — la geometria resta com'è, è la
+ * porta che si chiude (decisione della revisione finale, rilievo Critico):
+ * - `utenze`: il suo riquadro non è quello del registro ma cresce con la scritta, e l'attacco
+ *   `in` viene riscritto sul fondo di quel riquadro a ogni lettura (`dimensioniDi`/`ancoreDi`,
+ *   symbols/index.ts). Con una taratura l'ingombro diventa invece l'inviluppo del riquadro FISSO
+ *   del registro: la scritta lunga esce dal foglio, e l'ancora spostata a mano viene comunque
+ *   sovrascritta — due gesti su tre non attecchirebbero.
+ * - `giunzione`: le sue quattro ancore coincidono nel centro e si distinguono solo per il campo
+ *   `lato`, che `latoImposto` (symbols/index.ts) pretende per sapere da che parte il tubo imbocca.
+ *   `aggiungiAncora` qui sotto non lo scrive, e `spostaAncora` muove `x`/`y` lasciando `presa`
+ *   dov'era: un'ancora tarata a mano sulla giunzione nascerebbe senza verso.
+ *
+ * Funzione pura e non una costante: chi la chiama vuole la ragione, non solo il divieto.
+ */
+export function motivoNonTarabile(tipo: SchemaNodoTipo): string | null {
+  if (tipo === 'utenze')
+    return 'Il terminale utenze non si tara: il suo riquadro cresce con la scritta e l’attacco segue il fondo del riquadro, quindi una taratura non reggerebbe.'
+  if (tipo === 'giunzione')
+    return 'La giunzione non si tara: le sue quattro ancore coincidono nel centro e si distinguono solo per il lato da cui il tubo imbocca, che il modo taratura non sa dichiarare.'
+  return null
+}
 
 /** Sposta l'ancora `id` sul punto di griglia più vicino a `(x, y)`. Le altre non cambiano. */
 export function spostaAncora(t: TaraturaSimbolo, id: string, x: number, y: number): TaraturaSimbolo {

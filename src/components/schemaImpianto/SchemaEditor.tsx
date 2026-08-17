@@ -88,7 +88,7 @@ import { useInserimentoTee } from './useInserimentoTee'
 import { ascissaProposta, useMuro } from './useMuro'
 import { useSchemaHistory } from './useSchemaHistory'
 import { useSegniTubo } from './useSegniTubo'
-import { useTaratura } from './useTaratura'
+import { motivoNonTarabile, useTaratura } from './useTaratura'
 import { useTestiLiberi } from './useTestiLiberi'
 import { useTrascinamentoTratto } from './useTrascinamentoTratto'
 
@@ -738,6 +738,17 @@ function SchemaEditorInterno({
     return occupate
   }, [stato.nodes, stato.edges, chiaveTaratura])
 
+  /**
+   * Perché il simbolo selezionato non è tarabile, `null` quando lo è (o quando la selezione non è
+   * di un solo nodo: lì il pulsante è spento per l'altra ragione, e il suo titolo lo dice già).
+   * Il modo taratura resta chiuso su `utenze` e `giunzione`, dove degraderebbe: vedi
+   * `motivoNonTarabile` (useTaratura.ts) per il perché di ciascuno.
+   */
+  const motivoTaratura =
+    selezione.nodes.length === 1
+      ? motivoNonTarabile((selezione.nodes[0].data as SchemaNodeData).nodo.tipo)
+      : null
+
   // Entra nel modo: seminata la cronologia PROPRIA della taratura (vedi `taraturaHook`) dalla
   // taratura corrente per quella chiave. Senza una taratura preesistente si parte dalle ancore
   // DI FABBRICA (`ancoreDi(nodo, {})`), non da `TARATURA_NEUTRA` da sola: il suo `ancore: []` è
@@ -749,6 +760,10 @@ function SchemaEditorInterno({
     if (selezione.nodes.length !== 1) return
     const nodoSelezionato = selezione.nodes[0]
     const nodo = (nodoSelezionato.data as SchemaNodeData).nodo
+    // Ripetuto qui e non lasciato al solo pulsante spento (`puoAttivare` qui sotto), per la stessa
+    // ragione per cui `rendiPermanenti` ripete il controllo su `isAdmin`: questa è la porta, e chi
+    // la chiama non deve poterla aprire per distrazione.
+    if (motivoNonTarabile(nodo.tipo)) return
     const chiave = chiaveSimbolo(nodo)
     const esistente = taraturaDi(libreria, chiave)
     taraturaHook.reimposta(esistente ?? { ...TARATURA_NEUTRA, ancore: ancoreDi(nodo, {}) })
@@ -1321,7 +1336,8 @@ function SchemaEditorInterno({
             simbolo (Step 1 del brief). */}
         <BarraTaratura
           attivo={modoTaratura}
-          puoAttivare={selezione.nodes.length === 1}
+          puoAttivare={selezione.nodes.length === 1 && motivoTaratura === null}
+          motivoNonTarabile={motivoTaratura}
           onAttiva={attivaTaratura}
           onEsci={() => setDialogoUscitaAperto(true)}
           taratura={taraturaHook.taratura}
