@@ -582,8 +582,10 @@ function SchemaEditorInterno({
       applica((s) => {
         const id = codiceLibero(voce.prefisso, s.nodes)
         // Accanto al bordo sinistro del disegno e sopra la sua cima, dove l'utente sta già
-        // guardando: un punto fisso finirebbe sopra un'apparecchiatura già disegnata.
-        const posizione = sopraIlBordoSinistro(s.nodes, s.testi)
+        // guardando: un punto fisso finirebbe sopra un'apparecchiatura già disegnata. Se sopra
+        // non c'è spazio ripiega a destra del disegno, e per sapere dove il disegno finisce le
+        // serve la libreria: l'ingombro di un simbolo dipende dalla sua taratura.
+        const posizione = sopraIlBordoSinistro(s.nodes, s.testi, libreriaEffettiva)
         const nodo = {
           id,
           tipo: voce.tipo,
@@ -1157,8 +1159,8 @@ function SchemaEditorInterno({
     // chiusura: è la stessa cautela di `aggiungiNodo` e della generazione dell'id in
     // useTestiLiberi.ts — `stato` può essere l'istantanea di un render precedente a quello su
     // cui il reducer sta per applicare l'aggiunta, e l'annotazione nascerebbe sopra qualcosa.
-    aggiungiTesto((s) => sopraIlBordoSinistro(s.nodes, s.testi), contenuto)
-  }, [aggiungiTesto, applica, modificaTesto, scrittura])
+    aggiungiTesto((s) => sopraIlBordoSinistro(s.nodes, s.testi, libreriaEffettiva), contenuto)
+  }, [aggiungiTesto, applica, libreriaEffettiva, modificaTesto, scrittura])
 
   /** Elimina l'annotazione aperta nel dialog: la via più vecchia delle due che esistono — l'altra
    *  è selezionarla sulla tela e premere Canc (`selezioneLibera` qui sopra). Il pulsante «Elimina»
