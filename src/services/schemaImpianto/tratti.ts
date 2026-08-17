@@ -13,8 +13,13 @@ export interface Punto {
   y: number
 }
 
-/** Mezzo periodo dell'onda del flessibile, in unità SVG. */
-export const PASSO_ONDA = 5
+/**
+ * Mezzo periodo dell'onda del flessibile, in unità SVG. Raddoppiato il 17-08-2026: il committente
+ * ha detto che le onde erano troppo fitte e ha chiesto un tratto più dolce, cioè metà ondulazioni
+ * sulla stessa lunghezza. (Le sue parole erano «un periodo metà dell'attuale», che darebbe
+ * l'opposto: qui vale l'intento, non la formula.)
+ */
+export const PASSO_ONDA = 10
 /** Quanto l'onda si scosta dall'asse del tubo. */
 export const AMPIEZZA_ONDA = 5
 

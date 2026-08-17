@@ -66,6 +66,18 @@ describe('ondula', () => {
     expect(arriviQ(d)).toHaveLength(50 / PASSO_ONDA)
   })
 
+  it('un flessibile di 50 unità porta cinque semiperiodi, non dieci', () => {
+    // Misura letterale di proposito: ogni altro test di questo describe è parametrico su
+    // PASSO_ONDA e resterebbe verde a qualunque passo, compreso quello che il committente ha
+    // chiesto di cambiare il 17-08-2026 perché le onde erano troppo fitte. Questa è la riga che
+    // se ne accorge se qualcuno le infittisce di nuovo.
+    const d = ondula([
+      { x: 0, y: 0 },
+      { x: 50, y: 0 },
+    ])
+    expect(arriviQ(d)).toHaveLength(5)
+  })
+
   it('ondula anche in verticale, sfalsando la x invece della y', () => {
     const orizzontale = ondula([
       { x: 0, y: 0 },
@@ -112,11 +124,10 @@ describe('ondula', () => {
     expect(arriviQ(d)[0]).toEqual([3, 0])
   })
 
-  // Con PASSO_ONDA = 5, un tratto sotto le 2,5 unità farebbe arrotondare mezziPeriodi a 0 senza
-  // la guardia Math.max(1, ...): il ciclo interno non girerebbe e il tracciato si fermerebbe al
-  // primo punto, senza mai raggiungere l'ancora. Il caso di 3 unità sopra non basta a
-  // dimostrarlo (Math.round(3/5) fa già 1 da solo): qui la guardia è l'unica cosa che salva il
-  // risultato.
+  // Un tratto sotto mezzo passo farebbe arrotondare mezziPeriodi a 0 senza la guardia
+  // Math.max(1, ...): il ciclo interno non girerebbe e il tracciato si fermerebbe al primo punto,
+  // senza mai raggiungere l'ancora. Il caso di 3 unità sopra non basta a dimostrarlo: qui la
+  // guardia è l'unica cosa che salva il risultato.
   it('un tratto sotto mezzo passo resta comunque un’onda sola che tocca l’ancora', () => {
     const d = ondula([
       { x: 0, y: 0 },
@@ -152,11 +163,11 @@ describe('ondula', () => {
     expect(comandi.slice(0, -1).every(([, cy]) => Math.abs(cy) === AMPIEZZA_ONDA)).toBe(true)
   })
 
-  // PASSO_ONDA e AMPIEZZA_ONDA valgono entrambi 5, quindi nessuna misura può distinguerli
-  // finché i valori restano uguali: scambiarli nel codice oggi non cambierebbe un solo carattere
-  // del tracciato. Queste asserzioni legano ciascuna costante al proprio ruolo — lo scostamento
+  // PASSO_ONDA e AMPIEZZA_ONDA hanno a lungo avuto lo stesso valore, e finché è stato così nessuna
+  // misura poteva distinguerli: scambiarli nel codice non cambiava un solo carattere del
+  // tracciato. Queste asserzioni legano ciascuna costante al proprio ruolo — lo scostamento
   // perpendicolare ad AMPIEZZA_ONDA, il passo lungo l'asse a PASSO_ONDA — così lo scambio viene
-  // scoperto non appena i due valori divergono. La lunghezza è un multiplo esatto del passo,
+  // scoperto anche se i due tornassero a coincidere. La lunghezza è un multiplo esatto del passo,
   // altrimenti la ridistribuzione lo accorcerebbe e i conti tornerebbero solo per caso.
   it('scosta i controlli di AMPIEZZA_ONDA e li fa arrivare ogni PASSO_ONDA', () => {
     const semiperiodi = 4

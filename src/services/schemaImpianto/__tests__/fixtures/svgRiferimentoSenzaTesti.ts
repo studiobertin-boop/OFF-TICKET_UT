@@ -70,12 +70,17 @@
  * di flusso (rapporto 1,50, non più 1,0) cambiano forma nel disegno e nella riga di legenda.
  * Nessuna posizione di nodo o percorso di tubo si sposta: questo impianto non ha condense né
  * riduttori, quindi non copre quella metà del task.
+ *
+ * Generato di nuovo il 17-08-2026 (rifinitura R5): il passo dell'onda del flessibile raddoppia —
+ * metà delle ondulazioni sulla stessa lunghezza, come chiesto dal committente. Cambiano solo i
+ * tracciati ondulati (la mandata del compressore e il campione "Tubazione flessibile" della
+ * legenda); nessuna posizione di nodo e nessun capo di tubo si sposta.
  */
 export const RIGHE_SVG_RIFERIMENTO_SENZA_TESTI = [
   `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="802" viewBox="0 0 900 802">`,
   `<defs><marker id="freccia" viewBox="0 0 15 10" refX="14" refY="5" markerWidth="9" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 15 5 L 0 10 z" fill="#000" /></marker></defs>`,
   `<rect width="900" height="802" fill="#fff" />`,
-  `<path d="M 100 290 Q 105 287.5 100 285 Q 95 282.5 100 280 Q 105 277.5 100 275 Q 95 272.5 100 270 Q 105 267.5 100 265 Q 95 262.5 100 260 Q 105 257.5 100 255 Q 95 252.5 100 250 Q 102.52 255 105.03 250 Q 107.55 245 110.06 250 Q 112.58 255 115.09 250 Q 117.61 245 120.12 250 Q 122.64 255 125.15 250 Q 127.67 245 130.18 250 Q 132.7 255 135.21 250 Q 137.73 245 140.24 250 Q 142.76 255 145.27 250 Q 147.79 245 150.3 250 Q 152.82 255 155.33 250 Q 157.85 245 160.36 250 Q 162.88 255 165.39 250 Q 167.91 245 170.42 250 Q 172.94 255 175.45 250 Q 177.97 245 180.48 250 Q 183 255 185.52 250 Q 188.03 245 190.55 250 Q 193.06 255 195.58 250 Q 198.09 245 200.61 250 Q 203.12 255 205.64 250 Q 208.15 245 210.67 250 Q 213.18 255 215.7 250 Q 218.21 245 220.73 250 Q 223.24 255 225.76 250 Q 228.27 245 230.79 250 Q 233.3 255 235.82 250 Q 238.33 245 240.85 250 Q 243.36 255 245.88 250 Q 248.39 245 250.91 250 Q 253.42 255 255.94 250 Q 258.45 245 260.97 250 Q 263.48 255 266 250 Q 261 252.5 266 255 Q 271 257.5 266 260 Q 261 262.5 266 265 Q 271 267.5 266 270 Q 261 272.5 266 275 Q 271 277.5 266 280 Q 261 282.5 266 285 Q 271 287.5 266 290 Q 261 292.5 266 295 Q 271 297.5 266 300 Q 261 302.5 266 305 Q 271 307.5 266 310 Q 261 312.5 266 315 Q 271 317.5 266 320 Q 261 322.5 266 325 Q 271 327.5 266 330 Q 261 332.5 266 335 Q 271 337.5 266 340 Q 261 342.5 266 345 Q 271 347.5 266 350 Q 261 352.5 266 355 Q 271 357.5 266 360 Q 268.43 365 270.86 360 Q 273.29 355 275.71 360 Q 278.14 365 280.57 360 Q 283 355 285.43 360 Q 287.86 365 290.29 360 Q 292.71 355 295.14 360 Q 297.57 360 300 360" fill="none" stroke="#000" stroke-width="2" marker-end="url(#freccia)" />`,
+  `<path d="M 100 290 Q 105 285 100 280 Q 95 275 100 270 Q 105 265 100 260 Q 95 255 100 250 Q 104.88 255 109.76 250 Q 114.65 245 119.53 250 Q 124.41 255 129.29 250 Q 134.18 245 139.06 250 Q 143.94 255 148.82 250 Q 153.71 245 158.59 250 Q 163.47 255 168.35 250 Q 173.24 245 178.12 250 Q 183 255 187.88 250 Q 192.76 245 197.65 250 Q 202.53 255 207.41 250 Q 212.29 245 217.18 250 Q 222.06 255 226.94 250 Q 231.82 245 236.71 250 Q 241.59 255 246.47 250 Q 251.35 245 256.24 250 Q 261.12 255 266 250 Q 261 255 266 260 Q 271 265 266 270 Q 261 275 266 280 Q 271 285 266 290 Q 261 295 266 300 Q 271 305 266 310 Q 261 315 266 320 Q 271 325 266 330 Q 261 335 266 340 Q 271 345 266 350 Q 261 355 266 360 Q 271.67 365 277.33 360 Q 283 355 288.67 360 Q 294.33 360 300 360" fill="none" stroke="#000" stroke-width="2" marker-end="url(#freccia)" />`,
   `<rect x="226" y="245.5" width="18" height="9" fill="#fff" stroke="none" />`,
   `<path d="M 226 245.5 L 226 254.5 L 235 250 Z M 244 245.5 L 244 254.5 L 235 250 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" />`,
   `<path d="M 610 360 L 645 360 L 645 260 L 680 260" fill="none" stroke="#000" stroke-width="2" />`,
@@ -110,10 +115,9 @@ export const RIGHE_SVG_RIFERIMENTO_SENZA_TESTI = [
   `<text x="182" y="711" font-family="Arial, Helvetica, sans-serif" font-size="16" dominant-baseline="central" fill="#000">Tubazione rigida</text>`,
   `<rect x="40" y="728" width="820" height="34" fill="none" stroke="#000" stroke-width="1" />`,
   `<line x1="170" y1="728" x2="170" y2="762" stroke="#000" stroke-width="1" />`,
-  `<g transform="translate(105 745)"><path d="M -30 0 Q -27.5 5 -25 0 Q -22.5 -5 -20 0 Q -17.5 5 -15 0 Q -12.5 -5 -10 0 Q -7.5 5 -5 0 Q -2.5 -5 0 0 Q 2.5 5 5 0 Q 7.5 -5 10 0 Q 12.5 5 15 0 Q 17.5 -5 20 0 Q 22.5 5 25 0 Q 27.5 0 30 0" fill="none" stroke="#000" stroke-width="2" /></g>`,
+  `<g transform="translate(105 745)"><path d="M -30 0 Q -25 5 -20 0 Q -15 -5 -10 0 Q -5 5 0 0 Q 5 -5 10 0 Q 15 5 20 0 Q 25 0 30 0" fill="none" stroke="#000" stroke-width="2" /></g>`,
   `<text x="182" y="745" font-family="Arial, Helvetica, sans-serif" font-size="16" dominant-baseline="central" fill="#000">Tubazione flessibile</text>`,
   `</svg>`
-
 ]
 
 /** Ricomposto qui, non lasciato come array nel test: il confronto resta su una stringa sola. */
