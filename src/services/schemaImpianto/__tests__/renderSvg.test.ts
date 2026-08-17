@@ -123,7 +123,10 @@ describe('la fascia sotto il disegno', () => {
   // `svgMinimo` non lo faceva.
   it('non scende sotto la larghezza dell’intestazione, su un elenco corto', () => {
     const vuoto: SchemaLayout = { nodi: [], archi: [], muro: null, testi: [] }
-    const minimo = 'LISTA APPARECCHIATURE'.length * 20 * 0.5
+    // 0,606 è il rapporto VERO misurato in pagina su «LISTA APPARECCHIATURE» in Arial 20 (tutta
+    // maiuscola), non la stima usata per le annotazioni: con 0,5 questo test resterebbe verde
+    // anche con una tabella troppo stretta perché l'intestazione ci sta davvero.
+    const minimo = 'LISTA APPARECCHIATURE'.length * 20 * 0.606
 
     expect(intestazione(renderSvg(vuoto)).larghezza).toBeGreaterThanOrEqual(minimo)
   })

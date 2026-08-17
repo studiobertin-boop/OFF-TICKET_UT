@@ -400,10 +400,13 @@ export default function RelazioneDataDialog({
               required
               multiline
               minRows={2}
+              // Nessuno dei due testi promette più di riportare il valore in anagrafica: dal
+              // 17-08-2026 la generazione non riscrive dati condivisi (vedi `handleGenera`), e una
+              // promessa rimasta indietro sarebbe peggio del silenzio.
               helperText={
                 customer?.descrizione_attivita?.trim()
-                  ? "Preso dall'anagrafica cliente e inserito così com'è nella premessa. Se lo modifichi, l'anagrafica viene aggiornata."
-                  : "L'anagrafica del cliente non riporta l'attività: quanto scrivi qui finisce nella premessa e viene salvato in anagrafica."
+                  ? "Preso dall'anagrafica cliente e inserito così com'è nella premessa. Se lo modifichi, la modifica vale per questa relazione."
+                  : "L'anagrafica del cliente non riporta l'attività: quanto scrivi qui finisce nella premessa di questa relazione."
               }
             />
           </GruppoCampi>
@@ -411,9 +414,12 @@ export default function RelazioneDataDialog({
           {compressoriSenzaGiri.length > 0 && (
             <GruppoCampi
               titolo="Giri dei compressori"
+              // Non promette più il salvataggio a catalogo: dal 17-08-2026 la generazione non
+              // riscrive dati condivisi, e la domanda tornerà davvero a ogni pratica.
               spiegazione={
                 'Il catalogo non riporta la regolazione dei giri per questi modelli. La risposta ' +
-                'viene salvata anche a catalogo, così non verrà più richiesta.'
+                'vale per questa relazione; per registrarla stabilmente, censiscila a catalogo dal ' +
+                'modulo di gestione apparecchiature.'
               }
             >
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25 }}>

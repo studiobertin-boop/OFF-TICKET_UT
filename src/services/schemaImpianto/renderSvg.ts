@@ -50,6 +50,21 @@ const RIGA_TABELLA = 34
 const COLONNA_CODICE = 130
 /** Aria fra il bordo della cella e la descrizione, a sinistra e a destra. */
 const RIENTRO_DESCRIZIONE = 12
+/**
+ * Larghezza media di un carattere nelle celle della tabella, in frazione del corpo. Più generosa
+ * di `TESTO_LIBERO.larghezzaCarattere` (0,5) DI PROPOSITO, e non è una svista da riallineare: le
+ * celle sono fitte di maiuscole — marca e modello arrivano quasi sempre in maiuscolo dal catalogo
+ * («KAESER KOMPRESSOREN SE»), e l'intestazione lo è tutta — e su quelle 0,5 sottostima.
+ *
+ * Misurato in pagina su Arial: 0,437 su una descrizione in minuscolo, 0,587 sulla riga peggiore a
+ * catalogo, 0,606 sull'intestazione. 0,62 le copre tutte con un margine.
+ *
+ * La differenza con l'annotazione libera non è cosmetica: un'annotazione non ha cornice, e una
+ * stima corta le costa solo qualche unità di tela in meno. Qui il testo ha un bordo da non
+ * superare, e con 0,5 due descrizioni uscivano davvero dalla cella — visto in anteprima, non nei
+ * test, che sulla larghezza si fidano della stessa stima del disegno.
+ */
+const LARGHEZZA_CARATTERE_TABELLA = 0.62
 /** Larghezza del riquadro della nota: invariata da sempre, cambia solo il centro su cui si posa. */
 const LARGHEZZA_NOTA = 680
 const INTESTAZIONE_TABELLA = 'LISTA APPARECCHIATURE'
@@ -275,15 +290,15 @@ export function righeLegenda(layout: SchemaLayout): RigaTabella[] {
  * quasi vuote.
  *
  * Il minimo è l'intestazione, in corpo 20 e quindi più larga delle righe: senza, su un elenco
- * corto sarebbe lei a sporgere. La stima del testo è quella già in uso nel modulo
- * (`TESTO_LIBERO.larghezzaCarattere`), non tipografia vera: serve a dimensionare un riquadro, e
- * misurare i glifi richiederebbe un DOM che questa funzione non ha.
+ * corto sarebbe lei a sporgere. La stima del testo non è tipografia vera — misurare i glifi
+ * richiederebbe un DOM che questa funzione non ha — ma usa un fattore proprio, più largo di
+ * quello delle annotazioni: vedi `LARGHEZZA_CARATTERE_TABELLA` e il perché.
  */
 function larghezzaRichiestaTabella(righe: RigaTabella[]): number {
   const piuLunga = Math.max(0, ...righe.map((r) => r.descrizione.length))
-  const descrizione = RIENTRO_DESCRIZIONE * 2 + piuLunga * 16 * TESTO_LIBERO.larghezzaCarattere
+  const descrizione = RIENTRO_DESCRIZIONE * 2 + piuLunga * 16 * LARGHEZZA_CARATTERE_TABELLA
   const intestazione =
-    INTESTAZIONE_TABELLA.length * 20 * TESTO_LIBERO.larghezzaCarattere + RIENTRO_DESCRIZIONE * 2
+    INTESTAZIONE_TABELLA.length * 20 * LARGHEZZA_CARATTERE_TABELLA + RIENTRO_DESCRIZIONE * 2
   return Math.max(COLONNA_CODICE + descrizione, intestazione)
 }
 
