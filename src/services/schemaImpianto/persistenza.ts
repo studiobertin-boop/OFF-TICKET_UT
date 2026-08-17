@@ -8,7 +8,6 @@
 import { ancoraAmmette } from './agganci'
 import { layoutSchema, muroDaAscissa, DIMENSIONI_NODO, pozzoCondense } from './layout'
 import type { Tarature } from './libreria'
-import { risolviLibreria } from './libreria'
 import { ancoraDi, ancoreDi, dimensioniDi } from './symbols'
 import type { SchemaArco, SchemaCapo, SchemaLayout, SchemaModel, SchemaNodo, SchemaNodoPosizionato, SchemaTestoLibero } from './types'
 
@@ -32,7 +31,11 @@ export interface LayoutSalvato {
   /**
    * Taratura di pratica: vale solo per la pratica aperta, sopra la taratura permanente
    * (tabella `schema_simboli`, Task 9) e sotto nessuno — è l'ultimo strato che parla
-   * (`risolviLibreria`, libreria.ts). Assente: nessuna correzione locale, questa pratica
+   * (`risolviLibreria`, libreria.ts). È il SEME di quello strato, non lo strato stesso: chi apre
+   * la pratica lo legge da qui una volta e da lì in poi tiene il valore vivo in memoria, che una
+   * taratura decisa nella sessione aggiorna. Per questo `layoutIniziale` non lo rilegge (vedi lì).
+   *
+   * Assente: nessuna correzione locale, questa pratica
    * disegna con permanente+registro come ogni altra. Campo nuovo e opzionale, non un cambio
    * di formato — stessa ragione già decisa per `muroX`: alzare `VERSIONE` butterebbe via il
    * layout salvato di OGNI pratica esistente, perché `deserializzaLayout` lo respinge in
@@ -157,22 +160,25 @@ function identitaArco(arco: SchemaArco): string {
  * proposta automatica. Il controllo di versione sta qui e non nel componente React che chiama
  * questa funzione, così la strada che il dialog percorre davvero è la stessa che i test coprono.
  *
- * `libreria` è la sola taratura PERMANENTE (tabella `schema_simboli`): il chiamante non conosce
- * quella di pratica, che vive dentro `salvato.simboli`. La fusione (`risolviLibreria`) avviene
- * qui, non nel chiamante, perché questa è la sola strada che la produzione percorre davvero
- * (vedi il commento sopra `riconcilia`): un secondo punto di fusione altrove potrebbe divergere
- * in silenzio.
+ * `libreria` è la libreria GIÀ RISOLTA — permanenti fuse con la taratura di pratica — e non il
+ * solo strato permanente: la fusione (`risolviLibreria`) avviene una volta sola nel chiamante,
+ * che è anche il punto da cui la stessa libreria va al disegno e all'editor
+ * (`SchemaImpiantoSection.tsx`). Qui NON si rifonde con `salvato.simboli`, benché sia a portata di
+ * mano: quel campo è solo il SEME dello strato di pratica — chi monta la sezione lo legge da
+ * `additional_info` e lo tiene come stato vivo — e rifonderlo qui farebbe vincere il valore
+ * salvato su quello deciso e non ancora scritto. Finché le due fonti coincidono la differenza non
+ * si vede; appena divergono, il layout nascerebbe con una libreria diversa da quella con cui il
+ * documento viene poi disegnato (revisione finale, rilievo Importante).
  */
 export function layoutIniziale(
   salvato: LayoutSalvato | null | undefined,
   modello: SchemaModel,
   libreria: Tarature = {}
 ): EsitoRiconciliazione {
-  const risolta = risolviLibreria(libreria, salvato?.simboli ?? {})
-  const ripristinato = deserializzaLayout(salvato, risolta)
+  const ripristinato = deserializzaLayout(salvato, libreria)
   if (!ripristinato)
-    return { layout: layoutSchema(modello, risolta), aggiunti: [], aggiuntiDaScheda: [], rimossi: [] }
-  return riconcilia(ripristinato, modello, risolta)
+    return { layout: layoutSchema(modello, libreria), aggiunti: [], aggiuntiDaScheda: [], rimossi: [] }
+  return riconcilia(ripristinato, modello, libreria)
 }
 
 /**

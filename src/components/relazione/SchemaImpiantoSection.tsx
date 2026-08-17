@@ -163,8 +163,11 @@ export function SchemaImpiantoSection({
 
   // Punto unico di risoluzione della libreria per questa pratica: sia per la generazione del
   // documento (`disegna`/`rigenera` qui sotto) sia per l'editor, che la riceve come prop invece
-  // di risolversi la propria. I due strati sopra il registro di fabbrica: le permanenti, e
-  // `taraturaPratica` (Task 12, il modo taratura sulla tela) che vince su di loro.
+  // di risolversi la propria, sia per la riconciliazione all'apertura (`layoutIniziale`, che dal
+  // canto suo non rifonde nulla — vedi il suo commento). I due strati sopra il registro di
+  // fabbrica: le permanenti, e `taraturaPratica` (Task 12, il modo taratura sulla tela) che vince
+  // su di loro. «Unico» va preso alla lettera: un secondo `risolviLibreria` altrove tornerebbe a
+  // divergere in silenzio appena le due fonti si scostano.
   //
   // In caso di errore di lettura `taraturePermanenti` resta `undefined` e si ripiega sul solo
   // registro: il disegno esce come prima che le tarature permanenti esistessero — meno fedele,

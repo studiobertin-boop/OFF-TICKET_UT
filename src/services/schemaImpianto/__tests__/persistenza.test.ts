@@ -5,6 +5,8 @@ import { layoutSchema, muroDaAscissa, DIMENSIONI_NODO } from '../layout'
 import { serializzaLayout, deserializzaLayout, riconcilia, layoutIniziale, layoutDaPersistere } from '../persistenza'
 import type { LayoutSalvato } from '../persistenza'
 import { dimensioniDi } from '../symbols'
+import type { Tarature } from '../libreria'
+import { risolviLibreria } from '../libreria'
 import type { SchemaLayout, SchemaModel } from '../types'
 
 function modelloDiProva(codiciCompressore: string[]) {
@@ -658,6 +660,16 @@ describe('testi liberi', () => {
 })
 
 describe('taratura di pratica e riattacco degli archi orfani', () => {
+  /**
+   * Apre come apre la produzione: la libreria si risolve nel CHIAMANTE e arriva già fusa a
+   * `layoutIniziale`, che non rilegge `salvato.simboli` da sé (revisione finale, rilievo
+   * Importante — il punto di fusione è uno solo, ed è `SchemaImpiantoSection.tsx`). Passare qui
+   * il solo salvato, come facevano questi test prima, provava una strada che nessuno percorre.
+   */
+  function apri(salvato: LayoutSalvato, modello: SchemaModel, permanenti: Tarature = {}) {
+    return layoutIniziale(salvato, modello, risolviLibreria(permanenti, salvato.simboli ?? {}))
+  }
+
   /** Modello minimo con un compressore e una tanica, collegati: basta a isolare il
    *  comportamento sull'ancora della tanica, senza portarsi dietro l'intero motore di scheda. */
   function modelloDiRiferimento(): SchemaModel {
@@ -704,7 +716,7 @@ describe('taratura di pratica e riattacco degli archi orfani', () => {
       simboli: { tanica: { dx: 0, dy: 0, sx: 1, sy: 1, ancore: [{ id: 'ingresso', x: 60, y: 20, accetta: ['aria'] }] } },
     }
 
-    const { layout } = layoutIniziale(salvato, modelloDiRiferimento())
+    const { layout } = apri(salvato, modelloDiRiferimento())
     const arco = layout.archi.find((a) => a.id === 'A1')!
 
     expect(arco.a.ancora).not.toBe('sx')
@@ -719,7 +731,7 @@ describe('taratura di pratica e riattacco degli archi orfani', () => {
       simboli: { tanica: { dx: 0, dy: 0, sx: 1, sy: 1, ancore: [{ id: 'alto-in', x: 40, y: 0, accetta: ['condensa'] }] } },
     }
 
-    const { layout } = layoutIniziale(salvato, modelloDiRiferimento())
+    const { layout } = apri(salvato, modelloDiRiferimento())
 
     // Nessuna ancora compatibile su T1: `riconcilia` tratta il capo come tratta oggi un
     // riferimento a un NODO sparito (vedi il filtro su `idNodi` in riconcilia) — l'arco intero
@@ -744,7 +756,7 @@ describe('taratura di pratica e riattacco degli archi orfani', () => {
       },
     }
 
-    const { layout } = layoutIniziale(salvato, modelloDiRiferimento())
+    const { layout } = apri(salvato, modelloDiRiferimento())
     const arco = layout.archi.find((a) => a.id === 'A1')!
 
     // Non è sparito (l'id 'sx' c'è), ma non è più giusto per lui: deve spostarsi sulla
@@ -770,10 +782,30 @@ describe('taratura di pratica e riattacco degli archi orfani', () => {
       },
     }
 
-    const { layout } = layoutIniziale(salvato, modelloDiRiferimento())
+    const { layout } = apri(salvato, modelloDiRiferimento())
     const arco = layout.archi.find((a) => a.id === 'A1')!
 
     expect(arco.a.ancora).toBe('vicina')
+  })
+
+  it('la libreria del chiamante vince su `salvato.simboli`, che è solo il seme', () => {
+    // Il caso vero: il committente ha tarato la tanica scegliendo «usa solo questa volta» e non ha
+    // ancora salvato la pratica. Lo stato vivo — quello che il chiamante fonde nella libreria e
+    // con cui poi DISEGNA — porta 'ingresso'; `additional_info` porta ancora la taratura di prima,
+    // con 'sx'. Se `layoutIniziale` rifondesse `salvato.simboli` sopra la libreria ricevuta,
+    // vincerebbe il valore vecchio: il layout nascerebbe agganciato a un'ancora che il documento
+    // non disegna più (revisione finale, rilievo Importante).
+    const salvato: LayoutSalvato = {
+      ...layoutConArcoVersoTanica('sx'),
+      simboli: { tanica: { dx: 0, dy: 0, sx: 1, sy: 1, ancore: [{ id: 'sx', x: 0, y: 20, accetta: ['aria'] }] } },
+    }
+    const decisaOra: Tarature = {
+      tanica: { dx: 0, dy: 0, sx: 1, sy: 1, ancore: [{ id: 'ingresso', x: 60, y: 20, accetta: ['aria'] }] },
+    }
+
+    const { layout } = layoutIniziale(salvato, modelloDiRiferimento(), decisaOra)
+
+    expect(layout.archi.find((a) => a.id === 'A1')!.a.ancora).toBe('ingresso')
   })
 
   it('la taratura di pratica entra nel salvato e non alza la versione', () => {
