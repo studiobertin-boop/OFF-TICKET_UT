@@ -9,6 +9,9 @@ cosa da fare è misurarla, non farla.
 una coda con un piano suo. Ma esiste una strada che dà lo stesso risultato per chi disegna a **un
 quinto circa** del costo, e non tocca né i layout già salvati né il disegno automatico.
 
+**Strada scelta:** quella proposta dal committente dopo aver letto questa stima — *il cambio di tipo
+sta nella valvola* —, descritta più sotto. Tre task, un gesto solo, nessuna migrazione.
+
 ## Perché oggi non si può
 
 Valvola e riduttore non sono oggetti: sono **segni** che scorrono su un unico arco, individuati da
@@ -84,6 +87,50 @@ disegno automatico, nessun nuovo simbolo.
 
 **Il prezzo:** due gesti invece di uno. Per avere «monte flessibile, valle rigido» si spezza il tubo
 e poi si posa la valvola dove serve, invece di ottenerlo posando la sola valvola.
+
+## La strada scelta: il cambio di tipo sta nella valvola
+
+Proposta del committente, 17-08-2026, dopo aver letto la strada corta: invece di due gesti (spezza
+qui, poi posa la valvola), che **il punto di taglio stia al centro della valvola e si muova con
+lei**.
+
+L'osservazione rovescia il problema, in meglio: se il taglio deve seguire la valvola, **non serve
+tagliare**. Basta che sia il segno a dichiarare «da qui in poi il tubo è di un altro tipo». Il
+confine coincide col segno per costruzione — non c'è niente da tenere agganciato, e non può
+disallinearsi.
+
+**Cosa si tocca:**
+
+- **Modello:** un campo opzionale sul segno (`stileAValle`). Opzionale significa che non alza la
+  versione del formato: i layout salvati si leggono come sono, **nessuna conversione**, nessun
+  rischio su ORVED e LOWA.
+- **Disegno del documento:** oggi la resa è scelta per funzione (`renderMandataCompressore` ondula,
+  `renderMandataLinea` continua, `renderLineaCondense` tratteggia). Diventa: una polilinea, spezzata
+  nei punti dei segni che dichiarano un cambio, ogni pezzo reso col proprio tratto.
+- **Tela dell'editor:** un punto solo, `SchemaEdgeTubazione:380` (`stile === 'flessibile' ? ondula
+  : percorso`), che passa da un `<path>` a uno per pezzo.
+- **Legenda:** deve elencare anche gli stili che entrano dai cambi, non solo quelli degli archi.
+- **Serve una funzione «sotto-polilinea fra due quote»**, che oggi non esiste come tale ma è già
+  dentro `spezzaArco` (quote dei vertici, filtro degli interni, punto al taglio): si estrae.
+
+**Cosa NON si tocca:** nodi, ancore, disegno automatico, riconciliazione, migrazione, i tre
+riferimenti SVG (senza il campo il disegno è identico a oggi).
+
+**Il limite da sapere:** la **rotta resta quella dello stile principale dell'arco**. Il percorso
+dipende dallo stile (`instrada`: il flessibile scende al collettore, la condensa corre sulla propria
+corsia, la linea va dritta): con due stili sullo stesso arco la strada percorsa è una sola, e cambia
+solo il tratto disegnato. Per il caso del committente — flessibile fino alla valvola, poi rigido
+sullo stesso percorso — è quello che serve; se si aspettasse anche una rotta diversa a valle, è
+un'altra richiesta.
+
+**Effetto collaterale gradito:** il rettangolo bianco che la valvola già disegna copre esattamente
+il punto in cui i due tratti si incontrano.
+
+**Stima: tre task.** Meno della strada corta, perché non c'è nessun raccordo da inventare.
+
+**Cosa resta da decidere, ed è il motivo per cui questa parte comincia con un brainstorming:** come
+si dice alla valvola quale tipo di tubo comincia da lei. Oggi i segni si trascinano e si tolgono col
+doppio clic, ma non si selezionano: il comando non ha ancora un posto naturale.
 
 ## Terza via, per completezza
 
