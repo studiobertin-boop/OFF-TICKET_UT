@@ -13,9 +13,20 @@
  * generazione dello schema.
  */
 import type { SchemaPreferenze } from '@/services/relazione/types'
+import type { SchedaDatiCompleta } from '@/types/technicalSheet'
+import { ordinaCatenaTrattamento } from './buildSchemaModel'
 import type { SchemaNodo } from './types'
 
+/** Le apparecchiature di scheda che entrano nello schema, divise per come si dispongono. */
+export interface FamiglieSchema {
+  compressori: SchemaNodo[]
+  serbatoi: SchemaNodo[]
+  stadi: SchemaNodo[]
+}
+
 export interface PreferenzeRisolte {
+  /** Codici dei compressori, da sinistra a destra in sala. */
+  ordineCompressori: string[]
   /** Codici degli stadi di trattamento, nell'ordine in cui vanno disegnati da sinistra a destra. */
   ordineStadi: string[]
   ordineSerbatoi: string[]
@@ -25,6 +36,71 @@ export interface PreferenzeRisolte {
   bypass: { id: string; stadi: string[] }[]
   /** Id dei gruppi caduti perché non più contigui: da dire all'operatore, non da riparare. */
   bypassScartati: string[]
+}
+
+/** Nodo ridotto all'osso: al pannello e all'ordinamento servono id, tipo ed etichetta, non le
+ *  valvole né gli accessori che `buildSchemaModel` ricostruisce per il disegno. */
+function nodoLeggero(
+  id: string,
+  tipo: SchemaNodo['tipo'],
+  descrizione: string,
+  marca?: string,
+  extra: Partial<SchemaNodo> = {}
+): SchemaNodo {
+  return {
+    id,
+    tipo,
+    etichetta: [descrizione, marca?.trim()].filter(Boolean).join(' '),
+    gruppo: 'SALA_COMPRESSORI',
+    valvoleSicurezza: [],
+    origine: 'scheda',
+    ...extra,
+  }
+}
+
+/**
+ * Le tre famiglie che il pannello mostra, **nell'ordine di default del generatore**.
+ *
+ * Sta qui e non nel componente perché il generatore dovrà partire dagli stessi elenchi: due
+ * ordinamenti scritti in due posti divergerebbero al primo ritocco, e il pannello mostrerebbe una
+ * sequenza che il disegno non rispetta.
+ *
+ * - **Compressori**: ordine di scheda. Non si riordinano fra loro nel disegno (stanno in fila in
+ *   sala), ma servono in elenco per il flag delle condense.
+ * - **Serbatoi**: `ubicazione` in testa a `SALA_COMPRESSORI` (che è anche il valore assunto quando
+ *   il campo manca, come in `buildSerbatoioNodi`), poi il resto. `sort` è stabile: dentro ciascun
+ *   gruppo l'ordine di scheda resta.
+ * - **Stadi**: `ordinaCatenaTrattamento`, la stessa funzione che ordina la catena nel modello —
+ *   riusata e non riscritta. Riceve i nodi nello stesso ordine in cui `buildSchemaModel` li mette
+ *   nell'array (essiccatori, filtri, separatori), perché quella funzione somma l'indice di arrivo
+ *   al rango e con un ordine diverso darebbe un altro risultato.
+ */
+export function famiglieDaScheda(scheda: SchedaDatiCompleta): FamiglieSchema {
+  const compressori = (scheda.compressori ?? []).map((c) =>
+    nodoLeggero(c.codice, 'compressore', 'Compressore', c.marca)
+  )
+
+  const serbatoi = [...(scheda.serbatoi ?? [])]
+    .map((s, indice) => ({ s, indice }))
+    .sort((a, b) => {
+      const rango = (u?: string) => (u === 'SALA_COMPRESSORI' || !u ? 0 : 1)
+      return rango(a.s.ubicazione) - rango(b.s.ubicazione) || a.indice - b.indice
+    })
+    .map(({ s }) =>
+      nodoLeggero(s.codice, 'serbatoio', 'Serbatoio', s.marca, {
+        orientamento: s.orientamento ?? 'VERTICALE',
+      })
+    )
+
+  const stadiGrezzi = [
+    ...(scheda.essiccatori ?? []).map((e) => nodoLeggero(e.codice, 'essiccatore', 'Essiccatore', e.marca)),
+    ...(scheda.filtri ?? []).map((f) =>
+      nodoLeggero(f.codice, 'filtro', 'Filtro', f.marca, { prefiltro: f.tipo === 'PREFILTRO' })
+    ),
+    ...(scheda.separatori ?? []).map((sep) => nodoLeggero(sep.codice, 'separatore', 'Separatore', sep.marca)),
+  ]
+
+  return { compressori, serbatoi, stadi: ordinaCatenaTrattamento(stadiGrezzi, null) }
 }
 
 const elenco = (valore: unknown): string[] =>
@@ -79,19 +155,19 @@ export function prossimoIdBypass(gruppi: { id: string }[]): string {
 
 export function risolviPreferenze(
   preferenze: SchemaPreferenze | undefined,
-  stadiDiDefault: SchemaNodo[],
-  serbatoiDiDefault: SchemaNodo[],
+  famiglie: FamiglieSchema,
   scaricaDiDefault: (nodo: SchemaNodo) => boolean
 ): PreferenzeRisolte {
   const p = (preferenze ?? {}) as SchemaPreferenze
-  const ordineStadi = ordinaPerElenco(stadiDiDefault, p.ordineStadi).map((n) => n.id)
-  const ordineSerbatoi = ordinaPerElenco(serbatoiDiDefault, p.ordineSerbatoi).map((n) => n.id)
+  const ordineCompressori = ordinaPerElenco(famiglie.compressori, p.ordineCompressori).map((n) => n.id)
+  const ordineStadi = ordinaPerElenco(famiglie.stadi, p.ordineStadi).map((n) => n.id)
+  const ordineSerbatoi = ordinaPerElenco(famiglie.serbatoi, p.ordineSerbatoi).map((n) => n.id)
 
   // Chiave assente = regola per tipo: è ciò che rende indolore il passaggio da «selezione per
   // tipo» a «flag per apparecchiatura» su una pratica salvata prima che il pannello esistesse.
   const scelte = p.condense && typeof p.condense === 'object' ? p.condense : {}
   const condense = new Set<string>()
-  for (const nodo of [...serbatoiDiDefault, ...stadiDiDefault]) {
+  for (const nodo of [...famiglie.compressori, ...famiglie.serbatoi, ...famiglie.stadi]) {
     const scelta = scelte[nodo.id]
     if (typeof scelta === 'boolean' ? scelta : scaricaDiDefault(nodo)) condense.add(nodo.id)
   }
@@ -111,7 +187,7 @@ export function risolviPreferenze(
     bypass.push({ id: gruppo.id, stadi: membri })
   }
 
-  return { ordineStadi, ordineSerbatoi, condense, bypass, bypassScartati }
+  return { ordineCompressori, ordineStadi, ordineSerbatoi, condense, bypass, bypassScartati }
 }
 
 /**
@@ -122,6 +198,7 @@ export function risolviPreferenze(
  */
 export function improntaPreferenze(risolte: PreferenzeRisolte): string {
   return JSON.stringify({
+    compressori: risolte.ordineCompressori,
     stadi: risolte.ordineStadi,
     serbatoi: risolte.ordineSerbatoi,
     condense: [...risolte.condense].sort(),

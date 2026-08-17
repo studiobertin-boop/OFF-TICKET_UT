@@ -471,15 +471,23 @@ describe('pruneSchedaRefs', () => {
 })
 
 describe('pruneAdditionalInfo — schemaPreferenze', () => {
-  const codici = new Set(['S1', 'E1', 'F1', 'F2'])
+  const codici = new Set(['C1', 'S1', 'E1', 'F1', 'F2'])
 
   test('toglie dagli ordini i codici spariti e lo dice', () => {
     const { info, dropped } = pruneAdditionalInfo(
-      { schemaPreferenze: { ordineStadi: ['F1', 'F9', 'E1'], ordineSerbatoi: ['S1', 'S7'] } },
+      {
+        schemaPreferenze: {
+          ordineCompressori: ['C1', 'C9'],
+          ordineStadi: ['F1', 'F9', 'E1'],
+          ordineSerbatoi: ['S1', 'S7'],
+        },
+      },
       codici
     )
+    expect(info.schemaPreferenze?.ordineCompressori).toEqual(['C1'])
     expect(info.schemaPreferenze?.ordineStadi).toEqual(['F1', 'E1'])
     expect(info.schemaPreferenze?.ordineSerbatoi).toEqual(['S1'])
+    expect(dropped).toContain('ordine schema C9')
     expect(dropped).toContain('ordine schema F9')
     expect(dropped).toContain('ordine schema S7')
   })

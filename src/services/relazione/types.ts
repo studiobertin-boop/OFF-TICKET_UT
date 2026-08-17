@@ -43,6 +43,8 @@ export interface SchemaPreferenzeBypass {
  * (`services/schemaImpianto/preferenze.ts`), che è anche l'unico vero validatore di questi dati.
  */
 export interface SchemaPreferenze {
+  /** Ordine dei compressori in sala, da sinistra a destra. Default: ordine di scheda. */
+  ordineCompressori?: string[]
   /** Ordine degli stadi di trattamento. Chi non è nominato segue in coda, nell'ordine di default. */
   ordineStadi?: string[]
   /** Ordine dei serbatoi. Default: per `ubicazione` di scheda. */

@@ -29,6 +29,7 @@ import type { Tarature } from '@/services/schemaImpianto/libreria'
 import type { LayoutSalvato } from '@/services/schemaImpianto/persistenza'
 import type { SchemaLayout } from '@/services/schemaImpianto/types'
 import { SchemaImpiantoSection } from './SchemaImpiantoSection'
+import PannelloPreferenzeSchema from './PannelloPreferenzeSchema'
 import { ETICHETTA_TRONCATA, LARGHEZZA_SELECT } from './selectStyles'
 
 export interface SchemaImpiantoDialogProps {
@@ -66,6 +67,8 @@ export default function SchemaImpiantoDialog({
   droppedRefs,
   collegamenti,
   onCollegamentiChange,
+  preferenze,
+  onPreferenzeChange,
   schema,
   onSchemaChange,
   layoutSalvato,
@@ -82,7 +85,7 @@ export default function SchemaImpiantoDialog({
   const renderMultiValue = (selected: string[]) => selected.join(', ')
 
   return (
-    <Dialog open={open} onClose={onClose} keepMounted maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={onClose} keepMounted maxWidth="lg" fullWidth>
       <DialogTitle>Schema d’impianto</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2.5} sx={{ mt: 1 }}>
@@ -124,6 +127,17 @@ export default function SchemaImpiantoDialog({
                 </FormControl>
               ))}
             </Box>
+          </GruppoCampi>
+
+          <GruppoCampi
+            titolo="Ordine e opzioni delle apparecchiature"
+            spiegazione="Decide come sarà disegnato lo schema generato. Il disegno già rifinito non cambia da sé: premi «Rigenera da capo» per applicarle."
+          >
+            <PannelloPreferenzeSchema
+              scheda={scheda}
+              preferenze={preferenze}
+              onChange={onPreferenzeChange}
+            />
           </GruppoCampi>
 
           <SchemaImpiantoSection

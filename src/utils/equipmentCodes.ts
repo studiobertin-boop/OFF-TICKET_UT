@@ -334,6 +334,9 @@ export function pruneAdditionalInfo(
 
     schemaPreferenze = {
       ...schemaPreferenze,
+      ...(schemaPreferenze.ordineCompressori
+        ? { ordineCompressori: vivi(schemaPreferenze.ordineCompressori, 'ordine schema') }
+        : {}),
       ...(schemaPreferenze.ordineStadi
         ? { ordineStadi: vivi(schemaPreferenze.ordineStadi, 'ordine schema') }
         : {}),
