@@ -337,9 +337,14 @@ export function SchemaImpiantoSection({
   const rigenera = useCallback(() => {
     // Via d'uscita quando il disegno salvato non va più bene: si riparte dalla scheda,
     // scartando sia il layout ritoccato sia l'esito della riconciliazione che lo riguardava.
+    //
+    // Le annotazioni no. Sono testo scritto a mano che nessuna fonte sa ricostruire, a differenza
+    // di posizioni, gomiti, segni e taratura, che il pulsante promette di scartare e che dalla
+    // scheda si rifanno. Fino al 17-08-2026 sparivano insieme al resto, senza modo di recuperarle.
     setEsitoRiconciliazione(null)
-    void disegna(layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi }), libreria))
-  }, [collegamentiCompressoriSerbatoi, disegna, libreria, scheda])
+    const daZero = layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi }), libreria)
+    void disegna({ ...daZero, testi: layout?.testi ?? [] })
+  }, [collegamentiCompressoriSerbatoi, disegna, layout, libreria, scheda])
 
   const leggiFile = useCallback(
     async (file: File | undefined) => {

@@ -479,10 +479,12 @@ describe('giunzione', () => {
     expect(svg).not.toContain('<path')
   })
 
-  it('ha quattro attacchi, uno per lato, tutti sull’aria', () => {
+  // Dal 17-08-2026 accettano entrambi i tipi: un TEE inserito su una linea condense lasciava
+  // altrimenti archi condensa attaccati ad ancore che dichiaravano solo aria.
+  it('ha quattro attacchi, uno per lato, che accettano aria e condensa', () => {
     const ancore = REGISTRO_SIMBOLI.giunzione.ancore
     expect(ancore.map((a) => a.id).sort()).toEqual(['alto', 'basso', 'dx', 'sx'])
-    expect(ancore.every((a) => a.accetta.length === 1 && a.accetta[0] === 'aria')).toBe(true)
+    expect(ancore.every((a) => [...a.accetta].sort().join() === 'aria,condensa')).toBe(true)
   })
 
   it('le quattro ancore stanno tutte al centro: i tubi convergono in un punto solo', () => {
@@ -537,6 +539,14 @@ describe('testoMultiRiga', () => {
   it('una riga sola resta una riga sola, senza spaziature inventate', () => {
     const svg = testoMultiRiga(5, 5, 'Utenze aria', 18, 'start')
     expect([...svg.matchAll(/<tspan/g)]).toHaveLength(1)
+  })
+
+  // Senza `xml:space`, l'SVG collassa gli spazi consecutivi: chi allinea qualcosa a colpi di
+  // spazio dentro un'annotazione non ottiene ciò che vede mentre la scrive.
+  it('conserva gli spazi consecutivi di un’annotazione', () => {
+    const svg = testoMultiRiga(0, 0, 'A    B', 18, 'start')
+    expect(svg).toContain('xml:space="preserve"')
+    expect(svg).toContain('A    B')
   })
 
   it('protegge i caratteri speciali come il testo a riga singola', () => {

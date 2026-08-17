@@ -401,6 +401,26 @@ function SchemaEditorInterno({
   // rapido, a nessun effetto visibile). Vedi giro di riparazione 1, causa B.
   const trascinamentoNodoAvviato = useRef(false)
 
+  // Un Canc su un'apparecchiatura collegata fa chiamare a react-flow DUE gestori: `onNodesChange`
+  // con un `remove` e `onEdgesChange` con un altro, in due chiamate distinte dello stesso giro di
+  // eventi. Fino al 17-08-2026 ciascuno scriveva la propria voce di cronologia, e Ctrl+Z ne
+  // annullava una sola: tornava l'apparecchiatura, non le sue tubazioni.
+  //
+  // Stesso rimedio del trascinamento qui sopra, per la stessa ragione: la PRIMA rimozione del
+  // gesto registra, le altre no. Il segnale si azzera a fine giro di eventi (`queueMicrotask`) e
+  // non a tempo, così due Canc consecutivi — o un Canc subito dopo un trascinamento — restano due
+  // gesti distinti e due voci distinte.
+  const rimozioneAvviata = useRef(false)
+
+  const primaRimozioneDelGesto = useCallback(() => {
+    if (rimozioneAvviata.current) return false
+    rimozioneAvviata.current = true
+    queueMicrotask(() => {
+      rimozioneAvviata.current = false
+    })
+    return true
+  }, [])
+
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
       const haEventoDiPosizione = changes.some((c) => c.type === 'position')
@@ -411,20 +431,35 @@ function SchemaEditorInterno({
       // "primo" e finisce in cronologia correttamente. `remove` è sempre un gesto a sé.
       const primoEventoDelGesto = haEventoDiPosizione && !trascinamentoNodoAvviato.current
       if (haEventoDiPosizione) trascinamentoNodoAvviato.current = !finisceOra
-      const registraInCronologia = primoEventoDelGesto || changes.some((c) => c.type === 'remove')
+      // `primaRimozioneDelGesto()` ha un effetto collaterale e sta DOPO il controllo sul tipo:
+      // il `&&` corto garantisce che un trascinamento non consumi il segnale delle rimozioni.
+      const registraInCronologia =
+        primoEventoDelGesto || (changes.some((c) => c.type === 'remove') && primaRimozioneDelGesto())
       const aggiorna = registraInCronologia ? applica : aggiornaSenzaCronologia
-      aggiorna((s) => ({ ...s, nodes: applyNodeChanges(changes, s.nodes) }))
+      // Muro invisibile al bordo alto: `dimensioniLayout` (layout.ts) misura il disegno da zero in
+      // giù, quindi un'apparecchiatura trascinata sopra quota zero spariva nel .docx. Difetto
+      // preesistente ai blocchi D, chiuso il 17-08-2026 vincolando il gesto invece di allargare la
+      // pagina verso l'alto: allargarla cambierebbe la geometria di ogni documento generato.
+      //
+      // Vincola le sole coordinate: chi decide la cronologia qui sopra continua a leggere
+      // `changes`, perché guarda il TIPO degli eventi e non le loro posizioni.
+      const vincolate = changes.map((c) =>
+        c.type === 'position' && c.position && c.position.y < 0
+          ? { ...c, position: { ...c.position, y: 0 } }
+          : c
+      )
+      aggiorna((s) => ({ ...s, nodes: applyNodeChanges(vincolate, s.nodes) }))
     },
-    [applica, aggiornaSenzaCronologia]
+    [applica, aggiornaSenzaCronologia, primaRimozioneDelGesto]
   )
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
-      const concludeUnGesto = changes.some((c) => c.type === 'remove')
+      const concludeUnGesto = changes.some((c) => c.type === 'remove') && primaRimozioneDelGesto()
       const aggiorna = concludeUnGesto ? applica : aggiornaSenzaCronologia
       aggiorna((s) => ({ ...s, edges: applyEdgeChanges(changes, s.edges) }))
     },
-    [applica, aggiornaSenzaCronologia]
+    [applica, aggiornaSenzaCronologia, primaRimozioneDelGesto]
   )
 
   // Creare, spostare e togliere un gomito: logica isolata in un hook suo (vedi
@@ -513,9 +548,9 @@ function SchemaEditorInterno({
 
   // Rifiuta la connessione mentre la si sta ancora trascinando, non dopo: un capo posato su
   // un'ancora che non lo accetta non deve nemmeno agganciarsi. Ammessa se almeno uno stile
-  // (aria o condensa) è accettato da entrambi i capi — non solo 'standard': altrimenti
-  // nessuna linea condense nascerebbe mai, perché nessuna ancora che accetta condensa
-  // accetta anche aria. `onConnect` deduce poi con quale stile la tubazione nasce davvero.
+  // (aria o condensa) è accettato da entrambi i capi — non solo 'standard', o le linee condense
+  // fra capi che l'aria non l'accettano non nascerebbero mai. `onConnect` deduce poi con quale
+  // stile la tubazione nasce davvero.
   const isValidConnection = useCallback(
     (c: Connection | Edge) => {
       const partenza = stato.nodes.find((n) => n.id === c.source)

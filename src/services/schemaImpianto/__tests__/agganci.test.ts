@@ -59,4 +59,23 @@ describe('compatibilita degli agganci', () => {
     const filtro = { tipo: 'filtro' as const }
     expect(stileIniziale(essiccatore, 'dx', filtro, 'sx')).toBe('standard')
   })
+
+  // Un TEE inserito su una linea condense lasciava due archi condensa attaccati ad ancore che
+  // dichiaravano di accettare solo aria: uno stato che l'editor rifiuterebbe se lo si disegnasse
+  // a mano. Dal 17-08-2026 la giunzione accetta entrambi i tipi.
+  it('la giunzione accetta sia l’aria sia la condensa su ogni suo lato', () => {
+    const giunzione = { tipo: 'giunzione' as const }
+    for (const ancora of ['sx', 'dx', 'alto', 'basso']) {
+      expect(capoValido(giunzione, ancora, 'standard')).toBe(true)
+      expect(capoValido(giunzione, ancora, 'condensa')).toBe(true)
+    }
+  })
+
+  // Conseguenza accettata di quell'allargamento, segnalata al committente prima di procedere: fra
+  // due giunzioni l'aria è ammessa da entrambi i capi, quindi una tubazione tracciata a mano fra
+  // due TEE di una linea condense nasce ad aria e va cambiata a mano.
+  it('fra due giunzioni la tubazione nuova nasce ad aria', () => {
+    const giunzione = { tipo: 'giunzione' as const }
+    expect(stileIniziale(giunzione, 'dx', giunzione, 'sx')).toBe('standard')
+  })
 })

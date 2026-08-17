@@ -27,16 +27,12 @@ import {
   CircularProgress,
 } from '@mui/material'
 import { GruppoCampi } from '@/components/common'
-import { useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import type { SelectChangeEvent } from '@mui/material'
 import type { Customer } from '@/types'
 import type { SchedaDatiCompleta } from '@/types/technicalSheet'
 import { TIPO_GIRI_LABELS, TIPO_GIRI_OPTIONS } from '@/types/technicalSheet'
 import { technicalDataApi } from '@/services/api/technicalData'
-import { equipmentCatalogApi } from '@/services/api/equipmentCatalog'
-import { customersApi } from '@/services/api/customers'
-import { scegliVarianteSalvata } from '@/utils/equipmentVarianti'
 import { additionalInfoSchema } from '@/services/relazione/schema'
 import { generateAndDownloadRelazione } from '@/services/relazione/generateRelazione'
 import { relazioneDocumentiApi } from '@/services/api/relazioneDocumenti'
@@ -135,8 +131,6 @@ export default function RelazioneDataDialog({
 
   /** Codici realmente presenti nella scheda: valida i riferimenti salvati in additional_info. */
   const schedaCodes = useMemo(() => collectCodes(scheda), [scheda])
-
-  const queryClient = useQueryClient()
 
   /**
    * Il documento è una revisione quando il progressivo del codice pratica è oltre lo zero.
@@ -284,6 +278,17 @@ export default function RelazioneDataDialog({
   const bloccante = haErrori(segnalazioni)
   const bloccanti = segnalazioni.filter((s) => s.livello === 'errore').length
 
+  /**
+   * Genera e scarica, e basta. Fino al 17-08-2026 la generazione riscriveva anche due dati
+   * CONDIVISI fra tutte le pratiche — la regolazione dei giri in `equipment_catalog` e la
+   * descrizione attività nell'anagrafica del cliente — senza dirlo e senza chiedere: un valore
+   * sbagliato digitato qui veniva ereditato da ogni pratica futura sullo stesso modello, ed è così
+   * che «prova attività ATECOOO» è finita nell'anagrafica di un cliente vero. Catalogo e anagrafica
+   * si aggiornano ora solo dove li si modifica esplicitamente.
+   *
+   * Il prezzo, accettato dal committente: la domanda sui giri torna a ogni pratica sullo stesso
+   * modello.
+   */
   const handleGenera = async () => {
     // Si persiste il solo oggetto ripulito: altrimenti una voce obsoleta sopravvivrebbe a ogni
     // generazione successiva.
@@ -306,9 +311,6 @@ export default function RelazioneDataDialog({
       // più sotto, la riga in banca dati è comunque cambiata e la copia in memoria del genitore
       // deve saperlo, altrimenti la prossima apertura del dialog rilegge dati vecchi.
       onAdditionalInfoSaved?.(parsed.data)
-      // Il documento è ciò che il tecnico sta aspettando: la scrittura a catalogo dei giri fa
-      // una manciata di query per compressore e non deve tenere fermo lo scaricamento, che non ha
-      // un timeout lato client. Va quindi dopo, non prima.
       const blob = await generateAndDownloadRelazione({
         scheda,
         additionalInfo: parsed.data,
@@ -317,9 +319,8 @@ export default function RelazioneDataDialog({
         schemaImpianto: schema ?? undefined,
         fileName,
       })
-      // Non bloccante, come riportaDescrizioneInAnagrafica/riportaGiriACatalogo qui sotto: la
-      // relazione è già stata scaricata con successo, un errore di salvataggio non deve far
-      // sembrare fallita l'intera generazione.
+      // Non bloccante: la relazione è già stata scaricata con successo, un errore di salvataggio
+      // non deve far sembrare fallita l'intera generazione.
       try {
         await relazioneDocumentiApi.salvaFinale(
           requestId,
@@ -328,142 +329,13 @@ export default function RelazioneDataDialog({
       } catch (err) {
         console.warn('[relazione] non salvata nell\'app, resta solo scaricata', err)
       }
-      await riportaDescrizioneInAnagrafica(parsed.data.descrizioneAttivita)
-      const { nonACatalogo, ambigui } = await riportaGiriACatalogo(parsed.data.compressoriGiri)
-      mostraEsitoGenerazione(nonACatalogo, ambigui)
+      toast.success('Relazione generata e scaricata.')
       onClose()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Errore nella generazione della relazione')
     } finally {
       setSaving(false)
     }
-  }
-
-  /**
-   * Riporta la descrizione dell'attività in anagrafica cliente, che ne è la sede propria: il
-   * campo è dell'azienda, non della singola pratica. Chi lo compila qui la prima volta —
-   * tipicamente perché l'anagrafica era ancora vuota — non se lo ritrova più da compilare, né
-   * qui né nelle pratiche successive dello stesso cliente.
-   *
-   * Non è bloccante: l'aggiornamento dell'anagrafica è riservato ad admin e userdm329, e un
-   * tecnico deve poter generare la relazione lo stesso.
-   */
-  const riportaDescrizioneInAnagrafica = async (valore: string) => {
-    if (!customer?.id || !valore) return
-    if (valore === (customer.descrizione_attivita ?? '').trim()) return
-    try {
-      await customersApi.update(customer.id, { descrizione_attivita: valore })
-      queryClient.invalidateQueries({ queryKey: ['customers'] })
-      queryClient.invalidateQueries({ queryKey: ['requests'] })
-    } catch (err) {
-      console.warn('[descrizioneAttivita] non riportata in anagrafica cliente', err)
-    }
-  }
-
-  /** Esito di `riportaGiriACatalogo`: i codici per cui la scrittura non è avvenuta, distinti per motivo. */
-  interface EsitoRiportoGiri {
-    /** Il modello non ha righe a catalogo: mai censito, oppure marca/modello scritti con una
-     *  grafia diversa da quella di catalogo (`findVariants` confronta per uguaglianza esatta). */
-    nonACatalogo: string[]
-    /** Il modello è a catalogo in più varianti e né la pressione né la capacità della riga
-     *  bastano a scegliere quella giusta. */
-    ambigui: string[]
-  }
-
-  /**
-   * Riporta a catalogo la regolazione dei giri appena dichiarata, così la domanda non torna alla
-   * pratica successiva sullo stesso modello.
-   *
-   * La sola pressione non individua più una riga sola: due varianti dello stesso modello possono
-   * dichiararne una uguale (KAESER SK 19, ASD 37 SFC, ASD 60 T SFC — a produzione). Si carica
-   * quindi il catalogo del modello e si sceglie la variante con lo stesso criterio con cui la
-   * scheda distingue le proprie righe — `scegliVarianteSalvata`, pressione poi capacità.
-   *
-   * Quando la scelta è univoca si scrive per `catalogItemId`. Quando `scegliVarianteSalvata`
-   * restituisce `null` non si chiama affatto `updateEquipmentSpecs`: il ripiego per pressione di
-   * quella funzione userebbe `c.pressione_max`, che qui può benissimo essere `undefined` — e con
-   * `variante` indefinita quella funzione ripiegherebbe sulla prima riga del modello e scriverebbe
-   * lì, senza restituire alcun avviso. `null` copre due situazioni diverse, da non confondere
-   * nell'avviso finale: nessuna riga trovata (modello non a catalogo) oppure più righe che restano
-   * indistinguibili anche dopo il filtro per capacità (variante ambigua).
-   *
-   * Non è bloccante: se il ruolo non ha il permesso di scrittura o la ricerca delle varianti
-   * fallisce, la relazione si genera comunque con il dato preso da `additional_info` — l'unico
-   * effetto è che la domanda tornerà alla pratica successiva.
-   */
-  const riportaGiriACatalogo = async (
-    giriDaSalvare: Record<string, TipoGiri> | undefined
-  ): Promise<EsitoRiportoGiri> => {
-    const nonACatalogo: string[] = []
-    const ambigui: string[] = []
-    for (const c of compressoriSenzaGiri) {
-      const valore = giriDaSalvare?.[c.codice]
-      if (!valore || !c.marca || !c.modello) continue
-      try {
-        const candidate = await equipmentCatalogApi.findVariants('Compressori', c.marca, c.modello)
-        if (candidate.length === 0) {
-          nonACatalogo.push(c.codice)
-          continue
-        }
-        const scelta = scegliVarianteSalvata('Compressori', candidate, {
-          pressione: c.pressione_max ?? null,
-          capacita: c.volume_aria_prodotto ?? null,
-        })
-        if (!scelta) {
-          ambigui.push(c.codice)
-          continue
-        }
-        const esito = await equipmentCatalogApi.updateEquipmentSpecs(
-          'Compressori', c.marca, c.modello, { giri: valore }, { catalogItemId: scelta.id }
-        )
-        // Qui catalogItemId è sempre valorizzato, quindi updateEquipmentSpecs non imbocca mai il
-        // ramo che restituisce 'variante_ambigua' — quello scatta solo per il ripiego a pressione,
-        // che si usa solo in assenza di id. Il controllo resta come difesa nel caso in cui in
-        // futuro questa chiamata smettesse di passare l'id. L'esito davvero raggiungibile da qui è
-        // 'riga_non_trovata': la riga sparita fra la lettura di findVariants e questa scrittura.
-        if (esito === 'variante_ambigua') ambigui.push(c.codice)
-        else if (esito === 'riga_non_trovata') nonACatalogo.push(c.codice)
-      } catch (err) {
-        console.warn(`[giri] ${c.codice}: non riportato a catalogo`, err)
-      }
-    }
-    return { nonACatalogo, ambigui }
-  }
-
-  /**
-   * Un solo avviso per l'esito della generazione, invece di un toast verde di successo e uno
-   * giallo di mancato aggiornamento in contemporanea — che si leggono male perché dicono cose di
-   * segno opposto nello stesso istante. La relazione è comunque generata e scaricata in entrambi
-   * i casi: cambia solo se c'è anche qualcosa da segnalare sul catalogo.
-   */
-  const mostraEsitoGenerazione = (nonACatalogo: string[], ambigui: string[]) => {
-    const motivi: string[] = []
-    if (nonACatalogo.length > 0) {
-      // findVariants confronta marca/modello per uguaglianza esatta: "non risulta a catalogo"
-      // può voler dire "non è mai stato censito", ma anche "è censito con una grafia diversa" —
-      // uno spazio in più, una sigla staccata. Chi conosce il modello ha bisogno di questo indizio,
-      // altrimenti non sa cosa controllare.
-      const clausola = nonACatalogo.length > 1
-        ? 'i modelli non risultano a catalogo — verifica marca e modello, o censiscili dal modulo di gestione apparecchiature'
-        : 'il modello non risulta a catalogo — verifica marca e modello, o censiscilo dal modulo di gestione apparecchiature'
-      motivi.push(`${nonACatalogo.join(', ')}: ${clausola}`)
-    }
-    if (ambigui.length > 0) {
-      const clausola = ambigui.length > 1
-        ? 'i modelli hanno più varianti a quella pressione, vanno sistemati dal modulo di gestione apparecchiature'
-        : 'il modello ha più varianti a quella pressione, va sistemato dal modulo di gestione apparecchiature'
-      motivi.push(`${ambigui.join(', ')}: ${clausola}`)
-    }
-
-    if (motivi.length === 0) {
-      toast.success('Relazione generata e scaricata.')
-      return
-    }
-
-    toast(
-      `Relazione generata e scaricata. Regolazione giri non registrata a catalogo per ${motivi.join('; ')}.`,
-      { icon: '⚠️', duration: 8000 }
-    )
   }
 
   const renderMultiValue = (selected: string[]) => selected.join(', ')

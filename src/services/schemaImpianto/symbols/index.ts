@@ -191,7 +191,9 @@ export function testoMultiRiga(
   const tspan = righe
     .map((riga, i) => `<tspan x="${x}" y="${y + i * dimensione * INTERLINEA_TESTO}">${escapeXml(riga)}</tspan>`)
     .join('')
-  return `<text font-family="${FONT}" font-size="${dimensione}" text-anchor="${ancora}" dominant-baseline="central" fill="#000">${tspan}</text>`
+  // `xml:space="preserve"`: senza, l'SVG collassa gli spazi consecutivi, e chi allinea qualcosa a
+  // colpi di spazio dentro un'annotazione non ottiene ciò che vede mentre la scrive.
+  return `<text xml:space="preserve" font-family="${FONT}" font-size="${dimensione}" text-anchor="${ancora}" dominant-baseline="central" fill="#000">${tspan}</text>`
 }
 
 export function escapeXml(valore: string): string {
@@ -1046,11 +1048,15 @@ export const REGISTRO_SIMBOLI: Record<ChiaveSimbolo, DefinizioneSimbolo> = {
     //
     // Il `lato` è dichiarato perché con quattro ancore coincidenti la deduzione di `latoDi`
     // (SchemaNodeSymbol.tsx) è degenere: le appoggerebbe tutte e quattro a sinistra.
+    //
+    // Accettano ENTRAMBI i tipi dal 17-08-2026: un TEE inserito su una linea condense lasciava
+    // altrimenti due archi condensa attaccati ad ancore che dichiaravano solo aria — uno stato
+    // che l'editor rifiuterebbe se lo si disegnasse a mano.
     ancore: [
-      { id: 'sx', x: 10, y: 10, accetta: ['aria'], presa: { x: 0, y: 10 }, lato: 'sx' },
-      { id: 'dx', x: 10, y: 10, accetta: ['aria'], presa: { x: 20, y: 10 }, lato: 'dx' },
-      { id: 'alto', x: 10, y: 10, accetta: ['aria'], presa: { x: 10, y: 0 }, lato: 'alto' },
-      { id: 'basso', x: 10, y: 10, accetta: ['aria'], presa: { x: 10, y: 20 }, lato: 'basso' },
+      { id: 'sx', x: 10, y: 10, accetta: ['aria', 'condensa'], presa: { x: 0, y: 10 }, lato: 'sx' },
+      { id: 'dx', x: 10, y: 10, accetta: ['aria', 'condensa'], presa: { x: 20, y: 10 }, lato: 'dx' },
+      { id: 'alto', x: 10, y: 10, accetta: ['aria', 'condensa'], presa: { x: 10, y: 0 }, lato: 'alto' },
+      { id: 'basso', x: 10, y: 10, accetta: ['aria', 'condensa'], presa: { x: 10, y: 20 }, lato: 'basso' },
     ],
     disegna: simboloGiunzione,
   },

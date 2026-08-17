@@ -44,8 +44,8 @@ const STILI_PER_AGGANCIO: SchemaArcoStile[] = ['standard', 'condensa']
 /**
  * Vero se almeno uno stile di tubazione è ammesso da entrambi i capi. Serve a decidere se
  * l'utente può tracciare la connessione mentre la trascina: valutarla sempre con 'standard'
- * (l'unico stile con cui `onConnect` crea la tubazione) rifiuterebbe ogni linea condense,
- * perché nessuna ancora che accetta condensa accetta anche aria.
+ * (l'unico stile con cui `onConnect` crea la tubazione) rifiuterebbe le linee condense fra capi
+ * che l'aria non l'accettano.
  */
 export function connessioneAmmessa(
   nodoDa: Nodo,
