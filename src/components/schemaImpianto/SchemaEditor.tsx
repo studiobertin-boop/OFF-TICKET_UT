@@ -57,7 +57,7 @@ import toast from 'react-hot-toast'
 import { capoValido, connessioneAmmessa, stileIniziale } from '@/services/schemaImpianto/agganci'
 import type { Asse, Bordo } from '@/services/schemaImpianto/allineamento'
 import { PASSO_GRIGLIA, allineaAllaGriglia } from '@/services/schemaImpianto/griglia'
-import { ingombroTesto, quoteInstradamento } from '@/services/schemaImpianto/layout'
+import { quoteInstradamento } from '@/services/schemaImpianto/layout'
 import { TARATURA_NEUTRA, risolviLibreria, taraturaDi, type Tarature, type TaraturaSimbolo } from '@/services/schemaImpianto/libreria'
 import { renderSvg, varchiDelMuro } from '@/services/schemaImpianto/renderSvg'
 import { ancoreDi, dimensioniDi } from '@/services/schemaImpianto/symbols'
@@ -75,6 +75,7 @@ import { BarraTaratura, DialogoUscitaTaratura, ManiglieTaratura } from './BarraT
 import { DivisorioAnteprima } from './DivisorioAnteprima'
 import { ManigliaRidimensiona } from './ManigliaRidimensiona'
 import { MuroSeparazione } from './MuroSeparazione'
+import { sopraIlBordoSinistro } from './posaNuoviOggetti'
 import { LARGHEZZA_MINIMA_ANTEPRIMA, type PreferenzeEditor } from './preferenzeEditor'
 import { SchemaEdgeTubazione, type SchemaEdgeData } from './SchemaEdgeTubazione'
 import { SchemaNodeSymbol, type SchemaNodeData } from './SchemaNodeSymbol'
@@ -240,25 +241,6 @@ export interface SchemaEditorProps {
  */
 function nodiDi(s: { nodes: Node[] }): SchemaNodoPosizionato[] {
   return s.nodes.map((n) => ({ ...(n.data as SchemaNodeData).nodo, x: n.position.x, y: n.position.y }))
-}
-
-/**
- * Quota più bassa occupata dal disegno: sotto di essa c'è spazio libero, ed è lì che nascono
- * apparecchiature e annotazioni nuove. Comprende le annotazioni già posate, non solo i nodi:
- * altrimenti due scritte create di seguito finirebbero esattamente l'una sull'altra, illeggibili
- * entrambe e con quella sopra a rubare il trascinamento all'altra.
- *
- * Legge l'altezza vera di ogni nodo (`dimensioniDi`, symbols/index.ts), non quella fissa del
- * registro (`DIMENSIONI_NODO`): il terminale utenze cresce con le righe della scritta, e con la
- * quota fissa una nuova apparecchiatura o annotazione poteva nascere sopra un terminale alto,
- * come già corretto per `layout.ts` e `persistenza.ts` (Task 4).
- */
-function piedeDelDisegno(nodes: Node[], testi: SchemaTestoLibero[], libreria: Tarature = {}): number {
-  const quote = [
-    ...nodes.map((n) => n.position.y + dimensioniDi((n.data as SchemaNodeData).nodo, libreria).altezza),
-    ...testi.map((t) => ingombroTesto(t).basso),
-  ]
-  return quote.length === 0 ? 0 : Math.max(...quote)
 }
 
 // I codici di scheda non hanno mai questo prefisso (S1, C1, SEP1, ...): senza, un nodo
@@ -599,9 +581,9 @@ function SchemaEditorInterno({
     (voce: (typeof PALETTE)[number]) => {
       applica((s) => {
         const id = codiceLibero(voce.prefisso, s.nodes)
-        // Sotto tutto il resto: un punto fisso finirebbe sopra un'apparecchiatura già
-        // disegnata, nascondendola proprio mentre si lavora.
-        const posizione = { x: 40, y: allineaAllaGriglia(piedeDelDisegno(s.nodes, s.testi, libreriaEffettiva) + 40) }
+        // Accanto al bordo sinistro del disegno e sopra la sua cima, dove l'utente sta già
+        // guardando: un punto fisso finirebbe sopra un'apparecchiatura già disegnata.
+        const posizione = sopraIlBordoSinistro(s.nodes, s.testi)
         const nodo = {
           id,
           tipo: voce.tipo,
@@ -1171,12 +1153,12 @@ function SchemaEditorInterno({
     }
     // Annotazione nuova: nasce sotto tutto il disegno, come le apparecchiature della palette.
     // Un punto fisso, o il centro della tela, finirebbe sopra qualcosa di già disegnato.
-    // Il piede si calcola DENTRO l'updater, su `s`, non da `stato` catturato in questa
+    // La posizione si calcola DENTRO l'updater, su `s`, non da `stato` catturato in questa
     // chiusura: è la stessa cautela di `aggiungiNodo` e della generazione dell'id in
     // useTestiLiberi.ts — `stato` può essere l'istantanea di un render precedente a quello su
     // cui il reducer sta per applicare l'aggiunta, e l'annotazione nascerebbe sopra qualcosa.
-    aggiungiTesto((s) => ({ x: 40, y: allineaAllaGriglia(piedeDelDisegno(s.nodes, s.testi, libreriaEffettiva) + 40) }), contenuto)
-  }, [aggiungiTesto, applica, libreriaEffettiva, modificaTesto, scrittura])
+    aggiungiTesto((s) => sopraIlBordoSinistro(s.nodes, s.testi), contenuto)
+  }, [aggiungiTesto, applica, modificaTesto, scrittura])
 
   /** Elimina l'annotazione aperta nel dialog: la via più vecchia delle due che esistono — l'altra
    *  è selezionarla sulla tela e premere Canc (`selezioneLibera` qui sopra). Il pulsante «Elimina»
