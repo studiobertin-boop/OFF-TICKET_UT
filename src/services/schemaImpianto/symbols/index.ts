@@ -1046,24 +1046,44 @@ export function presaDi(ancora: SchemaAncora): { x: number; y: number } {
 }
 
 /**
- * Ingombro effettivo di un nodo. Coincide col riquadro dichiarato nel registro per tutti i tipi
- * tranne il terminale utenze, la cui scritta è libera: l'utente la cambia dall'editor, e con la
- * larghezza fissa di 190 le restavano una diciassettina di caratteri — oltre, la scritta usciva
- * dal riquadro, tagliata subito nell'editor (`SchemaNodeSymbol` monta un `<svg>` largo quanto
- * l'ingombro) e tagliata nel PNG appena superava il margine. La larghezza si ricava quindi dalla
- * lunghezza della riga più lunga dell'etichetta, con quella del registro come minimo, così
- * `dimensioniLayout` allarga da sé la tela come la spec promette. Da quando la scritta può andare
- * a capo (vedi `testoMultiRiga`), anche l'altezza cresce allo stesso modo, sull'ultima riga: sotto
- * il numero di righe che il registro prevedeva resta quella fissa, sopra si allunga per farcele
- * stare tutte.
+ * Quanto spazio occupa un nodo. È il riquadro di `riquadroDi` senza il suo angolo: la forma che
+ * chi posiziona, allinea, distanzia o misura una distanza fra apparecchiature usa da sempre — lì
+ * serve l'ingombro, non da dove comincia il disegno.
+ */
+export function dimensioniDi(nodo: SchemaNodo, libreria: Tarature = {}): { larghezza: number; altezza: number } {
+  const { larghezza, altezza } = riquadroDi(nodo, libreria)
+  return { larghezza, altezza }
+}
+
+/**
+ * Riquadro effettivo di un nodo: ingombro e ANGOLO alto-sinistro, quest'ultimo in coordinate
+ * locali al nodo (`x`/`y` rispetto a `SchemaNodoPosizionato.x`/`.y`). È zero per ogni simbolo non
+ * tarato — i simboli del registro sono disegnati a partire dalla propria origine — e diventa
+ * negativo quando una taratura porta la sagoma a sinistra o in alto dei pallini (`inviluppo`, e
+ * la ragione per cui non basta una misura). Chi DISEGNA il simbolo, o misura quanto disegno c'è
+ * sul foglio, deve leggere da qui: `SchemaNodeSymbol` per il riquadro della tela dell'editor,
+ * `dimensioniLayout` per il bordo del PNG. Sono gli stessi due punti in cui conta l'ingombro
+ * dinamico del terminale utenze, qui sotto.
+ *
+ * Il riquadro coincide con quello dichiarato nel registro per tutti i tipi tranne il terminale
+ * utenze, la cui scritta è libera: l'utente la cambia dall'editor, e con la larghezza fissa di 190
+ * le restavano una diciassettina di caratteri — oltre, la scritta usciva dal riquadro, tagliata
+ * subito nell'editor (`SchemaNodeSymbol` monta un `<svg>` largo quanto l'ingombro) e tagliata nel
+ * PNG appena superava il margine. La larghezza si ricava quindi dalla lunghezza della riga più
+ * lunga dell'etichetta, con quella del registro come minimo, così `dimensioniLayout` allarga da sé
+ * la tela come la spec promette. Da quando la scritta può andare a capo (vedi `testoMultiRiga`),
+ * anche l'altezza cresce allo stesso modo, sull'ultima riga: sotto il numero di righe che il
+ * registro prevedeva resta quella fissa, sopra si allunga per farcele stare tutte.
  *
  * `DIMENSIONI_NODO` resta un `Record` statico per tipo e non può portare questa informazione:
  * chi ha in mano il nodo (e quindi la sua etichetta) passa di qui, gli altri continuano a leggere
- * il registro. I due punti dove l'ingombro del terminale conta davvero sono `dimensioniLayout`
- * (la tela del PNG) e `SchemaNodeSymbol` (il riquadro sulla tela dell'editor); `simboloUtenze` e
- * `ancoreDi` leggono l'altezza da qui anziché dal registro, per la stessa ragione.
+ * il registro. `simboloUtenze` e `ancoreDi` leggono l'altezza da `dimensioniDi` anziché dal
+ * registro, per la stessa ragione.
  */
-export function dimensioniDi(nodo: SchemaNodo, libreria: Tarature = {}): { larghezza: number; altezza: number } {
+export function riquadroDi(
+  nodo: SchemaNodo,
+  libreria: Tarature = {}
+): { x: number; y: number; larghezza: number; altezza: number } {
   const chiave = chiaveSimbolo(nodo)
   const taratura = taraturaDi(libreria, chiave)
   // Con taratura l'ingombro è l'inviluppo di sagoma trasformata e ancore (vedi `inviluppo` più
@@ -1074,8 +1094,10 @@ export function dimensioniDi(nodo: SchemaNodo, libreria: Tarature = {}): { largh
   // stesso ciclo — `taratura.ancore` è già il dato finale, nessuna chiamata in più serve.
   if (taratura) return inviluppo(REGISTRO_SIMBOLI[chiave].dimensioni, taratura, taratura.ancore)
 
+  // Senza taratura il riquadro parte sempre dall'origine del nodo: i simboli del registro sono
+  // disegnati in coordinate locali a partire da (0,0), e nessuno di loro sporge all'indietro.
   const dimensioni = definizioneDi(nodo, libreria).dimensioni
-  if (nodo.tipo !== 'utenze') return dimensioni
+  if (nodo.tipo !== 'utenze') return { x: 0, y: 0, ...dimensioni }
 
   const righe = nodo.etichetta.split('\n')
   const piuLunga = Math.max(...righe.map((r) => r.length))
@@ -1085,6 +1107,8 @@ export function dimensioniDi(nodo: SchemaNodo, libreria: Tarature = {}): { largh
   const ultimaRiga = 20 + (righe.length - 1) * UTENZE.dimensioneScritta * INTERLINEA_TESTO
   const altezzaNecessaria = ultimaRiga + UTENZE.margineInferiore
   return {
+    x: 0,
+    y: 0,
     larghezza: Math.max(dimensioni.larghezza, Math.ceil(larghezzaNecessaria)),
     altezza: Math.max(dimensioni.altezza, Math.ceil(altezzaNecessaria)),
   }
@@ -1241,12 +1265,22 @@ export function simboloTrasformato(svg: string, t: TaraturaSimbolo): string {
  * quindi cadere fuori dal riquadro scalato della sagoma — è il caso, ad esempio, di un'ancora
  * spostata più in alto del disegno per far posto a una valvola — e quando succede l'ingombro deve
  * allargarsi per contenerle, o il nodo le taglierebbe fuori sulla tela.
+ *
+ * Restituisce un RIQUADRO e non due misure: `x`/`y` sono l'angolo alto-sinistro dell'inviluppo
+ * nel sistema locale del nodo, e con `dx`/`dy` negativi — «avvicina il blocco al pallino
+ * trascinandolo a sinistra», il gesto per cui il modo taratura esiste — sono negativi anche loro.
+ * Fino alla revisione finale la funzione restituiva la sola misura (`maxX - minX`) e ogni
+ * consumatore leggeva il riquadro come `[0 .. larghezza]` a partire da `node.position`: la parte
+ * di sagoma a sinistra dell'origine restava fuori dal riquadro dichiarato, e le due catene ne
+ * davano due letture diverse — sulla tela il `<svg viewBox="0 0 …">` la tagliava, nel documento
+ * il `<g transform="translate(x y)">` la disegnava. Chi ha bisogno delle sole misure legge
+ * `dimensioniDi`; chi deve disegnare o misurare il disegno legge `riquadroDi`.
  */
 export function inviluppo(
   dimensioni: { larghezza: number; altezza: number },
   t: TaraturaSimbolo,
   ancore: SchemaAncora[]
-): { larghezza: number; altezza: number } {
+): { x: number; y: number; larghezza: number; altezza: number } {
   // Riquadro della sagoma trasformata: parte da (0,0) — l'origine locale della sagoma — e finisce
   // in (larghezza*sx, altezza*sy), poi entrambi i capi si traslano di dx/dy. Min/max invece di
   // dare per scontato che il capo "0" resti il minimo: sx/sy negativi (una specchiatura) lo
@@ -1268,5 +1302,5 @@ export function inviluppo(
     maxY = Math.max(maxY, a.y)
   }
 
-  return { larghezza: maxX - minX, altezza: maxY - minY }
+  return { x: minX, y: minY, larghezza: maxX - minX, altezza: maxY - minY }
 }

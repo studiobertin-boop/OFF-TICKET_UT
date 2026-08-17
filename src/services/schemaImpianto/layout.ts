@@ -15,6 +15,7 @@ import {
   SPESSORE_MURO,
   TESTO_LIBERO,
   dimensioniDi,
+  riquadroDi,
 } from './symbols'
 import type { QuoteInstradamento } from './tratti'
 import type {
@@ -390,13 +391,20 @@ export function dimensioniLayout(
     return { larghezza: MARGINE * 2, altezza: MARGINE * 2 }
   }
   const ingombriTesti = testi.map(ingombroTesto)
+  // `riquadroDi`, non `dimensioniDi`: il bordo destro di un nodo è il suo angolo PIÙ la larghezza.
+  // Coincidono per ogni simbolo non tarato (angolo a zero), ma una taratura che porta la sagoma
+  // all'indietro dei pallini fa cominciare il riquadro a coordinate negative, e sommare la sola
+  // larghezza dichiarerebbe un bordo destro più a destra di dove il disegno arriva davvero — cioè
+  // margine bianco in più nel PNG, e le quote d'instradamento (`quoteInstradamento` legge questa
+  // altezza) spostate.
+  const riquadri = layout.nodi.map((n) => ({ nodo: n, riquadro: riquadroDi(n, libreria) }))
   const maxX = Math.max(
-    ...layout.nodi.map((n) => n.x + dimensioniDi(n, libreria).larghezza),
+    ...riquadri.map(({ nodo, riquadro }) => nodo.x + riquadro.x + riquadro.larghezza),
     ...ingombriTesti.map((i) => i.destra),
     ...(layout.muro ? [layout.muro.x + SPESSORE_MURO] : [])
   )
   const maxY = Math.max(
-    ...layout.nodi.map((n) => n.y + dimensioniDi(n, libreria).altezza),
+    ...riquadri.map(({ nodo, riquadro }) => nodo.y + riquadro.y + riquadro.altezza),
     ...ingombriTesti.map((i) => i.basso)
   )
   return { larghezza: maxX + MARGINE, altezza: maxY + MARGINE }

@@ -21,6 +21,7 @@ import {
 } from '../layout'
 import { renderSvg } from '../renderSvg'
 import { dimensioniDi, SPESSORE_MURO } from '../symbols'
+import type { Tarature } from '../libreria'
 import type { SchemaLayout } from '../types'
 
 function nodo(layout: SchemaLayout, id: string) {
@@ -467,6 +468,29 @@ describe('layoutSchema', () => {
     })
     expect(con.larghezza).toBeGreaterThan(senza.larghezza)
     expect(con.altezza).toBeGreaterThan(senza.altezza)
+  })
+
+  /**
+   * Il bordo del foglio segue il RIQUADRO del nodo, angolo compreso, non la sola misura. Una
+   * taratura che porta la sagoma all'indietro dei pallini (`dx` negativo, il gesto che il modo
+   * taratura esiste per fare) fa cominciare il riquadro a coordinate negative: sommare la sola
+   * larghezza dichiarerebbe un bordo destro più a destra di dove il disegno arriva davvero
+   * (revisione finale, rilievo Importante).
+   */
+  it('il bordo destro segue dove il disegno finisce davvero, anche con la sagoma tarata all indietro', () => {
+    const tanica: SchemaLayout['nodi'][number] = {
+      id: 'T1', tipo: 'tanica', etichetta: 'Raccolta condense', gruppo: 'LINEA_DISTRIBUZIONE',
+      valvoleSicurezza: [], origine: 'scheda', x: 100, y: 100,
+    }
+    const layout: SchemaLayout = { nodi: [tanica], archi: [], muro: null, testi: [] }
+    // Tanica 80×40. Sagoma trascinata di 30 a sinistra, ancora sul fianco sinistro a x=0:
+    // l'inviluppo va da -30 a +50, quindi il bordo destro cade a 100 - 30 + 50 = 150 (non a 180,
+    // che è dove finirebbe se il riquadro partisse dall'origine del nodo).
+    const libreria: Tarature = {
+      tanica: { dx: -30, dy: 0, sx: 1, sy: 1, ancore: [{ id: 'sx', x: 0, y: 20, accetta: ['aria'] }] },
+    }
+
+    expect(dimensioniLayout(layout, libreria).larghezza).toBe(150 + 40)
   })
 
   describe('ingombro stimato di un testo libero', () => {

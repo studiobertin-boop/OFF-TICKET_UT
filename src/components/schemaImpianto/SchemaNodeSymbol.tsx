@@ -4,7 +4,7 @@
  */
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { Tarature } from '@/services/schemaImpianto/libreria'
-import { ancoreDi, dimensioniDi, presaDi, simboloDi } from '@/services/schemaImpianto/symbols'
+import { ancoreDi, presaDi, riquadroDi, simboloDi } from '@/services/schemaImpianto/symbols'
 import type { SchemaAncora, SchemaLatoAncora, SchemaNodo } from '@/services/schemaImpianto/types'
 
 export interface SchemaNodeData extends Record<string, unknown> {
@@ -74,15 +74,24 @@ const LATO_REACT_FLOW: Record<SchemaLatoAncora, Position> = {
  * all'arco: il test dell'accordo (`__tests__/instradamentoCondiviso.test.ts`) la usa per
  * ricostruire quei capi — la fonte sbagliata — e provare che la tela non li segue più.
  */
-export function latoDi(ancora: SchemaAncora, dim: { larghezza: number; altezza: number }): Position {
+export function latoDi(
+  ancora: SchemaAncora,
+  // `x`/`y` opzionali: sono l'angolo del riquadro (`riquadroDi`), zero per ogni simbolo non tarato
+  // — chi passa qui delle sole misure sta implicitamente dicendo «riquadro all'origine», che è il
+  // caso di sempre. Senza tenerne conto, un riquadro che comincia a coordinate negative farebbe
+  // misurare le quattro distanze da bordi che non sono i suoi.
+  riquadro: { x?: number; y?: number; larghezza: number; altezza: number }
+): Position {
   // Il lato dichiarato vince: la deduzione qui sotto guarda l'ancora, ed è degenere quando più
   // ancore coincidono.
   if (ancora.lato) return LATO_REACT_FLOW[ancora.lato]
+  const x0 = riquadro.x ?? 0
+  const y0 = riquadro.y ?? 0
   const distanze = [
-    { lato: Position.Left, d: ancora.x },
-    { lato: Position.Right, d: dim.larghezza - ancora.x },
-    { lato: Position.Top, d: ancora.y },
-    { lato: Position.Bottom, d: dim.altezza - ancora.y },
+    { lato: Position.Left, d: ancora.x - x0 },
+    { lato: Position.Right, d: x0 + riquadro.larghezza - ancora.x },
+    { lato: Position.Top, d: ancora.y - y0 },
+    { lato: Position.Bottom, d: y0 + riquadro.altezza - ancora.y },
   ]
   return distanze.reduce((a, b) => (a.d <= b.d ? a : b)).lato
 }
@@ -100,15 +109,28 @@ export function latoDi(ancora: SchemaAncora, dim: { larghezza: number; altezza: 
  */
 export function SchemaNodeSymbol({ data, selected, isConnectable }: NodeProps) {
   const { nodo, libreria, taraturaAttiva } = data as SchemaNodeData
-  // Ingombro effettivo, non quello del registro: la scritta del terminale utenze è libera, e con
+  // Riquadro effettivo, non quello del registro: la scritta del terminale utenze è libera, e con
   // la larghezza fissa il `<svg>` qui sotto la taglierebbe appena supera i 17-18 caratteri.
-  const dimensioni = dimensioniDi(nodo, libreria)
-  const { larghezza, altezza } = dimensioni
-  const latoHandlePx = latoHandle(dimensioni)
+  //
+  // `riquadroDi` e non `dimensioniDi`: serve anche l'ANGOLO. Con una taratura che porta la sagoma
+  // a sinistra o in alto dei pallini, il riquadro comincia a coordinate locali negative
+  // (`inviluppo`, symbols/index.ts), e con `viewBox="0 0 …"` la parte a sinistra dell'origine
+  // finiva tagliata QUI e disegnata nel documento (`<g transform="translate(x y)">`, renderSvg.ts)
+  // — tela e documento che dicono due cose diverse, la classe di difetto che il Blocco 3 esiste
+  // per chiudere (revisione finale, rilievo Importante).
+  const riquadro = riquadroDi(nodo, libreria)
+  const { x: scostoX, y: scostoY, larghezza, altezza } = riquadro
+  const latoHandlePx = latoHandle(riquadro)
   const stileAncora = { width: latoHandlePx, height: latoHandlePx, background: '#1976d2', border: 'none' }
 
+  // Il `<div>` si sposta dell'angolo e la `viewBox` parte dallo stesso angolo: le due traslazioni
+  // si annullano, e una coordinata locale finisce sullo schermo esattamente dove il documento la
+  // disegna (`node.position` + la coordinata). Con un riquadro che parte da (0,0) — cioè ovunque
+  // salvo una taratura che sposta la sagoma all'indietro — è un `left: 0`/`top: 0`, e nulla si
+  // muove rispetto a prima. `position: relative`, quindi lo scostamento non tocca la dimensione
+  // che react-flow misura sul nodo.
   return (
-    <div style={{ position: 'relative', width: larghezza, height: altezza }}>
+    <div style={{ position: 'relative', left: scostoX, top: scostoY, width: larghezza, height: altezza }}>
       {ancoreDi(nodo, libreria).flatMap((ancora) => {
         // Ogni ancora ospita sia source sia target, sovrapposti: una tubazione può
         // partire o arrivare dallo stesso punto. Chi decide se il collegamento è legale
@@ -124,14 +146,17 @@ export function SchemaNodeSymbol({ data, selected, isConnectable }: NodeProps) {
         // nello stesso punto (`ManiglieTaratura`), coprono comunque il pallino sottostante: gli
         // resta solo il compito che il connettore non deve più fare da sé, con
         // `nodesConnectable={false}` acceso (SchemaEditor.tsx).
+        // Meno l'angolo del riquadro: la presa è in coordinate locali al NODO, il `<div>` che la
+        // ospita è traslato di quell'angolo (vedi sopra), e senza compensare l'handle finirebbe
+        // spostato dell'angolo rispetto al punto in cui il documento attacca il tubo.
         const stile = {
           ...stileAncora,
-          left: presa.x,
-          top: presa.y,
+          left: presa.x - scostoX,
+          top: presa.y - scostoY,
           transform: 'translate(-50%, -50%)',
           ...(taraturaAttiva ? { opacity: 0, pointerEvents: 'none' as const } : {}),
         }
-        const lato = latoDi(ancora, dimensioni)
+        const lato = latoDi(ancora, riquadro)
         // L'ordine qui non è indifferente: due handle sovrapposti senza z-index si
         // contendono il mousedown, e vince l'ultimo nel DOM. In connectionMode Strict
         // (il default, non sovrascritto) il trascinamento parte quindi dall'handle
@@ -160,7 +185,7 @@ export function SchemaNodeSymbol({ data, selected, isConnectable }: NodeProps) {
       <svg
         width={larghezza}
         height={altezza}
-        viewBox={`0 0 ${larghezza} ${altezza}`}
+        viewBox={`${scostoX} ${scostoY} ${larghezza} ${altezza}`}
         style={{
           display: 'block',
           // Niente fondo qui: il fondo bianco che c'era prima copriva tutto l'ingombro del

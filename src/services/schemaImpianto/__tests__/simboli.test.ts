@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { chiaveSimbolo } from '../types'
 import type { SchemaNodo, SchemaNodoTipo } from '../types'
-import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloMuro, simboloUtenze, valvolaIntercettazione, riduttorePressione, valvolaScarico, testoMultiRiga, DIAMETRO_GIUNZIONE, campioneTubazione, TRATTEGGIO_CONDENSE, MARGINE_VALVOLA_SERBATOIO, simboloTrasformato, inviluppo } from '../symbols'
+import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloMuro, simboloUtenze, valvolaIntercettazione, riduttorePressione, valvolaScarico, testoMultiRiga, DIAMETRO_GIUNZIONE, campioneTubazione, TRATTEGGIO_CONDENSE, MARGINE_VALVOLA_SERBATOIO, simboloTrasformato, inviluppo, riquadroDi } from '../symbols'
 import { capoValido } from '../agganci'
 import { TARATURA_NEUTRA, type Tarature } from '../libreria'
 import { PASSO_GRIGLIA } from '../griglia'
@@ -692,5 +692,40 @@ describe("l'ingombro è l'inviluppo di sagoma trasformata e ancore", () => {
   it('segue la scala della sagoma', () => {
     const misure = inviluppo({ larghezza: 100, altezza: 100 }, { ...TARATURA_NEUTRA, sx: 2, sy: 1 }, [])
     expect(misure.larghezza).toBe(200)
+  })
+
+  /**
+   * Il riquadro porta anche il suo ANGOLO, e serve. Il gesto che il modo taratura esiste per fare
+   * — «avvicina il blocco al pallino trascinandolo a sinistra» — produce `dx` negativi: la sagoma
+   * comincia allora a sinistra dell'origine del nodo, e un riquadro che dichiarasse la sola misura
+   * lascerebbe quella parte fuori. La tela, che monta un `<svg>` sul riquadro, la taglierebbe; il
+   * documento, che trasla e basta, no. Revisione finale, rilievo Importante.
+   */
+  it('con dx negativo il riquadro comincia a sinistra dell origine, e lo dice', () => {
+    const riquadro = inviluppo({ larghezza: 100, altezza: 100 }, { ...TARATURA_NEUTRA, dx: -30 }, [])
+
+    expect(riquadro.x).toBe(-30)
+    // Il bordo destro cade dove la sagoma finisce davvero: -30 + 100 = 70, non 100.
+    expect(riquadro.x + riquadro.larghezza).toBe(70)
+  })
+
+  it('il riquadro di un simbolo non tarato parte dall origine del nodo', () => {
+    const tanica: SchemaNodo = {
+      id: 'T1', tipo: 'tanica', etichetta: 'Raccolta condense',
+      gruppo: 'LINEA_DISTRIBUZIONE', valvoleSicurezza: [], origine: 'scheda',
+    }
+    expect(riquadroDi(tanica)).toMatchObject({ x: 0, y: 0 })
+  })
+
+  it('il riquadro di un simbolo tarato all indietro sposta anche il suo angolo', () => {
+    const tanica: SchemaNodo = {
+      id: 'T1', tipo: 'tanica', etichetta: 'Raccolta condense',
+      gruppo: 'LINEA_DISTRIBUZIONE', valvoleSicurezza: [], origine: 'scheda',
+    }
+    const libreria: Tarature = {
+      tanica: { dx: -30, dy: -20, sx: 1, sy: 1, ancore: [{ id: 'sx', x: 0, y: 20, accetta: ['aria'] }] },
+    }
+
+    expect(riquadroDi(tanica, libreria)).toMatchObject({ x: -30, y: -20 })
   })
 })
