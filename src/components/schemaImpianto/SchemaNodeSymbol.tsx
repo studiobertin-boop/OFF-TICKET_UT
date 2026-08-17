@@ -87,7 +87,18 @@ export function latoDi(ancora: SchemaAncora, dim: { larghezza: number; altezza: 
   return distanze.reduce((a, b) => (a.d <= b.d ? a : b)).lato
 }
 
-export function SchemaNodeSymbol({ data, selected }: NodeProps) {
+/**
+ * `isConnectable` va INOLTRATO agli Handle, non solo destrutturato: react-flow lo consegna al
+ * componente del nodo e si aspetta che sia lui a passarlo: `nodesConnectable={false}` sulla tela
+ * (SchemaEditor.tsx) da solo NON arriva agli Handle. Misurato: senza questo inoltro gli handle
+ * escono comunque con `connectable`/`connectablestart`/`connectableend`/`connectionindicator`, e
+ * `.react-flow__handle.connectionindicator` porta `pointer-events: all` — in modo taratura si
+ * poteva quindi ancora tracciare una tubazione nuova, che finiva in `onConnect` e da lì in una
+ * voce della cronologia dell'IMPIANTO senza via di ritorno («Annulla» spento, Ctrl+Z alla
+ * taratura). È la stessa famiglia dei gesti propri della tela chiusi altrove: una prop della tela
+ * che non raggiunge da sé chi disegna davvero il bersaglio del puntatore.
+ */
+export function SchemaNodeSymbol({ data, selected, isConnectable }: NodeProps) {
   const { nodo, libreria, taraturaAttiva } = data as SchemaNodeData
   // Ingombro effettivo, non quello del registro: la scritta del terminale utenze è libera, e con
   // la larghezza fissa il `<svg>` qui sotto la taglierebbe appena supera i 17-18 caratteri.
@@ -128,8 +139,22 @@ export function SchemaNodeSymbol({ data, selected }: NodeProps) {
         // `source` fosse primo, ogni tubazione tracciata a mano nascerebbe con `da`/`a`
         // scambiati rispetto al gesto reale. `target` va dichiarato per primo apposta.
         return [
-          <Handle key={`t-${ancora.id}`} type="target" id={ancora.id} position={lato} style={stile} />,
-          <Handle key={`s-${ancora.id}`} type="source" id={ancora.id} position={lato} style={stile} />,
+          <Handle
+            key={`t-${ancora.id}`}
+            type="target"
+            id={ancora.id}
+            position={lato}
+            style={stile}
+            isConnectable={isConnectable}
+          />,
+          <Handle
+            key={`s-${ancora.id}`}
+            type="source"
+            id={ancora.id}
+            position={lato}
+            style={stile}
+            isConnectable={isConnectable}
+          />,
         ]
       })}
       <svg

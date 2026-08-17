@@ -540,6 +540,10 @@ export function SchemaImpiantoSection({
               layout={layout}
               noteTubazioni={note}
               libreria={libreria}
+              // Lo strato permanente da solo, oltre a quello fuso: «torna a default» deve sapere
+              // con quali ancore resterebbe il simbolo se la taratura di pratica sparisse, e dalla
+              // libreria fusa non è più ricavabile (vedi `SchemaEditorProps.libreriaPermanente`).
+              libreriaPermanente={taraturePermanenti ?? TARATURE_VUOTE}
               isAdmin={isAdmin}
               onTaraturaPratica={impostaTaraturaPratica}
               onScriviTaraturaPermanente={scriviPermanente}

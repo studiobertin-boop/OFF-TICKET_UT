@@ -184,6 +184,18 @@ export interface SchemaEditorProps {
    */
   libreria?: Tarature
   /**
+   * Il solo strato PERMANENTE della libreria (tabella `schema_simboli`), senza quello di pratica
+   * che `libreria` qui sopra porta già fuso. Serve a una domanda sola, e non se ne inventi altre:
+   * «se questa taratura di pratica sparisse, con quali ancore resterebbe il simbolo?» — la
+   * risposta è lo strato permanente, o il registro di fabbrica se quello non ha una voce per la
+   * chiave. È ciò che `tornaADefault` deve sapere PRIMA di cancellare, per non far sparire
+   * un'ancora a cui è attaccata una tubazione (vedi lì).
+   *
+   * Non ricavabile da `libreria`: la fusione (`risolviLibreria`) è per intero e senza memoria di
+   * quale strato ha vinto, quindi da fuori non si può più risalire a cosa c'era sotto.
+   */
+  libreriaPermanente?: Tarature
+  /**
    * Vero per l'amministratore: decide se «rendi permanenti» compare nel dialogo a tre vie del
    * modo taratura, e se la spunta «cancella anche la taratura permanente» compare accanto a
    * «torna a default» — tocca ogni pratica dell'applicazione, comprese quelle già consegnate
@@ -279,6 +291,7 @@ function SchemaEditorInterno({
   layout,
   noteTubazioni,
   libreria = LIBRERIA_VUOTA,
+  libreriaPermanente = LIBRERIA_VUOTA,
   isAdmin,
   onTaraturaPratica,
   onScriviTaraturaPermanente,
@@ -705,6 +718,26 @@ function SchemaEditorInterno({
     })
   }, [libreriaEffettiva, nodoTaraturaId, stato.nodes, aggiornaSenzaCronologia])
 
+  /**
+   * Gli id delle ancore della chiave in taratura a cui è attaccata almeno una tubazione. Non basta
+   * guardare il nodo in taratura: la taratura vale per la CHIAVE, quindi ciò che si toglie qui si
+   * toglie a tutti i simboli uguali, e un tubo appeso a uno qualunque di loro resterebbe orfano
+   * allo stesso modo. Serve a due gesti diversi — il Canc su un'ancora e «torna a default» — che
+   * possono entrambi far sparire un'ancora sotto un tubo: sta qui sopra perché il secondo è
+   * definito prima del primo.
+   */
+  const ancoreOccupate = useCallback(() => {
+    const diQuestaChiave = new Set(
+      stato.nodes.filter((n) => chiaveSimbolo((n.data as SchemaNodeData).nodo) === chiaveTaratura).map((n) => n.id)
+    )
+    const occupate = new Set<string>()
+    for (const e of stato.edges) {
+      if (e.sourceHandle && diQuestaChiave.has(e.source)) occupate.add(e.sourceHandle)
+      if (e.targetHandle && diQuestaChiave.has(e.target)) occupate.add(e.targetHandle)
+    }
+    return occupate
+  }, [stato.nodes, stato.edges, chiaveTaratura])
+
   // Entra nel modo: seminata la cronologia PROPRIA della taratura (vedi `taraturaHook`) dalla
   // taratura corrente per quella chiave. Senza una taratura preesistente si parte dalle ancore
   // DI FABBRICA (`ancoreDi(nodo, {})`), non da `TARATURA_NEUTRA` da sola: il suo `ancore: []` è
@@ -752,11 +785,36 @@ function SchemaEditorInterno({
    * amministratore e ha spuntato la casella del dialogo, cancella anche quella permanente — la
    * riga della tabella, non solo il suo effetto qui (CLAUDE.md: Claude applica le migrazioni,
    * ma qui è l'amministratore a decidere riga per riga se scriverle).
+   *
+   * Prima di cancellare qualsiasi cosa, la stessa guardia del Canc su un'ancora: una taratura non
+   * AGGIUNGE ancore al registro, le SOSTITUISCE per intero (vedi `TaraturaSimbolo.ancore`), quindi
+   * tornare al default fa sparire ogni ancora che solo lei portava. Su una pratica riaperta con
+   * una taratura salvata, se un tubo è attaccato a una di quelle, questa via produceva in silenzio
+   * lo stato che il Canc guardato ha appena chiuso: Handle sparito, arco vivo in `stato.edges`, e
+   * nel documento il tubo attaccato al centro del simbolo.
    */
   const tornaADefault = useCallback(
     async (cancellaPermanente: boolean) => {
       if (!chiaveTaratura) return
       const chiave = chiaveTaratura
+
+      // Con quali ancore resterebbe il simbolo dopo la cancellazione: quelle dello strato
+      // permanente, o quelle di fabbrica se anche la riga permanente se ne va (o se non c'è).
+      const libreriaDopo = isAdmin && cancellaPermanente ? LIBRERIA_VUOTA : libreriaPermanente
+      const nodoBersaglio = stato.nodes.find((n) => n.id === nodoTaraturaId)
+      if (nodoBersaglio) {
+        const superstiti = new Set(ancoreDi((nodoBersaglio.data as SchemaNodeData).nodo, libreriaDopo).map((a) => a.id))
+        const perdute = [...ancoreOccupate()].filter((id) => !superstiti.has(id))
+        if (perdute.length > 0) {
+          toast.error(
+            `Tornare al default toglierebbe ${perdute.length === 1 ? 'l’ancora' : 'le ancore'} ${perdute
+              .map((id) => `«${id}»`)
+              .join(', ')}, a cui ${perdute.length === 1 ? 'è attaccata una tubazione' : 'sono attaccate delle tubazioni'}: stacca prima ${perdute.length === 1 ? 'quel tubo' : 'quei tubi'}.`
+          )
+          return
+        }
+      }
+
       if (isAdmin && cancellaPermanente) {
         setSalvandoTaratura(true)
         try {
@@ -773,7 +831,17 @@ function SchemaEditorInterno({
       onTaraturaPratica(chiave, null)
       chiudiTaratura()
     },
-    [chiaveTaratura, isAdmin, onScriviTaraturaPermanente, onTaraturaPratica, chiudiTaratura]
+    [
+      chiaveTaratura,
+      isAdmin,
+      libreriaPermanente,
+      stato.nodes,
+      nodoTaraturaId,
+      ancoreOccupate,
+      onScriviTaraturaPermanente,
+      onTaraturaPratica,
+      chiudiTaratura,
+    ]
   )
 
   /**
@@ -833,26 +901,6 @@ function SchemaEditorInterno({
     [ancoraSelezionata, taraturaHook]
   )
 
-  /**
-   * Vero se una tubazione del disegno è attaccata all'ancora `idAncora` di un simbolo di questa
-   * chiave. Non basta guardare il nodo in taratura: la taratura vale per la CHIAVE, quindi
-   * togliere un'ancora la toglie a tutti i simboli uguali, e un tubo appeso a uno qualunque di
-   * loro resterebbe orfano allo stesso modo.
-   */
-  const ancoraOccupata = useCallback(
-    (idAncora: string) => {
-      const diQuestaChiave = new Set(
-        stato.nodes.filter((n) => chiaveSimbolo((n.data as SchemaNodeData).nodo) === chiaveTaratura).map((n) => n.id)
-      )
-      return stato.edges.some(
-        (e) =>
-          (e.sourceHandle === idAncora && diQuestaChiave.has(e.source)) ||
-          (e.targetHandle === idAncora && diQuestaChiave.has(e.target))
-      )
-    },
-    [stato.nodes, stato.edges, chiaveTaratura]
-  )
-
   /** Canc in modo taratura: toglie l'ancora selezionata, mai l'ultima (Step 3 del brief — un
    *  simbolo senza ancore non si può più collegare) e mai una a cui è attaccato un tubo. */
   const togliAncoraSelezionata = useCallback(() => {
@@ -867,7 +915,7 @@ function SchemaEditorInterno({
     // layout confermato, e nel documento `posizioneAncora` ripiega sul centro del nodo: il tubo
     // esce attaccato in mezzo al simbolo. Il riattacco automatico esiste (`persistenza.ts`) ma
     // scatta solo alla RIAPERTURA della pratica. Meglio non entrarci affatto, dicendo perché.
-    if (ancoraOccupata(ancoraSelezionata)) {
+    if (ancoreOccupate().has(ancoraSelezionata)) {
       toast.error(
         'A quest’ancora è attaccata una tubazione: spostala su un altro attacco (o eliminala) prima di togliere l’ancora.'
       )
@@ -875,7 +923,7 @@ function SchemaEditorInterno({
     }
     taraturaHook.togliAncora(ancoraSelezionata)
     setAncoraSelezionata(null)
-  }, [ancoraSelezionata, ancoraOccupata, taraturaHook])
+  }, [ancoraSelezionata, ancoreOccupate, taraturaHook])
 
   // Direzione «react-flow spegne la libera»: clic su un nodo/arco (o selezione a rettangolo)
   // azzera `selezioneLibera`. L'altra direzione vive in `selezionaLibero`/`deselezionaReactFlow`
@@ -1364,6 +1412,13 @@ function SchemaEditorInterno({
           nodesDraggable={!modoTaratura}
           nodesConnectable={!modoTaratura}
           elementsSelectable={!modoTaratura}
+          // `edgesReconnectable` va spento a parte: NON dipende da `elementsSelectable`, e le
+          // ancore di riaggancio (`.react-flow__edgeupdater`) portano `pointer-events: all`, che
+          // vince sull'`inactive` del gruppo dell'arco — la stessa ragione per cui l'area di presa
+          // del tratto era rimasta viva. Senza, in modo taratura si può ancora staccare un capo e
+          // posarlo altrove: `onReconnect` → `applica`, una voce nella cronologia dell'IMPIANTO
+          // che lì non si può disfare.
+          edgesReconnectable={!modoTaratura}
           onlyRenderVisibleElements
           fitView
           // Senza questo, `fitView` non inquadra affatto tutto il disegno: il minimo di
@@ -1420,7 +1475,12 @@ function SchemaEditorInterno({
               porta a 0,8 (~2,5 volte l'area). Insieme danno una griglia che si vede senza
               competere col disegno. */}
           <Background gap={10} size={1.6} color="#aeb6c2" />
-          <Controls />
+          {/* Niente lucchetto in modo taratura: quel comando scrive `nodesDraggable`/
+              `nodesConnectable`/`elementsSelectable` DIRETTAMENTE nel negozio di react-flow, non
+              nelle prop qui sopra — un clic lì riaccenderebbe trascinamento e selezione dei nodi
+              fino al prossimo cambio di prop, riaprendo da solo tutto ciò che il modo taratura
+              spegne. Zoom e «Fit View» restano: servono, e non toccano il disegno. */}
+          <Controls showInteractive={!modoTaratura} />
           <ViewportPortal>
             <GuideAllineamento guide={guide} />
             <TestiLiberi
