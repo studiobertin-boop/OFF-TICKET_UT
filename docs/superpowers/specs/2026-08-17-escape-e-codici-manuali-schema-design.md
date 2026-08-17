@@ -58,9 +58,15 @@ L'ordine non è un dettaglio di stile: quel blocco chiude con un `return` incond
 Escape scritto sotto non verrebbe mai raggiunto in modo taratura. Un solo `if (e.key === 'Escape')`
 che si biforca al suo interno, quindi, e non due rami sparsi:
 
-- **in modo taratura:** `togliAncoraSelezionata()`. La selezione lì è un'ancora, non un nodo. Se
-  nessuna ancora è selezionata non succede nulla. **L'uscita dal modo continua a passare solo dal
-  dialogo a tre vie** — Escape non la avvia e non la scavalca.
+- **in modo taratura:** `setAncoraSelezionata(null)`. La selezione lì è un'ancora, non un nodo, e
+  si **deseleziona**. Se nessuna ancora è selezionata non succede nulla. **L'uscita dal modo
+  continua a passare solo dal dialogo a tre vie** — Escape non la avvia e non la scavalca.
+
+  **Non `togliAncoraSelezionata`**, che è il gesto di Canc e ELIMINA l'ancora dalla taratura. La
+  prima stesura di questa specifica lo prescriveva, e la prova in pagina del 17-08-2026 ha mostrato
+  cosa comportava: su un'ancora libera, Escape la cancellava; su una occupata da una tubazione,
+  faceva comparire un messaggio d'errore fuori contesto. Escape distruttivo, dentro il fix che
+  esiste per renderlo innocuo.
 - **fuori dal modo taratura:** `deselezionaReactFlow()` e `setSelezioneLibera(null)`. La prima
   esiste già (righe 981-991) e passa da `aggiornaSenzaCronologia` proprio perché deselezionare non
   deve diventare un passo di Ctrl+Z; la seconda copre muro e annotazioni, che non sono nodi di

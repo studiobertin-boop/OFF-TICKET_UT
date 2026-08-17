@@ -116,9 +116,12 @@ taratura.
       // Sta QUI SOPRA il blocco `modoTaratura`, che chiude con un `return` incondizionato: scritto
       // sotto, in taratura non verrebbe mai raggiunto.
       if (e.key === 'Escape') {
-        // In taratura la selezione è un'ancora, non un nodo. L'uscita dal MODO resta il dialogo a
-        // tre vie: Escape non la avvia e non la scavalca.
-        if (modoTaratura) togliAncoraSelezionata()
+        // In taratura la selezione è un'ancora, non un nodo: si DESELEZIONA, e basta. Non
+        // `togliAncoraSelezionata` — quella ELIMINA l'ancora dalla taratura, ed è il gesto di
+        // Canc: legarla a Escape lo rendeva distruttivo proprio nel fix che esiste per renderlo
+        // innocuo (provato in pagina il 17-08-2026: su un'ancora libera, Escape la cancellava).
+        // L'uscita dal MODO resta il dialogo a tre vie: Escape non la avvia e non la scavalca.
+        if (modoTaratura) setAncoraSelezionata(null)
         else {
           // Due selezioni, non una: react-flow non conosce muro e annotazioni, che hanno la
           // propria (`selezioneLibera`). Nessuna delle due tocca la cronologia —
@@ -1043,3 +1046,30 @@ solo.
 A deploy verificato **sul bundle in produzione, non solo sullo stato «READY»**, aggiungere a
 `DOCUMENTAZIONE/fixes.md` al massimo due righe: cosa cambia per chi usa l'applicazione e, per il
 difetto, cosa succedeva prima. Niente nomi di funzione, niente numeri di commit.
+
+---
+
+## Cosa è andato diversamente
+
+**La prova in pagina ha trovato un difetto vero, con 1307 test verdi.** In modo taratura Escape era
+legato a `togliAncoraSelezionata`, che non deseleziona: **elimina** l'ancora dalla taratura, ed è il
+gesto di Canc. Provato su ORVED il 17-08-2026: su un'ancora libera Escape la **cancellava**; su una
+con una tubazione attaccata faceva comparire il messaggio d'errore di Canc, fuori contesto. Escape
+distruttivo, dentro il fix che esiste per renderlo innocuo. Corretto in `setAncoraSelezionata(null)`;
+`togliAncoraSelezionata` resta al servizio di Canc, dov'era.
+
+L'errore era nato dal titolo della domanda posta al committente — «toglie l'ancora selezionata» —
+letto come nome di funzione invece che come «toglie la selezione», che è quel che la descrizione
+diceva.
+
+**Il muro non si prova col colore.** Selezionandolo non cambia tratto: si prova per comportamento —
+selezione, Escape, Canc, e il muro deve **sopravvivere**; poi selezione e Canc senza Escape, e deve
+**sparire**. Senza il secondo passo il primo è vacuo, perché «sopravvive» starebbe anche per «il
+clic non aveva selezionato nulla».
+
+**La mutazione su `codiceVisibile` fa cadere un test, non due** come diceva il Task 2:
+`motivoRifiutoCodice` legge `nodo.codice` attraverso `codiciOccupati`, non attraverso
+`codiceVisibile`. Le due funzioni sono provate separatamente, ed è meglio così.
+
+**`codiciOccupati` rifiuta anche i codici delle valvole di sicurezza**, verificato in pagina: `S1.1`
+viene respinto. Era la parte del progetto di cui non si aveva la prova.

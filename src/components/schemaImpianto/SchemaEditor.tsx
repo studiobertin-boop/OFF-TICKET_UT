@@ -1087,9 +1087,12 @@ function SchemaEditorInterno({
       // Sta QUI SOPRA il blocco `modoTaratura`, che chiude con un `return` incondizionato: scritto
       // sotto, in taratura non verrebbe mai raggiunto.
       if (e.key === 'Escape') {
-        // In taratura la selezione è un'ancora, non un nodo. L'uscita dal MODO resta il dialogo a
-        // tre vie: Escape non la avvia e non la scavalca.
-        if (modoTaratura) togliAncoraSelezionata()
+        // In taratura la selezione è un'ancora, non un nodo: si DESELEZIONA, e basta. Non
+        // `togliAncoraSelezionata` — quella ELIMINA l'ancora dalla taratura, ed è il gesto di
+        // Canc: legarla a Escape lo rendeva distruttivo proprio nel fix che esiste per renderlo
+        // innocuo (provato in pagina il 17-08-2026: su un'ancora libera, Escape la cancellava).
+        // L'uscita dal MODO resta il dialogo a tre vie: Escape non la avvia e non la scavalca.
+        if (modoTaratura) setAncoraSelezionata(null)
         else {
           // Due selezioni, non una: react-flow non conosce muro e annotazioni, che hanno la
           // propria (`selezioneLibera`). Nessuna delle due tocca la cronologia —
