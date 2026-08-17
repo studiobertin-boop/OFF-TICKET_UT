@@ -5,7 +5,7 @@
  * senza chiudere un ciclo, e perché è geometria pura, verificabile senza DOM.
  */
 
-import type { SchemaArcoStile, SchemaLatoAncora, SchemaSegnoTubo } from './types'
+import type { SchemaAncoraggioSegno, SchemaArcoStile, SchemaLatoAncora, SchemaSegnoTubo } from './types'
 import { agganciaQuota } from './griglia'
 
 export interface Punto {
@@ -320,6 +320,50 @@ export function quoteDeiVertici(punti: Punto[]): number[] {
     ts.push(totale === 0 ? 0 : percorsa / totale)
   }
   return ts
+}
+
+/**
+ * La `t` corrispondente a un ancoraggio, sulla polilinea GIÀ RISOLTA — la stessa che disegnerà
+ * `renderSvg`, non quella dei soli gomiti. Stessa metrica di `puntoSuTratto`: frazione della
+ * lunghezza totale, non del numero di segmenti.
+ *
+ * `null` quando l'ancoraggio non si applica: vertice o tratto inesistente (`dedup` può aver
+ * collassato una rotta, vedi `rottaImboccata`), oppure polilinea di lunghezza nulla. Il chiamante
+ * tiene allora la `t` di ripiego che il generatore ha seminato — vedi `SchemaSegnoTubo.ancoraggio`.
+ *
+ * Lo scarto è bloccato dentro il tratto adiacente al vertice: chiedere «20 unità prima» su un
+ * tratto lungo 8 posa il segno sul capo di quel tratto, non oltre l'angolo. Scavalcare un vertice
+ * metterebbe la valvola su un tratto con un'altra giacitura, e il simbolo si orienta sulla
+ * giacitura locale (`puntoSuTratto` riporta `orizzontale`): uscirebbe ruotato di 90°.
+ */
+export function tDaAncoraggio(punti: Punto[], ancoraggio: SchemaAncoraggioSegno): number | null {
+  if (punti.length < 2) return null
+  const lunghezze = punti.slice(1).map((p, i) => Math.hypot(p.x - punti[i].x, p.y - punti[i].y))
+  const totale = lunghezze.reduce((s, l) => s + l, 0)
+  if (totale === 0) return null
+
+  // Distanza percorsa fino al vertice `i`: `cumulate[i]`.
+  const cumulate = [0]
+  for (const l of lunghezze) cumulate.push(cumulate[cumulate.length - 1] + l)
+
+  if (ancoraggio.tipo === 'meta') {
+    const l = lunghezze[ancoraggio.tratto]
+    if (l === undefined) return null
+    return (cumulate[ancoraggio.tratto] + l / 2) / totale
+  }
+
+  const partenza = cumulate[ancoraggio.vertice]
+  if (partenza === undefined) return null
+  if (ancoraggio.scarto === 0) return partenza / totale
+
+  // Il tratto su cui lo scarto può muoversi: quello entrante se va all'indietro, quello uscente
+  // se va avanti. Assente (si è al primo o all'ultimo vertice): non c'è dove andare.
+  const disponibile =
+    ancoraggio.scarto < 0 ? lunghezze[ancoraggio.vertice - 1] : lunghezze[ancoraggio.vertice]
+  if (disponibile === undefined) return null
+
+  const passo = Math.min(Math.abs(ancoraggio.scarto), disponibile)
+  return (partenza + (ancoraggio.scarto < 0 ? -passo : passo)) / totale
 }
 
 /**

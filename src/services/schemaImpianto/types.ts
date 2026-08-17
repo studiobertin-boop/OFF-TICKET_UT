@@ -157,6 +157,23 @@ export type SchemaArcoStile = 'standard' | 'flessibile' | 'condensa'
 export type SchemaSegnoTuboTipo = 'valvola_intercettazione' | 'riduttore_pressione' | 'freccia_direzione'
 
 /**
+ * Regola geometrica con cui il LAYOUT calcola la `t` di un segno appena generato. Le convenzioni
+ * dello studio parlano di vertici («la valvola sta un passo di griglia sotto la dorsale»), non di
+ * frazioni di lunghezza, e al momento in cui `buildSchemaModel` semina il segno le posizioni non
+ * esistono ancora: il modello dichiara l'intento, il layout lo traduce in un numero.
+ *
+ * È un'istruzione **di sola andata**: `layoutSchema` la consuma, scrive la `t` e la toglie. Non
+ * compare mai in un layout salvato, e per questo il formato su disco non cambia — la stessa
+ * divisione già in vigore fra `stileAValle` (dato) e `tronconi` (resa).
+ *
+ * `scarto` si misura LUNGO la polilinea, non in linea d'aria: negativo verso il capo di partenza
+ * (cioè sul tratto entrante nel vertice), positivo verso il capo d'arrivo.
+ */
+export type SchemaAncoraggioSegno =
+  | { tipo: 'vertice'; vertice: number; scarto: number }
+  | { tipo: 'meta'; tratto: number }
+
+/**
  * Segno che vive SULLA tubazione, non un nodo: valvola di intercettazione, riduttore di pressione
  * o freccia di direzione. Scorre lungo il tratto e lo segue quando un'apparecchiatura si sposta
  * perché la sua posizione è relativa alla polilinea (`t`), non assoluta — a differenza della
@@ -179,6 +196,14 @@ export interface SchemaSegnoTubo {
    * indica il verso del flusso, non un componente della linea (deciso col committente).
    */
   stileAValle?: SchemaArcoStile
+  /**
+   * Come il layout deve ricalcolare `t` da questo segno. Assente — il caso di ogni segno posato
+   * a mano e di ogni layout salvato — vale la `t` così com'è. Presente e irrisolvibile (vertice
+   * inesistente, polilinea di lunghezza nulla): vale comunque la `t`, che i generatori seminano
+   * a 0.5 apposta. Una valvola a metà tubo è sbagliata ma visibile e correggibile; un'eccezione
+   * a metà generazione no.
+   */
+  ancoraggio?: SchemaAncoraggioSegno
 }
 
 export interface SchemaArco {

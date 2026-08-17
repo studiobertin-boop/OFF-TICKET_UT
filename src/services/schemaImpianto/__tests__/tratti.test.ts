@@ -13,6 +13,7 @@ import {
   rottaFlessibile,
   rottaLinea,
   tronconi,
+  tDaAncoraggio,
 } from '../tratti'
 import type { SchemaArcoStile, SchemaSegnoTubo } from '../types'
 
@@ -842,5 +843,59 @@ describe('tronconi', () => {
       const esito = tronconi(dritta, 'standard', [segno(t, 'flessibile')])
       for (const tratto of esito) expect(tratto.punti.length).toBeGreaterThanOrEqual(2)
     }
+  })
+})
+
+describe('tDaAncoraggio', () => {
+  // Il ponte di un by-pass: sale 80, corre 200, ridiscende 80. Lunghezza totale 360.
+  const ponte = [
+    { x: 100, y: 300 },
+    { x: 100, y: 220 },
+    { x: 300, y: 220 },
+    { x: 300, y: 300 },
+  ]
+
+  it('mette la valvola un passo di griglia PRIMA di un vertice, sul tratto entrante', () => {
+    const t = tDaAncoraggio(ponte, { tipo: 'vertice', vertice: 1, scarto: -10 })
+    expect(t).not.toBeNull()
+    expect(puntoSuTratto(ponte, t as number).punto).toEqual({ x: 100, y: 230 })
+  })
+
+  it('mette la valvola un passo DOPO un vertice, sul tratto uscente', () => {
+    const t = tDaAncoraggio(ponte, { tipo: 'vertice', vertice: 2, scarto: 10 })
+    expect(t).not.toBeNull()
+    expect(puntoSuTratto(ponte, t as number).punto).toEqual({ x: 300, y: 230 })
+  })
+
+  it('mette la valvola a metà del tratto indicato', () => {
+    const t = tDaAncoraggio(ponte, { tipo: 'meta', tratto: 1 })
+    expect(t).not.toBeNull()
+    expect(puntoSuTratto(ponte, t as number).punto).toEqual({ x: 200, y: 220 })
+  })
+
+  it('non scavalca il vertice quando lo scarto è più lungo del tratto', () => {
+    // Il tratto entrante nel vertice 1 è lungo 80: uno scarto di 200 si ferma al capo di partenza.
+    const t = tDaAncoraggio(ponte, { tipo: 'vertice', vertice: 1, scarto: -200 })
+    expect(puntoSuTratto(ponte, t as number).punto).toEqual({ x: 100, y: 300 })
+  })
+
+  it('vale null su un vertice che non esiste', () => {
+    expect(tDaAncoraggio(ponte, { tipo: 'vertice', vertice: 9, scarto: -10 })).toBeNull()
+  })
+
+  it('vale null quando si chiede il tratto prima del primo vertice', () => {
+    expect(tDaAncoraggio(ponte, { tipo: 'vertice', vertice: 0, scarto: -10 })).toBeNull()
+  })
+
+  it('vale null su un tratto che non esiste', () => {
+    expect(tDaAncoraggio(ponte, { tipo: 'meta', tratto: 7 })).toBeNull()
+  })
+
+  it('vale null su una polilinea di lunghezza nulla', () => {
+    const fermo = [
+      { x: 50, y: 50 },
+      { x: 50, y: 50 },
+    ]
+    expect(tDaAncoraggio(fermo, { tipo: 'meta', tratto: 0 })).toBeNull()
   })
 })
