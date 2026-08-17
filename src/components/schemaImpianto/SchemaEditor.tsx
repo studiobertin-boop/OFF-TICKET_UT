@@ -55,6 +55,7 @@ import {
 } from '@mui/icons-material'
 import toast from 'react-hot-toast'
 import { capoValido, connessioneAmmessa, stileIniziale } from '@/services/schemaImpianto/agganci'
+import { codiceVisibile, motivoRifiutoCodice, LUNGHEZZA_MASSIMA_CODICE } from '@/services/schemaImpianto/codici'
 import type { Asse, Bordo } from '@/services/schemaImpianto/allineamento'
 import { PASSO_GRIGLIA, allineaAllaGriglia } from '@/services/schemaImpianto/griglia'
 import { quoteInstradamento } from '@/services/schemaImpianto/layout'
@@ -320,19 +321,27 @@ function SchemaEditorInterno({
   // `useSchemaHistory` espone già il gesto giusto per questo.
   const taraturaHook = useTaratura(TARATURA_NEUTRA)
 
-  // Il dialog di scrittura, uno solo per due bersagli.
+  // Il dialog di scrittura, uno solo per tre bersagli.
   //
-  // «terminale»: la scritta del terminale utenze, e solo quella — le etichette delle
-  // apparecchiature vengono dalla scheda dati e la riconciliazione le riscrive alla riapertura
-  // (è la regola che tiene la §2.3 aggiornata quando si corregge marca o modello), quindi
-  // permettere di cambiarle qui sarebbe una modifica che si perde in silenzio.
+  // «terminale»: la scritta del terminale utenze, e solo quella.
+  //
+  // «apparecchiatura»: codice e descrizione di ciò che l'utente ha aggiunto a mano dalla palette,
+  // e solo di quello. Le apparecchiature di SCHEDA restano fuori: la loro etichetta viene dalla
+  // scheda dati e la riconciliazione la riscrive alla riapertura (è la regola che tiene la §2.3
+  // aggiornata quando si corregge marca o modello), quindi permettere di cambiarla qui sarebbe una
+  // modifica che si perde in silenzio. Sui nodi di origine `manuale` quella riscrittura non
+  // avviene — `riconcilia` li lascia passare intatti (persistenza.ts) — ed è esattamente ciò che
+  // rende possibile modificarli. Il codice cambia in `nodo.codice`, non nell'identificativo: vedi
+  // il commento su `SchemaNodo.codice` (types.ts) per il perché.
   //
   // «testo»: un'annotazione libera. Con `id` a `null` è un'annotazione che ancora non esiste:
   // si scrive prima e si crea alla conferma (vedi `confermaScrittura`).
   const [scrittura, setScrittura] = useState<{
-    bersaglio: 'terminale' | 'testo'
+    bersaglio: 'terminale' | 'testo' | 'apparecchiatura'
     id: string | null
     valore: string
+    /** Solo per «apparecchiatura»: il codice in composizione. */
+    codice?: string
   } | null>(null)
 
   // La libreria "vista" da tutto il resto dell'editor mentre il modo taratura è acceso: la
@@ -1155,8 +1164,15 @@ function SchemaEditorInterno({
       // scriverebbe nella cronologia dell'IMPIANTO, che lì non ha via di ritorno.
       if (modoTaratura) return
       const dati = (nodo.data as SchemaNodeData).nodo
-      if (dati.tipo !== 'utenze') return
-      setScrittura({ bersaglio: 'terminale', id: nodo.id, valore: dati.etichetta })
+      if (dati.tipo === 'utenze') {
+        setScrittura({ bersaglio: 'terminale', id: nodo.id, valore: dati.etichetta })
+        return
+      }
+      // Solo ciò che l'utente ha aggiunto a mano — le apparecchiature di scheda le riscrive la
+      // riconciliazione — e non la giunzione: il TEE è un pallino che non porta scritte sul
+      // disegno e che `righeLista` salta, quindi un codice suo non comparirebbe da nessuna parte.
+      if (dati.origine !== 'manuale' || dati.tipo === 'giunzione') return
+      setScrittura({ bersaglio: 'apparecchiatura', id: nodo.id, valore: dati.etichetta, codice: codiceVisibile(dati) })
     },
     [modoTaratura]
   )
@@ -1177,9 +1193,29 @@ function SchemaEditorInterno({
   // crede di aver tolto la scritta, mentre il gesto veniva scartato in silenzio.
   const scrittaValida = Boolean(scrittura?.valore.trim())
 
+  // Il rifiuto del codice, già in italiano e pronto da mostrare, oppure `null`. Solo per
+  // «apparecchiatura»: gli altri due bersagli non hanno un codice da controllare.
+  const rifiutoCodice =
+    scrittura?.bersaglio === 'apparecchiatura'
+      ? motivoRifiutoCodice(scrittura.codice ?? '', nodiDi(stato), scrittura.id ?? '')
+      : null
+  // Vale sia per il pulsante sia per la scorciatoia da tastiera: senza la seconda, Ctrl+Invio
+  // scavalcherebbe il pulsante spento e scriverebbe un codice doppio.
+  const scritturaConfermabile = scrittaValida && rifiutoCodice === null
+  const dizioneConferma =
+    scrittura === null
+      ? ''
+      : scrittura.bersaglio === 'apparecchiatura'
+        ? 'Salva'
+        : scrittura.bersaglio === 'terminale'
+          ? 'Cambia scritta'
+          : scrittura.id === null
+            ? 'Aggiungi'
+            : 'Salva'
+
   const confermaScrittura = useCallback(() => {
     if (!scrittura) return
-    const { bersaglio, id } = scrittura
+    const { bersaglio, id, codice } = scrittura
     const contenuto = scrittura.valore.trim()
     setScrittura(null)
     if (!contenuto) return
@@ -1188,6 +1224,36 @@ function SchemaEditorInterno({
     // annullarli. Per un'annotazione nuova la voce di cronologia è UNA, non due, perché il
     // contenuto entra insieme alla posizione: annullare la toglie del tutto, invece di
     // riportarla al passo intermedio in cui era vuota — cioè invisibile.
+    if (bersaglio === 'apparecchiatura') {
+      const scritto = (codice ?? '').trim()
+      applica((s) => ({
+        ...s,
+        nodes: s.nodes.map((n) => {
+          if (n.id !== id) return n
+          const dati = (n.data as SchemaNodeData).nodo
+          return {
+            ...n,
+            data: {
+              ...(n.data as SchemaNodeData),
+              nodo: {
+                ...dati,
+                etichetta: contenuto,
+                // Torna ASSENTE se coincide con l'identificativo d'ufficio: così un nodo mai
+                // rinominato e uno rinominato al proprio codice restano indistinguibili nel
+                // salvato, e non nasce un salvato che dice due volte la stessa cosa.
+                //
+                // E assente anche se vuoto, che dall'interfaccia non può arrivare (il pulsante è
+                // spento) ma qui costerebbe caro: `codiceVisibile` ripiega con `??`, che una
+                // stringa vuota non la intercetta — il simbolo resterebbe senza codice e la
+                // tabella con la casella bianca.
+                codice: scritto && scritto !== n.id ? scritto : undefined,
+              },
+            } satisfies SchemaNodeData,
+          }
+        }),
+      }))
+      return
+    }
     if (bersaglio === 'terminale') {
       applica((s) => ({
         ...s,
@@ -1664,25 +1730,47 @@ function SchemaEditorInterno({
           // renderebbe impossibile comporre la seconda riga. Resta la scorciatoia da
           // tastiera, con il modificatore — la stessa convenzione dei campi di commento —
           // mentre la strada principale è il pulsante.
-          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && scrittaValida) confermaScrittura()
+          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && scritturaConfermabile) confermaScrittura()
         }}
       >
         <DialogTitle>
-          {scrittura?.bersaglio === 'testo' ? 'Testo sul disegno' : 'Scritta del terminale'}
+          {scrittura?.bersaglio === 'testo'
+            ? 'Testo sul disegno'
+            : scrittura?.bersaglio === 'apparecchiatura'
+              ? 'Codice e descrizione'
+              : 'Scritta del terminale'}
         </DialogTitle>
         <DialogContent>
+          {scrittura?.bersaglio === 'apparecchiatura' && (
+            <TextField
+              autoFocus
+              fullWidth
+              margin="dense"
+              label="Codice"
+              error={rifiutoCodice !== null}
+              helperText={
+                rifiutoCodice ??
+                `Compare dentro il simbolo sul disegno e nella lista apparecchiature. Al massimo ${LUNGHEZZA_MASSIMA_CODICE} caratteri.`
+              }
+              value={scrittura.codice ?? ''}
+              onChange={(e) => setScrittura((s) => (s ? { ...s, codice: e.target.value } : s))}
+            />
+          )}
           <TextField
-            autoFocus
+            // Il fuoco va al campo del codice quando c'è: è il primo dei due.
+            autoFocus={scrittura?.bersaglio !== 'apparecchiatura'}
             fullWidth
-            multiline
-            minRows={2}
-            maxRows={8}
             margin="dense"
-            label="Testo"
+            label={scrittura?.bersaglio === 'apparecchiatura' ? 'Descrizione' : 'Testo'}
+            // La descrizione è una riga sola: in tabella ne entra una, e un a capo scritto qui
+            // sparirebbe senza dirlo. Gli altri due bersagli restano multi-riga dal Blocco C2.
+            {...(scrittura?.bersaglio === 'apparecchiatura' ? {} : { multiline: true, minRows: 2, maxRows: 8 })}
             helperText={
-              scrittura?.bersaglio === 'testo'
-                ? 'Una scritta libera sul disegno, per esempio «Locale compressori». Invio va a capo, Ctrl+Invio conferma (oppure usa il pulsante qui sotto).'
-                : 'Per esempio «Utenze aria», «Utenze azoto». Invio va a capo, Ctrl+Invio conferma (oppure usa il pulsante qui sotto).'
+              scrittura?.bersaglio === 'apparecchiatura'
+                ? 'La riga che compare nella lista apparecchiature, per esempio «Serbatoio di riserva 500 l».'
+                : scrittura?.bersaglio === 'testo'
+                  ? 'Una scritta libera sul disegno, per esempio «Locale compressori». Invio va a capo, Ctrl+Invio conferma (oppure usa il pulsante qui sotto).'
+                  : 'Per esempio «Utenze aria», «Utenze azoto». Invio va a capo, Ctrl+Invio conferma (oppure usa il pulsante qui sotto).'
             }
             value={scrittura?.valore ?? ''}
             onChange={(e) => setScrittura((s) => (s ? { ...s, valore: e.target.value } : s))}
@@ -1697,8 +1785,8 @@ function SchemaEditorInterno({
           <Button onClick={() => setScrittura(null)}>
             {scrittura?.id === null ? 'Annulla' : "Lascia com'è"}
           </Button>
-          <Button variant="contained" onClick={confermaScrittura} disabled={!scrittaValida}>
-            {scrittura?.bersaglio !== 'testo' ? 'Cambia scritta' : scrittura.id === null ? 'Aggiungi' : 'Salva'}
+          <Button variant="contained" onClick={confermaScrittura} disabled={!scritturaConfermabile}>
+            {dizioneConferma}
           </Button>
         </DialogActions>
       </Dialog>
