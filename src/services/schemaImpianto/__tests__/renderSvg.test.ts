@@ -15,12 +15,13 @@ import { renderSvg, righeLista, righeLegenda, posizioneAncora, varchiDelMuro } f
 import { AVVICINAMENTO, raccordoOrtogonale } from '../tratti'
 import { dimensioniDi, simboloDi } from '../symbols'
 import type { Tarature } from '../libreria'
-import type { SchemaNodo, SchemaNodoPosizionato, SchemaSegnoTubo } from '../types'
+import type { SchemaLayout, SchemaNodo, SchemaNodoPosizionato, SchemaSegnoTubo } from '../types'
 import { SVG_RIFERIMENTO_SENZA_TESTI } from './fixtures/svgRiferimentoSenzaTesti'
 import { SVG_RIFERIMENTO_CON_TEE } from './fixtures/svgRiferimentoConTee'
 import { SVG_RIFERIMENTO_CON_MURO } from './fixtures/svgRiferimentoConMuro'
 
-function svgMinimo(noteTubazioni?: string[]) {
+/** Il layout su cui `svgMinimo` e i suoi fratelli lavorano: un compressore, un serbatoio. */
+function layoutMinimo() {
   const scheda = makeScheda({
     compressori: [makeCompressore({ ha_disoleatore: false })],
     disoleatori: [],
@@ -30,10 +31,11 @@ function svgMinimo(noteTubazioni?: string[]) {
     filtri: [],
     dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
   })
-  const layout = layoutSchema(
-    buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
-  )
-  return renderSvg(layout, {}, { noteTubazioni })
+  return layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } }))
+}
+
+function svgMinimo(noteTubazioni?: string[]) {
+  return renderSvg(layoutMinimo(), {}, { noteTubazioni })
 }
 
 /**
@@ -57,6 +59,113 @@ function layoutConMuro() {
   )
   return { ...layout, muro: calcolaMuro(layout.nodi) }
 }
+
+describe('la fascia sotto il disegno', () => {
+  /**
+   * Il rettangolo di intestazione della tabella: quello che precede la sua scritta.
+   *
+   * Si ferma al `/>` del rect e ammette il segno meno. Senza queste due cautele, su un'ascissa
+   * negativa la ricerca scivolava sul `<text>` successivo e restituiva la SUA `x`, facendo passare
+   * il test proprio nel caso che deve scoprire.
+   */
+  function intestazione(svg: string): { x: number; larghezza: number } {
+    const i = svg.indexOf('LISTA APPARECCHIATURE')
+    const inizio = svg.lastIndexOf('<rect', i)
+    const rect = svg.slice(inizio, svg.indexOf('/>', inizio))
+    return {
+      x: Number(/ x="(-?[\d.]+)"/.exec(rect)![1]),
+      larghezza: Number(/ width="(-?[\d.]+)"/.exec(rect)![1]),
+    }
+  }
+
+  /**
+   * Il terminale utenze NON serve allo scopo: `righeLista` lo esclude dalla tabella di proposito
+   * (occuperebbe una riga che non dice nulla). Si allunga l'etichetta del compressore, che una
+   * riga ce l'ha.
+   */
+  function svgConEtichettaLunga() {
+    const layout = layoutMinimo()
+    return renderSvg({
+      ...layout,
+      nodi: layout.nodi.map((n) =>
+        n.tipo === 'compressore'
+          ? { ...n, etichetta: 'Compressore ATLAS COPCO Mod. GA 90 VSD+ FF con essiccatore integrato' }
+          : n
+      ),
+    })
+  }
+
+  function svgSpostatoADestra(dx: number) {
+    const layout = layoutMinimo()
+    return renderSvg({ ...layout, nodi: layout.nodi.map((n) => ({ ...n, x: n.x + dx })) })
+  }
+
+  /**
+   * Un disegno DAVVERO stretto, appoggiato all'origine: un'apparecchiatura sola. Traslare il
+   * disegno completo non basta — è più largo della tabella, e il blocco centrato non sborda mai:
+   * verificato per mutazione, il riporto al margine si poteva togliere senza far cadere nulla.
+   */
+  function svgStrettoASinistra() {
+    const layout = layoutMinimo()
+    const solo = layout.nodi.find((n) => n.tipo === 'compressore')!
+    return renderSvg({ ...layout, nodi: [{ ...solo, x: 0 }], archi: [] })
+  }
+
+  it('non è più larga quanto tutto il foglio', () => {
+    const svg = svgMinimo()
+    const foglio = Number(/<svg[^>]*width="([\d.]+)"/.exec(svg)![1])
+    expect(intestazione(svg).larghezza).toBeLessThan(foglio - 80)
+  })
+
+  // Il minimo è l'intestazione in corpo 20, più grande delle righe. Sulle etichette vere la
+  // colonna delle descrizioni è già più larga e il minimo non entra mai in gioco: serve un elenco
+  // davvero corto perché il test discrimini, ed è stato verificato per mutazione che su
+  // `svgMinimo` non lo faceva.
+  it('non scende sotto la larghezza dell’intestazione, su un elenco corto', () => {
+    const vuoto: SchemaLayout = { nodi: [], archi: [], muro: null, testi: [] }
+    const minimo = 'LISTA APPARECCHIATURE'.length * 20 * 0.5
+
+    expect(intestazione(renderSvg(vuoto)).larghezza).toBeGreaterThanOrEqual(minimo)
+  })
+
+  it('si allarga quando una descrizione è lunga', () => {
+    expect(intestazione(svgConEtichettaLunga()).larghezza).toBeGreaterThan(
+      intestazione(svgMinimo()).larghezza
+    )
+  })
+
+  // Confronto prima/dopo, non un valore assoluto: un test che si aspettasse una coordinata fissa
+  // tornerebbe verde anche se la centratura sparisse e il numero coincidesse per caso.
+  it('la tabella segue il disegno quando il disegno si sposta a destra', () => {
+    const fermo = intestazione(svgMinimo()).x
+    const spostato = intestazione(svgSpostatoADestra(400)).x
+    expect(spostato - fermo).toBeCloseTo(400, 5)
+  })
+
+  // Il disegno va spostato, e non basta `svgMinimo`: il layout automatico comincia esattamente a
+  // MARGINE, e lì il centro del disegno coincide per costruzione con quello del foglio — un test
+  // su `svgMinimo` resterebbe verde anche rimettendo la nota al centro del FOGLIO, come è stato
+  // verificato per mutazione. Con il disegno traslato i due centri divergono, e il test discrimina.
+  it('nota e tabella condividono lo stesso centro, quello del disegno', () => {
+    const layout = layoutMinimo()
+    const svg = renderSvg(
+      { ...layout, nodi: layout.nodi.map((n) => ({ ...n, x: n.x + 400 })) },
+      {},
+      { noteTubazioni: ['Collegamenti effettuati con tubazioni da Ø15 a Ø25mm'] }
+    )
+    const tabella = intestazione(svg)
+    // Il testo della nota è composto centrato: la sua `x` È il centro del riquadro.
+    const centroNota = Number(/<text x="([\d.]+)"[^>]*>Collegamenti effettuati/.exec(svg)![1])
+    const centroFoglio = Number(/<svg[^>]*width="([\d.]+)"/.exec(svg)![1]) / 2
+
+    expect(centroNota).toBeCloseTo(tabella.x + tabella.larghezza / 2, 5)
+    expect(centroNota).not.toBeCloseTo(centroFoglio, 0)
+  })
+
+  it('un blocco che sborda a sinistra si riporta dentro il margine', () => {
+    expect(intestazione(svgStrettoASinistra()).x).toBeGreaterThanOrEqual(40)
+  })
+})
 
 describe('renderSvg', () => {
   it('produce un SVG autonomo e ben formato', () => {
@@ -849,8 +958,10 @@ describe('legenda dei simboli', () => {
     const righeTotali = righeLista(layout).length + legenda.length
     expect(legenda.length).toBeGreaterThan(0)
 
-    // Righe della tabella: rettangoli a filo del margine sinistro, alti quanto una riga.
-    const quote = [...svg.matchAll(/<rect x="40" y="([\d.]+)" width="[\d.]+" height="34"/g)].map((m) =>
+    // Righe della tabella: rettangoli alti quanto una riga. L'ascissa non è più il margine fisso
+    // — dal 17-08-2026 la tabella si stringe al contenuto e si centra sul disegno — quindi si
+    // riconoscono dall'altezza, che è ciò che le distingue davvero.
+    const quote = [...svg.matchAll(/<rect x="[\d.]+" y="([\d.]+)" width="[\d.]+" height="34"/g)].map((m) =>
       Number(m[1])
     )
     // Intestazione più una riga per voce, legenda compresa.

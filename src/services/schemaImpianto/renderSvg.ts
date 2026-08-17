@@ -5,7 +5,7 @@
  * Il disegno riproduce l'impaginazione delle relazioni storiche: schema in alto, nota sui
  * diametri delle tubazioni, tabella "Lista Apparecchiature" in basso.
  */
-import { corpoNodo, dimensioniLayout, quoteInstradamento } from './layout'
+import { corpoNodo, dimensioniLayout, estensioneOrizzontale, quoteInstradamento } from './layout'
 import type { Tarature } from './libreria'
 import {
   ancoraDi,
@@ -48,6 +48,11 @@ export type { Punto }
 const MARGINE = 40
 const RIGA_TABELLA = 34
 const COLONNA_CODICE = 130
+/** Aria fra il bordo della cella e la descrizione, a sinistra e a destra. */
+const RIENTRO_DESCRIZIONE = 12
+/** Larghezza del riquadro della nota: invariata da sempre, cambia solo il centro su cui si posa. */
+const LARGHEZZA_NOTA = 680
+const INTESTAZIONE_TABELLA = 'LISTA APPARECCHIATURE'
 const ALTEZZA_NOTA = 90
 
 /**
@@ -264,14 +269,35 @@ export function righeLegenda(layout: SchemaLayout): RigaTabella[] {
   return righe
 }
 
-function renderTabella(righe: RigaTabella[], larghezza: number, yTop: number): string {
-  const x = MARGINE
-  const w = larghezza - MARGINE * 2
+/**
+ * Larghezza che la tabella richiede: la colonna dei codici, fissa, più la descrizione più lunga.
+ * Fino al 17-08-2026 la tabella occupava tutto il foglio, e su un disegno largo le righe restavano
+ * quasi vuote.
+ *
+ * Il minimo è l'intestazione, in corpo 20 e quindi più larga delle righe: senza, su un elenco
+ * corto sarebbe lei a sporgere. La stima del testo è quella già in uso nel modulo
+ * (`TESTO_LIBERO.larghezzaCarattere`), non tipografia vera: serve a dimensionare un riquadro, e
+ * misurare i glifi richiederebbe un DOM che questa funzione non ha.
+ */
+function larghezzaRichiestaTabella(righe: RigaTabella[]): number {
+  const piuLunga = Math.max(0, ...righe.map((r) => r.descrizione.length))
+  const descrizione = RIENTRO_DESCRIZIONE * 2 + piuLunga * 16 * TESTO_LIBERO.larghezzaCarattere
+  const intestazione =
+    INTESTAZIONE_TABELLA.length * 20 * TESTO_LIBERO.larghezzaCarattere + RIENTRO_DESCRIZIONE * 2
+  return Math.max(COLONNA_CODICE + descrizione, intestazione)
+}
+
+/** Blocco largo `larghezza` centrato su `centro`, riportato dentro il margine se sborda a sinistra. */
+function bloccoCentrato(centro: number, larghezza: number): { x: number; larghezza: number } {
+  return { x: Math.max(MARGINE, centro - larghezza / 2), larghezza }
+}
+
+function renderTabella(righe: RigaTabella[], x: number, w: number, yTop: number): string {
   const parti: string[] = []
 
   parti.push(
     `<rect x="${x}" y="${yTop}" width="${w}" height="${RIGA_TABELLA}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`,
-    `<text x="${x + w / 2}" y="${yTop + RIGA_TABELLA / 2}" font-family="${FONT}" font-size="20" text-anchor="middle" dominant-baseline="central" fill="#000">LISTA APPARECCHIATURE</text>`
+    `<text x="${x + w / 2}" y="${yTop + RIGA_TABELLA / 2}" font-family="${FONT}" font-size="20" text-anchor="middle" dominant-baseline="central" fill="#000">${INTESTAZIONE_TABELLA}</text>`
   )
 
   righe.forEach((riga, i) => {
@@ -288,7 +314,7 @@ function renderTabella(righe: RigaTabella[], larghezza: number, yTop: number): s
       `<rect x="${x}" y="${y}" width="${w}" height="${RIGA_TABELLA}" fill="none" stroke="#000" stroke-width="1" />`,
       `<line x1="${x + COLONNA_CODICE}" y1="${y}" x2="${x + COLONNA_CODICE}" y2="${y + RIGA_TABELLA}" stroke="#000" stroke-width="1" />`,
       sinistra,
-      `<text x="${x + COLONNA_CODICE + 12}" y="${y + RIGA_TABELLA / 2}" font-family="${FONT}" font-size="16" dominant-baseline="central" fill="#000">${escapeXml(riga.descrizione)}</text>`
+      `<text x="${x + COLONNA_CODICE + RIENTRO_DESCRIZIONE}" y="${y + RIGA_TABELLA / 2}" font-family="${FONT}" font-size="16" dominant-baseline="central" fill="#000">${escapeXml(riga.descrizione)}</text>`
     )
   })
 
@@ -304,15 +330,14 @@ function renderTestiLiberi(testi: SchemaTestoLibero[]): string {
   return testi.map((t) => testoMultiRiga(t.x, t.y, t.contenuto, TESTO_LIBERO.dimensione, 'start')).join('')
 }
 
-function renderNota(note: string[], larghezza: number, yTop: number): string {
+function renderNota(note: string[], centro: number, yTop: number): string {
   if (note.length === 0) return ''
-  const w = Math.min(larghezza - MARGINE * 2, 680)
-  const x = (larghezza - w) / 2
+  const { x, larghezza: w } = bloccoCentrato(centro, LARGHEZZA_NOTA)
   const h = 24 * note.length + 24
   const righe = note
     .map(
       (nota, i) =>
-        `<text x="${larghezza / 2}" y="${yTop + 24 + i * 24}" font-family="${FONT}" font-size="18" text-anchor="middle" dominant-baseline="central" fill="#000">${escapeXml(nota)}</text>`
+        `<text x="${x + w / 2}" y="${yTop + 24 + i * 24}" font-family="${FONT}" font-size="18" text-anchor="middle" dominant-baseline="central" fill="#000">${escapeXml(nota)}</text>`
     )
     .join('')
   return `<rect x="${x}" y="${yTop}" width="${w}" height="${h}" fill="none" stroke="#000" stroke-width="${TRATTO}" />${righe}`
@@ -339,8 +364,18 @@ export function renderSvg(layout: SchemaLayout, libreria: Tarature = {}, options
 
   const archi = renderArchi(layout, quote, libreria)
 
-  const larghezzaTabella = COLONNA_CODICE + 620 + MARGINE * 2
-  const larghezzaTotale = Math.max(dimensioniDisegno.larghezza, larghezzaTabella)
+  // Tabella e nota si centrano sul disegno vero, non sul foglio: è ciò che il committente ha
+  // chiesto il 17-08-2026, e vale per entrambe — così le due fasce restano incolonnate fra loro e
+  // con ciò che sta sopra. Il foglio si allarga a destra quanto serve a contenerle.
+  const estensione = estensioneOrizzontale(layout.nodi, layout.testi ?? [], layout.muro, libreria)
+  const centro = (estensione.sinistra + estensione.destra) / 2
+  const tabella = bloccoCentrato(centro, larghezzaRichiestaTabella(righe))
+  const nota = bloccoCentrato(centro, LARGHEZZA_NOTA)
+  const larghezzaTotale = Math.max(
+    dimensioniDisegno.larghezza,
+    tabella.x + tabella.larghezza + MARGINE,
+    ...(note.length > 0 ? [nota.x + nota.larghezza + MARGINE] : [])
+  )
 
   const nodi = layout.nodi
     .map((nodo) => `<g transform="translate(${nodo.x} ${nodo.y})">${simboloDi(nodo, libreria)}</g>`)
@@ -356,8 +391,8 @@ export function renderSvg(layout: SchemaLayout, libreria: Tarature = {}, options
     archi.svg,
     nodi,
     renderTestiLiberi(layout.testi ?? []),
-    renderNota(note, larghezzaTotale, yNota),
-    renderTabella(righe, larghezzaTotale, yTabella),
+    renderNota(note, centro, yNota),
+    renderTabella(righe, tabella.x, tabella.larghezza, yTabella),
     '</svg>',
   ].join('')
 }
