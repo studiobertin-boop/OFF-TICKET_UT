@@ -27,6 +27,14 @@ export interface MuroSeparazioneProps {
    *  in cronologia una volta sola invece che a ogni pixel. */
   onSposta: (x: number, concluso: boolean) => void
   onSeleziona: () => void
+  /**
+   * Modo taratura acceso: il muro resta disegnato ma non si afferra più. La sua maniglia è un
+   * gestore PROPRIO di questo componente, che `nodesDraggable`/`elementsSelectable={false}` su
+   * `<ReactFlow>` non toccano affatto — e trascinarlo scriverebbe nella cronologia
+   * dell'IMPIANTO, che in modo taratura non ha via di ritorno («Annulla» è disabilitato, Ctrl+Z
+   * appartiene alla taratura).
+   */
+  bloccato?: boolean
 }
 
 /** Contorno di selezione: quanto sporge oltre l'ingombro vero disegnato da `simboloMuro`. */
@@ -46,7 +54,7 @@ const MARGINE_PRESA = 15
  * maniglia trasparente, che intercetta il gesto ovunque sull'ingombro e non solo sui tratti
  * sottili del muro disegnato.
  */
-export function MuroSeparazione({ muro, varchi, selezionato, onSposta, onSeleziona }: MuroSeparazioneProps) {
+export function MuroSeparazione({ muro, varchi, selezionato, onSposta, onSeleziona, bloccato }: MuroSeparazioneProps) {
   const { screenToFlowPosition } = useReactFlow()
   const { suInizio, suMovimento, suFine, suAnnullamento } = useGestoPuntatore<SVGRectElement, number>()
   // Scostamento fra il punto afferrato e l'ascissa del muro, congelato al pointerdown: senza,
@@ -124,7 +132,10 @@ export function MuroSeparazione({ muro, varchi, selezionato, onSposta, onSelezio
         width={SPESSORE_MURO + MARGINE_PRESA * 2}
         height={muro.yMax - muro.yMin}
         fill="transparent"
-        style={{ cursor: 'col-resize', pointerEvents: 'all' }}
+        // Inerte in modo taratura: i gestori restano montati, il puntatore non li raggiunge
+        // più — stessa scelta degli handle del nodo tarato (SchemaNodeSymbol.tsx) e delle
+        // maniglie della tubazione (SchemaEdgeTubazione.tsx).
+        style={{ cursor: bloccato ? 'default' : 'col-resize', pointerEvents: bloccato ? 'none' : 'all' }}
         onPointerDown={suPointerDown}
         onPointerMove={suPointerMove}
         onPointerUp={suPointerUp}

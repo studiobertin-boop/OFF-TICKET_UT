@@ -58,15 +58,20 @@ import { capoValido, connessioneAmmessa, stileIniziale } from '@/services/schema
 import type { Asse, Bordo } from '@/services/schemaImpianto/allineamento'
 import { PASSO_GRIGLIA, allineaAllaGriglia } from '@/services/schemaImpianto/griglia'
 import { ingombroTesto, quoteInstradamento } from '@/services/schemaImpianto/layout'
+import { TARATURA_NEUTRA, risolviLibreria, taraturaDi, type Tarature, type TaraturaSimbolo } from '@/services/schemaImpianto/libreria'
 import { renderSvg, varchiDelMuro } from '@/services/schemaImpianto/renderSvg'
-import { dimensioniDi } from '@/services/schemaImpianto/symbols'
+import { ancoreDi, dimensioniDi } from '@/services/schemaImpianto/symbols'
 import type {
+  ChiaveSimbolo,
   SchemaArcoStile,
   SchemaLayout,
   SchemaNodoPosizionato,
   SchemaNodoTipo,
   SchemaTestoLibero,
+  SchemaTipoAggancio,
 } from '@/services/schemaImpianto/types'
+import { chiaveSimbolo } from '@/services/schemaImpianto/types'
+import { BarraTaratura, DialogoUscitaTaratura, ManiglieTaratura } from './BarraTaratura'
 import { DivisorioAnteprima } from './DivisorioAnteprima'
 import { ManigliaRidimensiona } from './ManigliaRidimensiona'
 import { MuroSeparazione } from './MuroSeparazione'
@@ -83,6 +88,7 @@ import { useInserimentoTee } from './useInserimentoTee'
 import { ascissaProposta, useMuro } from './useMuro'
 import { useSchemaHistory } from './useSchemaHistory'
 import { useSegniTubo } from './useSegniTubo'
+import { motivoNonTarabile, useTaratura } from './useTaratura'
 import { useTestiLiberi } from './useTestiLiberi'
 import { useTrascinamentoTratto } from './useTrascinamentoTratto'
 
@@ -167,6 +173,54 @@ export interface SchemaEditorProps {
   layout: SchemaLayout
   /** Le stesse note che finiranno sotto il disegno: servono a rendere l'anteprima fedele. */
   noteTubazioni?: string[]
+  /**
+   * La libreria risolta di questa pratica (Task 5/9). Arriva come prop, non è l'editor a
+   * risolverla: chi monta il dialog (`SchemaImpiantoSection`) ha già la sola `risolviLibreria`
+   * della catena "generazione del documento" — se l'editor ne costruisse una propria, ci
+   * sarebbero due punti di risoluzione per la stessa pratica, e un domani (Task 9, tarature di
+   * pratica lette dal layout salvato che possiede la Section) potrebbero divergere in silenzio.
+   * Default `{}`: nessun chiamante di produzione la passa vuota per scelta, solo perché oggi non
+   * c'è altro da passare.
+   */
+  libreria?: Tarature
+  /**
+   * Il solo strato PERMANENTE della libreria (tabella `schema_simboli`), senza quello di pratica
+   * che `libreria` qui sopra porta già fuso. Serve a una domanda sola, e non se ne inventi altre:
+   * «se questa taratura di pratica sparisse, con quali ancore resterebbe il simbolo?» — la
+   * risposta è lo strato permanente, o il registro di fabbrica se quello non ha una voce per la
+   * chiave. È ciò che `tornaADefault` deve sapere PRIMA di cancellare, per non far sparire
+   * un'ancora a cui è attaccata una tubazione (vedi lì).
+   *
+   * Non ricavabile da `libreria`: la fusione (`risolviLibreria`) è per intero e senza memoria di
+   * quale strato ha vinto, quindi da fuori non si può più risalire a cosa c'era sotto.
+   */
+  libreriaPermanente?: Tarature
+  /**
+   * Vero per l'amministratore: decide se «rendi permanenti» compare nel dialogo a tre vie del
+   * modo taratura, e se la spunta «cancella anche la taratura permanente» compare accanto a
+   * «torna a default» — tocca ogni pratica dell'applicazione, comprese quelle già consegnate
+   * (vedi `tarature.ts`). Passata come prop e non letta qui con `useAuth()`: quell'hook importa
+   * `services/supabase.ts`, che senza le variabili d'ambiente lancia al solo caricamento del
+   * modulo — e `codiceLibero`, funzione pura di questo stesso file, ha un test che lo importa da
+   * solo, senza montare né un provider né un ambiente Supabase.
+   */
+  isAdmin: boolean
+  /**
+   * Registra l'esito del modo taratura (Task 12) sulla taratura di PRATICA: `taratura: null`
+   * per «torna a default» (nessuna riga per questa chiave), altrimenti il valore scelto con
+   * «rendi permanenti» (per non lasciarlo duplicato qui, vedi `rendiPermanenti` più sotto) o
+   * «usa solo questa volta» (che invece lo tiene). Chi monta il dialog (`SchemaImpiantoSection`)
+   * la fonde nella propria taratura di pratica e la fa arrivare fino a
+   * `layoutDaPersistere`/`serializzaLayout` (persistenza.ts) al salvataggio — il filo lasciato
+   * aperto dal Task 10.
+   */
+  onTaraturaPratica: (chiave: ChiaveSimbolo, taratura: TaraturaSimbolo | null) => void
+  /**
+   * Scrive (o cancella, con `taratura: null`) la taratura PERMANENTE — stessa firma di
+   * `scriviTaraturaPermanente`, tarature.ts, passata qui come prop per la stessa ragione di
+   * `isAdmin`: quel modulo importa anch'esso `services/supabase.ts`.
+   */
+  onScriviTaraturaPermanente: (chiave: ChiaveSimbolo, taratura: TaraturaSimbolo | null) => Promise<void>
   onConferma: (layout: SchemaLayout) => void
   onAnnulla: () => void
   /**
@@ -199,9 +253,9 @@ function nodiDi(s: { nodes: Node[] }): SchemaNodoPosizionato[] {
  * quota fissa una nuova apparecchiatura o annotazione poteva nascere sopra un terminale alto,
  * come già corretto per `layout.ts` e `persistenza.ts` (Task 4).
  */
-function piedeDelDisegno(nodes: Node[], testi: SchemaTestoLibero[]): number {
+function piedeDelDisegno(nodes: Node[], testi: SchemaTestoLibero[], libreria: Tarature = {}): number {
   const quote = [
-    ...nodes.map((n) => n.position.y + dimensioniDi((n.data as SchemaNodeData).nodo).altezza),
+    ...nodes.map((n) => n.position.y + dimensioniDi((n.data as SchemaNodeData).nodo, libreria).altezza),
     ...testi.map((t) => ingombroTesto(t).basso),
   ]
   return quote.length === 0 ? 0 : Math.max(...quote)
@@ -222,11 +276,37 @@ export function codiceLibero(prefisso: string, nodes: Node[]): string {
   }
 }
 
-function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, preferenze, onCambiaPreferenze }: SchemaEditorProps) {
+/**
+ * Default di `SchemaEditorProps.libreria` quando il chiamante la omette. Costante di modulo, non
+ * `{}` inline nella destrutturazione: un `{}` lì produrrebbe un oggetto nuovo a ogni render, e
+ * gli `useMemo` che tengono `libreria` fra le dipendenze (`iniziale`, `layoutCorrente`,
+ * `varchiMuro`, `quote`, `capi`, `anteprima`) la vedrebbero cambiata a ogni giro — invalidandosi
+ * sempre, anche a schema fermo. Oggi non morde perché l'unico chiamante di produzione
+ * (`SchemaImpiantoSection`) passa un valore già memoizzato, ma resta una trappola per il
+ * prossimo che non lo facesse.
+ */
+const LIBRERIA_VUOTA: Tarature = {}
+
+function SchemaEditorInterno({
+  layout,
+  noteTubazioni,
+  libreria = LIBRERIA_VUOTA,
+  libreriaPermanente = LIBRERIA_VUOTA,
+  isAdmin,
+  onTaraturaPratica,
+  onScriviTaraturaPermanente,
+  onConferma,
+  onAnnulla,
+  preferenze,
+  onCambiaPreferenze,
+}: SchemaEditorProps) {
   // `layout.muro?.x ?? null`, non `layout.muro`: lo stato porta la sola ascissa (vedi il commento
   // su `StatoEditor.muroX`), e senza questa lettura una pratica riaperta perderebbe in silenzio
   // il muro salvato — tornerebbe sempre a `null`, come prima che questo stato esistesse.
-  const iniziale = useMemo(() => ({ ...layoutAFlow(layout), muroX: layout.muro?.x ?? null }), [layout])
+  const iniziale = useMemo(
+    () => ({ ...layoutAFlow(layout, libreria), muroX: layout.muro?.x ?? null }),
+    [layout, libreria]
+  )
   const storia = useSchemaHistory<StatoEditor>(iniziale)
   const { stato, applica, aggiornaSenzaCronologia, annulla, puoAnnullare } = storia
   const [selezione, setSelezione] = useState<{ nodes: Node[]; edges: Edge[] }>({ nodes: [], edges: [] })
@@ -236,6 +316,27 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
   // passo di Ctrl+Z.
   const [selezioneLibera, setSelezioneLibera] = useState<SelezioneLibera>(null)
   const [anteprimaAperta, setAnteprimaAperta] = useState(true)
+
+  // Il modo taratura (Task 12): id e chiave del simbolo congelati all'ENTRATA, non ricavati a
+  // ogni render dalla selezione corrente — la selezione di react-flow può cambiare sotto (un
+  // clic altrove, vedi `elementsSelectable={!modoTaratura}` più sotto, che comunque lo impedisce)
+  // ma il bersaglio della taratura in corso non deve inseguirla: si esce sempre dal dialogo a tre
+  // vie, mai perché la selezione si è spostata da sola.
+  const [modoTaratura, setModoTaratura] = useState(false)
+  const [nodoTaraturaId, setNodoTaraturaId] = useState<string | null>(null)
+  const [chiaveTaratura, setChiaveTaratura] = useState<ChiaveSimbolo | null>(null)
+  const [ancoraSelezionata, setAncoraSelezionata] = useState<string | null>(null)
+  const [dialogoUscitaAperto, setDialogoUscitaAperto] = useState(false)
+  // Vero mentre `rendiPermanenti`/`tornaADefault` (con la spunta admin) attendono la scrittura a
+  // database: il dialogo resta aperto e i suoi pulsanti disabilitati, così un secondo clic non
+  // parte in mezzo al primo (vedi DialogoUscitaTaratura, BarraTaratura.tsx).
+  const [salvandoTaratura, setSalvandoTaratura] = useState(false)
+  // Cronologia PROPRIA della taratura, separata da quella dell'impianto (vedi la testata di
+  // useTaratura.ts): un `annulla()` qui dentro non deve disfare uno spostamento di
+  // apparecchiatura fatto nel frattempo, e viceversa. Seminata a `TARATURA_NEUTRA` e RI-seminata
+  // a ogni ingresso nel modo (`reimposta`, in `attivaTaratura` più sotto): niente `key`/remount,
+  // `useSchemaHistory` espone già il gesto giusto per questo.
+  const taraturaHook = useTaratura(TARATURA_NEUTRA)
 
   // Il dialog di scrittura, uno solo per due bersagli.
   //
@@ -252,12 +353,24 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
     valore: string
   } | null>(null)
 
+  // La libreria "vista" da tutto il resto dell'editor mentre il modo taratura è acceso: la
+  // stessa `libreria` (la prop — resta invariata: il risultato definitivo lo decide il dialogo a
+  // tre vie, non un render intermedio) con la sola voce del simbolo in lavorazione sovrascritta
+  // dalla taratura ancora in corso. Senza, l'anteprima, le quote e i capi degli archi
+  // disegnerebbero una geometria diversa da quella che i pallini mostrano sulla tela nello
+  // stesso istante — la stessa divergenza tela/documento che questo Blocco ha chiuso altrove,
+  // qui riaperta dal modo taratura se non se ne tenesse conto.
+  const libreriaEffettiva = useMemo(() => {
+    if (!modoTaratura || !chiaveTaratura) return libreria
+    return risolviLibreria(libreria, { [chiaveTaratura]: taraturaHook.taratura })
+  }, [modoTaratura, chiaveTaratura, taraturaHook.taratura, libreria])
+
   // Il modello dello schema come sta adesso sulla tela. Ricostruirlo qui una volta sola, invece
   // che dentro ognuno dei calcoli qui sotto, è quel che tiene quote, capi e anteprima sullo
   // STESSO layout: sono i tre ingressi della geometria condivisa con il documento.
   const layoutCorrente = useMemo(
-    () => flowALayout(stato.nodes, stato.edges, stato.testi, stato.muroX),
-    [stato.nodes, stato.edges, stato.testi, stato.muroX]
+    () => flowALayout(stato.nodes, stato.edges, stato.testi, stato.muroX, libreriaEffettiva),
+    [stato.nodes, stato.edges, stato.testi, stato.muroX, libreriaEffettiva]
   )
 
   // Quote a cui le tubazioni attraversano il muro: la STESSA `renderArchi` che disegna il
@@ -265,8 +378,8 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
   // varco si apre sulla tela dove si apre nel .docx. Vuoto senza muro: `varchiDelMuro` rifarebbe
   // comunque tutto l'instradamento per un risultato che poi non si disegna.
   const varchiMuro = useMemo(
-    () => (layoutCorrente.muro ? varchiDelMuro(layoutCorrente) : []),
-    [layoutCorrente]
+    () => (layoutCorrente.muro ? varchiDelMuro(layoutCorrente, libreriaEffettiva) : []),
+    [layoutCorrente, libreriaEffettiva]
   )
 
   // Quote di instradamento (collettore della mandata flessibile, corsia delle condense):
@@ -276,13 +389,13 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
   // rimetterebbe in piedi la divergenza fra tela e documento che questo blocco ha chiuso.
   // Ricalcolarle a ogni spostamento è voluto: le linee si riassestano mentre si trascina un
   // nodo, esattamente come farà il documento.
-  const quote = useMemo(() => quoteInstradamento(layoutCorrente), [layoutCorrente])
+  const quote = useMemo(() => quoteInstradamento(layoutCorrente, libreriaEffettiva), [layoutCorrente, libreriaEffettiva])
 
   // Capi di ogni arco, dalle ancore dei nodi e con la stessa `posizioneAncora` del documento
   // (vedi `capiDegliArchi`). Viaggiano nei dati dell'arco per lo stesso motivo delle quote: il
   // componente dell'arco non ha una vista sui nodi, e quel che react-flow gli passerebbe da sé
   // (`sourceX`/`sourceY`) è il bordo dell'handle, 5 unità fuori dal centro dell'ancora.
-  const capi = useMemo(() => capiDegliArchi(layoutCorrente), [layoutCorrente])
+  const capi = useMemo(() => capiDegliArchi(layoutCorrente, libreriaEffettiva), [layoutCorrente, libreriaEffettiva])
 
   // La tela di react-flow mostra nodi e archi — terminale utenze compreso, che dal 12-08-2026
   // è un nodo come gli altri e si ritocca qui — più le annotazioni libere, che nodi non sono e
@@ -293,9 +406,9 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
   // .docx — perché disegna anche ciò che la tela non mostra affatto.
   const anteprima = useMemo(() => {
     if (!anteprimaAperta) return null
-    const svg = renderSvg(layoutCorrente, { noteTubazioni })
+    const svg = renderSvg(layoutCorrente, libreriaEffettiva, { noteTubazioni })
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
-  }, [anteprimaAperta, layoutCorrente, noteTubazioni])
+  }, [anteprimaAperta, layoutCorrente, libreriaEffettiva, noteTubazioni])
 
   // Se il trascinamento in corso ha già registrato in cronologia lo stato da cui è partito:
   // senza, l'evento conclusivo (`dragging: false`) sarebbe quello che chiama `applica`, ma a
@@ -378,11 +491,15 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
     iniziaTrascinamento: iniziaTrascinamentoTee,
     seguiTrascinamento: seguiTrascinamentoTee,
     concludiTrascinamento: concludiTrascinamentoTee,
-  } = useInserimentoTee(stato, applica, aggiornaSenzaCronologia, quote, capi)
+  } = useInserimentoTee(stato, applica, aggiornaSenzaCronologia, quote, capi, libreriaEffettiva)
 
+  // `modoTaratura` viaggia fino a ogni arco come `bloccato`: i gesti che `SchemaEdgeTubazione`
+  // monta da sé (l'area di presa del tratto, le maniglie dei gomiti, quelle dei segni) non li
+  // spegne `nodesDraggable`/`elementsSelectable={false}` su `<ReactFlow>`, che valgono solo per
+  // i gesti gestiti da react-flow. Vedi `SchemaEdgeData.bloccato`.
   const edgesConGomiti = useMemo(
-    () => fondiDatiArchi(edgesConGomitiBase, edgesConSegni, edgesConTrascinamento, quote, capi, arcoEvidenziato),
-    [edgesConGomitiBase, edgesConSegni, edgesConTrascinamento, quote, capi, arcoEvidenziato]
+    () => fondiDatiArchi(edgesConGomitiBase, edgesConSegni, edgesConTrascinamento, quote, capi, arcoEvidenziato, modoTaratura),
+    [edgesConGomitiBase, edgesConSegni, edgesConTrascinamento, quote, capi, arcoEvidenziato, modoTaratura]
   )
 
   // Guide di allineamento durante il trascinamento: stato locale, non cronologia (vedi
@@ -424,9 +541,9 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
       if (!partenza || !arrivo) return false
       const nodoDa = (partenza.data as SchemaNodeData).nodo
       const nodoA = (arrivo.data as SchemaNodeData).nodo
-      return connessioneAmmessa(nodoDa, c.sourceHandle ?? '', nodoA, c.targetHandle ?? '')
+      return connessioneAmmessa(nodoDa, c.sourceHandle ?? '', nodoA, c.targetHandle ?? '', libreriaEffettiva)
     },
-    [stato.nodes]
+    [stato.nodes, libreriaEffettiva]
   )
 
   const onConnect = useCallback(
@@ -443,7 +560,8 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
                 (partenza.data as SchemaNodeData).nodo,
                 connessione.sourceHandle ?? '',
                 (arrivo.data as SchemaNodeData).nodo,
-                connessione.targetHandle ?? ''
+                connessione.targetHandle ?? '',
+                libreriaEffettiva
               )
             : 'standard'
         return {
@@ -460,7 +578,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
         }
       })
     },
-    [applica]
+    [applica, libreriaEffettiva]
   )
 
   // Riaggancio di una tubazione già disegnata a un altro attacco: senza, per spostare un
@@ -483,7 +601,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
         const id = codiceLibero(voce.prefisso, s.nodes)
         // Sotto tutto il resto: un punto fisso finirebbe sopra un'apparecchiatura già
         // disegnata, nascondendola proprio mentre si lavora.
-        const posizione = { x: 40, y: allineaAllaGriglia(piedeDelDisegno(s.nodes, s.testi) + 40) }
+        const posizione = { x: 40, y: allineaAllaGriglia(piedeDelDisegno(s.nodes, s.testi, libreriaEffettiva) + 40) }
         const nodo = {
           id,
           tipo: voce.tipo,
@@ -498,12 +616,12 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
           ...s,
           nodes: [
             ...s.nodes,
-            { id, type: TIPO_NODO_FLOW, position: posizione, data: { nodo } satisfies SchemaNodeData },
+            { id, type: TIPO_NODO_FLOW, position: posizione, data: { nodo, libreria: libreriaEffettiva } satisfies SchemaNodeData },
           ],
         }
       })
     },
-    [applica]
+    [applica, libreriaEffettiva]
   )
 
   const cambiaStile = useCallback(
@@ -543,7 +661,8 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
         const nodoDa = (partenza.data as SchemaNodeData).nodo
         const nodoA = (arrivo.data as SchemaNodeData).nodo
         return !(
-          capoValido(nodoDa, e.sourceHandle ?? '', stile) && capoValido(nodoA, e.targetHandle ?? '', stile)
+          capoValido(nodoDa, e.sourceHandle ?? '', stile, libreriaEffettiva) &&
+          capoValido(nodoA, e.targetHandle ?? '', stile, libreriaEffettiva)
         )
       })
 
@@ -561,8 +680,265 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
         ),
       }))
     },
-    [applica, selezione.edges, stato.edges, stato.nodes]
+    [applica, libreriaEffettiva, selezione.edges, stato.edges, stato.nodes]
   )
+
+  /**
+   * `data.libreria` dei nodi insegue SEMPRE `libreriaEffettiva`: è l'unico punto che la scrive
+   * dopo la costruzione dello stato, e vale sia dentro il modo taratura (dove `libreriaEffettiva`
+   * porta la geometria in corso) sia fuori (dove è la prop `libreria`, che ora può cambiare a
+   * metà sessione — le tarature permanenti rilette e la taratura di pratica decisa dal dialogo a
+   * tre vie arrivano proprio così).
+   *
+   * `data.libreria` è la sola strada per far arrivare la libreria a `SchemaNodeSymbol` (react-flow
+   * istanzia i nodi da `nodeTypes`, senza un canale per props extra) e la leggono anche
+   * `useGomiti`/`useAllineamentoSelezione`/`useGuideAllineamento`: per questo si scrive qui e non
+   * in un contesto React parallelo che solo il nodo vedrebbe.
+   *
+   * Dipende ANCHE da `stato.nodes`, non solo da `libreriaEffettiva`: un Ctrl+Z sull'impianto dopo
+   * una taratura ripesca dallo stack nodi con la `data.libreria` di prima, e senza questo giro il
+   * simbolo tornerebbe non tarato sulla tela mentre capi, quote e anteprima restano tarati — la
+   * divergenza che questo blocco ha chiuso altrove. Il ciclo si chiude perché l'updater
+   * restituisce lo STESSO oggetto di stato quando non c'è nulla da cambiare: `stato.nodes` non
+   * cambia identità, le dipendenze qui sotto nemmeno, e l'effetto non riparte. Restituire un
+   * oggetto nuovo «uguale» — anche solo `{...s}` — basterebbe invece a farlo girare all'infinito.
+   *
+   * `aggiornaSenzaCronologia` e non `applica`: non è un gesto dell'utente ma il riflesso di uno
+   * stato che vive altrove, e non deve consumare un passo di Ctrl+Z.
+   */
+  useEffect(() => {
+    aggiornaSenzaCronologia((s) => {
+      const nodes = s.nodes.map((n) => {
+        const dati = n.data as SchemaNodeData
+        const taraturaAttiva = n.id === nodoTaraturaId
+        if (dati.libreria === libreriaEffettiva && (dati.taraturaAttiva ?? false) === taraturaAttiva) return n
+        return { ...n, data: { ...dati, libreria: libreriaEffettiva, taraturaAttiva } satisfies SchemaNodeData }
+      })
+      return nodes.every((n, i) => n === s.nodes[i]) ? s : { ...s, nodes }
+    })
+  }, [libreriaEffettiva, nodoTaraturaId, stato.nodes, aggiornaSenzaCronologia])
+
+  /**
+   * Gli id delle ancore della chiave in taratura a cui è attaccata almeno una tubazione. Non basta
+   * guardare il nodo in taratura: la taratura vale per la CHIAVE, quindi ciò che si toglie qui si
+   * toglie a tutti i simboli uguali, e un tubo appeso a uno qualunque di loro resterebbe orfano
+   * allo stesso modo. Serve a due gesti diversi — il Canc su un'ancora e «torna a default» — che
+   * possono entrambi far sparire un'ancora sotto un tubo: sta qui sopra perché il secondo è
+   * definito prima del primo.
+   */
+  const ancoreOccupate = useCallback(() => {
+    const diQuestaChiave = new Set(
+      stato.nodes.filter((n) => chiaveSimbolo((n.data as SchemaNodeData).nodo) === chiaveTaratura).map((n) => n.id)
+    )
+    const occupate = new Set<string>()
+    for (const e of stato.edges) {
+      if (e.sourceHandle && diQuestaChiave.has(e.source)) occupate.add(e.sourceHandle)
+      if (e.targetHandle && diQuestaChiave.has(e.target)) occupate.add(e.targetHandle)
+    }
+    return occupate
+  }, [stato.nodes, stato.edges, chiaveTaratura])
+
+  /**
+   * Perché il simbolo selezionato non è tarabile, `null` quando lo è (o quando la selezione non è
+   * di un solo nodo: lì il pulsante è spento per l'altra ragione, e il suo titolo lo dice già).
+   * Il modo taratura resta chiuso su `utenze` e `giunzione`, dove degraderebbe: vedi
+   * `motivoNonTarabile` (useTaratura.ts) per il perché di ciascuno.
+   */
+  const motivoTaratura =
+    selezione.nodes.length === 1
+      ? motivoNonTarabile((selezione.nodes[0].data as SchemaNodeData).nodo.tipo)
+      : null
+
+  // Entra nel modo: seminata la cronologia PROPRIA della taratura (vedi `taraturaHook`) dalla
+  // taratura corrente per quella chiave. Senza una taratura preesistente si parte dalle ancore
+  // DI FABBRICA (`ancoreDi(nodo, {})`), non da `TARATURA_NEUTRA` da sola: il suo `ancore: []` è
+  // il seme neutro per le funzioni pure di useTaratura.ts (dove "nessuna taratura" e "nessuna
+  // ancora" sono la stessa cosa, prima che ne arrivi una), ma qui il simbolo le ancore le ha
+  // già — sono quelle del registro — e partire da zero le farebbe sparire tutte finché l'utente
+  // non ne aggiunge una a mano.
+  const attivaTaratura = useCallback(() => {
+    if (selezione.nodes.length !== 1) return
+    const nodoSelezionato = selezione.nodes[0]
+    const nodo = (nodoSelezionato.data as SchemaNodeData).nodo
+    // Ripetuto qui e non lasciato al solo pulsante spento (`puoAttivare` qui sotto), per la stessa
+    // ragione per cui `rendiPermanenti` ripete il controllo su `isAdmin`: questa è la porta, e chi
+    // la chiama non deve poterla aprire per distrazione.
+    if (motivoNonTarabile(nodo.tipo)) return
+    const chiave = chiaveSimbolo(nodo)
+    const esistente = taraturaDi(libreria, chiave)
+    taraturaHook.reimposta(esistente ?? { ...TARATURA_NEUTRA, ancore: ancoreDi(nodo, {}) })
+    setNodoTaraturaId(nodoSelezionato.id)
+    setChiaveTaratura(chiave)
+    setAncoraSelezionata(null)
+    setModoTaratura(true)
+  }, [selezione.nodes, libreria, taraturaHook])
+
+  /**
+   * Chiude il modo taratura. Non scrive nulla sui nodi: la geometria finale arriva dalla prop
+   * `libreria` — che le tre vie del dialogo aggiornano ciascuna a modo suo, e che l'effetto di
+   * sincronizzazione qui sopra riversa poi su `data.libreria` di ogni nodo.
+   *
+   * Prima si scriveva qui `risolviLibreria(libreria, {chiave: finale})`, e per «torna a default»
+   * `risolviLibreria(libreria, {})` — che è `{...libreria}`: la voce da cancellare RESTAVA, e su
+   * una pratica riaperta con una taratura salvata il nodo continuava a disegnarsi tarato mentre
+   * l'anteprima tornava corretta. Non era una svista del calcolo ma della fonte: `libreria`
+   * catturata qui è ancora quella di PRIMA della decisione (`onTaraturaPratica` aggiorna lo stato
+   * del genitore, che torna giù al render successivo), quindi nessuna espressione costruita su di
+   * lei può dire il vero. La sola fonte che dice il vero è la prop quando arriva, ed è quella che
+   * ora si aspetta.
+   */
+  const chiudiTaratura = useCallback(() => {
+    setModoTaratura(false)
+    setDialogoUscitaAperto(false)
+    setNodoTaraturaId(null)
+    setChiaveTaratura(null)
+    setAncoraSelezionata(null)
+  }, [])
+
+  /**
+   * «Torna a default»: cancella sempre la taratura di QUESTA pratica; solo se l'utente è
+   * amministratore e ha spuntato la casella del dialogo, cancella anche quella permanente — la
+   * riga della tabella, non solo il suo effetto qui (CLAUDE.md: Claude applica le migrazioni,
+   * ma qui è l'amministratore a decidere riga per riga se scriverle).
+   *
+   * Prima di cancellare qualsiasi cosa, la stessa guardia del Canc su un'ancora: una taratura non
+   * AGGIUNGE ancore al registro, le SOSTITUISCE per intero (vedi `TaraturaSimbolo.ancore`), quindi
+   * tornare al default fa sparire ogni ancora che solo lei portava. Su una pratica riaperta con
+   * una taratura salvata, se un tubo è attaccato a una di quelle, questa via produceva in silenzio
+   * lo stato che il Canc guardato ha appena chiuso: Handle sparito, arco vivo in `stato.edges`, e
+   * nel documento il tubo attaccato al centro del simbolo.
+   */
+  const tornaADefault = useCallback(
+    async (cancellaPermanente: boolean) => {
+      if (!chiaveTaratura) return
+      const chiave = chiaveTaratura
+
+      // Con quali ancore resterebbe il simbolo dopo la cancellazione: quelle dello strato
+      // permanente, o quelle di fabbrica se anche la riga permanente se ne va (o se non c'è).
+      const libreriaDopo = isAdmin && cancellaPermanente ? LIBRERIA_VUOTA : libreriaPermanente
+      const nodoBersaglio = stato.nodes.find((n) => n.id === nodoTaraturaId)
+      if (nodoBersaglio) {
+        const superstiti = new Set(ancoreDi((nodoBersaglio.data as SchemaNodeData).nodo, libreriaDopo).map((a) => a.id))
+        const perdute = [...ancoreOccupate()].filter((id) => !superstiti.has(id))
+        if (perdute.length > 0) {
+          toast.error(
+            `Tornare al default toglierebbe ${perdute.length === 1 ? 'l’ancora' : 'le ancore'} ${perdute
+              .map((id) => `«${id}»`)
+              .join(', ')}, a cui ${perdute.length === 1 ? 'è attaccata una tubazione' : 'sono attaccate delle tubazioni'}: stacca prima ${perdute.length === 1 ? 'quel tubo' : 'quei tubi'}.`
+          )
+          return
+        }
+      }
+
+      if (isAdmin && cancellaPermanente) {
+        setSalvandoTaratura(true)
+        try {
+          await onScriviTaraturaPermanente(chiave, null)
+        } catch (err) {
+          toast.error(
+            err instanceof Error ? err.message : `Cancellazione della taratura permanente di "${chiave}" non riuscita.`
+          )
+          setSalvandoTaratura(false)
+          return
+        }
+        setSalvandoTaratura(false)
+      }
+      onTaraturaPratica(chiave, null)
+      chiudiTaratura()
+    },
+    [
+      chiaveTaratura,
+      isAdmin,
+      libreriaPermanente,
+      stato.nodes,
+      nodoTaraturaId,
+      ancoreOccupate,
+      onScriviTaraturaPermanente,
+      onTaraturaPratica,
+      chiudiTaratura,
+    ]
+  )
+
+  /**
+   * «Rendi permanenti»: scrive in tabella (vale per ogni pratica) e toglie l'eventuale voce di
+   * pratica per la stessa chiave — altrimenti resterebbe a fare ombra al valore permanente
+   * appena scritto, la prossima volta che qualcuno la cambiasse di nuovo senza toccare questa
+   * pratica. La tela mostra comunque il risultato giusto: la scrittura permanente aggiorna anche
+   * lo strato permanente in memoria (`SchemaImpiantoSection`), che torna qui dentro `libreria`.
+   *
+   * Il controllo su `isAdmin` è ripetuto qui e non lasciato al solo pulsante (che già non
+   * compare, `DialogoUscitaTaratura`), per la stessa ragione per cui ce l'ha `tornaADefault`:
+   * questa funzione è la porta verso una scrittura che vale per OGNI pratica dell'applicazione,
+   * comprese quelle già consegnate, e chi la chiama non deve poterla aprire per distrazione. La
+   * difesa vera resta la RLS della tabella (vedi `tarature.ts`); questa evita di andarci a
+   * sbattere.
+   */
+  const rendiPermanenti = useCallback(async () => {
+    if (!chiaveTaratura || !isAdmin) return
+    const chiave = chiaveTaratura
+    const taraturaFinale = taraturaHook.taratura
+    setSalvandoTaratura(true)
+    try {
+      await onScriviTaraturaPermanente(chiave, taraturaFinale)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : `Salvataggio permanente di "${chiave}" non riuscito.`)
+      setSalvandoTaratura(false)
+      return
+    }
+    setSalvandoTaratura(false)
+    onTaraturaPratica(chiave, null)
+    chiudiTaratura()
+  }, [chiaveTaratura, isAdmin, taraturaHook.taratura, onScriviTaraturaPermanente, onTaraturaPratica, chiudiTaratura])
+
+  /** «Usa solo questa volta»: resta nel layout di questa sola pratica. Nessuna scrittura a
+   *  database — la porta `onTaraturaPratica` fino a `layoutDaPersistere` al salvataggio. */
+  const usaSoloQuestaVolta = useCallback(() => {
+    if (!chiaveTaratura) return
+    const chiave = chiaveTaratura
+    onTaraturaPratica(chiave, taraturaHook.taratura)
+    chiudiTaratura()
+  }, [chiaveTaratura, taraturaHook.taratura, onTaraturaPratica, chiudiTaratura])
+
+  /** Nuova ancora nel punto agganciato alla griglia (`aggiungiAncora` ci pensa già), doppio clic
+   *  sulla sagoma in `ManiglieTaratura`. Accetta di default la sola aria: il committente regola
+   *  gli altri due dal gruppo di interruttori una volta selezionata. */
+  const aggiungiAncoraTaratura = useCallback(
+    (x: number, y: number) => taraturaHook.aggiungiAncora(['aria'], x, y),
+    [taraturaHook]
+  )
+
+  /** Cambia cosa accetta l'ancora SELEZIONATA: il gruppo di interruttori della barra non
+   *  conosce l'id, solo il modo taratura sa quale pallino è attivo. */
+  const impostaAccettaTaratura = useCallback(
+    (accetta: SchemaTipoAggancio[]) => {
+      if (ancoraSelezionata) taraturaHook.impostaAccetta(ancoraSelezionata, accetta)
+    },
+    [ancoraSelezionata, taraturaHook]
+  )
+
+  /** Canc in modo taratura: toglie l'ancora selezionata, mai l'ultima (Step 3 del brief — un
+   *  simbolo senza ancore non si può più collegare) e mai una a cui è attaccato un tubo. */
+  const togliAncoraSelezionata = useCallback(() => {
+    if (!ancoraSelezionata) return
+    if (taraturaHook.taratura.ancore.length <= 1) {
+      toast.error('Deve restare almeno un’ancora: un simbolo senza ancore non si può più collegare.')
+      return
+    }
+    // Togliere un'ancora OCCUPATA lascerebbe la tela in uno stato che nessun gesto ripara dentro
+    // la sessione: l'Handle sparisce dal DOM (`ancoreDi` non restituisce più quell'id), react-flow
+    // smette di disegnare l'arco — errore #008 — ma l'arco resta in `stato.edges`, finisce nel
+    // layout confermato, e nel documento `posizioneAncora` ripiega sul centro del nodo: il tubo
+    // esce attaccato in mezzo al simbolo. Il riattacco automatico esiste (`persistenza.ts`) ma
+    // scatta solo alla RIAPERTURA della pratica. Meglio non entrarci affatto, dicendo perché.
+    if (ancoreOccupate().has(ancoraSelezionata)) {
+      toast.error(
+        'A quest’ancora è attaccata una tubazione: spostala su un altro attacco (o eliminala) prima di togliere l’ancora.'
+      )
+      return
+    }
+    taraturaHook.togliAncora(ancoraSelezionata)
+    setAncoraSelezionata(null)
+  }, [ancoraSelezionata, ancoreOccupate, taraturaHook])
 
   // Direzione «react-flow spegne la libera»: clic su un nodo/arco (o selezione a rettangolo)
   // azzera `selezioneLibera`. L'altra direzione vive in `selezionaLibero`/`deselezionaReactFlow`
@@ -671,11 +1047,27 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
     const suTasto = (e: KeyboardEvent) => {
       // Ridondante oggi (il Dialog di scrittura più sotto ferma già ogni tasto, Esc compreso, sul
       // proprio root): resta per tenere l'invariante esplicito qui, non affidato in silenzio a un
-      // dettaglio implementativo di un altro componente.
-      if (scritturaAperta) return
+      // dettaglio implementativo di un altro componente. Il dialogo a tre vie si aggiunge per lo
+      // stesso motivo: mentre è aperto, Ctrl+Z/Canc/frecce non devono toccare né l'impianto né
+      // una taratura che sta per essere decisa.
+      if (scritturaAperta || dialogoUscitaAperto) return
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault()
-        annulla()
+        // In modo taratura Ctrl+Z annulla il GESTO della taratura (cronologia propria, vedi
+        // `taraturaHook`), non l'ultimo spostamento d'impianto: sono due cronologie distinte per
+        // la stessa ragione per cui restano separate in useTaratura.ts.
+        if (modoTaratura) taraturaHook.annulla()
+        else annulla()
+        return
+      }
+      if (modoTaratura) {
+        // In modo taratura Canc toglie l'ancora selezionata (Step 3 del brief) — non l'impianto,
+        // che qui è spento: aggiungi nodo/elimina/allinea non convivono con la taratura.
+        if (e.key === 'Delete' || e.key === 'Backspace') togliAncoraSelezionata()
+        // Le frecce restano un comando d'impianto (spostano l'apparecchiatura selezionata): la
+        // condizione sotto (`selezione.nodes.length > 0`) sarebbe comunque vera — il modo si
+        // attiva solo con un nodo selezionato — quindi qui vanno spente esplicitamente, o un
+        // tocco di freccia sposterebbe il simbolo mentre si crede di star tarando le sue ancore.
         return
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selezioneLibera) {
@@ -693,7 +1085,19 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
     }
     window.addEventListener('keydown', suTasto)
     return () => window.removeEventListener('keydown', suTasto)
-  }, [annulla, rimuoviMuro, rimuoviTesto, scritturaAperta, selezione.nodes, selezioneLibera, sposta])
+  }, [
+    annulla,
+    dialogoUscitaAperto,
+    modoTaratura,
+    rimuoviMuro,
+    rimuoviTesto,
+    scritturaAperta,
+    selezione.nodes,
+    selezioneLibera,
+    sposta,
+    taraturaHook,
+    togliAncoraSelezionata,
+  ])
 
   const stileSelezionato =
     selezione.edges.length > 0
@@ -704,11 +1108,18 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
     onConferma(layoutCorrente)
   }, [layoutCorrente, onConferma])
 
-  const onNodeDoubleClick = useCallback((_: React.MouseEvent, nodo: Node) => {
-    const dati = (nodo.data as SchemaNodeData).nodo
-    if (dati.tipo !== 'utenze') return
-    setScrittura({ bersaglio: 'terminale', id: nodo.id, valore: dati.etichetta })
-  }, [])
+  const onNodeDoubleClick = useCallback(
+    (_: React.MouseEvent, nodo: Node) => {
+      // Spento in modo taratura come ogni altro comando d'impianto: `elementsSelectable={false}`
+      // non ferma questo gestore (react-flow lo chiama comunque), e riscrivere il terminale
+      // scriverebbe nella cronologia dell'IMPIANTO, che lì non ha via di ritorno.
+      if (modoTaratura) return
+      const dati = (nodo.data as SchemaNodeData).nodo
+      if (dati.tipo !== 'utenze') return
+      setScrittura({ bersaglio: 'terminale', id: nodo.id, valore: dati.etichetta })
+    },
+    [modoTaratura]
+  )
 
   /** Doppio clic su un'annotazione: la riapre in scrittura (di lì si può anche eliminare). */
   const apriTesto = useCallback(
@@ -742,7 +1153,13 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
         ...s,
         nodes: s.nodes.map((n) =>
           n.id === id
-            ? { ...n, data: { nodo: { ...(n.data as SchemaNodeData).nodo, etichetta: contenuto } } satisfies SchemaNodeData }
+            ? {
+                ...n,
+                data: {
+                  ...(n.data as SchemaNodeData),
+                  nodo: { ...(n.data as SchemaNodeData).nodo, etichetta: contenuto },
+                } satisfies SchemaNodeData,
+              }
             : n
         ),
       }))
@@ -758,8 +1175,8 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
     // chiusura: è la stessa cautela di `aggiungiNodo` e della generazione dell'id in
     // useTestiLiberi.ts — `stato` può essere l'istantanea di un render precedente a quello su
     // cui il reducer sta per applicare l'aggiunta, e l'annotazione nascerebbe sopra qualcosa.
-    aggiungiTesto((s) => ({ x: 40, y: allineaAllaGriglia(piedeDelDisegno(s.nodes, s.testi) + 40) }), contenuto)
-  }, [aggiungiTesto, applica, modificaTesto, scrittura])
+    aggiungiTesto((s) => ({ x: 40, y: allineaAllaGriglia(piedeDelDisegno(s.nodes, s.testi, libreriaEffettiva) + 40) }), contenuto)
+  }, [aggiungiTesto, applica, libreriaEffettiva, modificaTesto, scrittura])
 
   /** Elimina l'annotazione aperta nel dialog: la via più vecchia delle due che esistono — l'altra
    *  è selezionarla sulla tela e premere Canc (`selezioneLibera` qui sopra). Il pulsante «Elimina»
@@ -772,12 +1189,17 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
     rimuoviTesto(id)
   }, [rimuoviTesto, scrittura])
 
+  // Il nodo che il modo taratura sta modificando, per posizionare `ManiglieTaratura` sopra di
+  // lui: origine (`Node.position`) e ingombro di FABBRICA, non quello tarato — vedi il commento
+  // su `ManiglieTaraturaProps.dimensioniBase`.
+  const nodoInTaratura = modoTaratura ? stato.nodes.find((n) => n.id === nodoTaraturaId) : undefined
+
   return (
     <Stack sx={{ height: '100%' }}>
       <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ p: 1 }}>
         <Tooltip title="Annulla l'ultima modifica (Ctrl+Z)">
           <span>
-            <Button size="small" startIcon={<UndoIcon />} onClick={annulla} disabled={!puoAnnullare}>
+            <Button size="small" startIcon={<UndoIcon />} onClick={annulla} disabled={!puoAnnullare || modoTaratura}>
               Annulla
             </Button>
           </span>
@@ -787,7 +1209,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
           color="error"
           startIcon={<DeleteIcon />}
           onClick={eliminaSelezione}
-          disabled={selezione.nodes.length === 0 && selezione.edges.length === 0}
+          disabled={(selezione.nodes.length === 0 && selezione.edges.length === 0) || modoTaratura}
         >
           Elimina
         </Button>
@@ -802,7 +1224,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
           exclusive
           value={stileSelezionato}
           onChange={(_, valore) => valore && cambiaStile(valore as SchemaArcoStile)}
-          disabled={selezione.edges.length === 0}
+          disabled={selezione.edges.length === 0 || modoTaratura}
         >
           {STILI.map((s) => (
             <ToggleButton key={s.valore} value={s.valore}>
@@ -819,14 +1241,14 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
         <Button
           size="small"
           onClick={() => selezione.edges[0] && aggiungiSegno(selezione.edges[0].id, 'valvola_intercettazione')}
-          disabled={selezione.edges.length !== 1}
+          disabled={selezione.edges.length !== 1 || modoTaratura}
         >
           + Valvola
         </Button>
         <Button
           size="small"
           onClick={() => selezione.edges[0] && aggiungiSegno(selezione.edges[0].id, 'riduttore_pressione')}
-          disabled={selezione.edges.length !== 1}
+          disabled={selezione.edges.length !== 1 || modoTaratura}
         >
           + Riduttore
         </Button>
@@ -842,7 +1264,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
               <IconButton
                 size="small"
                 onClick={() => applicaAllineamento(bordo)}
-                disabled={selezione.nodes.length < 2}
+                disabled={selezione.nodes.length < 2 || modoTaratura}
               >
                 <Icona fontSize="small" />
               </IconButton>
@@ -855,7 +1277,7 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
               <Button
                 size="small"
                 onClick={() => applicaDistribuzione(asse)}
-                disabled={selezione.nodes.length < 3}
+                disabled={selezione.nodes.length < 3 || modoTaratura}
               >
                 {asse === 'orizzontale' ? 'Distrib. orizz.' : 'Distrib. vert.'}
               </Button>
@@ -869,7 +1291,13 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
           Aggiungi:
         </Typography>
         {PALETTE.map((voce) => (
-          <Button key={voce.tipo} size="small" startIcon={<AddIcon />} onClick={() => aggiungiNodo(voce)}>
+          <Button
+            key={voce.tipo}
+            size="small"
+            startIcon={<AddIcon />}
+            onClick={() => aggiungiNodo(voce)}
+            disabled={modoTaratura}
+          >
             {voce.etichetta}
           </Button>
         ))}
@@ -877,13 +1305,16 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
             posizione entrano insieme, così sulla tela non compare mai un'annotazione vuota —
             invisibile, e quindi impossibile da riafferrare o togliere. */}
         <Tooltip title="Una scritta libera sul disegno: si trascina dove serve, si cancella col tasto Canc, doppio clic per riscriverla o eliminarla">
-          <Button
-            size="small"
-            startIcon={<AddIcon />}
-            onClick={() => setScrittura({ bersaglio: 'testo', id: null, valore: '' })}
-          >
-            Testo
-          </Button>
+          <span>
+            <Button
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => setScrittura({ bersaglio: 'testo', id: null, valore: '' })}
+              disabled={modoTaratura}
+            >
+              Testo
+            </Button>
+          </span>
         </Tooltip>
         {/* Disabilitato col muro già presente: è uno solo, e due sovrapposti sarebbero
             indistinguibili sulla tela (e sul documento, che li disegna con la stessa funzione). */}
@@ -892,13 +1323,29 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
             <Button
               size="small"
               startIcon={<AddIcon />}
-              onClick={() => aggiungiMuro((s) => ascissaProposta(nodiDi(s)))}
-              disabled={stato.muroX !== null}
+              onClick={() => aggiungiMuro((s) => ascissaProposta(nodiDi(s), libreriaEffettiva))}
+              disabled={stato.muroX !== null || modoTaratura}
             >
               Muro
             </Button>
           </span>
         </Tooltip>
+
+        {/* Il modo taratura: unico comando che resta acceso mentre tutti gli altri sopra si
+            spengono — i comandi che agiscono sull'impianto non convivono con la taratura di un
+            simbolo (Step 1 del brief). */}
+        <BarraTaratura
+          attivo={modoTaratura}
+          puoAttivare={selezione.nodes.length === 1 && motivoTaratura === null}
+          motivoNonTarabile={motivoTaratura}
+          onAttiva={attivaTaratura}
+          onEsci={() => setDialogoUscitaAperto(true)}
+          taratura={taraturaHook.taratura}
+          puoAnnullare={taraturaHook.puoAnnullare}
+          onAnnulla={taraturaHook.annulla}
+          ancoraSelezionata={ancoraSelezionata}
+          onCambiaAccetta={impostaAccettaTaratura}
+        />
 
         <Divider orientation="vertical" flexItem />
 
@@ -961,7 +1408,9 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onReconnect={onReconnect}
-          onEdgeDoubleClick={creaGomito}
+          // Non `creaGomito` nudo: in modo taratura un doppio clic su una tubazione creerebbe un
+          // gomito — un gesto d'impianto, in cronologia d'impianto, mentre l'impianto è spento.
+          onEdgeDoubleClick={modoTaratura ? undefined : creaGomito}
           onNodeDoubleClick={onNodeDoubleClick}
           onNodeDragStart={suInizioTrascinamentoNodo}
           onNodeDrag={suTrascinamentoNodo}
@@ -969,6 +1418,23 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
           isValidConnection={isValidConnection}
           onSelectionChange={onSelectionChange}
           onPaneClick={() => setSelezioneLibera(null)}
+          // In modo taratura l'impianto è spento anche sulla tela, non solo in barra: senza,
+          // trascinare dentro il riquadro delle maniglie (`ManiglieTaratura`, sotto) rischierebbe
+          // di spostare l'apparecchiatura invece di tarare la sua sagoma, e un capo trascinato
+          // da un handle creerebbe una tubazione che il committente non ha chiesto in questo
+          // modo. La selezione resta bloccata sul simbolo congelato all'ingresso (vedi il
+          // commento su `nodoTaraturaId`): un clic altrove non deve far credere di aver cambiato
+          // bersaglio mentre il dialogo a tre vie non ha ancora deciso nulla.
+          nodesDraggable={!modoTaratura}
+          nodesConnectable={!modoTaratura}
+          elementsSelectable={!modoTaratura}
+          // `edgesReconnectable` va spento a parte: NON dipende da `elementsSelectable`, e le
+          // ancore di riaggancio (`.react-flow__edgeupdater`) portano `pointer-events: all`, che
+          // vince sull'`inactive` del gruppo dell'arco — la stessa ragione per cui l'area di presa
+          // del tratto era rimasta viva. Senza, in modo taratura si può ancora staccare un capo e
+          // posarlo altrove: `onReconnect` → `applica`, una voce nella cronologia dell'IMPIANTO
+          // che lì non si può disfare.
+          edgesReconnectable={!modoTaratura}
           onlyRenderVisibleElements
           fitView
           // Senza questo, `fitView` non inquadra affatto tutto il disegno: il minimo di
@@ -1005,7 +1471,13 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
           // mostrerebbe un reticolo diverso da quello a cui i nodi si agganciano davvero.
           snapToGrid
           snapGrid={[10, 10]}
-          deleteKeyCode={['Delete', 'Backspace']}
+          // `null` in modo taratura, non l'elenco: senza, il Canc premuto per togliere
+          // un'ancora selezionata raggiunge ANCHE la gestione interna di react-flow (che non sa
+          // nulla del modo taratura) e cancella il nodo selezionato — l'apparecchiatura intera,
+          // non l'ancora — esattamente il pericolo che il brief mette in guardia («cancellare
+          // un'apparecchiatura credendo di togliere un'ancora»). Misurato in pagina: senza
+          // questa guardia, Canc su un'ancora toglieva il simbolo tarato dalla tela.
+          deleteKeyCode={modoTaratura ? null : ['Delete', 'Backspace']}
           translateExtent={[
             [-500, -500],
             [4000, 4000],
@@ -1019,7 +1491,12 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
               porta a 0,8 (~2,5 volte l'area). Insieme danno una griglia che si vede senza
               competere col disegno. */}
           <Background gap={10} size={1.6} color="#aeb6c2" />
-          <Controls />
+          {/* Niente lucchetto in modo taratura: quel comando scrive `nodesDraggable`/
+              `nodesConnectable`/`elementsSelectable` DIRETTAMENTE nel negozio di react-flow, non
+              nelle prop qui sopra — un clic lì riaccenderebbe trascinamento e selezione dei nodi
+              fino al prossimo cambio di prop, riaprendo da solo tutto ciò che il modo taratura
+              spegne. Zoom e «Fit View» restano: servono, e non toccano il disegno. */}
+          <Controls showInteractive={!modoTaratura} />
           <ViewportPortal>
             <GuideAllineamento guide={guide} />
             <TestiLiberi
@@ -1028,6 +1505,11 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
               onModifica={apriTesto}
               selezionato={selezioneLibera?.tipo === 'testo' ? selezioneLibera.id : null}
               onSeleziona={(id) => selezionaLibero({ tipo: 'testo', id })}
+              // Annotazioni e muro montano gestori PROPRI, che le prop di `<ReactFlow>` qui sotto
+              // non toccano: senza questa guardia in modo taratura si potrebbero ancora spostare
+              // o riaprire in scrittura, scrivendo nella cronologia dell'impianto (vedi
+              // `TestiLiberiProps.bloccato`/`MuroSeparazioneProps.bloccato`).
+              bloccato={modoTaratura}
             />
             {layoutCorrente.muro && (
               <MuroSeparazione
@@ -1036,6 +1518,25 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
                 selezionato={selezioneLibera?.tipo === 'muro'}
                 onSposta={spostaMuro}
                 onSeleziona={() => selezionaLibero({ tipo: 'muro' })}
+                bloccato={modoTaratura}
+              />
+            )}
+            {/* Sopra il nodo tarato, nello stesso portale: le sue coordinate sono già quelle del
+                disegno, come le annotazioni e il muro qui sopra. `dimensioniDi(nodo, {})`, non
+                `libreriaEffettiva`: le maniglie di trasla/deforma agiscono sul riquadro di
+                FABBRICA della sagoma, non sull'inviluppo che comprende anche le ancore (vedi il
+                commento su `ManiglieTaraturaProps.dimensioniBase`). */}
+            {modoTaratura && nodoInTaratura && (
+              <ManiglieTaratura
+                origine={nodoInTaratura.position}
+                dimensioniBase={dimensioniDi((nodoInTaratura.data as SchemaNodeData).nodo, {})}
+                taratura={taraturaHook.taratura}
+                ancoraSelezionata={ancoraSelezionata}
+                onSelezionaAncora={setAncoraSelezionata}
+                onSpostaAncora={taraturaHook.spostaAncora}
+                onAggiungiAncora={aggiungiAncoraTaratura}
+                onTrasla={taraturaHook.trasla}
+                onDeforma={taraturaHook.deforma}
               />
             )}
           </ViewportPortal>
@@ -1068,8 +1569,14 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
       </Stack>
 
       <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center" sx={{ p: 1 }}>
-        <Button onClick={onAnnulla}>Annulla modifiche</Button>
-        <Button variant="contained" onClick={conferma}>
+        {/* Disabilitati mentre il modo taratura è acceso: non esiste uscita implicita da lì
+            (Step 4 del brief) — si esce sempre dal dialogo a tre vie, mai chiudendo l'intero
+            editor sotto una taratura ancora indecisa. Escape resta la via d'uscita sicura
+            dall'intero editor (non tocca questi pulsanti, non va toccato lui). */}
+        <Button onClick={onAnnulla} disabled={modoTaratura}>
+          Annulla modifiche
+        </Button>
+        <Button variant="contained" onClick={conferma} disabled={modoTaratura}>
           Conferma schema
         </Button>
         {/* A tutto schermo non c'è nulla da ridimensionare, e una maniglia che non fa niente
@@ -1149,6 +1656,15 @@ function SchemaEditorInterno({ layout, noteTubazioni, onConferma, onAnnulla, pre
           </Button>
         </DialogActions>
       </Dialog>
+
+      <DialogoUscitaTaratura
+        open={dialogoUscitaAperto}
+        isAdmin={isAdmin}
+        salvando={salvandoTaratura}
+        onTornaDefault={tornaADefault}
+        onRendiPermanenti={rendiPermanenti}
+        onUsaSoloQuestaVolta={usaSoloQuestaVolta}
+      />
     </Stack>
   )
 }

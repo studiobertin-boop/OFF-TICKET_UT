@@ -21,6 +21,7 @@ import {
 } from '../layout'
 import { renderSvg } from '../renderSvg'
 import { dimensioniDi, SPESSORE_MURO } from '../symbols'
+import type { Tarature } from '../libreria'
 import type { SchemaLayout } from '../types'
 
 function nodo(layout: SchemaLayout, id: string) {
@@ -109,6 +110,32 @@ describe('layoutSchema', () => {
     const layout = layoutSchema(model)
     const baseCompressore = nodo(layout, 'C1').y + DIMENSIONI_NODO.compressore.altezza
     const baseSerbatoio = nodo(layout, 'S1').y + DIMENSIONI_NODO.serbatoio.altezza
+
+    expect(baseCompressore).toBeCloseTo(baseSerbatoio, 5)
+  })
+
+  // Fix round 1 (revisione del Task 4): con un serbatoio orizzontale (140 di altezza, meno di
+  // metà del verticale, 300) `disponiInRiga` lo centrava sulla stessa quota calcolata per il
+  // verticale — la base finiva decine di unità più in alto di quella dei compressori, mentre il
+  // commento sopra la funzione promette il contrario. L'allineamento 'basso' legge l'altezza
+  // vera di OGNI nodo (`dimensioniDi`), non un'altezza di riga assunta uniforme: qui il
+  // serbatoio è orizzontale apposta, il caso che prima non tornava. (140/300, non più 137/298:
+  // Task 8, Blocco 3, l'arrotondamento che porta le ancore sulla griglia.)
+  it('allinea la base anche di un serbatoio orizzontale, alta meno della metà del verticale', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ codice: 'C1', ha_disoleatore: false })],
+      disoleatori: [], essiccatori: [], scambiatori: [], filtri: [],
+      serbatoi: [makeSerbatoio({ orientamento: 'ORIZZONTALE' })],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+
+    const layout = layoutSchema(model)
+    const s1 = nodo(layout, 'S1')
+    expect(dimensioniDi(s1).altezza).toBe(140)
+
+    const baseCompressore = nodo(layout, 'C1').y + DIMENSIONI_NODO.compressore.altezza
+    const baseSerbatoio = s1.y + dimensioniDi(s1).altezza
 
     expect(baseCompressore).toBeCloseTo(baseSerbatoio, 5)
   })
@@ -443,6 +470,29 @@ describe('layoutSchema', () => {
     expect(con.altezza).toBeGreaterThan(senza.altezza)
   })
 
+  /**
+   * Il bordo del foglio segue il RIQUADRO del nodo, angolo compreso, non la sola misura. Una
+   * taratura che porta la sagoma all'indietro dei pallini (`dx` negativo, il gesto che il modo
+   * taratura esiste per fare) fa cominciare il riquadro a coordinate negative: sommare la sola
+   * larghezza dichiarerebbe un bordo destro più a destra di dove il disegno arriva davvero
+   * (revisione finale, rilievo Importante).
+   */
+  it('il bordo destro segue dove il disegno finisce davvero, anche con la sagoma tarata all indietro', () => {
+    const tanica: SchemaLayout['nodi'][number] = {
+      id: 'T1', tipo: 'tanica', etichetta: 'Raccolta condense', gruppo: 'LINEA_DISTRIBUZIONE',
+      valvoleSicurezza: [], origine: 'scheda', x: 100, y: 100,
+    }
+    const layout: SchemaLayout = { nodi: [tanica], archi: [], muro: null, testi: [] }
+    // Tanica 80×40. Sagoma trascinata di 30 a sinistra, ancora sul fianco sinistro a x=0:
+    // l'inviluppo va da -30 a +50, quindi il bordo destro cade a 100 - 30 + 50 = 150 (non a 180,
+    // che è dove finirebbe se il riquadro partisse dall'origine del nodo).
+    const libreria: Tarature = {
+      tanica: { dx: -30, dy: 0, sx: 1, sy: 1, ancore: [{ id: 'sx', x: 0, y: 20, accetta: ['aria'] }] },
+    }
+
+    expect(dimensioniLayout(layout, libreria).larghezza).toBe(150 + 40)
+  })
+
   describe('ingombro stimato di un testo libero', () => {
     // Layout senza nodi: l'unico contributo a `larghezza`/`altezza` è quello del testo, così i
     // due test discriminano sul VALORE calcolato da `ingombroTesto`, non solo sulla direzione
@@ -573,15 +623,16 @@ describe('quoteInstradamento', () => {
   })
 
   it('mette la corsia condense 40 unità sopra il corpo del pozzo di raccolta', () => {
-    // Tanica a y=900, il suo corpo comincia 6 più in basso (corpoNodo): 906 - 40 = 866.
-    expect(quoteInstradamento(layoutDiProva()).yCorsiaCondense).toBe(866)
+    // Tanica a y=900: il suo corpo (corpoNodo) coincide col riquadro dal fix round 1 del Task 4
+    // (il rettangolo disegnato non è più rientrato di 6 unità) -> 900 - 40 = 860.
+    expect(quoteInstradamento(layoutDiProva()).yCorsiaCondense).toBe(860)
   })
 
   it('senza pozzo di raccolta la corsia va in fondo al disegno', () => {
     const layout = layoutDiProva()
     layout.nodi = layout.nodi.filter((n) => n.tipo !== 'tanica')
     layout.archi = []
-    // Nessun pozzo: la corsia scende a mezzo margine dal fondo della tela, non resta a 866.
+    // Nessun pozzo: la corsia scende a mezzo margine dal fondo della tela, non resta a 860.
     const attesa = dimensioniLayout(layout).altezza - 20
     expect(quoteInstradamento(layout).yCorsiaCondense).toBe(attesa)
   })

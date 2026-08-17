@@ -23,12 +23,17 @@ export function allineaAllaGriglia(valore: number): number {
  * Porta `valore` sulla posizione buona più vicina, dove le posizioni buone sono i punti
  * della griglia PIÙ le `quotePreferite` — tipicamente le quote dei due capi di un tubo.
  *
- * Serve perché le ancore dei simboli sono ancora fuori griglia: un tubo che parte da quota
- * 260 e arriva a quota 234 non può essere raccordato da alcun punto della griglia, e
- * agganciare solo alla griglia peggiora il disegno invece di migliorarlo — misurato in
- * pagina su una tubazione reale, produce tre scalini invece di uno. Quando il committente
- * porterà le ancore sui punti giusti, le due famiglie di candidati coincideranno e questa
- * funzione diventerà indistinguibile da `allineaAllaGriglia`: non è un debito da disfare.
+ * Serve perché una quota di capo può cadere fuori griglia: un tubo che parte da quota 260 e
+ * arriva a quota 234 non può essere raccordato da alcun punto della griglia, e agganciare solo
+ * alla griglia peggiora il disegno invece di migliorarlo — misurato in pagina su una tubazione
+ * reale, produce tre scalini invece di uno.
+ *
+ * Dal Task 8 (Blocco 3) le ANCORE dei simboli sono tutte sui multipli del passo, e questa
+ * funzione serve ancora lo stesso: la quota di un capo è la posizione del suo nodo PIÙ l'ancora,
+ * e le posizioni dei nodi sulla tela non sono agganciate a nulla — l'auto-layout le calcola dalle
+ * proporzioni dei simboli, il committente le trascina dove vuole. Non è quindi un ripiego in
+ * attesa che qualcuno sistemi le ancore: le due famiglie di candidati non coincideranno mai
+ * finché una posizione può stare fra due punti di griglia.
  *
  * Nessun raggio di tolleranza da tarare: una quota preferita vince sul punto di griglia se
  * e solo se non è più lontana di esso da `valore`. Poiché il punto di griglia più vicino

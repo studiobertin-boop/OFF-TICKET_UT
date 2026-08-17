@@ -126,7 +126,7 @@ describe('useInserimentoTee', () => {
     // e "ricentrare" produrrebbero lo stesso risultato per coincidenza numerica, e questo test
     // non distinguerebbe più le due cose (verificato: con SUL_MONTANTE la mutazione 5 dello
     // Step 5 — nodo non ricentrato — non faceva cadere nessun test).
-    trascina(hook, { x: 133, y: 33 }) // centro (145, 45), a 5 unità dal montante — entro tolleranza
+    trascina(hook, { x: 133, y: 33 }) // centro (143, 43), a 7 unità dal montante — entro tolleranza
     rilascia(hook)
 
     expect(archi(hook)).toHaveLength(2)
@@ -134,10 +134,11 @@ describe('useInserimentoTee', () => {
     // La prima metà arriva alla giunzione, la seconda ne riparte: il verso del tubo si conserva.
     expect(archi(hook)[0]).toMatchObject({ source: 'A', sourceHandle: 'alto-out', target: 'M-G1' })
     expect(archi(hook)[1]).toMatchObject({ source: 'M-G1', target: 'B', targetHandle: 'sx' })
-    // Ricentrata SUL tubo: la proiezione di (145,45) sul montante è (150,45) (verificato
-    // eseguendo `spezzaArco`), meno l'ancora (12, 12).
+    // Ricentrata SUL tubo: la proiezione di (143,43) sul montante è (150,43) (verificato
+    // eseguendo `spezzaArco`), meno l'ancora (10, 10) — non più (12, 12): il riquadro della
+    // giunzione è sceso a 20×20 nel Task 8, Blocco 3 (vedi `DIMENSIONI.giunzione`).
     const tee = hook.result.current.stato.nodes.find((n) => n.id === 'M-G1')!
-    expect(tee.position).toEqual({ x: 138, y: 33 })
+    expect(tee.position).toEqual({ x: 140, y: 33 })
     expect(hook.result.current.arcoEvidenziato).toBeNull()
   })
 
@@ -279,11 +280,13 @@ describe('useInserimentoTee', () => {
     // `candidati` escluderebbe comunque): isola davvero la guardia `eUnaGiunzione`, l'unica che
     // qui impedisce lo spezzamento — MA solo se la sua ancora 'sx' (quella che
     // `centroDellaGiunzione` legge per QUALUNQUE tipo di nodo) cade sul tubo. Un serbatoio non
-    // ha il pallino al centro come una giunzione: la sua ancora 'sx' sta a (33,150) dal suo
-    // angolo (verificato con `posizioneAncora`), non a (12,12). `SUL_MONTANTE` (calibrato sulla
-    // giunzione) non basta: senza questa posizione dedicata la mutazione 6 non farebbe cadere
-    // questo test, perché `arcoPiuVicino` scarterebbe già `C` per la distanza, guardia o no.
-    const POSIZIONE_C_ANCORA_SX_SUL_MONTANTE = { x: 117, y: -100 }
+    // ha il pallino al centro come una giunzione: la sua ancora 'sx' sta a (0,90) dal suo angolo
+    // (verificato con `posizioneAncora`; Task 8, Blocco 3, non più (33,150)), non a (10,10). Il
+    // punto scelto — (150,50) — è lo stesso bersaglio sul montante di prima del Task 8, solo la
+    // posizione del nodo che ce lo porta è cambiata. `SUL_MONTANTE` (calibrato sulla giunzione)
+    // non basta: senza questa posizione dedicata la mutazione 6 non farebbe cadere questo test,
+    // perché `arcoPiuVicino` scarterebbe già `C` per la distanza, guardia o no.
+    const POSIZIONE_C_ANCORA_SX_SUL_MONTANTE = { x: 150, y: -40 }
     const hook = monta(statoIniziale())
     act(() => {
       const nodi = hook.result.current.stato.nodes.map((n) =>

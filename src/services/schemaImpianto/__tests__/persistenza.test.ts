@@ -3,7 +3,10 @@ import { makeCompressore, makeDatiImpianto, makeEssiccatore, makeScheda, makeSep
 import { buildSchemaModel } from '../buildSchemaModel'
 import { layoutSchema, muroDaAscissa, DIMENSIONI_NODO } from '../layout'
 import { serializzaLayout, deserializzaLayout, riconcilia, layoutIniziale, layoutDaPersistere } from '../persistenza'
+import type { LayoutSalvato } from '../persistenza'
 import { dimensioniDi } from '../symbols'
+import type { Tarature } from '../libreria'
+import { risolviLibreria } from '../libreria'
 import type { SchemaLayout, SchemaModel } from '../types'
 
 function modelloDiProva(codiciCompressore: string[]) {
@@ -51,7 +54,7 @@ function layoutMinimo(): SchemaLayout {
 
 /** Lo stesso modello di `layoutMinimo`, senza posizioni: la scheda che lo riconosce ancora. */
 function modelloMinimo(): SchemaModel {
-  return { nodi: layoutMinimo().nodi.map(({ x, y, ...n }) => n), archi: [] }
+  return { nodi: layoutMinimo().nodi.map(({ x: _x, y: _y, ...n }) => n), archi: [] }
 }
 
 describe('serializzazione', () => {
@@ -485,6 +488,34 @@ describe('terminale utenze nei layout salvati prima che esistesse', () => {
     expect(utenze.x).not.toBe(sep1.x + dimSep1.larghezza + 50)
   })
 
+  // Fix round 1 (revisione del Task 4): `posizioneTerminale` leggeva `DIMENSIONI_NODO[ultimo.tipo]`,
+  // che per 'serbatoio' è sempre l'ingombro del verticale (103×298) — innocuo finché i due
+  // orientamenti condividevano lo stesso ingombro, un bug vero ora che l'orizzontale ne ha uno
+  // proprio (310×137). Col difetto il terminale finirebbe posizionato come se il serbatoio fosse
+  // largo 103, cioè dentro il suo stesso riquadro (che è largo 310).
+  it('lo mette a destra del vero bordo del serbatoio orizzontale, non di quello del verticale', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ codice: 'C1', ha_disoleatore: false })],
+      disoleatori: [], essiccatori: [], scambiatori: [], filtri: [],
+      serbatoi: [makeSerbatoio({ orientamento: 'ORIZZONTALE' })],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const modello = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    const salvato = salvatoSenzaUtenze(modello)
+    const esito = riconcilia(salvato, modello)
+    const utenze = esito.layout.nodi.find((n) => n.tipo === 'utenze')!
+
+    const s1 = salvato.nodi.find((n) => n.id === 'S1')!
+    const dimVeraS1 = dimensioniDi(s1)
+    expect(dimVeraS1.larghezza).toBe(310)
+    expect(utenze.x).toBe(s1.x + dimVeraS1.larghezza + 50)
+
+    // Col difetto (larghezza del verticale, 103) il terminale finirebbe a x = s1.x + 103 + 50,
+    // ben dentro il riquadro vero del serbatoio (che arriva a s1.x + 310): la differenza fra i
+    // due bordi è 207 unità, non un errore di arrotondamento.
+    expect(utenze.x).not.toBe(s1.x + 103 + 50)
+  })
+
   it('non lo duplica se il layout salvato ce l’ha già, e non ne sposta la posizione', () => {
     const modello = modelloDiProva(['C1'])
     const salvato = { ...salvatoSenzaUtenze(modello) }
@@ -625,5 +656,213 @@ describe('testi liberi', () => {
     const modello = { nodi: [], archi: [] }
     const esito = riconcilia({ nodi: [], archi: [], testi: [testo] }, modello)
     expect(esito.layout.testi).toEqual([testo])
+  })
+})
+
+describe('taratura di pratica e riattacco degli archi orfani', () => {
+  /**
+   * Apre come apre la produzione: la libreria si risolve nel CHIAMANTE e arriva già fusa a
+   * `layoutIniziale`, che non rilegge `salvato.simboli` da sé (revisione finale, rilievo
+   * Importante — il punto di fusione è uno solo, ed è `SchemaImpiantoSection.tsx`). Passare qui
+   * il solo salvato, come facevano questi test prima, provava una strada che nessuno percorre.
+   */
+  function apri(salvato: LayoutSalvato, modello: SchemaModel, permanenti: Tarature = {}) {
+    return layoutIniziale(salvato, modello, risolviLibreria(permanenti, salvato.simboli ?? {}))
+  }
+
+  /** Modello minimo con un compressore e una tanica, collegati: basta a isolare il
+   *  comportamento sull'ancora della tanica, senza portarsi dietro l'intero motore di scheda. */
+  function modelloDiRiferimento(): SchemaModel {
+    return {
+      nodi: [
+        {
+          id: 'C1', tipo: 'compressore', etichetta: 'Compressore', gruppo: 'SALA_COMPRESSORI',
+          valvoleSicurezza: [], origine: 'scheda',
+        },
+        {
+          id: 'T1', tipo: 'tanica', etichetta: 'Raccolta condense', gruppo: 'LINEA_DISTRIBUZIONE',
+          valvoleSicurezza: [], origine: 'scheda',
+        },
+      ],
+      archi: [],
+    }
+  }
+
+  /** Layout salvato con un solo arco C1→T1: il capo su C1 sta su un'ancora vera del registro
+   *  (così il test isola il comportamento all'ancora "sparita" sulla tanica), il capo su T1 su
+   *  `ancoraTanica`, quella che il test vuole rendere orfana con una taratura. */
+  function layoutConArcoVersoTanica(ancoraTanica: string, stile: SchemaLayout['archi'][number]['stile'] = 'standard'): LayoutSalvato {
+    return {
+      versione: 1,
+      nodi: [
+        {
+          id: 'C1', tipo: 'compressore', etichetta: 'Compressore', gruppo: 'SALA_COMPRESSORI',
+          valvoleSicurezza: [], origine: 'scheda', x: 40, y: 200,
+        },
+        {
+          id: 'T1', tipo: 'tanica', etichetta: 'Raccolta condense', gruppo: 'LINEA_DISTRIBUZIONE',
+          valvoleSicurezza: [], origine: 'scheda', x: 500, y: 500,
+        },
+      ],
+      archi: [{ id: 'A1', da: { nodo: 'C1', ancora: 'alto-out' }, a: { nodo: 'T1', ancora: ancoraTanica }, stile }],
+    }
+  }
+
+  it('un arco che cita un’ancora sparita si riattacca alla compatibile più vicina', () => {
+    const salvato: LayoutSalvato = {
+      ...layoutConArcoVersoTanica('sx'),
+      // Taratura di pratica: sulla tanica di QUESTA pratica 'sx' non c'è più (il committente
+      // l'ha tolta dal modo taratura), ma resta un'altra ancora che accetta ancora aria.
+      simboli: { tanica: { dx: 0, dy: 0, sx: 1, sy: 1, ancore: [{ id: 'ingresso', x: 60, y: 20, accetta: ['aria'] }] } },
+    }
+
+    const { layout } = apri(salvato, modelloDiRiferimento())
+    const arco = layout.archi.find((a) => a.id === 'A1')!
+
+    expect(arco.a.ancora).not.toBe('sx')
+    expect(arco.a.ancora).toBe('ingresso') // l'unica compatibile disponibile
+  })
+
+  it('non si riattacca a un’ancora che accetta un altro fluido', () => {
+    // Un tubo d'aria (stile 'standard') non deve finire sull'ancora della condensa solo
+    // perché è la più vicina — anzi l'unica rimasta.
+    const salvato: LayoutSalvato = {
+      ...layoutConArcoVersoTanica('sx'),
+      simboli: { tanica: { dx: 0, dy: 0, sx: 1, sy: 1, ancore: [{ id: 'alto-in', x: 40, y: 0, accetta: ['condensa'] }] } },
+    }
+
+    const { layout } = apri(salvato, modelloDiRiferimento())
+
+    // Nessuna ancora compatibile su T1: `riconcilia` tratta il capo come tratta oggi un
+    // riferimento a un NODO sparito (vedi il filtro su `idNodi` in riconcilia) — l'arco intero
+    // si scarta, non resta un capo a metà puntato su un id inesistente.
+    expect(layout.archi.some((a) => a.id === 'A1')).toBe(false)
+  })
+
+  it('l’arco scartato viene contato, non fatto sparire in silenzio', () => {
+    // Stesso caso del test qui sopra visto dall'altra parte: sparire è giusto, sparire senza
+    // dirlo no. Una taratura permanente che cambi `accetta` fa cadere tubi da OGNI pratica
+    // riaperta, e finora nessuno se ne accorgeva se non guardando il disegno (revisione finale,
+    // rilievo Importante).
+    const salvato: LayoutSalvato = {
+      ...layoutConArcoVersoTanica('sx'),
+      simboli: { tanica: { dx: 0, dy: 0, sx: 1, sy: 1, ancore: [{ id: 'alto-in', x: 40, y: 0, accetta: ['condensa'] }] } },
+    }
+
+    expect(apri(salvato, modelloDiRiferimento()).archiScartati).toBe(1)
+  })
+
+  it('non conta come scartato un arco che si è solo riattaccato altrove', () => {
+    // La distinzione che rende utile l'avviso: qui l'ancora citata non c'è più, ma il tubo ha
+    // trovato dove riattaccarsi e resta disegnato. Contarlo direbbe all'utente di ritracciare una
+    // tubazione che è ancora lì.
+    const salvato: LayoutSalvato = {
+      ...layoutConArcoVersoTanica('sx'),
+      simboli: { tanica: { dx: 0, dy: 0, sx: 1, sy: 1, ancore: [{ id: 'ingresso', x: 60, y: 20, accetta: ['aria'] }] } },
+    }
+
+    const esito = apri(salvato, modelloDiRiferimento())
+
+    expect(esito.layout.archi.some((a) => a.id === 'A1')).toBe(true)
+    expect(esito.archiScartati).toBe(0)
+  })
+
+  it('non conta come scartato un arco caduto insieme al suo nodo, che `rimossi` racconta già', () => {
+    // Il compressore sparisce dalla scheda: l'arco C1→T1 cade col nodo, e `rimossi` lo dice già
+    // nominando C1. Contarlo anche qui sarebbe lo stesso fatto annunciato due volte, la seconda
+    // con una causa sbagliata («nessun attacco accetta più quel fluido»).
+    const salvato = layoutConArcoVersoTanica('sx')
+    const senzaCompressore: SchemaModel = {
+      nodi: modelloDiRiferimento().nodi.filter((n) => n.id !== 'C1'),
+      archi: [],
+    }
+
+    const esito = apri(salvato, senzaCompressore)
+
+    expect(esito.rimossi).toContain('C1')
+    expect(esito.archiScartati).toBe(0)
+  })
+
+  it('non basta che l’id dell’ancora sia rimasto: se non accetta più lo stile dell’arco si tratta come sparita', () => {
+    // Il modo taratura (task successivi) può riassegnare un id esistente a un altro fluido
+    // SENZA toglierlo: 'sx' c'è ancora nella definizione corrente, ma ora accetta condensa. Un
+    // arco standard (aria) che citava 'sx' non deve restarci solo perché l'id combacia.
+    const salvato: LayoutSalvato = {
+      ...layoutConArcoVersoTanica('sx'),
+      simboli: {
+        tanica: {
+          dx: 0, dy: 0, sx: 1, sy: 1,
+          ancore: [
+            { id: 'sx', x: 40, y: 0, accetta: ['condensa'] },
+            { id: 'ingresso', x: 60, y: 20, accetta: ['aria'] },
+          ],
+        },
+      },
+    }
+
+    const { layout } = apri(salvato, modelloDiRiferimento())
+    const arco = layout.archi.find((a) => a.id === 'A1')!
+
+    // Non è sparito (l'id 'sx' c'è), ma non è più giusto per lui: deve spostarsi sulla
+    // candidata che accetta ancora aria, non restare fermo perché "un'ancora chiamata sx c'è".
+    expect(arco.a.ancora).toBe('ingresso')
+  })
+
+  it('fra più ancore compatibili sceglie davvero la più vicina, non la prima della lista', () => {
+    // C1 (compressore, 120×120) sta a (40,200): il suo centro, il riferimento di distanza per
+    // il capo che si riattacca sulla tanica, è (100,260). 'lontana' è elencata per PRIMA ma è
+    // la più distante da quel centro: se la scelta prendesse la prima candidata invece di
+    // confrontare le distanze, il test la sceglierebbe e cadrebbe.
+    const salvato: LayoutSalvato = {
+      ...layoutConArcoVersoTanica('sx'),
+      simboli: {
+        tanica: {
+          dx: 0, dy: 0, sx: 1, sy: 1,
+          ancore: [
+            { id: 'lontana', x: 60, y: 20, accetta: ['aria'] }, // assoluta (560,520)
+            { id: 'vicina', x: -350, y: -350, accetta: ['aria'] }, // assoluta (150,150)
+          ],
+        },
+      },
+    }
+
+    const { layout } = apri(salvato, modelloDiRiferimento())
+    const arco = layout.archi.find((a) => a.id === 'A1')!
+
+    expect(arco.a.ancora).toBe('vicina')
+  })
+
+  it('la libreria del chiamante vince su `salvato.simboli`, che è solo il seme', () => {
+    // Il caso vero: il committente ha tarato la tanica scegliendo «usa solo questa volta» e non ha
+    // ancora salvato la pratica. Lo stato vivo — quello che il chiamante fonde nella libreria e
+    // con cui poi DISEGNA — porta 'ingresso'; `additional_info` porta ancora la taratura di prima,
+    // con 'sx'. Se `layoutIniziale` rifondesse `salvato.simboli` sopra la libreria ricevuta,
+    // vincerebbe il valore vecchio: il layout nascerebbe agganciato a un'ancora che il documento
+    // non disegna più (revisione finale, rilievo Importante).
+    const salvato: LayoutSalvato = {
+      ...layoutConArcoVersoTanica('sx'),
+      simboli: { tanica: { dx: 0, dy: 0, sx: 1, sy: 1, ancore: [{ id: 'sx', x: 0, y: 20, accetta: ['aria'] }] } },
+    }
+    const decisaOra: Tarature = {
+      tanica: { dx: 0, dy: 0, sx: 1, sy: 1, ancore: [{ id: 'ingresso', x: 60, y: 20, accetta: ['aria'] }] },
+    }
+
+    const { layout } = layoutIniziale(salvato, modelloDiRiferimento(), decisaOra)
+
+    expect(layout.archi.find((a) => a.id === 'A1')!.a.ancora).toBe('ingresso')
+  })
+
+  it('la taratura di pratica entra nel salvato e non alza la versione', () => {
+    const t = { dx: -3, dy: 0, sx: 1.07, sy: 1, ancore: [{ id: 'sx', x: 30, y: 130, accetta: ['aria' as const] }] }
+
+    const salvato = serializzaLayout(layoutMinimo(), { tanica: t })
+
+    expect(salvato.simboli).toEqual({ tanica: t })
+    expect(salvato.versione).toBe(1)
+  })
+
+  it('un salvato senza taratura di pratica non scrive `simboli`: resta indistinguibile da un layout di prima del blocco', () => {
+    expect(serializzaLayout(layoutMinimo()).simboli).toBeUndefined()
+    expect(serializzaLayout(layoutMinimo(), {}).simboli).toBeUndefined()
   })
 })

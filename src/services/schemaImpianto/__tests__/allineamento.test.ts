@@ -23,11 +23,12 @@ describe('allinea', () => {
   })
 
   it('porta tutti sul bordo destro più a destra', () => {
-    // essiccatore (110×110) a x=100, compressore (160×150) a x=200
-    // Bordo destro massimo: max(100+110, 200+160) = 360
-    // essiccatore finisce a: 360-110=250, compressore finisce a: 360-160=200
+    // essiccatore (110×110) a x=100, compressore (120×120, Task 8, Blocco 3 — quadrato, sceso
+    // da 129 perché l'ancora cadesse sulla griglia) a x=200
+    // Bordo destro massimo: max(100+110, 200+120) = 320
+    // essiccatore finisce a: 320-110=210, compressore finisce a: 320-120=200
     const esito = allinea([nodo('A', 100, 0, 'essiccatore'), nodo('B', 200, 50, 'compressore')], 'destra')
-    expect(esito.map((n) => n.x)).toEqual([250, 200])
+    expect(esito.map((n) => n.x)).toEqual([210, 200])
   })
 
   it('porta tutti sul bordo alto più in alto', () => {
@@ -38,27 +39,27 @@ describe('allinea', () => {
   })
 
   it('porta tutti sul bordo basso più in basso', () => {
-    // essiccatore (110×110) a y=100, compressore (160×150) a y=200
-    // Bordo basso massimo: max(100+110, 200+150) = 350
-    // essiccatore finisce a: 350-110=240, compressore finisce a: 350-150=200
+    // essiccatore (110×110) a y=100, compressore (120×120, Task 8, Blocco 3) a y=200
+    // Bordo basso massimo: max(100+110, 200+120) = 320
+    // essiccatore finisce a: 320-110=210, compressore finisce a: 320-120=200
     const esito = allinea([nodo('A', 0, 100, 'essiccatore'), nodo('B', 50, 200, 'compressore')], 'basso')
-    expect(esito.map((n) => n.y)).toEqual([240, 200])
+    expect(esito.map((n) => n.y)).toEqual([210, 200])
   })
 
   it('porta tutti al centro orizzontale', () => {
-    // essiccatore (110×110) a x=0, compressore (160×150) a x=100
-    // Centro X = (0+55 + 100+80) / 2 = 235/2 = 117.5
-    // essiccatore: round(117.5-55) = round(62.5) = 63, compressore: round(117.5-80) = round(37.5) = 38
+    // essiccatore (110×110) a x=0, compressore (120×120, Task 8, Blocco 3) a x=100
+    // Centro X = (0+55 + 100+60) / 2 = 215/2 = 107,5
+    // essiccatore: round(107,5-55) = round(52,5) = 53, compressore: round(107,5-60) = round(47,5) = 48
     const esito = allinea([nodo('A', 0, 0, 'essiccatore'), nodo('B', 100, 0, 'compressore')], 'centroX')
-    expect(esito.map((n) => n.x)).toEqual([63, 38])
+    expect(esito.map((n) => n.x)).toEqual([53, 48])
   })
 
   it('porta tutti al centro verticale', () => {
-    // essiccatore (110×110) a y=0, compressore (160×150) a y=100
-    // Centro Y = (0+55 + 100+75) / 2 = 230/2 = 115
-    // essiccatore: 115-55=60, compressore: 115-75=40
+    // essiccatore (110×110) a y=0, compressore (120×120, Task 8, Blocco 3) a y=100
+    // Centro Y = (0+55 + 100+60) / 2 = 215/2 = 107,5
+    // essiccatore: round(107,5-55)=53, compressore: round(107,5-60)=48
     const esito = allinea([nodo('A', 0, 0, 'essiccatore'), nodo('B', 0, 100, 'compressore')], 'centroY')
-    expect(esito.map((n) => n.y)).toEqual([60, 40])
+    expect(esito.map((n) => n.y)).toEqual([53, 48])
   })
 })
 

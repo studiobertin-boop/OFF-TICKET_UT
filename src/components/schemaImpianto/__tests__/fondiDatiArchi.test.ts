@@ -79,6 +79,27 @@ describe('fondiDatiArchi', () => {
     expect(fusi.map((e) => (e.data as SchemaEdgeData).evidenziato)).toEqual([false, true])
   })
 
+  // L'invariante di C1: in modo taratura ogni arco deve arrivare al componente col proprio
+  // `bloccato`. Se anche uno solo uscisse da qui senza, i gestori che `SchemaEdgeTubazione`
+  // monta da sé (`pointerEvents: 'all'` sull'area di presa, sui gomiti, sui segni) resterebbero
+  // vivi mentre l'impianto è spento — e quei gesti scrivono nella cronologia dell'IMPIANTO, che
+  // in modo taratura non ha via di ritorno.
+  it('in modo taratura ogni arco fuso esce bloccato', () => {
+    const { conGomiti, conSegni, conTrascinamento } = treElenchi()
+    const fusi = fondiDatiArchi(conGomiti, conSegni, conTrascinamento, QUOTE, CAPI, null, true)
+
+    expect(fusi).toHaveLength(2)
+    for (const arco of fusi) {
+      expect((arco.data as SchemaEdgeData).bloccato, `arco ${arco.id}`).toBe(true)
+    }
+  })
+
+  it('fuori dal modo taratura nessun arco è bloccato', () => {
+    const { conGomiti, conSegni, conTrascinamento } = treElenchi()
+    const fusi = fondiDatiArchi(conGomiti, conSegni, conTrascinamento, QUOTE, CAPI, null, false)
+    expect(fusi.every((e) => (e.data as SchemaEdgeData).bloccato === false)).toBe(true)
+  })
+
   it('senza TEE sorvolante nessun arco è evidenziato', () => {
     const { conGomiti, conSegni, conTrascinamento } = treElenchi()
     const fusi = fondiDatiArchi(conGomiti, conSegni, conTrascinamento, QUOTE, CAPI, null)

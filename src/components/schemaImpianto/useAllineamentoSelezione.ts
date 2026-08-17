@@ -28,13 +28,16 @@ export function useAllineamentoSelezione<T extends StatoConNodi>(
     (bordo: Bordo) => {
       const selezionati = new Set(selezione.nodes.map((n) => n.id))
       if (selezionati.size < 2) return
+      // La libreria viaggia dentro `data` (vedi `SchemaNodeData`): stessa per ogni nodo, letta
+      // dal primo — il guardiano appena sopra garantisce che ce ne sia almeno uno.
+      const { libreria } = selezione.nodes[0].data as SchemaNodeData
       applica((s) => {
         // `data.nodo` non porta più le coordinate: `position` è l'unica fonte, e resta l'unica
         // cosa da riscrivere quando l'allineamento sposta un nodo.
         const nodi = s.nodes
           .filter((n) => selezionati.has(n.id))
           .map((n) => ({ ...(n.data as SchemaNodeData).nodo, x: n.position.x, y: n.position.y }))
-        const spostati = new Map(allinea(nodi, bordo).map((n) => [n.id, n]))
+        const spostati = new Map(allinea(nodi, bordo, libreria).map((n) => [n.id, n]))
         return {
           ...s,
           nodes: s.nodes.map((n) => {

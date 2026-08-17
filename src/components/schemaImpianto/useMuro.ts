@@ -8,7 +8,9 @@
  * (`muroDaAscissa`, layout.ts) e non va tenuta da nessuna parte.
  */
 import { useCallback, useRef } from 'react'
-import { calcolaMuro, DIMENSIONI_NODO } from '@/services/schemaImpianto/layout'
+import { calcolaMuro } from '@/services/schemaImpianto/layout'
+import type { Tarature } from '@/services/schemaImpianto/libreria'
+import { dimensioniDi } from '@/services/schemaImpianto/symbols'
 import { allineaAllaGriglia } from '@/services/schemaImpianto/griglia'
 import type { SchemaNodoPosizionato } from '@/services/schemaImpianto/types'
 
@@ -26,10 +28,13 @@ type Aggiorna<T> = (prossimo: T | ((corrente: T) => T)) => void
  * committente l'ha chiesto: in spazio libero, a destra di tutto il disegno — un muro che
  * nascesse sopra le apparecchiature sembrerebbe un difetto invece di una proposta.
  */
-export function ascissaProposta(nodi: SchemaNodoPosizionato[]): number {
-  const automatico = calcolaMuro(nodi)
+export function ascissaProposta(nodi: SchemaNodoPosizionato[], libreria: Tarature = {}): number {
+  const automatico = calcolaMuro(nodi, libreria)
   if (automatico) return allineaAllaGriglia(automatico.x)
-  const bordo = nodi.length > 0 ? Math.max(...nodi.map((n) => n.x + DIMENSIONI_NODO[n.tipo].larghezza)) : 0
+  // `dimensioniDi`, non `DIMENSIONI_NODO[n.tipo]`: stesso difetto già corretto in `calcolaMuro`
+  // (layout.ts, Task 4) — un serbatoio orizzontale come nodo più a destra avrebbe un bordo
+  // indicizzato sul verticale (103 invece di 310), e il muro proposto nascerebbe dentro di lui.
+  const bordo = nodi.length > 0 ? Math.max(...nodi.map((n) => n.x + dimensioniDi(n, libreria).larghezza)) : 0
   return allineaAllaGriglia(bordo + 60)
 }
 

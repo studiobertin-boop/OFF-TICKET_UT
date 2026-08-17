@@ -12,9 +12,9 @@
  *   perché la scheda dati non ne prevede più di uno per apparecchiatura.
  * - La valvola di scarico è una decorazione fissa del simbolo, non un dato: non ha un codice
  *   proprio e non entra nel modello. La disegnano **serbatoio, essiccatore e filtro**; il
- *   separatore no (`simboloSeparatore` passa `conScarico: false` — scarica da un codolo nudo,
- *   così nel blocco di riferimento) e il compressore nemmeno. `righeLegenda` si regola su
- *   questo elenco: sbagliarlo mette in legenda un simbolo che nel disegno non c'è.
+ *   separatore no — scarica da un codolo nudo, così nel blocco di riferimento — e il
+ *   compressore nemmeno. `righeLegenda` si regola su questo elenco: sbagliarlo mette in
+ *   legenda un simbolo che nel disegno non c'è.
  * - La valvola di sicurezza invece è un dato (marca/modello a catalogo) e compare nella
  *   tabella "Lista Apparecchiature": resta nel modello come `valvoleSicurezza`.
  */
@@ -100,7 +100,7 @@ export interface SchemaAncora {
   id: string
   x: number
   y: number
-  /** Mai vuoto: un'ancora che non accetta nulla non serve. */
+  /** Di norma non vuoto: un'ancora che non accetta nulla non serve a una tubazione. */
   accetta: SchemaTipoAggancio[]
   /**
    * Dove si AFFERRA questo attacco sulla tela dell'editor, quando è diverso da dove il tubo ci

@@ -5,6 +5,7 @@
  */
 import type { Edge, Node } from '@xyflow/react'
 import { muroDaAscissa } from '@/services/schemaImpianto/layout'
+import type { Tarature } from '@/services/schemaImpianto/libreria'
 import { posizioneAncora } from '@/services/schemaImpianto/renderSvg'
 import { latoImposto } from '@/services/schemaImpianto/symbols'
 import {
@@ -27,13 +28,17 @@ export const TIPO_NODO_FLOW = 'simbolo'
 export const TIPO_ARCO_FLOW = 'tubazione'
 
 export function layoutAFlow(
-  layout: SchemaLayout
+  layout: SchemaLayout,
+  libreria: Tarature = {}
 ): { nodes: Node[]; edges: Edge[]; testi: SchemaTestoLibero[] } {
+  // `libreria` viaggia dentro `data`, non come prop separata a `SchemaNodeSymbol`: react-flow
+  // istanzia i nodi da `nodeTypes` (una mappa tipo→componente dichiarata una volta sola,
+  // SchemaEditor.tsx) e non ha un canale per passare extra props a ogni nodo se non i dati.
   const nodes: Node[] = layout.nodi.map(({ x, y, ...nodo }) => ({
     id: nodo.id,
     type: TIPO_NODO_FLOW,
     position: { x, y },
-    data: { nodo } satisfies SchemaNodeData,
+    data: { nodo, libreria } satisfies SchemaNodeData,
   }))
 
   // Da e a sono ora ancore vere del registro simboli, non attacchi dedotti dallo stile: gli
@@ -61,7 +66,8 @@ export function flowALayout(
   nodes: Node[],
   edges: Edge[],
   testi: SchemaTestoLibero[],
-  muroX: number | null
+  muroX: number | null,
+  libreria: Tarature = {}
 ): SchemaLayout {
   const nodi: SchemaNodoPosizionato[] = nodes.map((n) => ({
     ...(n.data as SchemaNodeData).nodo,
@@ -80,7 +86,7 @@ export function flowALayout(
     })),
     // Il quarto parametro è obbligatorio per la stessa ragione di `testi` due righe sotto: un
     // default `null` lascerebbe perdere in silenzio il muro a un chiamante che lo dimentica.
-    muro: muroX === null ? null : muroDaAscissa(muroX, nodi),
+    muro: muroX === null ? null : muroDaAscissa(muroX, nodi, libreria),
     // I testi non sono nodi di react-flow: non stanno in `nodes`/`edges`, quindi viaggiano come
     // terzo parametro esplicito, per copia di riferimento e senza trasformazioni — il ponte
     // esiste solo perché lo stato dell'editor e il layout hanno forme diverse, non perché le
@@ -120,7 +126,7 @@ export interface CapiArco {
  * resta fuori dalla mappa. Non è un caso da coprire disegnando qualcosa: react-flow non rende
  * affatto un arco con un capo su un nodo che non esiste.
  */
-export function capiDegliArchi(layout: SchemaLayout): Map<string, CapiArco> {
+export function capiDegliArchi(layout: SchemaLayout, libreria: Tarature = {}): Map<string, CapiArco> {
   const nodi = new Map(layout.nodi.map((n) => [n.id, n]))
   const capi = new Map<string, CapiArco>()
   for (const arco of layout.archi) {
@@ -128,9 +134,12 @@ export function capiDegliArchi(layout: SchemaLayout): Map<string, CapiArco> {
     const nodoA = nodi.get(arco.a.nodo)
     if (!nodoDa || !nodoA) continue
     capi.set(arco.id, {
-      da: posizioneAncora(nodoDa, arco.da.ancora),
-      a: posizioneAncora(nodoA, arco.a.ancora),
-      lati: { da: latoImposto(nodoDa, arco.da.ancora), a: latoImposto(nodoA, arco.a.ancora) },
+      da: posizioneAncora(nodoDa, arco.da.ancora, libreria),
+      a: posizioneAncora(nodoA, arco.a.ancora, libreria),
+      lati: {
+        da: latoImposto(nodoDa, arco.da.ancora, libreria),
+        a: latoImposto(nodoA, arco.a.ancora, libreria),
+      },
     })
   }
   return capi
@@ -183,7 +192,8 @@ export function polilineaDellArco(capi: CapiArco, data: SchemaEdgeData | undefin
  * l'`useMemo` di `SchemaEditor` — perché è l'unico punto dove si possono provare le invarianti
  * che proteggono dai ripieghi: ogni arco che esce da qui porta `quote` (senza, la tela
  * tornerebbe a disegnare l'angolo singolo) e `capi` (senza, tornerebbe alle coordinate degli
- * handle, sfalsate di 5 unità rispetto al documento).
+ * handle, sfalsate di 5 unità rispetto al documento), e ogni arco porta il `bloccato` del modo
+ * taratura (senza, i gesti propri della tubazione resterebbero vivi mentre l'impianto è spento).
  */
 export function fondiDatiArchi(
   edgesConGomitiBase: Edge[],
@@ -192,7 +202,9 @@ export function fondiDatiArchi(
   quote: QuoteInstradamento,
   capiPerArco: Map<string, CapiArco>,
   /** L'arco che un TEE trascinato sta sorvolando (`useInserimentoTee.ts`), o `null`. */
-  arcoEvidenziato: string | null
+  arcoEvidenziato: string | null,
+  /** Modo taratura acceso: la tubazione si vede ma non si tocca (vedi `SchemaEdgeData.bloccato`). */
+  bloccato = false
 ): Edge[] {
   return edgesConGomitiBase.map((e, i) => ({
     ...e,
@@ -203,6 +215,7 @@ export function fondiDatiArchi(
       quote,
       capi: capiPerArco.get(e.id),
       evidenziato: e.id === arcoEvidenziato,
+      bloccato,
     } as SchemaEdgeData,
   }))
 }

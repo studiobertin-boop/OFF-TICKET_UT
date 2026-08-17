@@ -13,8 +13,9 @@ import { buildSchemaModel } from '../buildSchemaModel'
 import { calcolaMuro, layoutSchema, quoteInstradamento } from '../layout'
 import { renderSvg, righeLista, righeLegenda, posizioneAncora, varchiDelMuro } from '../renderSvg'
 import { AVVICINAMENTO, raccordoOrtogonale } from '../tratti'
-import { dimensioniDi } from '../symbols'
-import type { SchemaNodoPosizionato, SchemaSegnoTubo } from '../types'
+import { dimensioniDi, simboloDi } from '../symbols'
+import type { Tarature } from '../libreria'
+import type { SchemaNodo, SchemaNodoPosizionato, SchemaSegnoTubo } from '../types'
 import { SVG_RIFERIMENTO_SENZA_TESTI } from './fixtures/svgRiferimentoSenzaTesti'
 import { SVG_RIFERIMENTO_CON_TEE } from './fixtures/svgRiferimentoConTee'
 import { SVG_RIFERIMENTO_CON_MURO } from './fixtures/svgRiferimentoConMuro'
@@ -32,7 +33,7 @@ function svgMinimo(noteTubazioni?: string[]) {
   const layout = layoutSchema(
     buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
   )
-  return renderSvg(layout, { noteTubazioni })
+  return renderSvg(layout, {}, { noteTubazioni })
 }
 
 /**
@@ -94,8 +95,10 @@ describe('renderSvg', () => {
     const condense = layout.archi.filter((a) => a.stile === 'condensa')
 
     expect(condense.length).toBeGreaterThan(0)
-    // Una linea tratteggiata per ogni scarico condensa, più il codolo del terminale utenze.
-    expect(tratteggiate).toHaveLength(condense.length + 1)
+    // Una linea tratteggiata per ogni scarico condensa, più il codolo del terminale utenze, più
+    // la verticale tratteggiata del filtro (Blocco 3 Task 3: `makeScheda` porta un filtro di
+    // default, ed è l'unico dei tre rombi il cui segno interno è tratteggiato).
+    expect(tratteggiate).toHaveLength(condense.length + 2)
   })
 
   it('disegna l’uscita verso le utenze come nodo, non più come freccia d’ufficio', () => {
@@ -353,8 +356,10 @@ describe('attacco alle ancore', () => {
     const compressore = layout.nodi.find((n) => n.id === 'C1')!
     const svg = renderSvg(layout)
 
-    // ancora 'alto-out' del compressore: (larghezza/2, 0) in coordinate locali
-    const atteso = `M ${compressore.x + 80} ${compressore.y}`
+    // ancora 'alto-out' del compressore: (larghezza/2, 0) in coordinate locali — 60, non più
+    // 64,5 da quando il compressore è sceso a 120 (Task 8, Blocco 3, per portare l'ancora sulla
+    // griglia — vedi `DIMENSIONI.compressore`).
+    const atteso = `M ${compressore.x + 60} ${compressore.y}`
     expect(svg).toContain(atteso)
   })
 
@@ -374,9 +379,22 @@ describe('attacco alle ancore', () => {
     const sep = layout.nodi.find((n) => n.id === 'SEP1')!
     const svg = renderSvg(layout)
 
-    // ancora 'sx' del separatore: (6, 49) in coordinate locali — sul fianco sinistro del
-    // rombo, non al centro del corpo né in cima (dove atterrava il vecchio calcolo).
-    const atteso = `L ${sep.x + 6} ${sep.y + 49}" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="10 7" marker-end="url(#freccia)" />`
+    // Vertice sinistro del rombo letto dal PATH VERO che `simboloDi` disegna, non da un
+    // letterale a mano: fix round 1 (revisione, Task 8, Blocco 3) — la prima stesura di questo
+    // test dichiarava (10, 40), lo stesso valore sbagliato che `ANCORE_ROMBO` dichiarava allora,
+    // e il confronto letterale-contro-letterale non poteva scoprire che i due non
+    // corrispondevano al disegno reale (il rombo, a `cx=cy=semiL=50`/`semiH=40`, disegna
+    // `M 50 10 L 100 50 L 50 90 L 0 50 Z`: il quarto punto, dopo l'ultima "L", è il vertice
+    // sinistro). Estrarlo da qui invece di scriverlo a mano fa cadere questo test se il rombo si
+    // sposta di nuovo, invece di limitarsi a confermare se stesso.
+    const separatoreNudo: SchemaNodo = {
+      id: 'SEP1', tipo: 'separatore', etichetta: '', gruppo: 'ALTRO', valvoleSicurezza: [], origine: 'scheda',
+    }
+    const rombo = simboloDi(separatoreNudo).match(
+      /<path d="M ([\d.]+) ([\d.]+) L ([\d.]+) ([\d.]+) L ([\d.]+) ([\d.]+) L ([\d.]+) ([\d.]+) Z"/
+    )!
+    const [vertSx, vertSy] = [Number(rombo[7]), Number(rombo[8])]
+    const atteso = `L ${sep.x + vertSx} ${sep.y + vertSy}" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="7 10" marker-end="url(#freccia)" />`
     expect(svg).toContain(atteso)
   })
 
@@ -393,8 +411,11 @@ describe('attacco alle ancore', () => {
     const s1 = layout.nodi.find((n) => n.id === 'S1')!
     const svg = renderSvg(layout)
 
-    // ancora 'basso-out' del serbatoio verticale: (75, 260) in coordinate locali.
-    const atteso = `M ${s1.x + 75} ${s1.y + 260}`
+    // ancora 'basso-out' del serbatoio verticale: (50, 300) in coordinate locali — il corpo
+    // isolato dalla valvola e centrato sul riquadro 100×300 (Task 8, Blocco 3: 100×300, non più
+    // 103×298 del Task 4 — larghezza arrotondata a multiplo di 20 perché l'ancora cadesse sulla
+    // griglia, vedi `CORPO_SERBATOIO_VERTICALE`).
+    const atteso = `M ${s1.x + 50} ${s1.y + 300}`
     expect(svg).toContain(atteso)
   })
 })
@@ -696,9 +717,9 @@ describe('legenda dei simboli', () => {
   })
 
   it('mette la valvola di scarico solo se un simbolo la disegna davvero', () => {
-    // La disegnano serbatoio, essiccatore e filtro. NON il separatore (`conScarico: false`,
-    // «scarica da un codolo nudo») e non il compressore: il commento in testa a types.ts
-    // diceva il contrario, ed è il commento a sbagliare.
+    // La disegnano serbatoio, essiccatore e filtro. NON il separatore («scarica da un codolo
+    // nudo») e non il compressore: il commento in testa a types.ts diceva il contrario, ed è
+    // il commento a sbagliare.
     const conSerbatoio = layoutCon({ condense: false, essiccatore: false })
     expect(descrizioni(conSerbatoio)).toContain('Valvola di scarico')
 
@@ -846,10 +867,11 @@ describe('testi liberi', () => {
     // tubazioni nella stringa concatenata, un tubo o un simbolo posati sullo stesso punto
     // coprirebbero la scritta. Niente in questo test lo impedirebbe se non l'ordine delle
     // sottostringhe: `marker-end="url(#freccia)"` è la firma di ogni tratto di tubazione,
-    // `<circle cx="80" cy="75"` è la girante del compressore (unico nodo di questa fixture).
+    // `<circle cx="60" cy="60"` è la girante del compressore (unico nodo di questa fixture,
+    // centrata sul riquadro 120×120 — 60,60, non più 64,5/64,5 su 129×129, Task 8, Blocco 3).
     const svg = renderSvg(layoutConTesti([{ id: 'T1', x: 300, y: 400, contenuto: 'Sopra il tubo' }]))
     const indiceTubo = svg.indexOf('marker-end="url(#freccia)"')
-    const indiceNodo = svg.indexOf('<circle cx="80" cy="75"')
+    const indiceNodo = svg.indexOf('<circle cx="60" cy="60"')
     const indiceTesto = svg.indexOf('>Sopra il tubo</tspan>')
     expect(indiceTubo).toBeGreaterThan(-1)
     expect(indiceNodo).toBeGreaterThan(-1)
@@ -882,7 +904,8 @@ describe('riferimento SVG del TEE', () => {
     // Un TEE inserito a metà del tubo S1 -> UTENZE, come farebbe il gesto di trascinamento
     // (`inserimentoTee.ts`) su un tratto esistente: due tubi lo toccano da lati opposti
     // (sx/dx), il minimo che eserciti sia il raggio del pallino sia la convergenza dei capi
-    // al centro del riquadro 24×24.
+    // al centro del riquadro 20×20 (24×24 prima del Task 8, Blocco 3 — l'offset -10 porta
+    // ancora il CENTRO del riquadro, non più il vecchio -12, sul punto voluto).
     const giunzione: SchemaNodoPosizionato = {
       id: 'M-G1',
       tipo: 'giunzione',
@@ -890,8 +913,8 @@ describe('riferimento SVG del TEE', () => {
       gruppo: 'LINEA_DISTRIBUZIONE',
       valvoleSicurezza: [],
       origine: 'manuale',
-      x: (pDa.x + pA.x) / 2 - 12,
-      y: pDa.y - 12,
+      x: (pDa.x + pA.x) / 2 - 10,
+      y: pDa.y - 10,
     }
     layout.nodi.push(giunzione)
     layout.archi = layout.archi.filter((a) => a.id !== arcoUtenze.id)
@@ -907,5 +930,57 @@ describe('riferimento SVG del TEE', () => {
   // 10 e tubi che convergono nel centro — che senza di questo nessun test del documento vede.
   it('un impianto con un TEE resta identico al riferimento', () => {
     expect(renderSvg(layoutConTee())).toBe(SVG_RIFERIMENTO_CON_TEE)
+  })
+})
+
+/**
+ * Il passaggio dalla porta ESTERNA (`layoutSchema` + `renderSvg`), non dalle sei porte del
+ * registro (`ancoreDi`/`dimensioniDi`/...) direttamente: è nel salto fra la funzione interna e
+ * la firma pubblica che un chiamante rimasto indietro sfuggirebbe a TypeScript, perché il tipo
+ * del parametro (`Tarature`) non cambia se qualcuno lo dimentica — resta valido con `{}`. Vedi
+ * il commento di testa a `symbols/index.ts` sul Blocco 3.
+ */
+describe('libreria delle tarature', () => {
+  // Una tanica: il simbolo più semplice del registro (un rettangolo con un solo codice dentro,
+  // una sola ancora), quindi la taratura che la scala/trasla non lascia dubbi su cosa sia
+  // cambiato nell'SVG.
+  function schedaConTanica() {
+    return makeScheda({ dati_impianto: makeDatiImpianto({ raccolta_condense: 'tanica' }) })
+  }
+
+  it('una taratura passata a renderSvg arriva fino al disegno', () => {
+    const tarata: Tarature = {
+      tanica: { dx: 0, dy: 0, sx: 2, sy: 1, ancore: [{ id: 'alto-in', x: 80, y: 0, accetta: ['condensa'] }] },
+    }
+    const modello = buildSchemaModel({
+      scheda: schedaConTanica(),
+      collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+    })
+    const layout = layoutSchema(modello, tarata)
+    expect(renderSvg(layout, tarata)).not.toBe(renderSvg(layoutSchema(modello)))
+  })
+
+  /**
+   * Fix round 1 (revisione): il test sopra non inchioda `layoutSchema` — con `sx: 2, sy: 1` la
+   * tanica non ha altri nodi nella propria riga (`disponiInRiga` la posiziona da sola) e la sua
+   * altezza non cambia, quindi NESSUNA `x`/`y` di `layout.nodi` si sposta: la differenza fra i
+   * due `renderSvg` è tutta nel disegno (`simboloDi`/`ancoreDi`), non nel layout. Una `libreria`
+   * ombreggiata dentro `layoutSchema` (mai propagata a `disponiInRiga`) avrebbe fatto passare
+   * comunque quel test. Qui la taratura cambia anche `sy` (l'altezza, non solo la larghezza):
+   * `disponiInRiga` allinea la tanica al centro della corsia condense sulla sua altezza vera
+   * (`quota - dim.altezza / 2`), quindi un'altezza diversa sposta la sua `y` — un'asserzione
+   * sulle POSIZIONI, non sull'SVG.
+   */
+  it('una taratura passata a layoutSchema sposta le posizioni dei nodi', () => {
+    const tarata: Tarature = {
+      tanica: { dx: 0, dy: 0, sx: 2, sy: 2, ancore: [{ id: 'alto-in', x: 80, y: 0, accetta: ['condensa'] }] },
+    }
+    const modello = buildSchemaModel({
+      scheda: schedaConTanica(),
+      collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+    })
+    const nodoTarato = layoutSchema(modello, tarata).nodi.find((n) => n.tipo === 'tanica')!
+    const nodoBase = layoutSchema(modello).nodi.find((n) => n.tipo === 'tanica')!
+    expect(nodoTarato.y).not.toBe(nodoBase.y)
   })
 })

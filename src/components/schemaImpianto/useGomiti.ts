@@ -106,8 +106,13 @@ export function useGomiti<T extends StatoConNodiEdArchi>(
       // Le coordinate vivono solo in `position`: `data.nodo` non le ha più (vedi SchemaNodeData).
       const datiPartenza = { ...(nodoPartenza.data as SchemaNodeData).nodo, ...nodoPartenza.position }
       const datiArrivo = { ...(nodoArrivo.data as SchemaNodeData).nodo, ...nodoArrivo.position }
-      const partenza = posizioneAncora(datiPartenza, arco.sourceHandle ?? '')
-      const arrivo = posizioneAncora(datiArrivo, arco.targetHandle ?? '')
+      // La libreria viaggia dentro `data` (vedi `SchemaNodeData`): la stessa per ogni nodo
+      // dell'editor, letta qui dal capo di partenza. Senza, questa `posizioneAncora` smetterebbe
+      // di essere «la stessa» di quella di `capiDegliArchi` (conversioneFlow.ts) per un nodo
+      // tarato, e il gomito nascerebbe sulla polilinea sbagliata.
+      const libreria = (nodoPartenza.data as SchemaNodeData).libreria
+      const partenza = posizioneAncora(datiPartenza, arco.sourceHandle ?? '', libreria)
+      const arrivo = posizioneAncora(datiArrivo, arco.targetHandle ?? '', libreria)
 
       const clic = screenToFlowPosition({ x: evento.clientX, y: evento.clientY })
       const puntiEsistenti = (arco.data as SchemaEdgeData | undefined)?.punti ?? []
