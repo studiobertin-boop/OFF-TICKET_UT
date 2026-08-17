@@ -39,13 +39,10 @@ import { relazioneDocumentiApi } from '@/services/api/relazioneDocumenti'
 import { buildRelazioneModel } from '@/services/relazione/buildRelazioneModel'
 import { validateRelazione, haErrori } from '@/services/relazione/preflight'
 import type { AdditionalInfo, PraticaInfo, SchemaImpianto, TipoGiri } from '@/services/relazione/types'
-import type { Tarature } from '@/services/schemaImpianto/libreria'
 import type { LayoutSalvato } from '@/services/schemaImpianto/persistenza'
-import { layoutDaPersistere } from '@/services/schemaImpianto/persistenza'
-import type { SchemaLayout } from '@/services/schemaImpianto/types'
-import { SchemaImpiantoSection } from './SchemaImpiantoSection'
 import { collectCodes, pruneAdditionalInfo } from '@/utils/equipmentCodes'
 import { oggiISO } from '@/services/relazione/helpers'
+import { ETICHETTA_TRONCATA, LARGHEZZA_SELECT } from './selectStyles'
 
 interface RelazioneDataDialogProps {
   open: boolean
@@ -58,6 +55,12 @@ interface RelazioneDataDialogProps {
    * progressivo di revisione: la scheda dati non li duplica più.
    */
   pratica: PraticaInfo
+  /** Collegamenti compressori → serbatoi: di proprietà della finestra SCHEMA IMPIANTO. */
+  collegamentiCompressoriSerbatoi: Record<string, string[]>
+  /** Il PNG dello schema d'impianto già pronto, o `null` se non generato/caricato. */
+  schemaImpianto: SchemaImpianto | null
+  /** Layout da scrivere in `additional_info.schemaLayout`, già calcolato dal chiamante. */
+  schemaLayoutDaPersistere: LayoutSalvato | undefined
   initialAdditionalInfo?: AdditionalInfo
   fileName?: string
   /**
@@ -67,29 +70,6 @@ interface RelazioneDataDialogProps {
   onAdditionalInfoSaved?: (info: AdditionalInfo) => void
 }
 
-/**
- * Larghezza delle select che raccolgono una sigla o due — collegamenti e giri.
- *
- * Erano larghe quanto la finestra: novecento pixel per contenere «S1, S2», una per riga.
- * Con una misura propria stanno in fila e vanno a capo solo quando la finestra si stringe
- * davvero, ed è lì che la finestra smette di dover essere scorsa per intero.
- */
-const LARGHEZZA_SELECT = 232
-
-/**
- * Etichetta che si tronca invece di sfondare il campo.
- *
- * «C1 · KAESER SK 19» ci sta, «C1 · ATLAS COPCO GA 30 VSD+ FF» no: MUI non accorcia da sé
- * l'etichetta di un campo contornato, e quella in eccesso uscirebbe dal bordo.
- */
-const ETICHETTA_TRONCATA = {
-  '& .MuiInputLabel-root': {
-    maxWidth: 'calc(100% - 28px)',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-  },
-} as const
-
 export default function RelazioneDataDialog({
   open,
   onClose,
@@ -97,15 +77,13 @@ export default function RelazioneDataDialog({
   scheda,
   customer,
   pratica,
+  collegamentiCompressoriSerbatoi,
+  schemaImpianto,
+  schemaLayoutDaPersistere,
   initialAdditionalInfo,
   fileName,
   onAdditionalInfoSaved,
 }: RelazioneDataDialogProps) {
-  const compressoriCodes = useMemo(
-    () => (scheda.compressori ?? []).map((c) => c.codice),
-    [scheda]
-  )
-
   /**
    * Compressori per cui la regolazione dei giri va ancora chiesta: quelli che il catalogo non
    * conosce. Il dato è una proprietà costruttiva del modello e sta in `specs.giri`; qui resta
@@ -142,28 +120,6 @@ export default function RelazioneDataDialog({
   const [dataEmissione, setDataEmissione] = useState('')
   const [giri, setGiri] = useState<Record<string, TipoGiri>>({})
   const [spessimetrica, setSpessimetrica] = useState<string[]>([])
-  const [collegamenti, setCollegamenti] = useState<Record<string, string[]>>({})
-  const [schema, setSchema] = useState<SchemaImpianto | null>(null)
-  // Layout salvato letto all'apertura, passato a SchemaImpiantoSection perché lo riconcili con
-  // la scheda. A tre stati (vedi SchemaImpiantoSectionProps.layoutSalvato): `undefined` finché
-  // questo effetto non ha ancora sincronizzato, `null` se ha letto e non c'era nulla di salvato.
-  // Layout corrente aggiornato a ogni `disegna`: è quello che finisce in additional_info al
-  // salvataggio, non quello letto all'apertura.
-  const [layoutSalvato, setLayoutSalvato] = useState<LayoutSalvato | null | undefined>(undefined)
-  const [layout, setLayout] = useState<SchemaLayout | null>(null)
-  // La taratura di PRATICA (Task 12, il modo taratura sulla tela): seminata da
-  // `layoutSalvato.simboli` alla stessa sincronizzazione qui sotto, poi tenuta aggiornata da
-  // `SchemaImpiantoSection` mentre l'editor chiude il modo con «usa solo questa volta» o «rendi
-  // permanenti» (che la toglie di qui dopo averla scritta in tabella, vedi SchemaEditor.tsx). È
-  // il filo che il Task 10 aveva lasciato aperto apposta: senza, `layoutDaPersistere` qui sotto
-  // continuerebbe a scrivere sempre `simboli: undefined`, e «usa solo questa volta» non
-  // sopravviverebbe al salvataggio.
-  const [taraturaPratica, setTaraturaPratica] = useState<Tarature>({})
-  // Vero non appena `SchemaImpiantoSection` ha ricalcolato il layout almeno una volta in
-  // questa apertura del dialog (successo o scelta deliberata di azzerarlo — non importa
-  // quale): distingue «nessun layout» da «layout non ancora ricalcolato» in
-  // `layoutDaPersistere` qui sotto. Vedi quella funzione per il perché.
-  const [layoutRicalcolato, setLayoutRicalcolato] = useState(false)
   const [saving, setSaving] = useState(false)
   const [droppedRefs, setDroppedRefs] = useState<string[]>([])
 
@@ -179,15 +135,6 @@ export default function RelazioneDataDialog({
   useEffect(() => {
     if (!open) {
       sincronizzatoRef.current = false
-      // Il dialog resta montato fra un'apertura e l'altra (lo monta TechnicalDetails, non il
-      // Dialog MUI): senza riportarlo a `undefined`, alla riapertura SchemaImpiantoSection lo
-      // troverebbe ancora valorizzato col layout della sessione precedente, per lo spazio fra
-      // il remount e il momento in cui questo stesso effetto lo sincronizza di nuovo.
-      setLayoutSalvato(undefined)
-      // Stessa cautela di `layoutSalvato` qui sopra: senza azzerarla, la taratura di pratica
-      // della sessione precedente resterebbe visibile fra il remount e la prossima
-      // sincronizzazione.
-      setTaraturaPratica({})
       return
     }
     if (sincronizzatoRef.current) return
@@ -205,28 +152,11 @@ export default function RelazioneDataDialog({
     setDataEmissione(info.dataEmissione || oggiISO())
     setGiri(info.compressoriGiri ?? {})
     setSpessimetrica(info.spessimetrica ?? [])
-    setCollegamenti(info.collegamentiCompressoriSerbatoi ?? {})
     setDroppedRefs(dropped)
-    // Il PNG non è persistito: si rigenera sempre da capo. Il layout invece sopravvive in
-    // additional_info; SchemaImpiantoSection lo riconcilia con la scheda appena rigenera.
-    // `null` (non `undefined`) segnala alla sezione che la lettura è avvenuta e non c'è nulla
-    // da riconciliare: `undefined` in quella prop significa "non ancora letto".
-    setSchema(null)
-    setLayout(null)
-    setLayoutRicalcolato(false)
-    setLayoutSalvato(info.schemaLayout ?? null)
-    // La taratura di pratica salvata in una sessione precedente: `SchemaImpiantoSection` la
-    // legge già da `layoutSalvato.simboli` per riconciliare le posizioni (Task 10), ma questo
-    // stato è il canale SEPARATO da cui la ri-scrive al prossimo salvataggio — vedi il commento
-    // sulla sua dichiarazione.
-    setTaraturaPratica(info.schemaLayout?.simboli ?? {})
   }, [open, initialAdditionalInfo, customer, schedaCodes])
 
   const setGiroFor = (code: string, value: TipoGiri) =>
     setGiri((prev) => ({ ...prev, [code]: value }))
-
-  const setCollegamentoFor = (code: string, values: string[]) =>
-    setCollegamenti((prev) => ({ ...prev, [code]: values }))
 
   const additionalInfo: AdditionalInfo = useMemo(
     () => ({
@@ -234,20 +164,10 @@ export default function RelazioneDataDialog({
       dataEmissione,
       compressoriGiri: giri,
       spessimetrica,
-      collegamentiCompressoriSerbatoi: collegamenti,
-      schemaLayout: layoutDaPersistere(layout, layoutRicalcolato, layoutSalvato, taraturaPratica),
+      collegamentiCompressoriSerbatoi,
+      schemaLayout: schemaLayoutDaPersistere,
     }),
-    [
-      descrizioneAttivita,
-      dataEmissione,
-      giri,
-      spessimetrica,
-      collegamenti,
-      layout,
-      layoutRicalcolato,
-      layoutSalvato,
-      taraturaPratica,
-    ]
+    [descrizioneAttivita, dataEmissione, giri, spessimetrica, collegamentiCompressoriSerbatoi, schemaLayoutDaPersistere]
   )
 
   /**
@@ -270,10 +190,10 @@ export default function RelazioneDataDialog({
         additionalInfo,
         customer,
         pratica,
-        schemaImpianto: schema ?? undefined,
+        schemaImpianto: schemaImpianto ?? undefined,
       })
     )
-  }, [customer, scheda, additionalInfo, pratica, schema])
+  }, [customer, scheda, additionalInfo, pratica, schemaImpianto])
 
   const bloccante = haErrori(segnalazioni)
   const bloccanti = segnalazioni.filter((s) => s.livello === 'errore').length
@@ -316,7 +236,7 @@ export default function RelazioneDataDialog({
         additionalInfo: parsed.data,
         customer,
         pratica,
-        schemaImpianto: schema ?? undefined,
+        schemaImpianto: schemaImpianto ?? undefined,
         fileName,
       })
       // Non bloccante: la relazione è già stata scaricata con successo, un errore di salvataggio
@@ -445,39 +365,6 @@ export default function RelazioneDataDialog({
             </GruppoCampi>
           )}
 
-          <GruppoCampi
-            titolo="Collegamenti compressori → serbatoi"
-            spiegazione="Serve al calcolo della portata delle valvole dei serbatoi."
-          >
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25 }}>
-              {compressoriCodes.map((code) => (
-                <FormControl key={code} size="small" sx={{ width: LARGHEZZA_SELECT, ...ETICHETTA_TRONCATA }}>
-                  <InputLabel id={`coll-${code}`}>{`${code} collegato a`}</InputLabel>
-                  <Select
-                    labelId={`coll-${code}`}
-                    multiple
-                    value={collegamenti[code] ?? []}
-                    onChange={(e: SelectChangeEvent<string[]>) =>
-                      setCollegamentoFor(
-                        code,
-                        typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value
-                      )
-                    }
-                    input={<OutlinedInput label={`${code} collegato a`} />}
-                    renderValue={renderMultiValue}
-                  >
-                    {serbatoiCodes.map((s) => (
-                      <MenuItem key={s} value={s}>
-                        <Checkbox checked={(collegamenti[code] ?? []).includes(s)} />
-                        <ListItemText primary={s} />
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              ))}
-            </Box>
-          </GruppoCampi>
-
           <GruppoCampi titolo="Apparecchiature con verifica spessimetrica">
             <FormControl size="small" sx={{ width: { xs: '100%', sm: 360 } }}>
               <InputLabel id="spess">Apparecchiature</InputLabel>
@@ -502,22 +389,6 @@ export default function RelazioneDataDialog({
               </Select>
             </FormControl>
           </GruppoCampi>
-
-          <Divider />
-          <SchemaImpiantoSection
-            scheda={scheda}
-            collegamentiCompressoriSerbatoi={collegamenti}
-            schema={schema}
-            onSchemaChange={setSchema}
-            layoutSalvato={layoutSalvato}
-            onLayoutChange={(nuovo) => {
-              setLayout(nuovo)
-              setLayoutRicalcolato(true)
-            }}
-            taraturaPratica={taraturaPratica}
-            onTaraturaPraticaChange={setTaraturaPratica}
-            disabled={saving}
-          />
 
           <Divider />
           <Typography variant="subtitle2">Controllo di completezza</Typography>
