@@ -167,8 +167,10 @@ export function SchemaImpiantoSection({
   // di risolversi la propria, sia per la riconciliazione all'apertura (`layoutIniziale`, che dal
   // canto suo non rifonde nulla — vedi il suo commento). I due strati sopra il registro di
   // fabbrica: le permanenti, e `taraturaPratica` (Task 12, il modo taratura sulla tela) che vince
-  // su di loro. «Unico» va preso alla lettera: un secondo `risolviLibreria` altrove tornerebbe a
-  // divergere in silenzio appena le due fonti si scostano.
+  // su di loro. «Unico» va preso alla lettera per QUESTI due strati: un secondo punto che li
+  // rifondesse tornerebbe a divergere in silenzio appena le due fonti si scostano. Non riguarda
+  // invece la `libreriaEffettiva` dell'editor (SchemaEditor.tsx), che sovrappone a questa la
+  // taratura ANCORA IN CORSO sulla tela — uno strato che qui non esiste e che nessuno persiste.
   //
   // In caso di errore di lettura `taraturePermanenti` resta `undefined` e si ripiega sul solo
   // registro: il disegno esce come prima che le tarature permanenti esistessero — meno fedele,
