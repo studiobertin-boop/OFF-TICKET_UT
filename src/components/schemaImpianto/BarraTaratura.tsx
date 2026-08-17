@@ -28,10 +28,11 @@ import {
   Typography,
 } from '@mui/material'
 import { Tune as TaraturaIcon, Undo as UndoIcon } from '@mui/icons-material'
-import { PASSO_GRIGLIA } from '@/services/schemaImpianto/griglia'
+import toast from 'react-hot-toast'
 import type { TaraturaSimbolo } from '@/services/schemaImpianto/libreria'
 import type { SchemaAncora, SchemaTipoAggancio } from '@/services/schemaImpianto/types'
 import { useGestoPuntatore } from './useGestoPuntatore'
+import { fattoreDeforma } from './useTaratura'
 
 /* ------------------------------------------------------------------------------------------ *
  * Il pulsante e il gruppo di comandi della barra strumenti
@@ -119,8 +120,14 @@ export function BarraTaratura({
             value={accettaCorrente}
             onChange={(_, valori: SchemaTipoAggancio[]) => {
               // Un'ancora senza alcun tipo accettato non serve a nessuna tubazione: non si
-              // scende sotto uno (Step 3 del brief).
-              if (valori.length > 0) onCambiaAccetta(valori)
+              // scende sotto uno (Step 3 del brief). Il rifiuto va DETTO, come già si fa per
+              // l'ultima ancora rimasta (`togliAncoraSelezionata`, SchemaEditor.tsx): un
+              // interruttore che si riaccende da solo senza spiegazione si legge come un guasto.
+              if (valori.length === 0) {
+                toast.error('Un’ancora deve accettare almeno un tipo: per toglierla del tutto usa il tasto Canc.')
+                return
+              }
+              onCambiaAccetta(valori)
             }}
             disabled={!ancoraSelezionata}
           >
@@ -347,13 +354,14 @@ export function ManiglieTaratura({
     [corpoGesto, onSelezionaAncora]
   )
 
-  // Guardia contro le dimensioni degeneri: sotto un passo di griglia la sagoma diventerebbe un
-  // filo o si capovolgerebbe (sx/sy negativi), un difetto visibile che nessuna taratura reale
-  // chiede.
+  // La conversione delta→fattore e la guardia contro le dimensioni degeneri stanno in
+  // `fattoreDeforma` (useTaratura.ts), accanto a `deforma` e sotto test: qui resta solo il
+  // cablaggio dei tre gesti. `null` significa «gesto rifiutato», e si esce senza toccare nulla.
   const onDeformaEst = useCallback(
     (dx: number, _dy: number, concluso: boolean) => {
-      if (sagomaLarghezza + dx < PASSO_GRIGLIA) return
-      onDeforma((sagomaLarghezza + dx) / sagomaLarghezza, 1, concluso)
+      const fx = fattoreDeforma(sagomaLarghezza, dx)
+      if (fx === null) return
+      onDeforma(fx, 1, concluso)
     },
     [sagomaLarghezza, onDeforma]
   )
@@ -361,17 +369,23 @@ export function ManiglieTaratura({
 
   const onDeformaSud = useCallback(
     (_dx: number, dy: number, concluso: boolean) => {
-      if (sagomaAltezza + dy < PASSO_GRIGLIA) return
-      onDeforma(1, (sagomaAltezza + dy) / sagomaAltezza, concluso)
+      const fy = fattoreDeforma(sagomaAltezza, dy)
+      if (fy === null) return
+      onDeforma(1, fy, concluso)
     },
     [sagomaAltezza, onDeforma]
   )
   const sudGesto = useTrascinamentoDelta(onDeformaSud)
 
+  // Sud-est deforma i due assi INSIEME: se uno solo dei due degenera si rifiuta tutto il gesto,
+  // non la sola componente rifiutata — deformare in una sola direzione non è quello che il
+  // committente ha afferrato, e vederselo fare a metà si legge come un difetto.
   const onDeformaSudEst = useCallback(
     (dx: number, dy: number, concluso: boolean) => {
-      if (sagomaLarghezza + dx < PASSO_GRIGLIA || sagomaAltezza + dy < PASSO_GRIGLIA) return
-      onDeforma((sagomaLarghezza + dx) / sagomaLarghezza, (sagomaAltezza + dy) / sagomaAltezza, concluso)
+      const fx = fattoreDeforma(sagomaLarghezza, dx)
+      const fy = fattoreDeforma(sagomaAltezza, dy)
+      if (fx === null || fy === null) return
+      onDeforma(fx, fy, concluso)
     },
     [sagomaLarghezza, sagomaAltezza, onDeforma]
   )

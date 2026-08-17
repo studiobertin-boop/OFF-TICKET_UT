@@ -51,6 +51,14 @@ function reducer<T>(s: Stato<T>, azione: Azione<T>): Stato<T> {
         passato: [...s.passato, s.stato].slice(-PROFONDITA_CRONOLOGIA),
       }
     case 'aggiornaSenzaCronologia':
+      // Un updater che decide di non cambiare nulla restituisce `s.stato` tale e quale: chi
+      // legge `stato` non vede allora alcun cambiamento di identità, ed è ciò che rende sicuro
+      // chiamare questo gesto da un effetto che dipende anche da `stato` (vedi la
+      // sincronizzazione di `data.libreria` in SchemaEditor.tsx). Il giro qui sotto produce
+      // comunque un oggetto di cronologia nuovo, e quindi un render: è un costo che React fa
+      // pagare in ogni caso, perché rende il componente una volta anche quando il reducer
+      // restituisce lo stato identico (misurato: 1 render per dispatch, con o senza uscita
+      // anticipata). Aggiungerne una qui non risparmierebbe nulla.
       return { ...s, stato: risolvi(azione.prossimo, s.stato) }
     case 'annulla':
       if (s.passato.length === 0) return s

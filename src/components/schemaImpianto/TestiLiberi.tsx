@@ -40,6 +40,14 @@ export interface TestiLiberiProps {
   selezionato: string | null
   /** Segnala a `SchemaEditor` che questa annotazione è quella appena scelta. */
   onSeleziona: (id: string) => void
+  /**
+   * Modo taratura acceso: le annotazioni restano leggibili ma non si afferrano né si riaprono
+   * in scrittura. Sono gestori PROPRI di questo componente, che `nodesDraggable`/
+   * `elementsSelectable={false}` su `<ReactFlow>` non toccano affatto — e spostare o riscrivere
+   * un'annotazione scrive nella cronologia dell'IMPIANTO, che in modo taratura non ha via di
+   * ritorno («Annulla» è disabilitato, Ctrl+Z appartiene alla taratura).
+   */
+  bloccato?: boolean
 }
 
 interface TestoLiberoProps {
@@ -48,6 +56,7 @@ interface TestoLiberoProps {
   onModifica: TestiLiberiProps['onModifica']
   selezionato: boolean
   onSeleziona: TestiLiberiProps['onSeleziona']
+  bloccato: boolean
 }
 
 /**
@@ -55,7 +64,7 @@ interface TestoLiberoProps {
  * (SchemaEdgeTubazione.tsx): cattura del puntatore invece di listener globali, così il gesto
  * regge anche se il cursore esce per un attimo dal blocco di testo.
  */
-function TestoLibero({ testo, onSposta, onModifica, selezionato, onSeleziona }: TestoLiberoProps) {
+function TestoLibero({ testo, onSposta, onModifica, selezionato, onSeleziona, bloccato }: TestoLiberoProps) {
   const { screenToFlowPosition } = useReactFlow()
   // Un doppio clic è nativamente due cicli pointerdown/pointerup prima del dblclick: senza
   // questa guardia ognuno dei due varrebbe come uno spostamento (a vuoto) e riaprire in
@@ -159,7 +168,11 @@ function TestoLibero({ testo, onSposta, onModifica, selezionato, onSeleziona }: 
       // screenToFlowPosition usa a metà trascinamento — l'annotazione rilasciata tornerebbe
       // dov'era. Stesso motivo per cui ce l'ha `SchemaGomito`.
       className="nopan"
-      title="Trascina per spostare, si cancella col tasto Canc, doppio clic per riscrivere o eliminare"
+      title={
+        bloccato
+          ? 'Esci dal modo taratura per spostare o riscrivere le annotazioni'
+          : 'Trascina per spostare, si cancella col tasto Canc, doppio clic per riscrivere o eliminare'
+      }
       onPointerDown={suPointerDown}
       onPointerMove={suPointerMove}
       onPointerUp={suPointerUp}
@@ -180,11 +193,12 @@ function TestoLibero({ testo, onSposta, onModifica, selezionato, onSeleziona }: 
         // Nero come nel disegno, non il colore del tema scuro dell'applicazione: la tela di
         // react-flow è chiara come il foglio.
         color: '#000',
-        cursor: 'move',
+        cursor: bloccato ? 'default' : 'move',
         // `.react-flow__viewport` (e quindi il portale) ha `pointer-events: none`: senza
         // riaccenderli qui l'annotazione si vedrebbe ma non si potrebbe né afferrare né
-        // riaprire. Stessa ragione per cui lo fa `SchemaGomito`.
-        pointerEvents: 'all',
+        // riaprire. Stessa ragione per cui lo fa `SchemaGomito`. In modo taratura si lascia
+        // spento: l'annotazione torna a essere solo qualcosa da leggere.
+        pointerEvents: bloccato ? 'none' : 'all',
         userSelect: 'none',
         // `outline`, non `border`: non occupa spazio di layout, quindi non sposta il testo di un
         // pixel rispetto a quando non è selezionata — stesso principio del contorno tratteggiato
@@ -205,7 +219,7 @@ function TestoLibero({ testo, onSposta, onModifica, selezionato, onSeleziona }: 
  * una scritta posata su un simbolo resta leggibile, esattamente come nel documento, dove
  * `renderTestiLiberi` disegna dopo nodi e tubazioni.
  */
-export function TestiLiberi({ testi, onSposta, onModifica, selezionato, onSeleziona }: TestiLiberiProps) {
+export function TestiLiberi({ testi, onSposta, onModifica, selezionato, onSeleziona, bloccato = false }: TestiLiberiProps) {
   return (
     <>
       {testi.map((testo) => (
@@ -216,6 +230,7 @@ export function TestiLiberi({ testi, onSposta, onModifica, selezionato, onSelezi
           onModifica={onModifica}
           selezionato={selezionato === testo.id}
           onSeleziona={onSeleziona}
+          bloccato={bloccato}
         />
       ))}
     </>

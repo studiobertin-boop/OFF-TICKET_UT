@@ -192,7 +192,8 @@ export function polilineaDellArco(capi: CapiArco, data: SchemaEdgeData | undefin
  * l'`useMemo` di `SchemaEditor` — perché è l'unico punto dove si possono provare le invarianti
  * che proteggono dai ripieghi: ogni arco che esce da qui porta `quote` (senza, la tela
  * tornerebbe a disegnare l'angolo singolo) e `capi` (senza, tornerebbe alle coordinate degli
- * handle, sfalsate di 5 unità rispetto al documento).
+ * handle, sfalsate di 5 unità rispetto al documento), e ogni arco porta il `bloccato` del modo
+ * taratura (senza, i gesti propri della tubazione resterebbero vivi mentre l'impianto è spento).
  */
 export function fondiDatiArchi(
   edgesConGomitiBase: Edge[],
@@ -201,7 +202,9 @@ export function fondiDatiArchi(
   quote: QuoteInstradamento,
   capiPerArco: Map<string, CapiArco>,
   /** L'arco che un TEE trascinato sta sorvolando (`useInserimentoTee.ts`), o `null`. */
-  arcoEvidenziato: string | null
+  arcoEvidenziato: string | null,
+  /** Modo taratura acceso: la tubazione si vede ma non si tocca (vedi `SchemaEdgeData.bloccato`). */
+  bloccato = false
 ): Edge[] {
   return edgesConGomitiBase.map((e, i) => ({
     ...e,
@@ -212,6 +215,7 @@ export function fondiDatiArchi(
       quote,
       capi: capiPerArco.get(e.id),
       evidenziato: e.id === arcoEvidenziato,
+      bloccato,
     } as SchemaEdgeData,
   }))
 }

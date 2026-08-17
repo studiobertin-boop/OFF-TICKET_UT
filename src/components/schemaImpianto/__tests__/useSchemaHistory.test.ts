@@ -66,6 +66,21 @@ describe('useSchemaHistory', () => {
     expect(result.current.puoAnnullare).toBe(false)
   })
 
+  it('un updater che non cambia nulla lascia `stato` identico a se stesso', () => {
+    // È il contratto su cui si appoggia la sincronizzazione di `data.libreria`
+    // (SchemaEditor.tsx): quell'effetto dipende ANCHE da `stato.nodes` e chiama
+    // `aggiornaSenzaCronologia` a ogni giro, quindi deve poter dire «non c'è nulla da cambiare»
+    // restituendo lo stato tale e quale — e chi lo osserva non deve vedere alcun cambiamento,
+    // o le dipendenze dell'effetto cambierebbero identità e il ciclo non si chiuderebbe mai.
+    const { result } = renderHook(() => useSchemaHistory({ n: 0 }))
+    const primo = result.current.stato
+
+    act(() => result.current.aggiornaSenzaCronologia((s) => s))
+
+    expect(result.current.stato).toBe(primo)
+    expect(result.current.puoAnnullare).toBe(false)
+  })
+
   it('azzera la cronologia quando si riparte da uno stato nuovo', () => {
     const { result } = renderHook(() => useSchemaHistory({ n: 0 }))
 

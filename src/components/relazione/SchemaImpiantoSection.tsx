@@ -7,6 +7,7 @@
  * cioè i byte PNG che il motore della relazione incorpora nel .docx senza saperne l'origine.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Alert,
   Box,
@@ -36,7 +37,7 @@ import { renderSvg } from '@/services/schemaImpianto/renderSvg'
 import { rasterizzaSvg } from '@/services/schemaImpianto/rasterize'
 import type { LayoutSalvato } from '@/services/schemaImpianto/persistenza'
 import { layoutIniziale } from '@/services/schemaImpianto/persistenza'
-import { scriviTaraturaPermanente } from '@/services/schemaImpianto/tarature'
+import { leggiTaraturePermanenti, scriviTaraturaPermanente } from '@/services/schemaImpianto/tarature'
 import type { ChiaveSimbolo, SchemaLayout } from '@/services/schemaImpianto/types'
 import { SchemaEditor } from '@/components/schemaImpianto/SchemaEditor'
 import { leggiPreferenze, scriviPreferenze, type PreferenzeEditor } from '@/components/schemaImpianto/preferenzeEditor'
@@ -44,6 +45,19 @@ import { FORMATI_SCHEMA, leggiSchemaImpianto } from './schemaImpiantoFile'
 
 /** Da dove viene lo schema attualmente in uso: cambia solo ciò che si racconta all'utente. */
 type Origine = 'generato' | 'caricato'
+
+/**
+ * Chiave della cache per le tarature permanenti (tabella `schema_simboli`). Una sola per l'intera
+ * applicazione, senza parti variabili: la tabella non è filtrata per pratica né per utente — una
+ * taratura permanente vale per tutti — quindi due pratiche aperte di seguito devono leggere la
+ * STESSA voce di cache, ed è anche la voce che «rendi permanenti» aggiorna a scrittura riuscita.
+ */
+const CHIAVE_TARATURE_PERMANENTI = ['schemaImpianto', 'taraturePermanenti'] as const
+
+/** Mappa vuota di modulo, non `{}` inline: entra nelle dipendenze di `libreria` qui sotto e un
+ *  oggetto nuovo a ogni render invaliderebbe quel `useMemo` a schema fermo (stessa trappola
+ *  descritta per `LIBRERIA_VUOTA` in SchemaEditor.tsx). */
+const TARATURE_VUOTE: Tarature = {}
 
 export interface SchemaImpiantoSectionProps {
   scheda: SchedaDatiCompleta
@@ -130,14 +144,56 @@ export function SchemaImpiantoSection({
 
   const puoGenerare = puoGenerareSchema({ scheda, collegamentiCompressoriSerbatoi })
   const note = useMemo(() => notaTubazioni(scheda), [scheda])
+  // Lo strato PERMANENTE della libreria (tabella `schema_simboli`, Task 9): questo è il suo
+  // unico punto di lettura in tutta l'applicazione. Senza, «rendi permanenti» scriveva in tabella
+  // e nessuna pratica rileggeva mai quella riga: l'amministratore vedeva la taratura appena resa
+  // permanente sparire alla prima apertura di qualsiasi pratica, compresa quella su cui l'aveva
+  // decisa.
+  //
+  // Una `useQuery` e non una lettura una tantum in un effetto: la voce di cache è condivisa fra
+  // tutte le pratiche aperte nella stessa sessione, e «rendi permanenti» la aggiorna in place
+  // (`scriviPermanente` qui sotto) — così il risultato si vede subito, senza riaprire nulla.
+  // `staleTime` lungo: sono decisioni prese col committente, non un dato che cambia da sé.
+  const queryClient = useQueryClient()
+  const { data: taraturePermanenti, isPending: permanentiInLettura } = useQuery({
+    queryKey: CHIAVE_TARATURE_PERMANENTI,
+    queryFn: leggiTaraturePermanenti,
+    staleTime: 30 * 60 * 1000,
+  })
+
   // Punto unico di risoluzione della libreria per questa pratica: sia per la generazione del
   // documento (`disegna`/`rigenera` qui sotto) sia per l'editor, che la riceve come prop invece
-  // di risolversi la propria. `taraturaPratica` (Task 12, il modo taratura sulla tela) è lo
-  // strato di pratica; quello permanente (tabella `schema_simboli`, Task 9) resta `{}` qui —
-  // nessun chiamante lo legge ancora dal database, un filo che questo task non doveva chiudere
-  // (il suo, «usa solo questa volta», passa da `taraturaPratica`; «rendi permanenti» scrive in
-  // tabella ma questa Section non la rilegge in questa stessa sessione dell'editor).
-  const libreria = useMemo(() => risolviLibreria({}, taraturaPratica), [taraturaPratica])
+  // di risolversi la propria. I due strati sopra il registro di fabbrica: le permanenti, e
+  // `taraturaPratica` (Task 12, il modo taratura sulla tela) che vince su di loro.
+  //
+  // In caso di errore di lettura `taraturePermanenti` resta `undefined` e si ripiega sul solo
+  // registro: il disegno esce come prima che le tarature permanenti esistessero — meno fedele,
+  // ma disegnato. Bloccare l'intera §2.3 perché una tabella accessoria non risponde sarebbe
+  // sproporzionato.
+  const libreria = useMemo(
+    () => risolviLibreria(taraturePermanenti ?? TARATURE_VUOTE, taraturaPratica),
+    [taraturePermanenti, taraturaPratica]
+  )
+
+  /**
+   * `scriviTaraturaPermanente`, più l'aggiornamento della cache a scrittura riuscita: la mappa in
+   * memoria deve riflettere subito ciò che è appena finito in tabella, o la tela e il documento
+   * tornerebbero al default appena il modo taratura si chiude. Si aggiorna la voce invece di
+   * invalidarla per non far dipendere da un secondo giro di rete l'esito di un gesto già
+   * concluso. Un errore non tocca la cache e risale al chiamante, che lo mostra (SchemaEditor.tsx).
+   */
+  const scriviPermanente = useCallback(
+    async (chiave: ChiaveSimbolo, taratura: TaraturaSimbolo | null) => {
+      await scriviTaraturaPermanente(chiave, taratura)
+      queryClient.setQueryData<Tarature>(CHIAVE_TARATURE_PERMANENTI, (precedenti) => {
+        const aggiornate = { ...(precedenti ?? {}) }
+        if (taratura === null) delete aggiornate[chiave]
+        else aggiornate[chiave] = taratura
+        return aggiornate
+      })
+    },
+    [queryClient]
+  )
 
   // «Torna a default» (`taratura: null`) toglie la voce; «usa solo questa volta»/«rendi
   // permanenti» (che la toglie di pratica dopo aver scritto in tabella, vedi SchemaEditor.tsx) la
@@ -207,6 +263,12 @@ export function SchemaImpiantoSection({
     // di prima (il genitore lo sincronizza in un effetto suo, che parte dopo) e la guardia si
     // alzerebbe sul layout vecchio.
     if (layoutSalvato === undefined) return
+    // Stessa cautela, sull'altro ingresso che arriva in ritardo: le tarature permanenti. Generare
+    // prima che siano lette produrrebbe un disegno col simbolo di fabbrica e alzerebbe la
+    // guardia, e non si rigenera più da soli — la taratura permanente non comparirebbe mai.
+    // Sull'errore di lettura `isPending` cade comunque a falso e si genera col solo registro
+    // (vedi `libreria` qui sopra).
+    if (permanentiInLettura) return
     if (generazioneTentata.current || !puoGenerare || schema) return
     generazioneTentata.current = true
     const modello = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi })
@@ -219,7 +281,16 @@ export function SchemaImpiantoSection({
         : null
     )
     void disegna(esito.layout)
-  }, [collegamentiCompressoriSerbatoi, disegna, layoutSalvato, libreria, puoGenerare, scheda, schema])
+  }, [
+    collegamentiCompressoriSerbatoi,
+    disegna,
+    layoutSalvato,
+    libreria,
+    permanentiInLettura,
+    puoGenerare,
+    scheda,
+    schema,
+  ])
 
   const rigenera = useCallback(() => {
     // Via d'uscita quando il disegno salvato non va più bene: si riparte dalla scheda,
@@ -471,7 +542,7 @@ export function SchemaImpiantoSection({
               libreria={libreria}
               isAdmin={isAdmin}
               onTaraturaPratica={impostaTaraturaPratica}
-              onScriviTaraturaPermanente={scriviTaraturaPermanente}
+              onScriviTaraturaPermanente={scriviPermanente}
               preferenze={preferenze}
               onCambiaPreferenze={cambiaPreferenze}
               onAnnulla={() => setEditorAperto(false)}

@@ -68,6 +68,20 @@ export interface SchemaEdgeData extends Record<string, unknown> {
    */
   evidenziato?: boolean
   /**
+   * Vero mentre l'editor è in modo taratura: la tubazione si vede ma non si tocca — niente
+   * trascinamento del tratto, niente gomiti da spostare o togliere, niente segni da muovere,
+   * niente doppio clic che crei un gomito. Lo infila `fondiDatiArchi` (conversioneFlow.ts)
+   * insieme a quote e capi, per la stessa ragione: un arco non ha una vista sull'editor.
+   *
+   * Non basta `elementsSelectable`/`nodesDraggable={false}` su `<ReactFlow>`: quelli spengono
+   * i gesti che react-flow gestisce di suo, non i gestori che questo componente monta da sé
+   * (`pointerEvents: 'all'` qui sotto). Senza questa guardia, in modo taratura si può ancora
+   * deformare l'impianto — e quelle modifiche entrano nella cronologia dell'IMPIANTO, che in
+   * quel momento non ha via di ritorno: «Annulla» è disabilitato e Ctrl+Z è dirottato sulla
+   * cronologia della taratura.
+   */
+  bloccato?: boolean
+  /**
    * Legate a questo arco specifico da `useGomiti` (vedi `edgesConGomiti` lì dentro): il
    * componente dell'arco non conosce la cronologia, sa solo chiedere di aggiornarla.
    * `pDa`/`pA` sono gli stessi capi risolti da `capiDellArco` che disegnano la polilinea —
@@ -115,6 +129,9 @@ export interface SchemaGomitoProps {
   pA: Punto
   onSposta?: (pDa: Punto, pA: Punto, indice: number, posizione: { x: number; y: number }, concluso: boolean) => void
   onRimuovi?: (indice: number) => void
+  /** Modo taratura acceso: la maniglia si vede ma non risponde al puntatore (vedi
+   *  `SchemaEdgeData.bloccato`). */
+  bloccato?: boolean
 }
 
 /**
@@ -124,7 +141,7 @@ export interface SchemaGomitoProps {
  * «si è mosso» e chiusura (rilascio/annullamento) sono `useGestoPuntatore.ts`, lo stesso
  * pattern di `SchemaSegno` e dell'area di trascinamento del tratto qui sotto.
  */
-export function SchemaGomito({ indice, punto, pDa, pA, onSposta, onRimuovi }: SchemaGomitoProps) {
+export function SchemaGomito({ indice, punto, pDa, pA, onSposta, onRimuovi, bloccato }: SchemaGomitoProps) {
   const { screenToFlowPosition } = useReactFlow()
   const { suInizio, suMovimento, suFine, suAnnullamento } = useGestoPuntatore<HTMLDivElement, { x: number; y: number }>()
 
@@ -205,8 +222,12 @@ export function SchemaGomito({ indice, punto, pDa, pA, onSposta, onRimuovi }: Sc
         borderRadius: '50%',
         background: '#fff',
         border: '2px solid #1976d2',
-        pointerEvents: 'all',
-        cursor: 'move',
+        // Inerte in modo taratura: i gestori sopra restano montati (togliere e rimettere
+        // listener a ogni ingresso nel modo non aggiunge nulla) ma il puntatore non li
+        // raggiunge più — è la stessa scelta fatta per gli handle del nodo tarato in
+        // SchemaNodeSymbol.tsx, dove smontarli rompeva l'arco collegato.
+        pointerEvents: bloccato ? 'none' : 'all',
+        cursor: bloccato ? 'default' : 'move',
       }}
     />
   )
@@ -220,6 +241,8 @@ interface SchemaSegnoProps {
   orientamento: 'orizzontale' | 'verticale'
   onSposta?: (indice: number, t: number, concluso: boolean) => void
   onRimuovi?: (indice: number) => void
+  /** Modo taratura acceso: vedi `SchemaGomitoProps.bloccato`. */
+  bloccato?: boolean
 }
 
 /**
@@ -234,7 +257,7 @@ interface SchemaSegnoProps {
  * parametrico su `x`/`y`, quindi si chiama con `(0, 0)` e si trasla il contenitore, non il
  * simbolo.
  */
-function SchemaSegno({ indice, punto, tipo, polilinea, orientamento, onSposta, onRimuovi }: SchemaSegnoProps) {
+function SchemaSegno({ indice, punto, tipo, polilinea, orientamento, onSposta, onRimuovi, bloccato }: SchemaSegnoProps) {
   const { screenToFlowPosition } = useReactFlow()
   // Cattura, guardia «si è mosso» e chiusura (rilascio/annullamento) sono `useGestoPuntatore.ts`,
   // lo stesso pattern di `SchemaGomito` qui sopra e dell'area di trascinamento del tratto sotto.
@@ -290,8 +313,9 @@ function SchemaSegno({ indice, punto, tipo, polilinea, orientamento, onSposta, o
         transform: `translate(-50%, -50%) translate(${punto.x}px, ${punto.y}px)`,
         width: 40,
         height: 40,
-        cursor: 'move',
-        pointerEvents: 'all',
+        // Inerte in modo taratura, stessa scelta di `SchemaGomito` qui sopra.
+        cursor: bloccato ? 'default' : 'move',
+        pointerEvents: bloccato ? 'none' : 'all',
       }}
     >
       <svg
@@ -323,6 +347,7 @@ export function SchemaEdgeTubazione({
   const { suInizio, suMovimento, suFine, suAnnullamento } = useGestoPuntatore<SVGPathElement, { indice: number; libero: Punto }>()
   const edgeData = data as SchemaEdgeData | undefined
   const stile = (edgeData?.stile ?? 'standard') as SchemaArcoStile
+  const bloccato = edgeData?.bloccato ?? false
   // I capi vengono dalle ancore dei nodi (`data.capi`, vedi sopra), non da `sourceX`/`sourceY`:
   // quelli sono il bordo dell'handle, 5 unità fuori dal centro dell'ancora, e restano solo come
   // ripiego per il tipo. Risolti UNA volta e usati per tutto ciò che segue — polilinea, area di
@@ -372,7 +397,11 @@ export function SchemaEdgeTubazione({
         fill="none"
         stroke="transparent"
         strokeWidth={16}
-        style={{ cursor: 'move', pointerEvents: 'all' }}
+        // In modo taratura l'area di presa si spegne: senza, un trascinamento su una tubazione
+        // scriverebbe nella cronologia dell'IMPIANTO mentre il committente crede di star
+        // tarando un simbolo — e da lì non si torna indietro, perché in quel modo «Annulla» è
+        // disabilitato e Ctrl+Z appartiene alla taratura (vedi `SchemaEdgeData.bloccato`).
+        style={{ cursor: bloccato ? 'default' : 'move', pointerEvents: bloccato ? 'none' : 'all' }}
         onPointerDown={suInizio}
         onPointerMove={(e) => {
           const libero = screenToFlowPosition({ x: e.clientX, y: e.clientY })
@@ -409,6 +438,7 @@ export function SchemaEdgeTubazione({
             pA={capi.a}
             onSposta={edgeData?.onSpostaGomito}
             onRimuovi={edgeData?.onRimuoviGomito}
+            bloccato={bloccato}
           />
         ))}
         {(edgeData?.segni ?? []).map((segno, indice) => {
@@ -423,6 +453,7 @@ export function SchemaEdgeTubazione({
               orientamento={orizzontale ? 'orizzontale' : 'verticale'}
               onSposta={edgeData?.onSpostaSegno}
               onRimuovi={edgeData?.onRimuoviSegno}
+              bloccato={bloccato}
             />
           )
         })}

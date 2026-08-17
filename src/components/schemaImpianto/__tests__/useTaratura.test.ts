@@ -10,6 +10,7 @@ import {
   impostaAccetta,
   trasla,
   deforma,
+  fattoreDeforma,
   useTaratura,
 } from '../useTaratura'
 
@@ -94,6 +95,39 @@ describe('i gesti della taratura', () => {
     const unaVolta = deforma(TARATURA_NEUTRA, 1.5, 2)
     const dueVolte = deforma(unaVolta, 2, 1)
     expect(dueVolte).toMatchObject({ sx: 3, sy: 2 })
+  })
+})
+
+describe('fattoreDeforma: dal delta della maniglia al fattore che deforma si aspetta', () => {
+  it('un delta positivo diventa il rapporto fra dimensione nuova e vecchia, non il delta stesso', () => {
+    // 100 → 150: il fattore è 1,5. Consegnare 50 a `deforma` moltiplicherebbe la scala per
+    // cinquanta, non la porterebbe a una volta e mezzo.
+    expect(fattoreDeforma(100, 50)).toBe(1.5)
+  })
+
+  it('rimpicciolire dà un fattore sotto l’uno, e due gesti in fila compongono con deforma', () => {
+    const primo = fattoreDeforma(100, -50)!
+    // La seconda maniglia parte dalla dimensione GIÀ ridotta: è il chiamante a rileggerla.
+    const secondo = fattoreDeforma(50, -20)!
+    const t = deforma(deforma(TARATURA_NEUTRA, primo, 1), secondo, 1)
+    expect(t.sx).toBeCloseTo(0.3, 10)
+  })
+
+  it('rifiuta il gesto che porterebbe la sagoma sotto un passo di griglia', () => {
+    // 100 − 91 = 9, sotto il passo (10): un filo, non una sagoma.
+    expect(fattoreDeforma(100, -91)).toBeNull()
+    // Al passo esatto invece si accetta: è il limite, non oltre il limite.
+    expect(fattoreDeforma(100, -90)).toBe(0.1)
+  })
+
+  it('rifiuta il gesto che capovolgerebbe la sagoma', () => {
+    expect(fattoreDeforma(100, -140)).toBeNull()
+  })
+
+  it('rifiuta una dimensione di partenza nulla, invece di produrre un fattore infinito', () => {
+    // `Infinity` entrerebbe in `sx`/`sy` e nessun gesto successivo potrebbe più tirarlo fuori.
+    expect(fattoreDeforma(0, 200)).toBeNull()
+    expect(fattoreDeforma(-30, 200)).toBeNull()
   })
 })
 

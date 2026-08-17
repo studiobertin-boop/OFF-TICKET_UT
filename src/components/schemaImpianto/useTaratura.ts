@@ -15,7 +15,7 @@
  * unica ragione d'essere (vedi anche il test di mutazione nel rapporto del task).
  */
 import { useCallback, useRef } from 'react'
-import { allineaAllaGriglia } from '@/services/schemaImpianto/griglia'
+import { PASSO_GRIGLIA, allineaAllaGriglia } from '@/services/schemaImpianto/griglia'
 import type { TaraturaSimbolo } from '@/services/schemaImpianto/libreria'
 import type { SchemaAncora, SchemaLatoAncora, SchemaTipoAggancio } from '@/services/schemaImpianto/types'
 import { useSchemaHistory } from './useSchemaHistory'
@@ -125,6 +125,27 @@ export function trasla(t: TaraturaSimbolo, dx: number, dy: number): TaraturaSimb
  */
 export function deforma(t: TaraturaSimbolo, sx: number, sy: number): TaraturaSimbolo {
   return { ...t, sx: t.sx * sx, sy: t.sy * sy }
+}
+
+/**
+ * Da uno spostamento della maniglia (`delta`, in unità del disegno) al fattore MOLTIPLICATIVO
+ * che `deforma` si aspetta su quell'asse. Vive qui, accanto a `deforma`, e non nel componente
+ * delle maniglie: è la conversione fra i due vocabolari — il puntatore consegna deltas, la
+ * taratura compone scale — ed è l'unico punto in cui una sagoma può degenerare.
+ *
+ * `null` quando il gesto va rifiutato, cioè quando la dimensione risultante scenderebbe sotto un
+ * passo di griglia: sotto quella soglia la sagoma diventa un filo, e passato lo zero si
+ * capovolge (scala negativa) — due esiti visibili che nessuna taratura reale chiede. `null`
+ * anche per una dimensione di partenza nulla o negativa, dove il fattore non esiste affatto:
+ * `nuova / 0` darebbe `Infinity` (o `NaN` a delta zero) e lo porterebbe dentro `sx`/`sy`, da cui
+ * nessun gesto successivo potrebbe più farlo uscire — moltiplicare `Infinity` per qualsiasi
+ * fattore finito resta `Infinity`.
+ */
+export function fattoreDeforma(dimensione: number, delta: number): number | null {
+  if (!(dimensione > 0)) return null
+  const nuova = dimensione + delta
+  if (nuova < PASSO_GRIGLIA) return null
+  return nuova / dimensione
 }
 
 export interface UseTaratura {
