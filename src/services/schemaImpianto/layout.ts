@@ -347,6 +347,40 @@ export function ingombroTesto(testo: SchemaTestoLibero): { destra: number; basso
 }
 
 /**
+ * Bordo sinistro e bordo destro del disegno, in coordinate della tela. `dimensioniLayout` ne
+ * deriva la propria larghezza, `renderSvg` ne ricava il centro su cui posare nota e tabella, e la
+ * posa dei nuovi oggetti (`sopraIlBordoSinistro`, posaNuoviOggetti.ts) ne legge il bordo destro:
+ * un punto di verità solo, perché due percorsi paralleli sullo stesso ingombro divergerebbero al
+ * primo ritocco a uno dei due.
+ *
+ * Gli ingredienti sono quelli che `dimensioniLayout` già usava, e le ragioni per cui li sceglie
+ * sono nel suo commento qui sotto: `riquadroDi` per i nodi, `ingombroTesto` per le annotazioni, e
+ * il muro col suo spessore.
+ */
+export function estensioneOrizzontale(
+  nodi: SchemaNodoPosizionato[],
+  testi: SchemaTestoLibero[],
+  muro: SchemaMuroSeparazione | null,
+  libreria: Tarature = {}
+): { sinistra: number; destra: number } {
+  if (nodi.length === 0 && testi.length === 0 && !muro) {
+    return { sinistra: MARGINE, destra: MARGINE }
+  }
+  const riquadri = nodi.map((n) => ({ nodo: n, riquadro: riquadroDi(n, libreria) }))
+  const sinistra = Math.min(
+    ...riquadri.map(({ nodo, riquadro }) => nodo.x + riquadro.x),
+    ...testi.map((t) => t.x),
+    ...(muro ? [muro.x] : [])
+  )
+  const destra = Math.max(
+    ...riquadri.map(({ nodo, riquadro }) => nodo.x + riquadro.x + riquadro.larghezza),
+    ...testi.map((t) => ingombroTesto(t).destra),
+    ...(muro ? [muro.x + SPESSORE_MURO] : [])
+  )
+  return { sinistra, destra }
+}
+
+/**
  * Riquadro complessivo del disegno, usato da `renderSvg` per la viewBox. Legge l'ingombro dei
  * nodi con `dimensioniDi` e non da `DIMENSIONI_NODO`: la scritta del terminale utenze è libera, e
  * con la larghezza fissa del registro una scritta lunga sporgerebbe oltre il bordo destro della
@@ -398,16 +432,12 @@ export function dimensioniLayout(
   // margine bianco in più nel PNG, e le quote d'instradamento (`quoteInstradamento` legge questa
   // altezza) spostate.
   const riquadri = layout.nodi.map((n) => ({ nodo: n, riquadro: riquadroDi(n, libreria) }))
-  const maxX = Math.max(
-    ...riquadri.map(({ nodo, riquadro }) => nodo.x + riquadro.x + riquadro.larghezza),
-    ...ingombriTesti.map((i) => i.destra),
-    ...(layout.muro ? [layout.muro.x + SPESSORE_MURO] : [])
-  )
+  const destra = estensioneOrizzontale(layout.nodi, testi, layout.muro, libreria).destra
   const maxY = Math.max(
     ...riquadri.map(({ nodo, riquadro }) => nodo.y + riquadro.y + riquadro.altezza),
     ...ingombriTesti.map((i) => i.basso)
   )
-  return { larghezza: maxX + MARGINE, altezza: maxY + MARGINE }
+  return { larghezza: destra + MARGINE, altezza: maxY + MARGINE }
 }
 
 /** Quota del collettore di mandata: appena sopra la fascia dei serbatoi, così i montanti dei compressori vi confluiscono senza attraversare nulla. */

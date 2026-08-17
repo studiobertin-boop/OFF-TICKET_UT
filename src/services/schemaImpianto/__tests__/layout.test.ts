@@ -16,18 +16,34 @@ import {
   DIMENSIONI_NODO,
   MARGINE_SUPERIORE,
   dimensioniLayout,
+  estensioneOrizzontale,
   layoutSchema,
   quoteInstradamento,
 } from '../layout'
 import { renderSvg } from '../renderSvg'
 import { dimensioniDi, SPESSORE_MURO } from '../symbols'
 import type { Tarature } from '../libreria'
-import type { SchemaLayout } from '../types'
+import type { SchemaLayout, SchemaNodoPosizionato } from '../types'
 
 function nodo(layout: SchemaLayout, id: string) {
   const trovato = layout.nodi.find((n) => n.id === id)
   if (!trovato) throw new Error(`Nodo ${id} assente dal layout`)
   return trovato
+}
+
+/** Serbatoio posizionato, il minimo che serve a misurare un ingombro. */
+function serbatoioA(id: string, x: number, y: number): SchemaNodoPosizionato {
+  return {
+    id,
+    tipo: 'serbatoio',
+    etichetta: id,
+    orientamento: 'VERTICALE',
+    gruppo: 'SALA_COMPRESSORI',
+    valvoleSicurezza: [],
+    origine: 'scheda',
+    x,
+    y,
+  }
 }
 
 /** Modello con apparecchiature in entrambi i gruppi: sala compressori e linea distribuzione. */
@@ -637,5 +653,39 @@ describe('quoteInstradamento', () => {
     // Nessun pozzo: la corsia scende a mezzo margine dal fondo della tela, non resta a 860.
     const attesa = dimensioniLayout(layout).altezza - 20
     expect(quoteInstradamento(layout).yCorsiaCondense).toBe(attesa)
+  })
+})
+
+describe('estensioneOrizzontale', () => {
+  const vuoto: SchemaLayout = { nodi: [], archi: [], muro: null, testi: [] }
+
+  it('su una tela vuota il disegno non ha estensione, e la larghezza resta quella di sempre', () => {
+    const e = estensioneOrizzontale(vuoto.nodi, vuoto.testi, vuoto.muro)
+    expect(e.destra - e.sinistra).toBe(0)
+    expect(dimensioniLayout(vuoto).larghezza).toBe(80)
+  })
+
+  it('il bordo sinistro è quello del nodo più a sinistra, non zero', () => {
+    const nodi = [serbatoioA('S1', 300, 0), serbatoioA('S2', 500, 0)]
+    expect(estensioneOrizzontale(nodi, [], null).sinistra).toBe(300)
+  })
+
+  it('un’annotazione più a sinistra di ogni apparecchiatura sposta il bordo sinistro', () => {
+    const nodi = [serbatoioA('S1', 300, 0)]
+    const testi = [{ id: 'T1', x: 120, y: 0, contenuto: 'Nota' }]
+    expect(estensioneOrizzontale(nodi, testi, null).sinistra).toBe(120)
+  })
+
+  it('un muro posato a sinistra di tutto conta come bordo sinistro', () => {
+    const nodi = [serbatoioA('S1', 300, 0)]
+    expect(estensioneOrizzontale(nodi, [], { x: 100, yMin: 0, yMax: 200 }).sinistra).toBe(100)
+  })
+
+  // `dimensioniLayout` non deve più calcolarsi la larghezza per conto suo: due percorsi paralleli
+  // sullo stesso ingombro divergerebbero al primo ritocco a uno dei due.
+  it('la larghezza di dimensioniLayout è il bordo destro più un margine', () => {
+    const layout = { ...vuoto, nodi: [serbatoioA('S1', 300, 0), serbatoioA('S2', 800, 0)] }
+    const destra = estensioneOrizzontale(layout.nodi, layout.testi, layout.muro).destra
+    expect(dimensioniLayout(layout).larghezza).toBe(destra + 40)
   })
 })
