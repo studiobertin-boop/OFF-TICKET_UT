@@ -10,8 +10,9 @@
  * L'anteprima resta comunque il giudice dell'aspetto finale, perché disegna anche ciò che la
  * tela non mostra affatto (tabella, legenda, nota sui diametri).
  */
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { BaseEdge, EdgeLabelRenderer, useReactFlow, type EdgeProps } from '@xyflow/react'
+import { Divider, ListItemText, Menu, MenuItem, Typography } from '@mui/material'
 import { frecciaDirezione, riduttorePressione, valvolaIntercettazione, TRATTEGGIO_CONDENSE } from '@/services/schemaImpianto/symbols'
 import {
   ondula,
@@ -25,6 +26,7 @@ import {
 } from '@/services/schemaImpianto/tratti'
 import type { SchemaArcoStile, SchemaSegnoTubo, SchemaSegnoTuboTipo } from '@/services/schemaImpianto/types'
 import { capiDellArco, polilineaDellArco, type CapiArco } from './conversioneFlow'
+import type { SchemaNodeData } from './SchemaNodeSymbol'
 import { useGestoPuntatore } from './useGestoPuntatore'
 import { indiceTrattoPiuVicino } from './useTrascinamentoTratto'
 
@@ -98,6 +100,8 @@ export interface SchemaEdgeData extends Record<string, unknown> {
    */
   onSpostaSegno?: (indice: number, t: number, concluso: boolean) => void
   onRimuoviSegno?: (indice: number) => void
+  /** Cambia il tipo di tubazione di uno dei due tratti attorno al segno (`tipoTratto.ts`). */
+  onCambiaTipoTratto?: (indice: number, lato: 'da' | 'a', stile: SchemaArcoStile) => void
   /**
    * Legata a questo arco specifico da `useTrascinamentoTratto` (vedi `edgesConTrascinamento`
    * lì dentro): il componente dell'arco non conosce la cronologia, sa solo chiedere di
@@ -247,6 +251,49 @@ interface SchemaSegnoProps {
   onRimuovi?: (indice: number) => void
   /** Modo taratura acceso: vedi `SchemaGomitoProps.bloccato`. */
   bloccato?: boolean
+  /** Come si chiamano, sul disegno, i due capi del tubo: sono le voci del menu. */
+  capi: { da: string; a: string }
+  /** Il tipo di ciascuno dei due tratti attorno al segno, per la spunta nel menu. */
+  tipiAttorno: { da: SchemaArcoStile; a: SchemaArcoStile }
+  onCambiaTipo?: (lato: 'da' | 'a', stile: SchemaArcoStile) => void
+}
+
+/** I tre tipi di tubazione, con la dizione della barra strumenti. */
+const TIPI_TUBO: { valore: SchemaArcoStile; etichetta: string }[] = [
+  { valore: 'standard', etichetta: 'Rigida' },
+  { valore: 'flessibile', etichetta: 'Flessibile' },
+  { valore: 'condensa', etichetta: 'Condense' },
+]
+
+/**
+ * Il tipo di tubazione dei due tratti che il segno separa, per la spunta nel menu: quello del
+ * troncone in cui il segno cade (verso il capo di partenza) e quello del troncone che comincia
+ * da lui (verso il capo di arrivo). Un segno che non dichiara alcun cambio sta DENTRO un troncone
+ * solo, e allora i due lati hanno lo stesso tipo — che è la verità: lì il tubo non cambia.
+ */
+function tipiAttorno(
+  pezzi: { punti: Punto[]; stile: SchemaArcoStile }[],
+  t: number
+): { da: SchemaArcoStile; a: SchemaArcoStile } {
+  const lunghezze = pezzi.map((p) => lunghezzaPolilinea(p.punti))
+  const totale = lunghezze.reduce((s, l) => s + l, 0)
+  if (totale === 0) return { da: pezzi[0].stile, a: pezzi[0].stile }
+
+  let percorsa = 0
+  for (let i = 0; i < pezzi.length; i++) {
+    percorsa += lunghezze[i]
+    const quota = percorsa / totale
+    // Il confine cade esattamente sulla fine di un troncone: da lì comincia il successivo.
+    if (Math.abs(quota - t) < 1e-9 && pezzi[i + 1]) return { da: pezzi[i].stile, a: pezzi[i + 1].stile }
+    if (quota > t) return { da: pezzi[i].stile, a: pezzi[i].stile }
+  }
+  const ultimo = pezzi[pezzi.length - 1].stile
+  return { da: ultimo, a: ultimo }
+}
+
+/** Lunghezza di una polilinea, per pesare i tronconi fra loro. */
+function lunghezzaPolilinea(punti: Punto[]): number {
+  return punti.slice(1).reduce((somma, p, i) => somma + Math.hypot(p.x - punti[i].x, p.y - punti[i].y), 0)
 }
 
 /**
@@ -271,7 +318,15 @@ function SchemaSegno({
   onSposta,
   onRimuovi,
   bloccato,
+  capi,
+  tipiAttorno,
+  onCambiaTipo,
 }: SchemaSegnoProps) {
+  const [menu, setMenu] = useState<HTMLElement | null>(null)
+  // La freccia di direzione non porta il menu: indica il verso del flusso, non un componente della
+  // linea, e non è un confine fra due tipi di tubo (deciso col committente). Per lei resta il
+  // doppio clic, che sulle altre due il menu ha sostituito.
+  const conMenu = tipo !== 'freccia_direzione'
   const { screenToFlowPosition } = useReactFlow()
   // Cattura, guardia «si è mosso» e chiusura (rilascio/annullamento) sono `useGestoPuntatore.ts`,
   // lo stesso pattern di `SchemaGomito` qui sopra e dell'area di trascinamento del tratto sotto.
@@ -312,6 +367,19 @@ function SchemaSegno({
     [indice, onRimuovi]
   )
 
+  const apriMenu = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation()
+    setMenu(e.currentTarget)
+  }, [])
+
+  const scegliTipo = useCallback(
+    (lato: 'da' | 'a', stile: SchemaArcoStile) => {
+      setMenu(null)
+      onCambiaTipo?.(lato, stile)
+    },
+    [onCambiaTipo]
+  )
+
   const markup =
     tipo === 'freccia_direzione'
       ? frecciaDirezione(0, 0, direzione)
@@ -324,7 +392,8 @@ function SchemaSegno({
       onPointerMove={suPointerMove}
       onPointerUp={suPointerUp}
       onPointerCancel={suPointerCancel}
-      onDoubleClick={suDoppioClic}
+      onClick={conMenu ? apriMenu : undefined}
+      onDoubleClick={conMenu ? undefined : suDoppioClic}
       style={{
         position: 'absolute',
         transform: `translate(-50%, -50%) translate(${punto.x}px, ${punto.y}px)`,
@@ -342,12 +411,42 @@ function SchemaSegno({
         style={{ overflow: 'visible' }}
         dangerouslySetInnerHTML={{ __html: markup }}
       />
+      {conMenu && (
+        <Menu anchorEl={menu} open={!!menu} onClose={() => setMenu(null)}>
+          {(['da', 'a'] as const).map((lato, i) => [
+            i > 0 ? <Divider key={`div-${lato}`} /> : null,
+            <Typography key={`tit-${lato}`} variant="overline" color="text.secondary" sx={{ px: 2 }}>
+              {`Verso ${capi[lato]}`}
+            </Typography>,
+            ...TIPI_TUBO.map((tubo) => (
+              <MenuItem
+                key={`${lato}-${tubo.valore}`}
+                selected={tipiAttorno[lato] === tubo.valore}
+                onClick={() => scegliTipo(lato, tubo.valore)}
+              >
+                <ListItemText primary={tubo.etichetta} />
+              </MenuItem>
+            )),
+          ])}
+          <Divider />
+          <MenuItem
+            onClick={() => {
+              setMenu(null)
+              onRimuovi?.(indice)
+            }}
+          >
+            <ListItemText primary="Togli" />
+          </MenuItem>
+        </Menu>
+      )}
     </div>
   )
 }
 
 export function SchemaEdgeTubazione({
   id,
+  source,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -356,7 +455,7 @@ export function SchemaEdgeTubazione({
   selected,
   markerEnd,
 }: EdgeProps) {
-  const { screenToFlowPosition } = useReactFlow()
+  const { screenToFlowPosition, getNode } = useReactFlow()
   // Cattura, guardia «si è mosso» e chiusura (rilascio/annullamento) sono `useGestoPuntatore.ts`,
   // lo stesso pattern di `SchemaGomito`/`SchemaSegno` sopra. Il valore per evento è
   // {indice, libero}: l'indice del tratto più vicino nella polilinea RESA e il punto libero del
@@ -383,6 +482,15 @@ export function SchemaEdgeTubazione({
   // di prima. L'evidenziazione vince sulla selezione, e valgono per tutti i pezzi: un tubo mezzo
   // blu e mezzo nero si leggerebbe come due tubi diversi.
   const pezzi = tronconi(polilinea, stile, edgeData?.segni ?? [])
+  // Come si chiamano i due capi sul disegno: l'id (C1, S1...) è quello che il committente vede
+  // scritto dentro l'apparecchiatura. Il terminale utenze non ne ha uno parlante, e porta invece
+  // la propria scritta — su una riga sola, perché dal 17-08-2026 ne ha due.
+  const nomeDelNodo = (idNodo: string): string => {
+    const nodo = getNode(idNodo)?.data as SchemaNodeData | undefined
+    if (!nodo?.nodo) return idNodo
+    return nodo.nodo.tipo === 'utenze' ? nodo.nodo.etichetta.replace(/\n/g, ' ') : nodo.nodo.id
+  }
+  const nomiDeiCapi = { da: nomeDelNodo(source), a: nomeDelNodo(target) }
   const coloreTratto = {
     stroke: edgeData?.evidenziato ? '#ed6c02' : selected ? '#1976d2' : '#000',
     strokeWidth: edgeData?.evidenziato ? 4 : selected ? 3 : 2,
@@ -482,6 +590,9 @@ export function SchemaEdgeTubazione({
               onSposta={edgeData?.onSpostaSegno}
               onRimuovi={edgeData?.onRimuoviSegno}
               bloccato={bloccato}
+              capi={nomiDeiCapi}
+              tipiAttorno={tipiAttorno(pezzi, segno.t)}
+              onCambiaTipo={(lato, tipo) => edgeData?.onCambiaTipoTratto?.(indice, lato, tipo)}
             />
           )
         })}

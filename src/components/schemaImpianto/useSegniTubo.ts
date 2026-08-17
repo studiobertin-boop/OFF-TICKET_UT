@@ -5,7 +5,8 @@
  */
 import { useCallback, useMemo, useRef } from 'react'
 import type { Edge, Node } from '@xyflow/react'
-import type { SchemaSegnoTubo, SchemaSegnoTuboTipo } from '@/services/schemaImpianto/types'
+import type { SchemaArcoStile, SchemaSegnoTubo, SchemaSegnoTuboTipo } from '@/services/schemaImpianto/types'
+import { cambioTipoTratto } from './tipoTratto'
 import type { SchemaEdgeData } from './SchemaEdgeTubazione'
 
 interface StatoConNodiEdArchi {
@@ -89,6 +90,27 @@ export function useSegniTubo<T extends StatoConNodiEdArchi>(
     [applica]
   )
 
+  // Un gesto solo (una voce di menu): sempre in cronologia, come aggiungere o togliere un segno.
+  // DOVE va scritto il tipo lo decide `cambioTipoTratto` (tipoTratto.ts), che è provabile: qui
+  // resta solo l'applicazione allo stato.
+  const cambiaTipoTratto = useCallback(
+    (arcoId: string, indice: number, lato: 'da' | 'a', stile: SchemaArcoStile) => {
+      applica((s) => ({
+        ...s,
+        edges: s.edges.map((e) => {
+          if (e.id !== arcoId) return e
+          const dati = e.data as SchemaEdgeData
+          const esito = cambioTipoTratto(dati.stile, dati.segni ?? [], indice, lato, stile)
+          return {
+            ...e,
+            data: { ...dati, stile: esito.stileArco, segni: esito.segni } satisfies SchemaEdgeData,
+          }
+        }),
+      }))
+    },
+    [applica]
+  )
+
   // Gli archi passati alla tela portano anche le callback dei segni, legate al proprio id:
   // `SchemaEdgeTubazione` non conosce la cronologia, sa solo chiamare "sposta questo" o
   // "togli questo". La conversione punto->t la fa SchemaEdgeTubazione (conosce la polilinea
@@ -101,10 +123,12 @@ export function useSegniTubo<T extends StatoConNodiEdArchi>(
           ...(e.data as SchemaEdgeData),
           onSpostaSegno: (indice: number, t: number, concluso: boolean) => spostaSegno(e.id, indice, t, concluso),
           onRimuoviSegno: (indice: number) => rimuoviSegno(e.id, indice),
+          onCambiaTipoTratto: (indice: number, lato: 'da' | 'a', stile: SchemaArcoStile) =>
+            cambiaTipoTratto(e.id, indice, lato, stile),
         } satisfies SchemaEdgeData,
       })),
-    [stato.edges, spostaSegno, rimuoviSegno]
+    [stato.edges, spostaSegno, rimuoviSegno, cambiaTipoTratto]
   )
 
-  return { aggiungiSegno, edgesConSegni }
+  return { aggiungiSegno, cambiaTipoTratto, edgesConSegni }
 }
