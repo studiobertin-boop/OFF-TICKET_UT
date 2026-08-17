@@ -41,10 +41,24 @@ export interface TechnicalSheetHeaderProps {
   onBack: () => void
   onShare: () => void
   onCivaSummary: () => void
+  onSchemaImpianto: () => void
   onRelazione: () => void
   onDichiarazioni: () => void
+  /** Presente quando lo schema d'impianto è già pronto in questa sessione. */
+  schemaGenerato: boolean
   /** Presente quando la relazione è già stata generata e salvata. */
   relazionePronta: boolean
+  /**
+   * Presente quando esiste davvero un `.docx` da riscaricare.
+   *
+   * Distinta da `relazionePronta`, che è più stretta apposta: quella governa il verde del chip e
+   * richiede anche lo schema d'impianto pronto in questa sessione (richiesta del committente).
+   * Un documento già generato però resta scaricabile anche quando lo schema non c'è — un disegno
+   * caricato non si ripresenta dopo un ricaricamento della pagina — e legare anche il menu a
+   * `relazionePronta` toglierebbe di mano all'utente l'unico modo di riprendersi la relazione
+   * che ha già.
+   */
+  relazioneScaricabile: boolean
   /** Presente quando le dichiarazioni sono già state generate e salvate. */
   dichiarazioniPronte: boolean
   onScaricaRelazione: () => void
@@ -86,9 +100,12 @@ export const TechnicalSheetHeader = ({
   onBack,
   onShare,
   onCivaSummary,
+  onSchemaImpianto,
   onRelazione,
   onDichiarazioni,
+  schemaGenerato,
   relazionePronta,
+  relazioneScaricabile,
   dichiarazioniPronte,
   onScaricaRelazione,
   onScaricaDichiarazioni,
@@ -124,8 +141,11 @@ export const TechnicalSheetHeader = ({
     enabled: !!requestId,
   })
   const fascicoliMancanti = codiciRichiesti.filter((c) => !codiciConFascicoloPronto?.has(c))
+  // «F» raccoglie i file da portare via, quindi conta se il file esiste — non se lo schema è
+  // pronto in questa sessione: legarlo a `relazionePronta` faceva dire «Mancano: relazione» con
+  // la relazione già generata e salvata.
   const mancano = [
-    !relazionePronta && 'relazione',
+    !relazioneScaricabile && 'relazione',
     !dichiarazioniPronte && 'dichiarazioni',
     ...fascicoliMancanti.map((c) => `fascicolo di ${c}`),
   ].filter(Boolean) as string[]
@@ -231,12 +251,19 @@ export const TechnicalSheetHeader = ({
               })}
 
               <ChipAzione
+                sigla="SC"
+                testo={schemaGenerato ? 'Schema d’impianto pronto' : 'Genera schema d’impianto'}
+                fatto={schemaGenerato}
+                onClick={onSchemaImpianto}
+              />
+
+              <ChipAzione
                 sigla="R"
                 testo={relazionePronta ? 'Relazione pronta' : 'Genera relazione'}
                 fatto={relazionePronta}
                 onClick={onRelazione}
                 voci={
-                  relazionePronta
+                  relazioneScaricabile
                     ? [
                         { icona: <DownloadIcon fontSize="small" />, testo: 'Scarica relazione', onClick: onScaricaRelazione },
                         { icona: <RefreshIcon fontSize="small" />, testo: 'Rigenera relazione', onClick: onRelazione },

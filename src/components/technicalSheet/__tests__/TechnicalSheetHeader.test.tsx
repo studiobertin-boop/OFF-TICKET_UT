@@ -69,7 +69,11 @@ const props = {
 
 const monta = (extra: {
   relazionePronta: boolean
+  /** Non passata: vale quanto `relazionePronta` — generata e scaricabile sono lo stesso caso. */
+  relazioneScaricabile?: boolean
   dichiarazioniPronte: boolean
+  schemaGenerato?: boolean
+  onSchemaImpianto?: () => void
   onRelazione?: () => void
   onDichiarazioni?: () => void
   onScaricaRelazione?: () => void
@@ -89,6 +93,9 @@ const monta = (extra: {
               onScaricaRelazione={() => {}}
               onScaricaDichiarazioni={() => {}}
               onScaricaCompleta={() => {}}
+              onSchemaImpianto={() => {}}
+              schemaGenerato={false}
+              relazioneScaricabile={extra.relazionePronta}
               {...extra}
             />
           </AperturaApparecchiaturaProvider>
@@ -122,12 +129,15 @@ describe('TechnicalSheetHeader — i traguardi in barra titolo', () => {
               <TechnicalSheetHeader
                 {...props}
                 relazionePronta={false}
+                relazioneScaricabile={false}
                 dichiarazioniPronte={false}
                 onRelazione={() => {}}
                 onDichiarazioni={() => {}}
                 onScaricaRelazione={() => {}}
                 onScaricaDichiarazioni={() => {}}
                 onScaricaCompleta={() => {}}
+                onSchemaImpianto={() => {}}
+                schemaGenerato={false}
               />
             </AperturaApparecchiaturaProvider>
           </FormProvider>
@@ -153,6 +163,57 @@ describe('TechnicalSheetHeader — i traguardi in barra titolo', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Genera relazione' }))
     fireEvent.click(screen.getByRole('button', { name: 'Genera dichiarazioni' }))
     expect(chiamate).toEqual(['relazione', 'dichiarazioni'])
+  })
+
+  it('con la relazione già generata ma lo schema non pronto tiene comunque lo scaricamento', () => {
+    // Il chip resta grigio — è la richiesta del committente, «R» verde vuole anche lo schema —
+    // ma il .docx esiste: il clic deve aprire il menu, non riportare alla generazione, o l'unico
+    // modo di riprendersi la relazione già fatta sparirebbe dalla testata.
+    const chiamate: string[] = []
+    monta({
+      relazionePronta: false,
+      relazioneScaricabile: true,
+      dichiarazioniPronte: false,
+      onRelazione: () => chiamate.push('genera'),
+      onScaricaRelazione: () => chiamate.push('scarica'),
+    })
+
+    const chip = screen.getByRole('button', { name: 'Genera relazione' })
+    expect(chip.className).not.toContain('filledSuccess')
+
+    fireEvent.click(chip)
+    expect(chiamate).toEqual([])
+    expect(screen.getByText('Rigenera relazione')).toBeTruthy()
+
+    fireEvent.click(screen.getByText('Scarica relazione'))
+    expect(chiamate).toEqual(['scarica'])
+  })
+
+  it('mostra il chip "SC" a sinistra di "R", e lo dà per fatto solo con lo schema pronto', () => {
+    const chiamate: string[] = []
+    monta({
+      relazionePronta: false,
+      dichiarazioniPronte: false,
+      schemaGenerato: false,
+      onSchemaImpianto: () => chiamate.push('schema'),
+    })
+
+    const chip = screen.getByRole('button', { name: 'Genera schema d’impianto' })
+    expect(chip.className).not.toContain('filledSuccess')
+    fireEvent.click(chip)
+    expect(chiamate).toEqual(['schema'])
+  })
+
+  it('il chip "SC" diventa verde con lo schema pronto', () => {
+    monta({
+      relazionePronta: false,
+      dichiarazioniPronte: false,
+      schemaGenerato: true,
+    })
+
+    expect(screen.getByRole('button', { name: 'Schema d’impianto pronto' }).className).toContain(
+      'filledSuccess'
+    )
   })
 
   it('a dichiarazioni generate diventa verde e offre scarica o rigenera, come la relazione', () => {
@@ -202,12 +263,15 @@ describe('TechnicalSheetHeader — i traguardi in barra titolo', () => {
               <TechnicalSheetHeader
                 {...props}
                 relazionePronta
+                relazioneScaricabile
                 dichiarazioniPronte
                 onRelazione={() => {}}
                 onDichiarazioni={() => {}}
                 onScaricaRelazione={() => {}}
                 onScaricaDichiarazioni={() => {}}
                 onScaricaCompleta={() => chiamate.push('completa')}
+                onSchemaImpianto={() => {}}
+                schemaGenerato={false}
               />
             </AperturaApparecchiaturaProvider>
           </FormProvider>
