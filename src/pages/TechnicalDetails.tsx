@@ -42,6 +42,25 @@ import { layoutDaPersistere } from '@/services/schemaImpianto/persistenza'
 import type { SchemaLayout } from '@/services/schemaImpianto/types'
 
 /**
+ * Pota i soli collegamenti compressori→serbatoi contro i codici presenti in scheda.
+ *
+ * Passa da `pruneAdditionalInfo` invece di rifare il confronto a mano: cosa conti come
+ * riferimento scaduto — un compressore sparito, o un serbatoio sparito dentro un compressore
+ * ancora buono — deve restare scritto in un posto solo, quello che decide anche cosa si salva.
+ * `dropped` torna filtrato ai soli messaggi sui collegamenti, gli unici che questa pagina mostra.
+ */
+function potaCollegamenti(
+  collegamenti: Record<string, string[]>,
+  codes: Set<string>
+): { collegamenti: Record<string, string[]>; dropped: string[] } {
+  const { info, dropped } = pruneAdditionalInfo({ collegamentiCompressoriSerbatoi: collegamenti }, codes)
+  return {
+    collegamenti: info.collegamentiCompressoriSerbatoi ?? {},
+    dropped: dropped.filter((d) => d.startsWith('collegament')),
+  }
+}
+
+/**
  * Pagina SCHEDA DATI - Gestione dati tecnici pratiche DM329
  *
  * PASSO 2: Form completo implementato
@@ -154,22 +173,53 @@ export const TechnicalDetails = () => {
     loadTechnicalData()
   }, [id, request?.assigned_user, request?.custom_fields])
 
+  // I codici che la scheda contiene *adesso*, in un insieme solo: ci si misurano sia
+  // l'inizializzazione qui sotto sia il ricontrollo che la segue, e ricalcolarli separatamente
+  // aprirebbe la porta a due verità diverse nello stesso istante. Cambia identità solo quando
+  // cambia la scheda, quindi vale anche da dipendenza di un effetto.
+  const schedaCodes = useMemo(
+    () => collectCodes(formData ?? technicalData?.equipment_data),
+    [formData, technicalData?.equipment_data]
+  )
+
   // Collegamenti e schema d'impianto vivono qui (non nei due dialog che li mostrano — "SC" e
   // "R" — perché li condividono entrambi): la finestra SCHEMA IMPIANTO li rifinisce e li salva,
   // la finestra Relazione li legge per calcolare le valvole e per incorporare l'immagine nel
   // .docx. Si inizializzano una volta sola, appena la pratica è caricata: un nuovo giro a ogni
   // apertura di una delle due finestre butterebbe via il lavoro fatto nell'altra nel frattempo.
+  //
+  // Si aspetta la fine del caricamento (`loading`), non solo `technicalData`: quello arriva in
+  // stato prima che `loadTechnicalData` abbia finito di normalizzare i codici, e potare i
+  // collegamenti contro codici ancora da rinominare ne butterebbe via di validi.
   useEffect(() => {
-    if (!technicalData || schemaSincronizzatoRef.current) return
+    if (loading || !technicalData || schemaSincronizzatoRef.current) return
     schemaSincronizzatoRef.current = true
-    const scheda = (formData ?? technicalData.equipment_data) as SchedaDatiCompleta
-    const codes = collectCodes(scheda)
-    const { info, dropped } = pruneAdditionalInfo(technicalData.additional_info as AdditionalInfo | undefined, codes)
+    const { info, dropped } = pruneAdditionalInfo(
+      technicalData.additional_info as AdditionalInfo | undefined,
+      schedaCodes
+    )
     setCollegamenti(info.collegamentiCompressoriSerbatoi ?? {})
     setSchemaLayoutSalvato(info.schemaLayout ?? null)
     setTaraturaPratica(info.schemaLayout?.simboli ?? {})
     setSchemaDroppedRefs(dropped.filter((d) => d.startsWith('collegament')))
-  }, [technicalData, formData])
+  }, [loading, technicalData, schedaCodes])
+
+  // L'inizializzazione qui sopra vale per la scheda com'era al caricamento; le apparecchiature
+  // però si eliminano anche dopo, a pagina aperta. Senza questo ricontrollo un serbatoio appena
+  // cancellato resterebbe scelto dentro la `Select` dei collegamenti (MUI segnala un valore fuori
+  // elenco) e finirebbe nel calcolo delle valvole, senza che nulla lo dica all'utente.
+  //
+  // `dropped.length === 0` è la guardia che chiude il giro: `pruneAdditionalInfo` toglie e basta,
+  // non aggiunge mai, quindi «niente scartato» significa «niente da riscrivere» — e senza quel
+  // ritorno anticipato lo `setCollegamenti` rientrerebbe qui da sé, all'infinito, visto che
+  // `collegamenti` è fra le dipendenze (dev'esserci: anche una scelta appena fatta va ricontrollata).
+  useEffect(() => {
+    if (!schemaSincronizzatoRef.current) return
+    const { collegamenti: potati, dropped } = potaCollegamenti(collegamenti, schedaCodes)
+    if (dropped.length === 0) return
+    setCollegamenti(potati)
+    setSchemaDroppedRefs(dropped)
+  }, [schedaCodes, collegamenti])
 
   // Verifica accesso (solo admin, userdm329 e tecnicoDM329)
   useEffect(() => {
@@ -224,22 +274,30 @@ export const TechnicalDetails = () => {
     setSchemaDialogOpen(false)
     if (!id || !technicalData) return
     try {
-      const scheda = (formData ?? technicalData.equipment_data) as SchedaDatiCompleta
-      const codes = collectCodes(scheda)
-      const { info: daSalvare } = pruneAdditionalInfo(
+      const { info: daSalvare, dropped } = pruneAdditionalInfo(
         {
           ...(technicalData.additional_info as AdditionalInfo | undefined),
           collegamentiCompressoriSerbatoi: collegamenti,
           schemaLayout: schemaLayoutDaPersistere,
         },
-        codes
+        schedaCodes
       )
+
+      // Quel che si scrive in database è potato: se lo stato di pagina non lo segue, la finestra
+      // Relazione continua a mostrare nel preflight collegamenti che non esistono più, e
+      // riaprendo SCHEMA IMPIANTO il collegamento fantasma ricompare nella `Select`.
+      const scartati = dropped.filter((d) => d.startsWith('collegament'))
+      if (scartati.length > 0) {
+        setCollegamenti(daSalvare.collegamentiCompressoriSerbatoi ?? {})
+        setSchemaDroppedRefs(scartati)
+      }
+
       const aggiornato = await technicalDataApi.updateAdditionalInfo(id, daSalvare)
       setTechnicalData((prev) => (prev ? { ...prev, additional_info: aggiornato.additional_info } : prev))
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Salvataggio dello schema non riuscito')
     }
-  }, [id, technicalData, formData, collegamenti, schemaLayoutDaPersistere])
+  }, [id, technicalData, schedaCodes, collegamenti, schemaLayoutDaPersistere])
 
   // Autosave function (senza alert/snackbar)
   const handleAutoSave = useCallback(async (data: SchedaDatiCompleta) => {
@@ -627,6 +685,7 @@ export const TechnicalDetails = () => {
                 onSchemaImpianto={() => setSchemaDialogOpen(true)}
                 schemaGenerato={!!schema}
                 relazionePronta={!!relazioneSalvata && !!schema}
+                relazioneScaricabile={!!relazioneSalvata}
                 dichiarazioniPronte={!!dichiarazioniSalvate}
                 onScaricaRelazione={handleScaricaRelazione}
                 onScaricaDichiarazioni={handleScaricaDichiarazioni}

@@ -80,7 +80,7 @@ export default function SchemaImpiantoDialog({
 
   return (
     <Dialog open={open} onClose={onClose} keepMounted maxWidth="md" fullWidth>
-      <DialogTitle>Schema d'impianto</DialogTitle>
+      <DialogTitle>Schema d’impianto</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2.5} sx={{ mt: 1 }}>
           {droppedRefs.length > 0 && (
