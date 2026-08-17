@@ -374,27 +374,40 @@ export function buildSchemaModel(input: BuildSchemaModelInput): SchemaModel {
   return { nodi, archi }
 }
 
+/** Estremi dei valori dichiarati in una coppia di DN, o `null` se non ne è dichiarato nessuno. */
+function estremiDn(valori: (number | undefined)[]): { min: number; max: number } | null {
+  const noti = valori.filter((v): v is number => typeof v === 'number' && v > 0)
+  if (noti.length === 0) return null
+  return { min: Math.min(...noti), max: Math.max(...noti) }
+}
+
+/** «Ø15 a Ø25mm», oppure «Ø15mm» quando gli estremi coincidono o ne è noto uno solo. */
+function misuraDn({ min, max }: { min: number; max: number }): string {
+  return min === max ? `Ø${min}mm` : `Ø${min} a Ø${max}mm`
+}
+
 /**
- * Nota sui diametri stampata sotto lo schema, come nelle relazioni storiche
- * ("Collegamenti effettuati con tubazioni da Ø…"). Vuota se la scheda non dichiara diametri:
- * il riquadro sparisce invece di annunciare una misura che nessuno ha rilevato.
+ * Nota sui diametri stampata sotto lo schema, come nelle relazioni storiche. Vuota se la scheda
+ * non dichiara diametri: il riquadro sparisce invece di annunciare una misura che nessuno ha
+ * rilevato. Legge i DN in mm e non i vecchi campi a testo libero.
  *
- * Legge i DN in mm e non i vecchi campi a testo libero, e ricava gli estremi da tutti e
- * quattro i valori: in scheda capita che min e max siano invertiti.
+ * Le due coppie si leggono separate: fino al 17-08-2026 i quattro valori finivano in un unico
+ * min/max, e i diametri delle linee di distribuzione si mescolavano a quelli dei collegamenti in
+ * sala senza mai essere nominati. Dentro ciascuna coppia gli estremi si ricavano comunque dai
+ * valori presenti, perché in scheda capita di trovarli scambiati.
+ *
+ * Senza collegamenti in sala non si stampa nulla, nemmeno se le linee di distribuzione sono
+ * dichiarate: scelta del committente, il riquadro parla dei collegamenti.
  */
 export function notaTubazioni(scheda: SchedaDatiCompleta): string[] {
   const d = scheda.dati_impianto
-  const valori = [d?.dn_sala_min, d?.dn_sala_max, d?.dn_distribuzione_min, d?.dn_distribuzione_max]
-    .filter((v): v is number => typeof v === 'number' && v > 0)
-  if (valori.length === 0) return []
+  const sala = estremiDn([d?.dn_sala_min, d?.dn_sala_max])
+  if (!sala) return []
 
-  const min = Math.min(...valori)
-  const max = Math.max(...valori)
-  return [
-    min === max
-      ? `Collegamenti effettuati con tubazioni da Ø${min}mm`
-      : `Collegamenti effettuati con tubazioni da Ø${min} a Ø${max}mm`,
-  ]
+  const righe = [`Collegamenti effettuati con tubazioni da ${misuraDn(sala)}`]
+  const distribuzione = estremiDn([d?.dn_distribuzione_min, d?.dn_distribuzione_max])
+  if (distribuzione) righe.push(`Linee effettuate con tubazioni da ${misuraDn(distribuzione)}`)
+  return righe
 }
 
 /** Il motore può generare solo se c'è almeno un collegamento compressore→serbatoio dichiarato. */

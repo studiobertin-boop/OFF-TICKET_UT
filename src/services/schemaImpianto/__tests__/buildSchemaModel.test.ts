@@ -352,23 +352,74 @@ describe('notaTubazioni', () => {
     expect(notaTubazioni(makeScheda({ dati_impianto: makeDatiImpianto() }))).toEqual([])
   })
 
-  // In scheda capita che min e max siano invertiti: gli estremi vanno ricavati da tutti i valori.
-  it('riporta gli estremi anche se min e max sono scambiati', () => {
+  // Il riquadro parla dei collegamenti in sala: senza quelli non ha di che parlare, e le linee
+  // di distribuzione da sole non bastano a farlo comparire. Scelta del committente, non
+  // conseguenza tecnica.
+  it('tace se la scheda dichiara solo i diametri delle linee di distribuzione', () => {
+    const scheda = makeScheda({
+      dati_impianto: makeDatiImpianto({ dn_distribuzione_min: 32, dn_distribuzione_max: 50 }),
+    })
+    expect(notaTubazioni(scheda)).toEqual([])
+  })
+
+  it('con i soli collegamenti in sala scrive una riga sola', () => {
+    const scheda = makeScheda({
+      dati_impianto: makeDatiImpianto({ dn_sala_min: 15, dn_sala_max: 25 }),
+    })
+    expect(notaTubazioni(scheda)).toEqual(['Collegamenti effettuati con tubazioni da Ø15 a Ø25mm'])
+  })
+
+  it('con entrambi i gruppi scrive due righe, e non mescola i loro diametri', () => {
+    const scheda = makeScheda({
+      dati_impianto: makeDatiImpianto({
+        dn_sala_min: 15,
+        dn_sala_max: 25,
+        dn_distribuzione_min: 32,
+        dn_distribuzione_max: 50,
+      }),
+    })
+    expect(notaTubazioni(scheda)).toEqual([
+      'Collegamenti effettuati con tubazioni da Ø15 a Ø25mm',
+      'Linee effettuate con tubazioni da Ø32 a Ø50mm',
+    ])
+  })
+
+  // In scheda capita che min e max siano invertiti: gli estremi si ricavano dai valori presenti.
+  // Il confronto avviene DENTRO la coppia, non fra tutte e quattro: qui la sala arriva a 25 e la
+  // distribuzione parte da 25, e una fusione le farebbe collassare in un intervallo solo.
+  it('raddrizza gli estremi scambiati dentro ciascuna coppia', () => {
     const scheda = makeScheda({
       dati_impianto: makeDatiImpianto({
         dn_sala_min: 25,
         dn_sala_max: 20,
-        dn_distribuzione_min: 25,
-        dn_distribuzione_max: 40,
+        dn_distribuzione_min: 40,
+        dn_distribuzione_max: 25,
       }),
     })
 
-    expect(notaTubazioni(scheda)).toEqual(['Collegamenti effettuati con tubazioni da Ø20 a Ø40mm'])
+    expect(notaTubazioni(scheda)).toEqual([
+      'Collegamenti effettuati con tubazioni da Ø20 a Ø25mm',
+      'Linee effettuate con tubazioni da Ø25 a Ø40mm',
+    ])
   })
 
-  it('usa la forma singola quando c’è un solo diametro', () => {
-    const scheda = makeScheda({ dati_impianto: makeDatiImpianto({ dn_sala_min: 15 }) })
+  it('usa la forma singola quando gli estremi coincidono', () => {
+    const scheda = makeScheda({
+      dati_impianto: makeDatiImpianto({ dn_sala_min: 15, dn_sala_max: 15 }),
+    })
     expect(notaTubazioni(scheda)).toEqual(['Collegamenti effettuati con tubazioni da Ø15mm'])
+  })
+
+  // I quattro campi sono indipendenti e capita di trovarne compilato uno solo: un estremo che
+  // c'è si stampa, non si tace.
+  it('usa la forma singola anche quando la coppia è compilata a metà', () => {
+    const scheda = makeScheda({
+      dati_impianto: makeDatiImpianto({ dn_sala_min: 15, dn_distribuzione_max: 50 }),
+    })
+    expect(notaTubazioni(scheda)).toEqual([
+      'Collegamenti effettuati con tubazioni da Ø15mm',
+      'Linee effettuate con tubazioni da Ø50mm',
+    ])
   })
 })
 
