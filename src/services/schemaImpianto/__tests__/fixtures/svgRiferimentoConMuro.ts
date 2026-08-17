@@ -87,6 +87,14 @@
  * rientrata più nulla, ma il suo corpo e quello del serbatoio hanno dimensioni nuove). Cambiano
  * `viewBox`, i capi degli archi, le coordinate dei nodi e i tronconi di muratura; il testo delle
  * celle e delle voci di legenda non cambia.
+ *
+ * Generato di nuovo al commit e003967 ("feat(schema): valvole, riduttore, freccia e muro fedeli
+ * ai blocchi"), Task 13 del Blocco 3: la farfalla della valvola di intercettazione e il marker
+ * della freccia di flusso cambiano rapporto (come nei due gemelli senza muro), e
+ * `TRATTEGGIO_CONDENSE` si inverte ('10 7' → '7 10', il blocco CAD disegna dash più corti dei
+ * gap) — le due linee condense disegnate e la riga di legenda "Linea condense" lo mostrano. Il
+ * muro stesso (tronconi, varchi, tratteggio a 45°) resta invariato: verificato contro il CAD e
+ * già fedele. Nessuna posizione di nodo o percorso di tubo si sposta.
  */
 export const RIGHE_SVG_RIFERIMENTO_CON_MURO = [
   `<svg xmlns="http://www.w3.org/2000/svg" width="830" height="1078" viewBox="0 0 830 1078">`,

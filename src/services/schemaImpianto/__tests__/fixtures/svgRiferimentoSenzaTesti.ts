@@ -63,6 +63,13 @@
  * serbatoio, terminale) e, di conseguenza, la quota `y` di ogni riga della tabella (l'impianto è
  * complessivamente un po' più alto). Il testo delle celle e delle voci di legenda non cambia:
  * solo le quote si spostano.
+ *
+ * Generato di nuovo al commit e003967 ("feat(schema): valvole, riduttore, freccia e muro fedeli
+ * ai blocchi"), Task 13 del Blocco 3: la farfalla della valvola di intercettazione (rapporto
+ * misurato sul CAD 2,01, non più 1,125 — vedi `RAPPORTO_ALA_FARFALLA`) e il marker della freccia
+ * di flusso (rapporto 1,50, non più 1,0) cambiano forma nel disegno e nella riga di legenda.
+ * Nessuna posizione di nodo o percorso di tubo si sposta: questo impianto non ha condense né
+ * riduttori, quindi non copre quella metà del task.
  */
 export const RIGHE_SVG_RIFERIMENTO_SENZA_TESTI = [
   `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="802" viewBox="0 0 900 802">`,

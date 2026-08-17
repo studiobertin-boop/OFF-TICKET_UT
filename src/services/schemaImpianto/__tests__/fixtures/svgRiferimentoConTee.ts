@@ -66,6 +66,11 @@
  * costruisce questo layout sposta di conseguenza l'offset che centra la giunzione sul tubo, da
  * -12 a -10). Cambiano `viewBox`, i capi degli archi e le coordinate dei nodi; il testo della
  * tabella e delle legende non cambia.
+ *
+ * Generato di nuovo al commit e003967 ("feat(schema): valvole, riduttore, freccia e muro fedeli
+ * ai blocchi"), Task 13 del Blocco 3: stesso cambiamento del gemello `svgRiferimentoSenzaTesti.ts`
+ * (stesso impianto di base) — la farfalla della valvola di intercettazione e il marker della
+ * freccia di flusso cambiano rapporto. Nessuna posizione di nodo o percorso di tubo si sposta.
  */
 export const RIGHE_SVG_RIFERIMENTO_CON_TEE = [
   `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="802" viewBox="0 0 900 802">`,
