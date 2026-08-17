@@ -1070,6 +1070,26 @@ function SchemaEditorInterno({
       // stesso motivo: mentre è aperto, Ctrl+Z/Canc/frecce non devono toccare né l'impianto né
       // una taratura che sta per essere decisa.
       if (scritturaAperta || dialogoUscitaAperto) return
+      // Escape toglie la SELEZIONE, e nient'altro. Fino al 17-08-2026 chiudeva l'intero editor
+      // scartando ogni modifica, senza chiedere niente: ora il Dialog che lo monta non ha più
+      // `onClose` (SchemaImpiantoSection.tsx) e l'uscita senza salvare passa solo da «Annulla
+      // modifiche».
+      //
+      // Sta QUI SOPRA il blocco `modoTaratura`, che chiude con un `return` incondizionato: scritto
+      // sotto, in taratura non verrebbe mai raggiunto.
+      if (e.key === 'Escape') {
+        // In taratura la selezione è un'ancora, non un nodo. L'uscita dal MODO resta il dialogo a
+        // tre vie: Escape non la avvia e non la scavalca.
+        if (modoTaratura) togliAncoraSelezionata()
+        else {
+          // Due selezioni, non una: react-flow non conosce muro e annotazioni, che hanno la
+          // propria (`selezioneLibera`). Nessuna delle due tocca la cronologia —
+          // `deselezionaReactFlow` passa già da `aggiornaSenzaCronologia`.
+          deselezionaReactFlow()
+          setSelezioneLibera(null)
+        }
+        return
+      }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault()
         // In modo taratura Ctrl+Z annulla il GESTO della taratura (cronologia propria, vedi
@@ -1106,6 +1126,7 @@ function SchemaEditorInterno({
     return () => window.removeEventListener('keydown', suTasto)
   }, [
     annulla,
+    deselezionaReactFlow,
     dialogoUscitaAperto,
     modoTaratura,
     rimuoviMuro,
@@ -1597,8 +1618,7 @@ function SchemaEditorInterno({
       <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center" sx={{ p: 1 }}>
         {/* Disabilitati mentre il modo taratura è acceso: non esiste uscita implicita da lì
             (Step 4 del brief) — si esce sempre dal dialogo a tre vie, mai chiudendo l'intero
-            editor sotto una taratura ancora indecisa. Escape resta la via d'uscita sicura
-            dall'intero editor (non tocca questi pulsanti, non va toccato lui). */}
+            editor sotto una taratura ancora indecisa. */}
         <Button onClick={onAnnulla} disabled={modoTaratura}>
           Annulla modifiche
         </Button>

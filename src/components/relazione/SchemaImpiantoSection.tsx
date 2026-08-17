@@ -242,9 +242,9 @@ export function SchemaImpiantoSection({
   }, [taraturaPratica])
 
   /**
-   * Chiude l'editor SCARTANDO: «Annulla modifiche», Escape e il clic sullo sfondo passano tutti
-   * di qui — sono la stessa uscita vista da tre gesti diversi, e la scelta di uno solo di essi non
-   * deve valere meno delle altre.
+   * Chiude l'editor SCARTANDO. Ci passa solo «Annulla modifiche»: dal 17-08-2026 Escape toglie la
+   * selezione invece di chiudere, e il clic sullo sfondo non fa niente (vedi il Dialog più sotto).
+   * Buttare via il lavoro deve costare un gesto deliberato, non uno sfiorato.
    *
    * Non disfa la taratura resa PERMANENTE: quella è una scrittura in tabella, dichiarata come tale
    * («vale per ogni pratica dell'applicazione, comprese quelle già consegnate», nel dialogo a tre
@@ -575,7 +575,19 @@ export function SchemaImpiantoSection({
           invece di tagliarla fuori dalla vista. */}
       <Dialog
         open={editorAperto}
-        onClose={chiudiEditorScartando}
+        // Dall'editor non si esce per gesto accidentale: chi disegna per mezz'ora e sfiora Escape
+        // non deve perdere tutto. Senza `onClose` il clic sullo sfondo non chiude nulla — stessa
+        // strada di `DialogoUscitaTaratura` (BarraTaratura.tsx) — e l'unica uscita senza salvare
+        // resta il pulsante «Annulla modifiche».
+        //
+        // `disableEscapeKeyDown` serve ANCHE senza `onClose`, e il nome inganna: non spegne
+        // Escape, smette di rubarlo. Il gestore di MUI (Modal/useModal.js, righe 114-125) chiama
+        // `event.stopPropagation()` PRIMA di guardare se `onClose` esiste — «Swallow the event, in
+        // case someone is listening for the escape key on the body», dice il loro commento — e lo
+        // fa da un handler React sul portale, cioè più in basso del listener su `window` che
+        // l'editor usa per i suoi tasti. Senza questa prop, Escape non arriverebbe mai lì dentro e
+        // la deselezione sarebbe scritta e inerte.
+        disableEscapeKeyDown
         fullScreen={preferenze.schermoIntero}
         maxWidth={false}
         PaperProps={{
