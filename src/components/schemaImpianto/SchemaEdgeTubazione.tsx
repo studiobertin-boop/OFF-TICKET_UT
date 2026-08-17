@@ -15,6 +15,7 @@ import { BaseEdge, EdgeLabelRenderer, useReactFlow, type EdgeProps } from '@xyfl
 import { frecciaDirezione, riduttorePressione, valvolaIntercettazione, TRATTEGGIO_CONDENSE } from '@/services/schemaImpianto/symbols'
 import {
   ondula,
+  tronconi,
   percorso,
   puntoSuTratto,
   tSuTratto,
@@ -377,22 +378,32 @@ export function SchemaEdgeTubazione({
   // Stessa geometria del render statico (renderSvg.ts) per OGNI arco, con o senza gomiti:
   // editor e documento concordano sulla forma della linea — non più un'approssimazione.
   const polilinea = polilineaDellArco(capi, edgeData)
-  const path = stile === 'flessibile' ? ondula(polilinea) : percorso(polilinea)
+  // Un tracciato per troncone: dal 17-08-2026 una valvola può dichiarare che da lei in poi il tubo
+  // cambia tipo (`tronconi`, tratti.ts). Senza cambi la lista ha un elemento solo, ed è il disegno
+  // di prima. L'evidenziazione vince sulla selezione, e valgono per tutti i pezzi: un tubo mezzo
+  // blu e mezzo nero si leggerebbe come due tubi diversi.
+  const pezzi = tronconi(polilinea, stile, edgeData?.segni ?? [])
+  const coloreTratto = {
+    stroke: edgeData?.evidenziato ? '#ed6c02' : selected ? '#1976d2' : '#000',
+    strokeWidth: edgeData?.evidenziato ? 4 : selected ? 3 : 2,
+  }
 
   return (
     <>
-      <BaseEdge
-        id={id}
-        path={path}
-        markerEnd={markerEnd}
-        style={{
-          // L'evidenziazione vince sulla selezione: durante un gesto conta vedere DOVE il TEE
-          // si innesterà, e un tubo può benissimo essere insieme selezionato e sorvolato.
-          stroke: edgeData?.evidenziato ? '#ed6c02' : selected ? '#1976d2' : '#000',
-          strokeWidth: edgeData?.evidenziato ? 4 : selected ? 3 : 2,
-          strokeDasharray: stile === 'condensa' ? TRATTEGGIO_CONDENSE : undefined,
-        }}
-      />
+      {pezzi.map((pezzo, i) => {
+        const d = pezzo.stile === 'flessibile' ? ondula(pezzo.punti) : percorso(pezzo.punti)
+        const tratto = {
+          ...coloreTratto,
+          strokeDasharray: pezzo.stile === 'condensa' ? TRATTEGGIO_CONDENSE : undefined,
+        }
+        // `BaseEdge` solo per il primo: porta l'`id` con cui react-flow riconosce l'arco, e due
+        // elementi con lo stesso id ne farebbero rendere uno solo.
+        return i === 0 ? (
+          <BaseEdge key={i} id={id} path={d} markerEnd={markerEnd} style={tratto} />
+        ) : (
+          <path key={i} d={d} fill="none" style={tratto} />
+        )
+      })}
       {/*
        * Area di trascinamento del tratto: un tracciato invisibile ma largo (16px), sovrapposto
        * alla polilinea vera, che intercetta il gesto di afferrare-e-scorrere un tratto dritto
