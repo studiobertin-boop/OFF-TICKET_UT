@@ -1020,6 +1020,30 @@ tutti e tre devono comparire **senza scorrere**, e nessuno deve nascere sopra un
 
 ---
 
+## Cosa è andato diversamente da come questo piano lo prevedeva
+
+Due punti, entrambi scoperti eseguendo. Restano scritti qui perché il piano non racconti una
+storia più liscia di quella vera.
+
+**R2, il codolo ha dovuto spostarsi.** Il piano dava per scontato che la scritta potesse essere
+centrata sul codolo lasciando questo a `x = 10`, sul bordo sinistro. Non regge: una scritta
+centrata su un'ascissa 10 occupa da `10 − metà` a `10 + metà`, quindi metà del testo cade a
+coordinate negative e il documento la taglia. Codolo e ancora `in` sono perciò passati a **metà
+larghezza**, con l'ingombro che cresce con la riga più lunga; larghezza minima da 190 a 200 perché
+la metà cada sulla griglia, e altezza arrotondata al passo per lo stesso motivo. Effetto
+collaterale buono: con l'etichetta su più righe l'ancora del terminale cadeva **fuori** griglia
+(188 per otto righe), e ora non più. Effetto da segnalare al committente: il tubo arriva al centro
+del terminale, non più al suo fianco.
+
+**R3, la funzione non poteva stare in `SchemaEditor.tsx`.** Il piano prevedeva di esportarla da lì,
+supponendo che il warning `react-refresh` già presente coprisse anche il nuovo export. Sbagliato:
+la regola conta gli export, non i file, e ne compariva un secondo — con `--max-warnings 0` il gate
+cadeva. `sopraIlBordoSinistro` vive quindi in `posaNuoviOggetti.ts`, accanto agli hook.
+
+**R3, il muro non è stato toccato**, per la ragione già scritta nel Task 6: la regola applicata
+alla lettera lo farebbe nascere sopra il compressore, contro lo scopo della richiesta. Da dire al
+committente.
+
 ## Quando i sei task sono chiusi
 
 1. **I tre comandi** un'ultima volta, dal worktree.
