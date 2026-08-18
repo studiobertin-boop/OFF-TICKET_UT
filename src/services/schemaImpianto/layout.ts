@@ -173,10 +173,24 @@ export const GIOCO_FRA_STADI = 20
  * Spazio fra l'ancora di una giunzione di by-pass e quella dello stadio vicino, di qua e di la'.
  * Non e' `GIOCO_FRA_STADI`: le quattro ancore della giunzione COINCIDONO nel suo centro
  * (symbols/index.ts), quindi a gioco zero il TEE finirebbe esattamente sulla punta del rombo
- * accanto, e il pallino sparirebbe dentro il simbolo.
+ * accanto, e il pallino sparirebbe dentro il simbolo. **E' un pavimento, non un'estetica**: sotto
+ * le 10 unita' del codolo — che `simboloRombo` fa sporgere fuori da ciascuna punta — il pallino
+ * entra nel tratto di attacco, e sotto lo zero nel corpo del rombo.
  *
- * Due passi di griglia. Da guardare nel Blocco 4: nel disegno di riferimento il TEE di monte sta
- * ~12 unita' dalla punta del primo stadio e quello di valle ~25 da quella dell'ultimo.
+ * **Venti unita', misurate su `si bypass.png`** (Blocco 5, scala 0,5575 px/unita' letta dal
+ * reticolo da 10 unita' della tela): il centro del TEE di monte sta a x=291,0 — le sue due prese
+ * laterali cadono a 285 e 297, cioe' a ±10 unita' — e l'ancora `sx` del primo stadio scavalcato a
+ * x=302,5, che fanno 11,5 px, cioe' **20,6 unita'**. Al capo di valle la stessa distanza misura 28.
+ *
+ * Attenzione a cosa si misura: a x≈293 non c'e' la punta del rombo ma il PALLINO della maniglia,
+ * che l'editor disegna sull'ancora, e prenderlo per la punta fa leggere 3 unita' invece di 20. La
+ * punta vera e' il vertice sinistro del rombo (`ANCORE_ROMBO`, symbols/index.ts), 10 unita' oltre
+ * il codolo che gli sporge davanti.
+ *
+ * Dal Blocco 5 la stessa misura vale in due situazioni diverse: al capo di MONTE il TEE sta
+ * `PASSO_CORSIA_BYPASS` piu' in alto, quindi SOPRA la punta del rombo e non di fianco; al capo di
+ * valle sta sulla linea, di fianco. Un passo solo copre entrambe, e i due test in `layout.test.ts`
+ * lo dicono separatamente perche' la simmetria non c'e' piu'.
  */
 export const PASSO_GIUNZIONE = 20
 
