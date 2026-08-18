@@ -87,10 +87,12 @@ const MARGINE = 40
 export const MARGINE_SUPERIORE = 110
 const PASSO_ORIZZONTALE = 60
 /**
- * Quanto la dorsale dei compressori passa sopra il corpo del serbatoio (`quotaCollettore`).
- * Un passo di griglia: la dorsale sfiora la capsula senza toccarla. Da guardare nel Blocco 4
- * insieme alle altre distanze — e' una delle misure che il committente ha corretto a mano sul
- * disegno del 18-08-2026.
+ * Quanto la dorsale passerebbe sopra il corpo del serbatoio. **Serve solo al RIPIEGO**, dal
+ * 18-08-2026: la dorsale la quotano i compressori, e questo numero conta soltanto in un impianto
+ * che compressori non ne ha (dove una dorsale non c'e', ma `quotaCollettore` deve comunque tornare
+ * un numero). Vedi `quotaCollettore` piu' sotto per il perche' il vincolo del serbatoio e' caduto.
+ *
+ * Un passo di griglia: la dorsale sfiora la capsula senza toccarla.
  */
 export const MARGINE_COLLETTORE = 10
 /**
@@ -103,11 +105,9 @@ export const MARGINE_COLLETTORE = 10
  * unita' di flessibile sotto la valvola, cioe' le quattro ondulazioni che si contano sul
  * riferimento; a 60 ne restavano 40, e se ne vedevano due.
  *
- * Conta solo quando i compressori sono piu' alti del corpo del serbatoio — cioe' col serbatoio
- * ORIZZONTALE; **col verticale detta sempre il serbatoio**, ed e' il motivo per cui sul disegno
- * della pratica di prova questo numero da solo non accorcia i montanti. Vedi `quotaCollettore` piu'
- * sotto: la domanda se il vincolo del serbatoio debba valere anche quando la dorsale non gli passa
- * mai sopra e' aperta col committente (Task 4 del Blocco 4).
+ * **E' l'unica misura che quota la dorsale**, dal 18-08-2026: il vincolo del serbatoio e' caduto
+ * (vedi `quotaCollettore` piu' sotto). Prima contava solo col serbatoio ORIZZONTALE, perche' col
+ * verticale vinceva sempre il serbatoio e i montanti nascevano lunghi il doppio.
  */
 export const MARGINE_COLLETTORE_COMPRESSORI = 80
 /**
@@ -756,21 +756,26 @@ export function dimensioniLayout(
 export function quotaCollettore(layout: SchemaLayout, libreria: Tarature = {}): number {
   const serbatoi = layout.nodi.filter((n) => n.tipo === 'serbatoio')
   const compressori = layout.nodi.filter((n) => n.tipo === 'compressore')
-  // I due vincoli, entrambi obbligatori: la dorsale passa sopra il corpo dei serbatoi (per non
-  // entrare nella capsula) e sopra i compressori (per non attraversarli, e perche' i loro montanti
-  // devono SALIRE). Vince il piu' alto dei due — cioe' la quota minore.
+  // **Comandano i COMPRESSORI, e loro soli.** La dorsale esiste per raccogliere i loro montanti,
+  // e deve stargli sopra abbastanza da ospitare la valvola (due passi di griglia) piu' un tratto
+  // di flessibile che si veda.
   //
-  // Il caso che lo impone e' il serbatoio ORIZZONTALE, il cui corpo sta piu' in basso della cima
-  // dei compressori: guardando il solo serbatoio, la dorsale sarebbe finita sotto di loro, il
-  // montante si sarebbe accorciato a 10 unita' e la valvola ancorata sarebbe collassata sul capo
-  // del tubo (`t: 0`).
-  // I due margini sono diversi perche' i due vincoli lo sono: sopra il serbatoio la dorsale deve
-  // solo non toccare la capsula, sopra il compressore deve ospitare il montante — la valvola due
-  // passi sotto la dorsale piu' un tratto di flessibile che si veda.
-  const cime = [
-    ...serbatoi.map((n) => corpoNodo(n, libreria).y - MARGINE_COLLETTORE),
-    ...compressori.map((n) => n.y - MARGINE_COLLETTORE_COMPRESSORI),
-  ]
+  // Il serbatoio NON la vincola, dal 18-08-2026 (decisione del committente sul suo disegno). Il
+  // vincolo «passare sopra il corpo del serbatoio» c'era per non entrare nella capsula, ma la
+  // dorsale non ci passa mai sopra: si aggancia all'ancora `sx-basso`, che sta sul BORDO SINISTRO
+  // (`x: 0` in coordinate locali, symbols/index.ts), quindi la corsa orizzontale finisce dove il
+  // serbatoio comincia e da li' scende di FIANCO. Col serbatoio verticale quel vincolo vinceva
+  // sempre e teneva la dorsale 90 unita' piu' in alto del necessario: i montanti nascevano lunghi
+  // il doppio di quelli del disegno vero, ed e' il difetto che questo chiude. Un test fissa il
+  // «di fianco» (`layout.test.ts`): se un giorno la mandata si agganciasse a un'ancora interna,
+  // cade li', ed e' quello il momento di rimettere il vincolo.
+  //
+  // Senza compressori non c'e' dorsale da quotare, ma la funzione deve comunque tornare un
+  // numero: si ripiega sui serbatoi, e poi su tutto il resto.
+  const cime =
+    compressori.length > 0
+      ? compressori.map((n) => n.y - MARGINE_COLLETTORE_COMPRESSORI)
+      : serbatoi.map((n) => corpoNodo(n, libreria).y - MARGINE_COLLETTORE)
   const riferimento = cime.length > 0 ? cime : layout.nodi.map((n) => n.y - MARGINE_COLLETTORE)
   if (riferimento.length === 0) return MARGINE
   return Math.min(...riferimento)

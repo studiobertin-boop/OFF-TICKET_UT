@@ -14,7 +14,6 @@ import {
   GIOCO_FRA_STADI,
   PASSO_GIUNZIONE,
   PASSO_CORSIA_BYPASS,
-  MARGINE_COLLETTORE,
   MARGINE_COLLETTORE_COMPRESSORI,
   PASSO_COMPRESSORI,
   STACCO_COMPRESSORI_SERBATOI,
@@ -1070,21 +1069,61 @@ describe('gli stacchi fra le famiglie', () => {
 })
 
 describe('la dorsale dei compressori', () => {
-  it('corre appena sopra il CORPO del serbatoio, non sopra il suo riquadro', () => {
-    // Correzione del committente sul disegno del 18-08-2026. Il riquadro del serbatoio comprende
-    // lo spazio della valvola di sicurezza (`MARGINE_VALVOLA_SERBATOIO`, 40 unità): tenendo la
-    // dorsale sopra QUELLO, il collettore correva 60 unità più in alto del necessario, e i
-    // montanti dei compressori nascevano lunghi il doppio del disegno vero.
+  it('si regola sui COMPRESSORI, anche quando il serbatoio è più alto di loro', () => {
+    // Il serbatoio non detta piu' la quota della dorsale (decisione del committente, 18-08-2026,
+    // Task 4b del Blocco 4). Nel suo disegno la dorsale corre appena sopra i compressori e passa
+    // SOTTO la cima della capsula: il vincolo «stare sopra il corpo del serbatoio» la teneva 90
+    // unita' piu' in alto del necessario, e i montanti nascevano lunghi il doppio del disegno vero.
+    //
+    // Il serbatoio verticale di questa scheda e' proprio il caso in cui, prima, vinceva lui.
     const layout = layoutSchema(
       buildSchemaModel({ scheda: schedaConTreStadi(), collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
     )
-    const serbatoio = nodo(layout, 'S1')
-    const cimaDelCorpo = corpoNodo(serbatoio).y
-
-    expect(quotaCollettore(layout)).toBe(cimaDelCorpo - MARGINE_COLLETTORE)
-    // E sta comunque sopra il corpo: la dorsale non deve entrare nella capsula.
-    expect(quotaCollettore(layout)).toBeLessThan(cimaDelCorpo)
+    const compressore = nodo(layout, 'C1')
+    expect(quotaCollettore(layout)).toBe(compressore.y - MARGINE_COLLETTORE_COMPRESSORI)
+    // E la dorsale sta ora piu' in BASSO della cima della capsula: e' il fatto nuovo, quello che
+    // il vincolo tolto impediva. Senza questa asserzione il test passerebbe anche se il serbatoio
+    // fosse rimasto a dettare, in un impianto dove le due quote si somigliano.
+    expect(quotaCollettore(layout)).toBeGreaterThan(corpoNodo(nodo(layout, 'S1')).y)
   })
+
+  for (const orientamento of ['VERTICALE', 'ORIZZONTALE'] as const) {
+    it(`e col serbatoio ${orientamento} non entra nella capsula, perché gira in giù sul FIANCO`, () => {
+      // E' la premessa su cui poggia la regola qui sopra, e va provata su ENTRAMBI gli
+      // orientamenti perche' usano ancore diverse: la dorsale non passa mai sopra il serbatoio, si
+      // aggancia a `sx-basso` (verticale) o a `sx` (orizzontale, che `sx-basso` non ce l'ha), e
+      // tutt'e due stanno sul BORDO SINISTRO della capsula — `x: 0` in coordinate locali
+      // (symbols/index.ts). La corsa orizzontale finisce quindi dove il serbatoio comincia, e da
+      // li' scende di fianco.
+      //
+      // Se un giorno la mandata si agganciasse a un'ancora interna, questo test cade — ed e'
+      // esattamente il momento in cui il vincolo tolto andrebbe rimesso.
+      const scheda = makeScheda({
+        compressori: [makeCompressore({ codice: 'C1' })],
+        disoleatori: [makeDisoleatore({ codice: 'C1.1', compressore_associato: 'C1' })],
+        serbatoi: [makeSerbatoio({ orientamento })],
+      })
+      const layout = layoutSchema(
+        buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+      )
+      const serbatoio = nodo(layout, 'S1')
+      const compressore = nodo(layout, 'C1')
+      const mandata = layout.archi.find((a) => a.da.nodo === 'C1' && a.a.nodo === 'S1')!
+      const punti = instrada(
+        mandata.stile,
+        posizioneAncora(compressore, mandata.da.ancora),
+        posizioneAncora(serbatoio, mandata.a.ancora),
+        mandata.punti,
+        quoteInstradamento(layout),
+        {
+          da: latoImposto(compressore, mandata.da.ancora),
+          a: latoImposto(serbatoio, mandata.a.ancora),
+        }
+      )
+      const bordoSinistro = corpoNodo(serbatoio).x
+      for (const p of punti) expect(p.x).toBeLessThanOrEqual(bordoSinistro)
+    })
+  }
 
   it('col serbatoio orizzontale sta a `MARGINE_COLLETTORE_COMPRESSORI` sopra i compressori', () => {
     // E' il caso in cui il vincolo dei compressori vince: la capsula di un serbatoio ORIZZONTALE
