@@ -143,6 +143,7 @@ export default function SchemaImpiantoDialog({
           <SchemaImpiantoSection
             scheda={scheda}
             collegamentiCompressoriSerbatoi={collegamenti}
+            schemaPreferenze={preferenze}
             schema={schema}
             onSchemaChange={onSchemaChange}
             layoutSalvato={layoutSalvato}

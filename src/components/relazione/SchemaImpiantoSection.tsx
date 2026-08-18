@@ -24,13 +24,14 @@ import { AutoFixHigh as GeneraIcon, Edit as EditIcon } from '@mui/icons-material
 import toast from 'react-hot-toast'
 import { useAuth } from '@/hooks/useAuth'
 import type { SchedaDatiCompleta } from '@/types/technicalSheet'
-import type { SchemaImpianto } from '@/services/relazione/types'
+import type { SchemaImpianto, SchemaPreferenze } from '@/services/relazione/types'
 import {
   buildSchemaModel,
   notaTubazioni,
   puoGenerareSchema,
 } from '@/services/schemaImpianto/buildSchemaModel'
 import { layoutSchema } from '@/services/schemaImpianto/layout'
+import { preferenzeRisolteDaScheda } from '@/services/schemaImpianto/preferenze'
 import type { Tarature, TaraturaSimbolo } from '@/services/schemaImpianto/libreria'
 import { risolviLibreria } from '@/services/schemaImpianto/libreria'
 import { renderSvg } from '@/services/schemaImpianto/renderSvg'
@@ -62,6 +63,18 @@ const TARATURE_VUOTE: Tarature = {}
 export interface SchemaImpiantoSectionProps {
   scheda: SchedaDatiCompleta
   collegamentiCompressoriSerbatoi: Record<string, string[]>
+  /**
+   * Le scelte dell'operatore sulla forma del disegno (`additional_info.schemaPreferenze`), le
+   * stesse che il pannello qui sopra mostra e scrive. Cambiarle **non ridisegna nulla**: entrano
+   * solo nella prossima generazione, cioe' alla prima apertura di una pratica senza disegno o
+   * premendo «Rigenera da capo» — e' la promessa fatta al committente, per non buttare via il
+   * lavoro fatto a mano sulla tela.
+   *
+   * `schemaPreferenze` e non `preferenze`: quest'ultimo nome e' gia' preso, in questo file, dalle
+   * regolazioni della FINESTRA dell'editor (`PreferenzeEditor` — schermo intero, dimensioni,
+   * anteprima), che non hanno nulla a che vedere con la forma del disegno.
+   */
+  schemaPreferenze: SchemaPreferenze
   schema: SchemaImpianto | null
   onSchemaChange: (schema: SchemaImpianto | null) => void
   /**
@@ -92,6 +105,7 @@ export interface SchemaImpiantoSectionProps {
 export function SchemaImpiantoSection({
   scheda,
   collegamentiCompressoriSerbatoi,
+  schemaPreferenze,
   schema,
   onSchemaChange,
   layoutSalvato,
@@ -292,6 +306,14 @@ export function SchemaImpiantoSection({
     [libreria, note, onLayoutChange, pubblica]
   )
 
+  // Risolte una volta sola, qui: due risoluzioni in due punti divergerebbero al primo ritocco di
+  // `preferenzeRisolteDaScheda`, ed e' esattamente il difetto che il Blocco 2 ha appena chiuso
+  // fra pannello e generatore.
+  const preferenzeRisolte = useMemo(
+    () => preferenzeRisolteDaScheda(scheda, schemaPreferenze),
+    [scheda, schemaPreferenze]
+  )
+
   // Prima generazione automatica: appena i dati bastano, l'utente trova la proposta già
   // pronta. Non si rigenera da sola dopo: sovrascriverebbe le correzioni fatte nell'editor.
   // Con un layout salvato la proposta è la riconciliazione, non l'auto-layout da zero: le
@@ -313,7 +335,12 @@ export function SchemaImpiantoSection({
     if (permanentiInLettura) return
     if (generazioneTentata.current || !puoGenerare || schema) return
     generazioneTentata.current = true
-    const modello = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi })
+    const modello = buildSchemaModel({
+      scheda,
+      collegamentiCompressoriSerbatoi,
+      preferenze: preferenzeRisolte,
+      libreria,
+    })
     const esito = layoutIniziale(layoutSalvato, modello, libreria)
     // `aggiuntiDaScheda`, non `aggiunti`: il secondo comprende anche il terminale utenze, che
     // non è un'apparecchiatura e non viene dalla scheda (vedi `EsitoRiconciliazione`).
@@ -323,12 +350,17 @@ export function SchemaImpiantoSection({
         : null
     )
     void disegna(esito.layout)
+    // `preferenzeRisolte` e' fra le dipendenze perche' `exhaustive-deps` lo impone, ma NON e' un
+    // innesco: la guardia `generazioneTentata` e' un `useRef`, che sopravvive al rieseguirsi
+    // dell'effetto. Cambiare una spunta in finestra fa girare questo codice e lo ferma alla
+    // guardia, senza toccare il disegno — che e' la promessa fatta al committente.
   }, [
     collegamentiCompressoriSerbatoi,
     disegna,
     layoutSalvato,
     libreria,
     permanentiInLettura,
+    preferenzeRisolte,
     puoGenerare,
     scheda,
     schema,
@@ -342,9 +374,12 @@ export function SchemaImpiantoSection({
     // di posizioni, gomiti, segni e taratura, che il pulsante promette di scartare e che dalla
     // scheda si rifanno. Fino al 17-08-2026 sparivano insieme al resto, senza modo di recuperarle.
     setEsitoRiconciliazione(null)
-    const daZero = layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi }), libreria)
+    const daZero = layoutSchema(
+      buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi, preferenze: preferenzeRisolte, libreria }),
+      libreria
+    )
     void disegna({ ...daZero, testi: layout?.testi ?? [] })
-  }, [collegamentiCompressoriSerbatoi, disegna, layout, libreria, scheda])
+  }, [collegamentiCompressoriSerbatoi, disegna, layout, libreria, preferenzeRisolte, scheda])
 
   const leggiFile = useCallback(
     async (file: File | undefined) => {
