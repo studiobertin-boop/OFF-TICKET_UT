@@ -135,23 +135,33 @@ export const PASSO_GIUNZIONE = 20
 
 /**
  * Di quanto la linea di processo SCENDE quando c'e' almeno un by-pass, e di quanto si separano due
- * corsie di ponte che si sovrappongono. Serve perche' il ponte corra SOTTO l'uscita del serbatoio
- * invece di accavallarcisi: senza, il cavalcavia nascerebbe alla stessa quota del bocchello del
- * serbatoio e i due tratti si sovrapporrebbero.
+ * corsie di ponte che si sovrappongono. Serve perche' il ponte possa correre alla quota dell'uscita
+ * del serbatoio senza accavallarcisi.
  *
- * Da guardare nel Blocco 4: nel disegno di riferimento lo scarto fra l'uscita del serbatoio e la
- * linea di processo misura circa 75 unita'.
+ * **Novanta unita', misurate su `si bypass.png`**: la corsa del ponte sta a y=74,5 px e la linea
+ * di processo a y=125, uno scarto di 50,5 px che alla scala di quell'immagine (0,5575 px/unita',
+ * letta dal reticolo da 10 unita' della tela) fa 90,6. Controprova indipendente: con una corsia di
+ * 90 e la valvola due passi sotto l'orizzontale, sotto la valvola restano 70 unita' di flessibile,
+ * cioe' le tre o quattro ondulazioni che si contano sul riferimento.
  */
-export const PASSO_CORSIA_BYPASS = 80
+export const PASSO_CORSIA_BYPASS = 90
 
 /**
- * Quanto il ponte di un by-pass corre sopra la linea di processo. Meno di
- * `PASSO_CORSIA_BYPASS`, che e' esattamente cio' che lo fa passare sotto l'uscita del serbatoio.
+ * Quanto il ponte di un by-pass corre sopra la linea di processo. **Esattamente
+ * `PASSO_CORSIA_BYPASS`**, e non un numero suo: la linea di processo scende di una corsia proprio
+ * perche' il ponte possa correre alla quota dell'uscita del serbatoio, e su `si bypass.png` quei
+ * due tratti sono la STESSA orizzontale — una sola riga forte a y=74/75, lunga 322 px su 643.
  *
- * Da guardare nel Blocco 4: nel disegno corretto a mano il committente lo ha messo alla STESSA
- * quota dell'uscita del serbatoio (cioe' con i due valori uguali), non venti unita' sotto.
+ * Cio' che tiene i due tratti separati non e' la quota, ma l'ascissa: la corsa del ponte comincia
+ * dove la linea di processo e' gia' scesa, cioe' a destra del bocchello.
+ *
+ * Fino al 18-08-2026 valeva 60, e il ponte passava 20 unita' sotto il bocchello: il tratto di
+ * flessibile sotto le valvole dei montanti si riduceva a una sola ondulazione contro le tre o
+ * quattro del disegno vero. Un test lega le due misure (`layout.test.ts`, «la corsa del ponte cade
+ * sulla quota dell'uscita del serbatoio»): scriverle uguali per caso non basta, la relazione e' il
+ * disegno.
  */
-export const ALTEZZA_BYPASS = 60
+export const ALTEZZA_BYPASS = PASSO_CORSIA_BYPASS
 
 function posiziona(nodo: SchemaNodo, x: number, y: number): SchemaNodoPosizionato {
   return { ...nodo, x, y }

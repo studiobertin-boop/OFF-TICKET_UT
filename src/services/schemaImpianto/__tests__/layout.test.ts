@@ -1123,13 +1123,23 @@ describe('il by-pass nel layout', () => {
     expect(con).toBe(senza + PASSO_CORSIA_BYPASS)
   })
 
-  it('e scende perche’ il ponte le passi SOTTO l’uscita del serbatoio, non addosso', () => {
-    // E' la ragione della corsia, e va fissata a parte: la sola discesa della linea passerebbe
-    // anche con un ponte che si accavalla all'uscita del serbatoio, che e' cio' che si voleva
-    // evitare.
+  it('la corsa del ponte cade sulla quota dell’uscita del serbatoio, e comincia oltre di essa', () => {
+    // E' l'invariante che il committente ha disegnato a mano su `si bypass.png`: il tratto che esce
+    // dal serbatoio e la corsa del ponte sono la STESSA orizzontale — una sola riga forte, y=74/75,
+    // lunga 322 px su 643. La linea di processo scende di una corsia proprio perche' il ponte possa
+    // correre li': e' quindi `ALTEZZA_BYPASS === PASSO_CORSIA_BYPASS`, non un numero libero, e il
+    // legame fra le due costanti va fissato qui o si sfalderebbe alla prima taratura.
+    //
+    // Fino al 18-08-2026 questo test chiedeva che il ponte stesse piu' in BASSO dell'uscita: era
+    // un'approssimazione della regola. Cio' che tiene i due tratti separati non e' la quota — sono
+    // complanari — ma l'ascissa: la corsa del ponte comincia dove la linea di processo e' gia'
+    // scesa, cioe' a destra del bocchello.
     const l = disegno()
-    const yPonte = Math.min(...polilineaPonte(l).map((p) => p.y))
-    expect(yPonte).toBeGreaterThan(posizioneAncora(nodo(l, 'S1'), 'dx').y)
+    const uscita = posizioneAncora(nodo(l, 'S1'), 'dx')
+    const punti = polilineaPonte(l)
+    expect(punti[1].y).toBe(uscita.y)
+    expect(punti[2].y).toBe(uscita.y)
+    expect(punti[1].x).toBeGreaterThan(uscita.x)
   })
 
   it('senza by-pass la linea resta alla quota dell’uscita del serbatoio', () => {
