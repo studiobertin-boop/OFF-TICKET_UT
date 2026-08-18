@@ -1121,6 +1121,36 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 - [ ] **Non fondere ancora su `main`**: il Blocco 2 continua su questo stesso ramo. Il merge
       simulato con `git merge-tree` contro `origin/main` aggiornato si fa alla fine del Blocco 3.
 
+## Cosa è andato diversamente
+
+1. **L'ordine dei compressori mancava dal modello.** Il committente lo aveva elencato nella
+   sequenza («C1, C2, CX, …S1, F1…») ma la specifica non lo prevedeva. Aggiunto in corsa:
+   `ordineCompressori` sul tipo, nella potatura e nel risolutore, e la firma di `risolviPreferenze`
+   è passata da tre parametri posizionali a un oggetto `FamiglieSchema` — con quattro famiglie,
+   `(preferenze, stadi, serbatoi, fn)` era già illeggibile e sbagliabile all'ordine.
+2. **`famiglieDaScheda` non era prevista.** Il piano faceva costruire le tre famiglie al
+   componente. Sbagliato: l'ordine di default sarebbe stato scritto in due posti — qui e nel
+   generatore del Blocco 2 — e sarebbe divergiuto al primo ritocco. Spostata in `preferenze.ts`,
+   dove riusa `ordinaCatenaTrattamento` invece di riscriverla, con quattro test propri.
+3. **`--max-warnings 0` era una soglia sbagliata** su tre dei percorsi toccati (vedi Global
+   Constraints, corretto in corsa): il conto giusto è «non uno più di prima», misurato.
+4. **I 22 test del risolutore sono passati al primo colpo**, ma erano falliti solo per «modulo
+   assente»: non li avevo mai visti fallire per la ragione giusta. Prova di mutazione su
+   `contigui` (forzata a `true`): ne cadono due, nei due punti dove la contiguità decide. Mordono.
+5. **Due difetti trovati solo dalla prova in pagina**, con 1353 test verdi — la terza volta che
+   succede a questo modulo:
+   - il gruppo by-pass finiva in banca dati **nell'ordine in cui l'operatore spuntava le caselle**
+     (`["E2","F2","F1"]`), non in quello del disegno. Invisibile, perché `risolviPreferenze` lo
+     riordina leggendolo — ma quel che si scrive dev'essere leggibile da sé;
+   - l'avviso di scioglimento diceva «le apparecchiature che **scavalcavano**»: il soggetto è il
+     by-pass, non le apparecchiature, quindi al singolare va «che scavalcava».
+6. **La verifica dello Step 11 era stata spostata al Task 4** ed è stata fatta lì, sulla pratica
+   `002 test` (`fed244ee`): preferenze scritte alla chiusura, sopravvissute al ricaricamento e —
+   il punto che conta — **sopravvissute alla generazione della relazione**, cioè al passaggio da
+   Zod. `additional_info` ripristinato identico a fine prova (confronto byte per byte).
+7. **La pratica `002 test` ha un `schemaLayout` salvato**, quindi le pratiche con layout in
+   produzione sono tre e non due. La nota nella documentazione parlava dei soli clienti veri.
+
 ## Debito lasciato di proposito
 
 - `PannelloPreferenzeSchema` passa `() => true` come regola di default per le condense. Il Blocco 2

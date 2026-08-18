@@ -209,7 +209,13 @@ export default function PannelloPreferenzeSchema({
       ...preferenze,
       bypass: [
         ...risolte.bypass,
-        { id: prossimoIdBypass(risolte.bypass), stadi: [...selezionati] },
+        {
+          id: prossimoIdBypass(risolte.bypass),
+          // Nell'ordine del disegno, non in quello in cui l'operatore ha spuntato le caselle:
+          // `risolviPreferenze` li rimetterebbe comunque in fila leggendoli, ma quel che finisce
+          // in banca dati dev'essere leggibile da sé, non un elenco da riordinare per capirlo.
+          stadi: risolte.ordineStadi.filter((id) => selezionati.includes(id)),
+        },
       ],
     })
     setSelezionati([])
@@ -272,8 +278,11 @@ export default function PannelloPreferenzeSchema({
     <Stack spacing={2}>
       {risolte.bypassScartati.length > 0 && (
         <Alert severity="warning">
-          {risolte.bypassScartati.length === 1 ? 'Un by-pass è stato sciolto' : 'Alcuni by-pass sono stati sciolti'}{' '}
-          perché le apparecchiature che scavalcavano non sono più una alla fine dell’altra:{' '}
+          {/* Il soggetto di «scavalcava» è il by-pass, non le apparecchiature: al singolare la
+              concordanza cambia, e scriverne una sola per i due casi suona sbagliata in uno. */}
+          {risolte.bypassScartati.length === 1
+            ? 'Un by-pass è stato sciolto perché le apparecchiature che scavalcava non sono più una alla fine dell’altra: '
+            : 'Alcuni by-pass sono stati sciolti perché le apparecchiature che scavalcavano non sono più una alla fine dell’altra: '}
           {risolte.bypassScartati.join(', ')}.
         </Alert>
       )}
