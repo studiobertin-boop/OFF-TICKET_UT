@@ -23,11 +23,11 @@ geometria. Le istruzioni `ancoraggio` (sul segno) e `forma: 'ponte'` (sull'arco)
 col paragrafo «cosa è andato diversamente» in coda.
 
 **Riferimenti visivi, in git:** `DOCUMENTAZIONE/relazione/si bypass.png` (il metro di QUESTO blocco)
-e il compagno senza by-pass. **Attenzione al nome del secondo:** i documenti precedenti lo citano
-come `no byass.png` — refuso del committente, che nel checkout principale è ancora il nome vero del
-file — ma **su questo ramo è committato come `no bypass.png`**, col nome corretto. I due file hanno
-lo stesso contenuto (md5 `13d7c9b4…`). Qui si scrive il nome che esiste nel worktree; **non
-rinominare nulla** senza chiedere al committente, o si rompono i link nell'una o nell'altra copia.
+e `DOCUMENTAZIONE/relazione/no bypass.png`. *(Risolto dal committente il 18-08-2026: il nome
+giusto è `no bypass.png`, ed è quello committato. I documenti dei blocchi precedenti lo citavano
+come `no byass.png` credendolo un refuso suo da non correggere — non lo era: il refuso sta su una
+copia locale non tracciata del checkout principale, rimasta lì da una sessione precedente.
+Riferimenti corretti in tutti i documenti.)*
 
 **Ramo:** `worktree-schema-prima-versione-blocco1`, worktree
 `.claude/worktrees/schema-prima-versione-blocco1`. Il Blocco 3 continua su questo ramo. **Il merge

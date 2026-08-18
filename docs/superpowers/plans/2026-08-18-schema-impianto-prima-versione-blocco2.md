@@ -4,7 +4,7 @@
 > oppure `superpowers:executing-plans`, task per task. I passi usano caselle (`- [ ]`).
 
 **Obiettivo:** la prima versione generata dello schema riproduce il disegno di riferimento
-`DOCUMENTAZIONE/relazione/no byass.png` — linea di processo dritta e allineata all'uscita del
+`DOCUMENTAZIONE/relazione/no bypass.png` — linea di processo dritta e allineata all'uscita del
 serbatoio, stadi adiacenti, mandata compressore agganciata in basso con la valvola sotto la
 dorsale, valvole di riserva ai due capi, condense dal flag dell'operatore.
 
@@ -18,9 +18,10 @@ numeriche e le toglie. Il formato salvato non cambia di un byte, e `renderSvg`, 
 
 **Specifica:** `docs/superpowers/specs/2026-08-17-schema-impianto-prima-versione-design.md`
 **Consegna:** `docs/superpowers/2026-08-18-prossima-sessione-schema-prima-versione.md`
-**Riferimenti visivi:** `DOCUMENTAZIONE/relazione/no byass.png` (questo blocco) e
-`DOCUMENTAZIONE/relazione/si bypass.png` (Blocco 3). Attenzione al nome del primo: `byass`, non
-`bypass` — è un refuso del committente, non correggerlo qui o i link nei documenti si rompono.
+**Riferimenti visivi:** `DOCUMENTAZIONE/relazione/no bypass.png` (questo blocco) e
+`DOCUMENTAZIONE/relazione/si bypass.png` (Blocco 3). *(Nota del 18-08-2026: questo piano scriveva
+il primo come `no byass.png`, credendolo un refuso del committente da non correggere. Non lo era:
+il nome giusto è `no bypass.png`, ed è quello in git.)*
 
 **Ramo:** `worktree-schema-prima-versione-blocco1`, worktree
 `.claude/worktrees/schema-prima-versione-blocco1`. Il Blocco 2 continua su questo ramo; il merge
@@ -1303,7 +1304,7 @@ questo modulo. Sulla pratica **`002 test` (`fed244ee`)**, creata apposta dal com
 1. Avviare il dev server dal worktree (verificare quale processo tiene la porta: la 5173 è di un
    altro progetto) e aprire la pratica.
 2. Aprire la finestra SCHEMA IMPIANTO, premere **«Rigenera da capo»**, e mettere il disegno a
-   fianco di `DOCUMENTAZIONE/relazione/no byass.png`. Guardare, nell'ordine:
+   fianco di `DOCUMENTAZIONE/relazione/no bypass.png`. Guardare, nell'ordine:
    - la linea di processo è **dritta** dall'uscita del serbatoio fino alle utenze, senza il gomito;
    - gli stadi si **toccano** (e se i codoli si compenetrano, annotarlo per il Blocco 4: è il caso
      in cui `GIOCO_FRA_STADI` va a 20);
@@ -1402,7 +1403,7 @@ righe tolte e 6 aggiunte per fixture, tutto leggibile.
 **La prova visiva.** Fatta sulla pratica `002 test` (`fed244ee`) — 2 compressori, 1 serbatoio, 2
 essiccatori, 3 filtri, 1 separatore — generando lo schema dalla **scheda vera letta dal DB** e
 rasterizzando l'SVG con `sharp` (il browser MCP non rispondeva). Esito: **combacia con
-`no byass.png`** su tutte le convenzioni del blocco — linea dritta, stadi adiacenti (passo 100),
+`no bypass.png`** su tutte le convenzioni del blocco — linea dritta, stadi adiacenti (passo 100),
 aggancio `sx-basso`, montante flessibile fino alla valvola e rigido sopra, valvole di riserva ai
 due capi, nessuna valvola fra stadi, condense verso il separatore.
 

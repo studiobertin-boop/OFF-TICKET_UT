@@ -26,12 +26,12 @@ fallisce per variabili mancanti. **Contiene anche le credenziali dell'applicazio
 2. **Il piano del Blocco 3**:
    `docs/superpowers/plans/2026-08-18-schema-impianto-prima-versione-blocco3.md`, col paragrafo
    «cosa è andato diversamente» e l'esito della prova in pagina in coda.
-3. **I riferimenti visivi, in git:** `DOCUMENTAZIONE/relazione/si bypass.png` e il compagno senza
-   by-pass. **Attenzione al nome del secondo:** su questo ramo è committato come `no bypass.png`,
-   mentre i documenti dei blocchi precedenti lo citano come `no byass.png` — refuso del
-   committente, ed è il nome che il file ha nel checkout principale. Stesso contenuto (md5
-   `13d7c9b4…`). **Non rinominare nulla senza chiedere:** si rompono i link nell'una o nell'altra
-   copia. Vale la pena farlo decidere al committente e allineare le due copie in un colpo solo.
+3. **I riferimenti visivi, in git:** `DOCUMENTAZIONE/relazione/si bypass.png` e
+   `DOCUMENTAZIONE/relazione/no bypass.png`. Sono i due nomi giusti, e i riferimenti nei documenti
+   sono stati corretti il 18-08-2026. *(Resta nel checkout principale una copia non tracciata
+   `no byass.png`, col refuso, rimasta da una sessione precedente: i blocchi 2 e 3 la citavano
+   credendola il nome vero. Va cancellata quando il ramo viene fuso, non prima — nel checkout
+   principale i due png sono ancora untracked, ed è quella copia a tenerli lì.)*
 
 ## Cosa è finito nei Blocchi 1–3
 
@@ -60,7 +60,7 @@ risolve `node_modules`, e `tsx` non digerisce il `top-level await` in un `.ts`).
 | `ALTEZZA_BYPASS` | `layout.ts` | 60 | **Probabilmente troppo poco.** Nel disegno corretto a mano il ponte corre alla STESSA quota dell'uscita del serbatoio (`ALTEZZA_BYPASS == PASSO_CORSIA_BYPASS`); ora sta 20 unità sotto, e il tratto di flessibile sotto le valvole dei montanti si riduce a una sola ondulazione contro le tre o quattro del riferimento. |
 | `PASSO_CORSIA_BYPASS` | `layout.ts` | 80 | Misurato ~75 sul riferimento. Regge. |
 | `PASSO_GIUNZIONE` | `layout.ts` | 20 | Nel riferimento il TEE di monte sta ~12 unità dalla punta del primo stadio, quello di valle ~25. Un valore solo è la scelta simmetrica; due costanti se il committente li vuole diversi. |
-| `GIOCO_FRA_STADI` | `layout.ts` | 0 | **Domanda aperta al committente**, posta il 18-08-2026 e non ancora risposta: i rombi portano codoli da 10 unità che sporgono fuori dal riquadro, quindi a gioco 0 il codolo destro di ogni stadio entra di 10 unità nella punta del vicino. A 20 i codoli si toccano e formano il collegamento. |
+| `GIOCO_FRA_STADI` | `layout.ts` | 0 → **20** | **Deciso dal committente il 18-08-2026: 20.** I rombi portano codoli da 10 unità che sporgono fuori dal riquadro: a gioco 0 il codolo destro di ogni stadio entrava di 10 unità nella punta del vicino, a 20 i codoli si toccano e formano il collegamento. Cambia il passo fra stadi da 100 a 120. **Non muove nessuna fixture e non fa cadere nessun test — provato il 18-08-2026 mettendo 20 e rilanciando la suite:** le fixture descrivono impianti senza stadi, e i test della convenzione 3 asseriscono sulla costante, non sul valore. È la costante più economica da chiudere. |
 | `MARGINE_COLLETTORE` | `layout.ts` | 10 | Nel disegno corretto a mano la dorsale è ancora un po' più bassa e il tratto di molla più corto di quanto esca ora. |
 
 ### Le altre due code
@@ -72,13 +72,17 @@ risolve `node_modules`, e `tsx` non digerisce il `top-level await` in un `.ts`).
 - **Il tratteggio delle condense si perde dove le linee si sovrappongono** (osservazione del
   committente, 18-08-2026). Sei linee condense corrono sulla stessa corsia orizzontale con le fasi
   disallineate — `stroke-dasharray` riparte da capo su ogni `<path>`, e ogni tratto riempie i vuoti
-  del vicino: il risultato sembra una linea continua. Due strade:
-  - **fasare i tratteggi**, calcolando uno `stroke-dashoffset` dalla lunghezza percorsa fino
-    all'inizio del tratto orizzontale, così tutti cadono sulla stessa griglia. Locale a
-    `trattoSvg` (`renderSvg.ts`), non tocca il modello. È la strada che consiglio;
-  - **un collettore condense unico**: una sola linea orizzontale, coi montanti che vi si
-    innestano. Più fedele agli schemi veri, ma è un cambiamento del modello (oggi ogni
-    apparecchiatura ha il suo arco fino al pozzo) e va discusso col committente.
+  del vicino: il risultato sembra una linea continua.
+  **Strada scelta dal committente il 18-08-2026: fasare i tratteggi.** Si calcola uno
+  `stroke-dashoffset` dalla lunghezza percorsa fino all'inizio del tratto orizzontale, così tutti
+  i tratti cadono sulla stessa griglia. **Locale a `trattoSvg` (`renderSvg.ts`): non tocca il
+  modello, non tocca il layout, non tocca il formato salvato.**
+  *(L'altra strada — un collettore condense unico, una sola orizzontale coi montanti che vi si
+  innestano — era più fedele agli schemi veri ma cambiava il modello: oggi ogni apparecchiatura ha
+  il suo arco fino al pozzo. Scartata, non ridiscutere.)*
+  **Attenzione:** l'offset va calcolato sulla polilinea **già instradata**, e la stessa formula
+  serve alla tela dell'editor (`SchemaEdgeTubazione`) o documento e tela torneranno a disegnare
+  tratteggi diversi — è la divergenza che `instrada` condivisa è nata per chiudere.
 
 ### Una scelta di forma, non di distanza
 
@@ -100,7 +104,7 @@ prima»** — `src/services/schemaImpianto` 0, `src/components/schemaImpianto` 3
 `services/relazione` + `components/relazione` + `pages/TechnicalDetails.tsx` +
 `utils/equipmentCodes.ts` 18. Un `--max-warnings 0` su quei percorsi fallisce anche senza toccarli.
 
-**Le fixture SVG cambieranno in questo blocco**, perché le distanze si muovono. Si rigenerano
+**Alcune fixture SVG cambieranno in questo blocco**, perché le distanze si muovono — ma **non per `GIOCO_FRA_STADI`**, che è già stato provato a 20 senza che nessuna si muovesse (vedi la tabella qui sopra). A muoverle saranno semmai `MARGINE_COLLETTORE` e i passi di compressori e serbatoi, che toccano impianti senza stadi. Si rigenerano
 seguendo la procedura scritta nel loro header — rendere col codice nuovo, spezzare per riga,
 **leggere il diff**, annotare in testa il perché — e mai per far tornare verde un test. Il taglio
 giusto è **a profondità 1, con emissione anche quando un figlio si chiude**: a profondità 0 esce
@@ -154,11 +158,13 @@ Nessun test di interfaccia: la logica provabile va in servizi e hook (`CLAUDE.md
     suite passa da 2 minuti a non finire più; nel Blocco 3 è successo con una trentina di processi
     node vivi insieme.
 
-## Aperto col committente
+## Deciso dal committente il 18-08-2026, non ridiscutere
 
-- **`GIOCO_FRA_STADI`, 0 o 20** — domanda posta il 18-08-2026, non ancora risposta.
-- **Il tratteggio delle condense**: fasare i tratteggi (locale al render) o passare a un collettore
-  condense unico (cambia il modello).
-- **Il nome del file di riferimento senza by-pass**: `no byass.png` o `no bypass.png`, e allineare
-  le due copie.
-- **Il merge del ramo su `main`**: 28 commit pronti, merge simulato pulito, mai pubblicato.
+- **`GIOCO_FRA_STADI` = 20.**
+- **Tratteggio delle condense: si fasano i tratteggi** con `stroke-dashoffset`, locale al render.
+  Il collettore condense unico è scartato.
+- **Il nome giusto del riferimento è `no bypass.png`**, quello in git. Riferimenti corretti
+  ovunque.
+- **Il merge si fa DOPO il Blocco 4**, non prima: il committente vuole chiudere la taratura e
+  pubblicare in un colpo solo. 30 commit pronti, merge simulato pulito (rifare `git fetch` prima
+  di ripetere la simulazione: `origin/main` può essere avanzato nel frattempo).

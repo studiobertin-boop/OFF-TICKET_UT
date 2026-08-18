@@ -25,8 +25,10 @@ fallisce per variabili mancanti. **Contiene anche le credenziali dell'applicazio
    — dieci trappole e le decisioni da non ridiscutere. **Due sue affermazioni sono state smentite,
    vedi sotto.**
 4. **I riferimenti visivi, in git:** `DOCUMENTAZIONE/relazione/si bypass.png` (il metro di QUESTO
-   blocco) e `no byass.png` (attenzione al nome: `byass`, refuso del committente, non correggerlo o
-   i link si rompono).
+   blocco) e `no bypass.png`. *(Nota aggiunta il 18-08-2026: questa consegna diceva che il nome
+   vero fosse `no byass.png`, «refuso del committente da non correggere». È falso — il committente
+   ha chiarito che il nome giusto è `no bypass.png`, che è quello committato. Il refuso sta solo su
+   una copia locale non tracciata.)*
 
 ## Cosa esiste già, e che il Blocco 3 consuma
 
