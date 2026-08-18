@@ -1185,8 +1185,52 @@ vertici e i due codoli da 10 si toccano; con le ancore già sulle punte, il nume
 **Non è stato toccato**, per due ragioni: `GIOCO_FRA_STADI = 20` è una decisione esplicita del
 committente («non riaprire»), e la correzione dipende da quale delle due cose lui considera vera —
 la costante o le tarature, che sono un dato suo e che qualcuno ha scritto per una ragione. **Va
-deciso da lui.** La prova è ripetibile: `libreria-check.mts` (fra gli attrezzi) genera lo stesso
-schema due volte, con e senza libreria, e stampa i passi.
+deciso da lui.** La prova è ripetibile: l'attrezzo che l'ha misurata è cancellato con gli altri,
+ma sta qui per intero — `.mts` alla radice del worktree, `npx tsx libreria-check.mts`:
+
+```ts
+// Attrezzo del Blocco 5, non prodotto: si cancella a fine giro.
+// Genera lo schema della scheda vera DUE volte — senza e con la libreria di tarature di
+// produzione (tabella `schema_simboli`) — e stampa i passi fra le apparecchiature. Serve a
+// misurare quanto le tarature di produzione spostano le distanze tarate nel Blocco 4, che le
+// aveva misurate sulle ancore di DEFAULT.
+import { readFileSync } from 'node:fs'
+import { buildSchemaModel } from './src/services/schemaImpianto/buildSchemaModel'
+import { layoutSchema } from './src/services/schemaImpianto/layout'
+import { preferenzeRisolteDaScheda } from './src/services/schemaImpianto/preferenze'
+import type { Tarature } from './src/services/schemaImpianto/libreria'
+
+const env = Object.fromEntries(
+  readFileSync('.env.local', 'utf8')
+    .split(/\r?\n/)
+    .filter((r) => r.includes('=') && !r.trimStart().startsWith('#'))
+    .map((r) => { const i = r.indexOf('='); return [r.slice(0, i).trim(), r.slice(i + 1).trim()] })
+)
+const intestazione = { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` }
+const PRATICA = 'fed244ee-26e6-4d32-8c01-45abd393879d'
+
+const [riga] = await (
+  await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/dm329_technical_data?select=equipment_data,additional_info&request_id=eq.${PRATICA}`, { headers: intestazione })
+).json()
+const simboli = await (
+  await fetch(`${env.VITE_SUPABASE_URL}/rest/v1/schema_simboli?select=chiave,taratura`, { headers: intestazione })
+).json()
+const libreria: Tarature = Object.fromEntries(simboli.map((r: any) => [r.chiave, r.taratura]))
+
+const scheda = riga.equipment_data
+const collegamenti = riga.additional_info?.collegamentiCompressoriSerbatoi ?? {}
+
+for (const [etichetta, lib] of [['SENZA tarature', {}], ['CON le tarature di produzione', libreria]] as const) {
+  const preferenze = preferenzeRisolteDaScheda(scheda, undefined)
+  const modello = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: collegamenti, preferenze, libreria: lib })
+  const layout = layoutSchema(modello, lib)
+  const stadi = layout.nodi.filter((n) => ['essiccatore', 'filtro'].includes(n.tipo)).sort((a, b) => a.x - b.x)
+  const passi = stadi.slice(1).map((n, i) => n.x - stadi[i].x)
+  console.log(`\n[${etichetta}]`)
+  console.log('  stadi:', stadi.map((n) => `${n.id}@${n.x}`).join(' '))
+  console.log('  passo fra stadi:', passi.join(', '), '  (il riferimento del committente dice 120)')
+}
+```
 
 *Da notare per chi riprende: la stessa svista può aver toccato le altre distanze tarate nel Blocco
 4 (`STACCO_*`, `MARGINE_COLLETTORE_COMPRESSORI`). Il by-pass no: le sue misure sono state
