@@ -1411,9 +1411,23 @@ stadio, resta più largo che nel riferimento. È la convenzione 8 (compattezza i
 Blocco 4 chiude con `PASSO_COMPRESSORI`/`PASSO_SERBATOI` separati — **non** toccando
 `PASSO_ORIZZONTALE`, condiviso con `calcolaMuro`.
 
-**Quel che resta da provare dal vivo:** l'interazione in pagina (trascinamento nel pannello,
-«Rigenera da capo», la promessa che un cambio di spunta non ridisegni). Richiede le credenziali di
-accesso, che non stanno nel repo. La guardia `generazioneTentata` è stata verificata per lettura —
-è un `useRef` mai riazzerato, e `preferenzeSchema` è uno `useState` con identità stabile — ma la
-lettura non sostituisce la prova: in questo modulo la prova in pagina ha già trovato tre volte
-difetti che i test non vedevano.
+**La prova interattiva, fatta il 18-08-2026** su `002 test` con un login vero. Nessun difetto
+trovato — è la prima volta per questo modulo. Cinque cose verificate:
+
+1. **La spunta non mente più.** In finestra: `C1=no C2=no S1=SI E1=SI E2=SI F1=SI F2=SI F3=SI
+   SEP1=no` — i due compressori sono senza disoleatore, e col `() => true` del Blocco 1 sarebbero
+   comparsi spuntati. L'elenco coincide con gli archi condensa che il generatore emette.
+2. **Un cambio di spunta non ridisegna.** Tolta la spunta a F2: il blob dell'anteprima resta
+   **identico** (`a7fab88d-…`). La guardia `generazioneTentata` regge davvero.
+3. **«Rigenera da capo» applica.** Nuovo blob, e il disegno passa da 1610×1242 a **1478×1353** —
+   più stretto, come deve essere con gli stadi adiacenti. F2 perde la linea condense.
+4. **Il riordino da tastiera funziona** (focus sulla maniglia, `Space`, frecce, `Space`) e non
+   tocca il disegno. Dopo «Rigenera», gli archi seguono il nuovo ordine `E1 → E2 → F3 → F1 → F2`
+   **senza incrociarsi** — è la prova in pagina di `catenaDagliArchi` — e la lista apparecchiature
+   segue la stessa sequenza, come la specifica prevedeva per `righeLista`.
+5. **Il dato salvato è pulito.** Riletto da Supabase dopo la chiusura: `schemaPreferenze` scritte
+   (Zod non le cancella), gli stadi tutti alla **stessa quota `y=170`**, e **zero segni con
+   `ancoraggio` residuo** nel layout — il contratto di sola andata regge fino al disco.
+
+Stato della pratica ripristinato (spunta e ordine rimessi, rigenerato). Un solo errore in console,
+preesistente e in `EquipmentAutocomplete`: estraneo a questo lavoro.
