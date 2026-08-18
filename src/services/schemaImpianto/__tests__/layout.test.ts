@@ -898,3 +898,36 @@ describe('la linea di processo si dispone per ancore', () => {
     expect(layoutSchema(model).nodi[0].y).toBeGreaterThanOrEqual(0)
   })
 })
+
+describe('il contratto di sola andata degli ancoraggi', () => {
+  it('layoutSchema non lascia uscire nessuna istruzione di ancoraggio', () => {
+    // Il formato salvato non cambia di un byte: `renderSvg`, `conversioneFlow`,
+    // `SchemaEdgeTubazione`, `useSegniTubo` e la serializzazione non sanno nulla degli ancoraggi,
+    // e non devono impararlo.
+    const model = buildSchemaModel({
+      scheda: schedaConTreStadi(),
+      collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+    })
+    const segni = layoutSchema(model).archi.flatMap((a) => a.segni ?? [])
+
+    expect(segni.length).toBeGreaterThan(0) // o passerebbe su un insieme vuoto
+    for (const segno of segni) expect(segno).not.toHaveProperty('ancoraggio')
+  })
+
+  it('e li risolve davvero: un ancoraggio seminato sul modello diventa una t calcolata', () => {
+    // Finché il Task 6 non semina ancoraggi, il test qui sopra sarebbe verde anche con
+    // `risolviSegniAncorati` scollegata. Questo lo semina a mano e guarda il numero.
+    const model = buildSchemaModel({
+      scheda: schedaConTreStadi(),
+      collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+    })
+    const flex = model.archi.find((a) => a.stile === 'flessibile')!
+    flex.segni = [
+      { id: 'x', tipo: 'valvola_intercettazione', t: 0.5, ancoraggio: { tipo: 'vertice', vertice: 1, scarto: -10 } },
+    ]
+
+    const risolto = layoutSchema(model).archi.find((a) => a.id === flex.id)!
+    expect(risolto.segni![0].t).not.toBe(0.5)
+    expect(risolto.segni![0]).not.toHaveProperty('ancoraggio')
+  })
+})

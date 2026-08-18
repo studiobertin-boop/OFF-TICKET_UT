@@ -7,6 +7,7 @@
  * destra. Funzione pura: nessun DOM, testabile in Node.
  */
 import { ordinaCatenaTrattamento } from './buildSchemaModel'
+import { risolviSegniAncorati } from './segniAncorati'
 import type { Tarature } from './libreria'
 import {
   DIMENSIONI_NODO,
@@ -386,7 +387,12 @@ export function layoutSchema(model: SchemaModel, libreria: Tarature = {}): Schem
   //
   // Dal Blocco D4 il muro e' un oggetto del committente, non un derivato: nasce solo quando lo
   // aggiunge dalla barra.
-  return { nodi, archi: model.archi, muro: null, testi: [] }
+  const layout: SchemaLayout = { nodi, archi: model.archi, muro: null, testi: [] }
+
+  // Ultimo passo, non uno dei primi: gli ancoraggi si risolvono sulla polilinea VERA, che esiste
+  // solo dopo che ogni nodo ha la sua posizione. Da qui in poi nessun segno porta piu'
+  // un'istruzione di ancoraggio — contratto di sola andata, vedi `segniAncorati.ts`.
+  return risolviSegniAncorati(layout, quoteInstradamento(layout, libreria), libreria)
 }
 
 /**
