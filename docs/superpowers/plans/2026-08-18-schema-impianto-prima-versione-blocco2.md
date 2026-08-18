@@ -1377,3 +1377,43 @@ del caso dritto, che è il nuovo normale.
 Il test «l'ancora dx coincide con la sx del successivo» usa `GIOCO_FRA_STADI` nell'asserzione:
 prova la *regola*, non il *valore* — voluto, il valore si chiude nel Blocco 4. Il numero della
 convenzione 3 è fissato da un test separato (passo 100 + gioco).
+
+**Task 5.** L'anello `layout` → `segniAncorati` → `renderSvg` → `layout` **c'è** ma non si
+manifesta: regge sull'hoisting delle dichiarazioni di funzione, provato dal file di test che
+importa `segniAncorati` per primo (il caso peggiore). Annotato nel modulo insieme alla cura, che
+resta da applicare se qualcuno converte `corpoNodo` o `posizioneAncora` in una `const`. La
+destrutturazione con scarto (`const { ancoraggio: _consumato, ...resto }`) lasciava un warning
+eslint su un percorso che deve stare a zero: sostituita da copia più `delete`, che oltre a non
+lasciare warning non perde i campi che qualcuno aggiungerà al segno.
+
+**Task 6.** Quattro test di `renderSvg` avevano perso il loro oggetto perché le valvole sono
+cambiate di posto, e sono stati **riscritti, non aggiustati**: «due tratti di tipo diverso» ora
+costruisce il «prima» togliendo lo `stileAValle` (che adesso nasce già lì); «il flessibile
+ondulato» misura il troncone a segni tolti; «la discesa della mandata» pure, perché il vertice del
+collettore è finito nel pezzo rigido; `layoutConSegno([])` doveva svuotare **tutti** gli archi, non
+solo il primo — la valvola di riserva verso le utenze vanificava il caso «nessuna valvola».
+
+Il generatore delle fixture ha sbagliato due volte prima di dare un diff leggibile: al primo giro
+tagliava a profondità 0 e produceva **una riga sola** (proprio ciò che l'header vieta), al secondo
+accorpava `</g>` col fratello successivo. Il taglio giusto è a profondità 1, con emissione anche
+alla chiusura di un figlio. Vale la pena rifarlo così la prossima volta: il diff finale è di 3
+righe tolte e 6 aggiunte per fixture, tutto leggibile.
+
+**La prova visiva.** Fatta sulla pratica `002 test` (`fed244ee`) — 2 compressori, 1 serbatoio, 2
+essiccatori, 3 filtri, 1 separatore — generando lo schema dalla **scheda vera letta dal DB** e
+rasterizzando l'SVG con `sharp` (il browser MCP non rispondeva). Esito: **combacia con
+`no byass.png`** su tutte le convenzioni del blocco — linea dritta, stadi adiacenti (passo 100),
+aggancio `sx-basso`, montante flessibile fino alla valvola e rigido sopra, valvole di riserva ai
+due capi, nessuna valvola fra stadi, condense verso il separatore.
+
+**Da guardare nel Blocco 4:** lo spazio fra i compressori e il serbatoio, e fra serbatoio e primo
+stadio, resta più largo che nel riferimento. È la convenzione 8 (compattezza in larghezza), che il
+Blocco 4 chiude con `PASSO_COMPRESSORI`/`PASSO_SERBATOI` separati — **non** toccando
+`PASSO_ORIZZONTALE`, condiviso con `calcolaMuro`.
+
+**Quel che resta da provare dal vivo:** l'interazione in pagina (trascinamento nel pannello,
+«Rigenera da capo», la promessa che un cambio di spunta non ridisegni). Richiede le credenziali di
+accesso, che non stanno nel repo. La guardia `generazioneTentata` è stata verificata per lettura —
+è un `useRef` mai riazzerato, e `preferenzeSchema` è uno `useState` con identità stabile — ma la
+lettura non sostituisce la prova: in questo modulo la prova in pagina ha già trovato tre volte
+difetti che i test non vedevano.
