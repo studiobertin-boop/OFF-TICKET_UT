@@ -14,6 +14,7 @@ import {
   improntaPreferenze,
   ordinaPerElenco,
   preferenzeRisolteDaScheda,
+  preferenzeDaRiapplicare,
   prossimoIdBypass,
   risolviPreferenze,
 } from '../preferenze'
@@ -260,5 +261,42 @@ describe('la regola di default delle condense è una sola', () => {
     const risolte = preferenzeRisolteDaScheda(scheda, { condense: { C1: false, C2: true } })
     expect(risolte.condense.has('C1')).toBe(false)
     expect(risolte.condense.has('C2')).toBe(true)
+  })
+})
+
+describe('preferenzeDaRiapplicare', () => {
+  const famiglie = { compressori, serbatoi, stadi }
+  const risolte = risolviPreferenze({}, famiglie)
+
+  it('e falso quando l impronta salvata e quella di adesso combaciano', () => {
+    expect(preferenzeDaRiapplicare(improntaPreferenze(risolte), risolte)).toBe(false)
+  })
+
+  it('e vero quando cambia l ordine', () => {
+    const altre = risolviPreferenze({ ordineStadi: ['F3', 'F1', 'E1', 'F2'] }, famiglie)
+    expect(preferenzeDaRiapplicare(improntaPreferenze(risolte), altre)).toBe(true)
+  })
+
+  it('e vero quando cambia una spunta delle condense', () => {
+    const altre = risolviPreferenze({ condense: { F1: false } }, famiglie)
+    expect(preferenzeDaRiapplicare(improntaPreferenze(risolte), altre)).toBe(true)
+  })
+
+  it('e vero quando nasce o cade un gruppo by-pass', () => {
+    const conGruppo = risolviPreferenze({ bypass: [{ id: 'bp1', stadi: ['E1', 'F2'] }] }, famiglie)
+    expect(preferenzeDaRiapplicare(improntaPreferenze(risolte), conGruppo)).toBe(true)
+    expect(preferenzeDaRiapplicare(improntaPreferenze(conGruppo), risolte)).toBe(true)
+  })
+
+  it('e falso quando il layout salvato non porta nessuna impronta', () => {
+    // Il caso di ogni pratica salvata prima che il campo esistesse: non si annuncia un
+    // cambiamento che non si sa se c'e' stato.
+    const altre = risolviPreferenze({ ordineStadi: ['F3', 'F1', 'E1', 'F2'] }, famiglie)
+    expect(preferenzeDaRiapplicare(undefined, altre)).toBe(false)
+  })
+
+  it('e falso quando l impronta salvata e una stringa vuota', () => {
+    // Difensivo: `schemaLayout` arriva da `additional_info`, che Zod dichiara permissivo.
+    expect(preferenzeDaRiapplicare('', risolte)).toBe(false)
   })
 })

@@ -31,7 +31,7 @@ import {
   puoGenerareSchema,
 } from '@/services/schemaImpianto/buildSchemaModel'
 import { layoutSchema } from '@/services/schemaImpianto/layout'
-import { preferenzeRisolteDaScheda } from '@/services/schemaImpianto/preferenze'
+import { improntaPreferenze, preferenzeDaRiapplicare, preferenzeRisolteDaScheda } from '@/services/schemaImpianto/preferenze'
 import type { Tarature, TaraturaSimbolo } from '@/services/schemaImpianto/libreria'
 import { risolviLibreria } from '@/services/schemaImpianto/libreria'
 import { renderSvg } from '@/services/schemaImpianto/renderSvg'
@@ -97,6 +97,14 @@ export interface SchemaImpiantoSectionProps {
    * vedi `SchemaEditor.tsx`, `rendiPermanenti`). È lo strato sotto la libreria di QUESTA
    * pratica: `libreria` qui sotto la fonde col registro tramite `risolviLibreria`.
    */
+  /**
+   * Impronta delle preferenze con cui il disegno salvato e' stato generato
+   * (`LayoutSalvato.preferenzeApplicate`). Non si legge da `layoutSalvato`: quello e' il
+   * salvataggio di quando la finestra si e' aperta, e dopo un «Rigenera da capo» l'impronta che
+   * vale e' quella di adesso. Chi monta il componente la tiene, e la riceve indietro da
+   * `onPreferenzeApplicateChange`.
+   */
+  onPreferenzeApplicateChange: (impronta: string | undefined) => void
   taraturaPratica: Tarature
   onTaraturaPraticaChange: (taraturaPratica: Tarature) => void
   disabled?: boolean
@@ -110,6 +118,7 @@ export function SchemaImpiantoSection({
   onSchemaChange,
   layoutSalvato,
   onLayoutChange,
+  onPreferenzeApplicateChange,
   taraturaPratica,
   onTaraturaPraticaChange,
   disabled = false,
@@ -156,6 +165,20 @@ export function SchemaImpiantoSection({
     rimossi: string[]
     archiScartati: number
   } | null>(null)
+  // L'impronta delle preferenze con cui il disegno ATTUALMENTE in memoria e' stato generato: e'
+  // lei, non `layoutSalvato.preferenzeApplicate`, a decidere se l'avviso va mostrato. Le due
+  // coincidono all'apertura e divergono appena si preme «Rigenera da capo», che e' il momento in
+  // cui l'avviso deve sparire.
+  const [improntaApplicata, setImprontaApplicata] = useState<string | undefined>(undefined)
+  // Uno solo, o stato e genitore prenderebbero strade diverse al primo ramo che ne aggiorna uno
+  // e dimentica l'altro.
+  const applicaImpronta = useCallback(
+    (impronta: string | undefined) => {
+      setImprontaApplicata(impronta)
+      onPreferenzeApplicateChange(impronta)
+    },
+    [onPreferenzeApplicateChange]
+  )
 
   const puoGenerare = puoGenerareSchema({ scheda, collegamentiCompressoriSerbatoi })
   const note = useMemo(() => notaTubazioni(scheda), [scheda])
@@ -342,6 +365,10 @@ export function SchemaImpiantoSection({
       libreria,
     })
     const esito = layoutIniziale(layoutSalvato, modello, libreria)
+    // Da zero: il disegno nasce ORA, con le preferenze di adesso. Riconciliato: vale l'impronta
+    // che il salvataggio porta con se' — riscriverla con quella corrente cancellerebbe l'avviso
+    // senza che nessuno abbia rigenerato nulla, ed e' proprio la trappola da chiudere.
+    applicaImpronta(esito.daZero ? improntaPreferenze(preferenzeRisolte) : layoutSalvato?.preferenzeApplicate)
     // `aggiuntiDaScheda`, non `aggiunti`: il secondo comprende anche il terminale utenze, che
     // non è un'apparecchiatura e non viene dalla scheda (vedi `EsitoRiconciliazione`).
     setEsitoRiconciliazione(
@@ -355,6 +382,7 @@ export function SchemaImpiantoSection({
     // dell'effetto. Cambiare una spunta in finestra fa girare questo codice e lo ferma alla
     // guardia, senza toccare il disegno — che e' la promessa fatta al committente.
   }, [
+    applicaImpronta,
     collegamentiCompressoriSerbatoi,
     disegna,
     layoutSalvato,
@@ -374,12 +402,13 @@ export function SchemaImpiantoSection({
     // di posizioni, gomiti, segni e taratura, che il pulsante promette di scartare e che dalla
     // scheda si rifanno. Fino al 17-08-2026 sparivano insieme al resto, senza modo di recuperarle.
     setEsitoRiconciliazione(null)
+    applicaImpronta(improntaPreferenze(preferenzeRisolte))
     const daZero = layoutSchema(
       buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi, preferenze: preferenzeRisolte, libreria }),
       libreria
     )
     void disegna({ ...daZero, testi: layout?.testi ?? [] })
-  }, [collegamentiCompressoriSerbatoi, disegna, layout, libreria, preferenzeRisolte, scheda])
+  }, [applicaImpronta, collegamentiCompressoriSerbatoi, disegna, layout, libreria, preferenzeRisolte, scheda])
 
   const leggiFile = useCallback(
     async (file: File | undefined) => {
@@ -436,6 +465,19 @@ export function SchemaImpiantoSection({
         <Alert severity="info">
           Lo schema non può essere generato automaticamente: dichiara prima i collegamenti
           compressori → serbatoi qui sopra. Nel frattempo puoi caricare un disegno.
+        </Alert>
+      )}
+
+      {/* Cambiare ordine, spunte o gruppi non ridisegna nulla — e' la promessa fatta al
+          committente, per non buttare via il lavoro fatto a mano sulla tela. Senza dirlo, pero',
+          quella promessa diventa una trappola: l'operatore compone un by-pass, non vede cambiare
+          niente e non sa perche'. Il confronto vive in `preferenzeDaRiapplicare` (preferenze.ts),
+          sotto un test di funzione pura. */}
+      {preferenzeDaRiapplicare(improntaApplicata, preferenzeRisolte) && (
+        <Alert severity="warning">
+          Le scelte in «Ordine e opzioni delle apparecchiature» sono cambiate dopo l’ultima
+          generazione: il disegno qui sotto non le rispecchia. Premi «Rigenera da capo» per
+          applicarle — attenzione, si perdono le rifiniture fatte a mano nell’editor.
         </Alert>
       )}
 

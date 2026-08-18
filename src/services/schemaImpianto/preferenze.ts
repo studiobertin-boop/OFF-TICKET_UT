@@ -215,6 +215,30 @@ export function improntaPreferenze(risolte: PreferenzeRisolte): string {
 }
 
 /**
+ * Vero se il disegno salvato è stato generato con scelte diverse da quelle di adesso, cioè se
+ * vale la pena dire all'operatore «premi *Rigenera da capo*».
+ *
+ * Cambiare ordine, spunte o gruppi **non ridisegna nulla** — è la promessa fatta al committente,
+ * per non buttare via il lavoro fatto a mano sulla tela. Senza un avviso, però, quella promessa
+ * diventa una trappola: l'operatore compone un by-pass, non vede cambiare niente e non sa perché.
+ *
+ * **Senza impronta salvata è FALSO**, non vero: è il caso di ogni pratica salvata prima che il
+ * campo esistesse, e non si annuncia un cambiamento che non si sa se c'è stato. Vale anche per
+ * una stringa vuota, che `additional_info` può portare — Zod lo dichiara permissivo.
+ *
+ * Sta qui, sotto un test di funzione pura, e non nel componente che mostra l'avviso: la
+ * convenzione del progetto è nessun test di interfaccia, e nel componente il confronto finirebbe
+ * fuori dalla copertura.
+ */
+export function preferenzeDaRiapplicare(
+  improntaSalvata: string | undefined,
+  risolte: PreferenzeRisolte
+): boolean {
+  if (!improntaSalvata) return false
+  return improntaSalvata !== improntaPreferenze(risolte)
+}
+
+/**
  * Le preferenze che valgono adesso, partendo dalla scheda. **L'unico ingresso** per chi ha in mano
  * una scheda: pannello e generatore devono passare di qui, o le due strade tornerebbero a
  * divergere sul default delle condense — il difetto che il Blocco 1 aveva lasciato aperto.

@@ -1001,3 +1001,41 @@ describe('il by-pass alla riapertura', () => {
     expect(esito.layout.archi.map((a) => a.id)).toEqual(salvato.archi.map((a) => a.id))
   })
 })
+
+describe('l impronta delle preferenze con cui il disegno e stato generato', () => {
+  const layout = layoutMinimo()
+
+  it('serializzaLayout la scrive quando gliela si da, e non se la inventa', () => {
+    expect(serializzaLayout(layout).preferenzeApplicate).toBeUndefined()
+    expect(serializzaLayout(layout, undefined, 'impronta').preferenzeApplicate).toBe('impronta')
+  })
+
+  it('un salvataggio senza impronta si rilegge come prima', () => {
+    // Campo nuovo e OPZIONALE, non un cambio di formato: nessun bump di `VERSIONE`, che invece
+    // butterebbe via il layout salvato di ogni pratica esistente. Stessa ragione di `muroX` e
+    // `simboli`.
+    const salvato = serializzaLayout(layout)
+    expect(deserializzaLayout(salvato)).not.toBeNull()
+    expect(deserializzaLayout({ ...salvato, preferenzeApplicate: 'qualunque' })).not.toBeNull()
+  })
+
+  it('layoutDaPersistere la inoltra solo quando scrive davvero un layout', () => {
+    // Sul ripiego — layout in memoria assente per un incidente — si riscrive il salvataggio di
+    // prima **com'era**: sovrascrivergli l'impronta cancellerebbe l'avviso senza che nessuno
+    // abbia rigenerato nulla.
+    const vecchio = { ...serializzaLayout(layout), preferenzeApplicate: 'vecchia' }
+    expect(layoutDaPersistere(layout, true, vecchio, undefined, 'nuova')?.preferenzeApplicate).toBe('nuova')
+    expect(layoutDaPersistere(null, false, vecchio, undefined, 'nuova')?.preferenzeApplicate).toBe('vecchia')
+  })
+
+  it('layoutIniziale dice se ha ripiegato sul layout automatico', () => {
+    // Serve a chi monta la sezione per sapere quale impronta vale: quella salvata se si e'
+    // riconciliato, quella di adesso se si e' generato da zero.
+    const modello = modelloDiProva(['C1'])
+    expect(layoutIniziale(null, modello).daZero).toBe(true)
+    expect(layoutIniziale(serializzaLayout(layoutSchema(modello)), modello).daZero).toBe(false)
+    // Un salvato di versione ignota si butta e si genera da zero: anche li' l'impronta salvata
+    // non vale piu' nulla.
+    expect(layoutIniziale({ versione: 999, nodi: [], archi: [] }, modello).daZero).toBe(true)
+  })
+})

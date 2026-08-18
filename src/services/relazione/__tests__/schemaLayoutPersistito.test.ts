@@ -12,6 +12,15 @@ describe('schemaLayout in additional_info', () => {
     const esito = additionalInfoSchema.parse({ descrizioneAttivita: 'prova' })
     expect(esito.schemaLayout).toBeUndefined()
   })
+
+  it('conserva l’impronta delle preferenze applicate, che viaggia DENTRO il layout', () => {
+    // `preferenzeApplicate` non è una chiave nuova di `additional_info`: sta dentro
+    // `schemaLayout`, che Zod dichiara `z.any()`. Quindi la potatura di `z.object` non la
+    // riguarda — ma è la trappola più grave della specifica, e verificarlo costa una riga.
+    const layout = { versione: 1, nodi: [], archi: [], preferenzeApplicate: '{"stadi":["F1"]}' }
+    const esito = additionalInfoSchema.parse({ descrizioneAttivita: 'prova', schemaLayout: layout })
+    expect(esito.schemaLayout.preferenzeApplicate).toBe('{"stadi":["F1"]}')
+  })
 })
 
 describe('schemaPreferenze in additional_info', () => {

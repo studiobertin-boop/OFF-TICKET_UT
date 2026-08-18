@@ -47,6 +47,9 @@ export interface SchemaImpiantoDialogProps {
   onSchemaChange: (schema: SchemaImpianto | null) => void
   layoutSalvato: LayoutSalvato | null | undefined
   onLayoutChange: (layout: SchemaLayout | null) => void
+  /** Impronta delle preferenze con cui il disegno e' stato generato: passa di qui e basta, la
+   *  decide `SchemaImpiantoSection` e la conserva chi monta questa finestra. */
+  onPreferenzeApplicateChange: (impronta: string | undefined) => void
   taraturaPratica: Tarature
   onTaraturaPraticaChange: (taraturaPratica: Tarature) => void
 }
@@ -73,6 +76,7 @@ export default function SchemaImpiantoDialog({
   onSchemaChange,
   layoutSalvato,
   onLayoutChange,
+  onPreferenzeApplicateChange,
   taraturaPratica,
   onTaraturaPraticaChange,
 }: SchemaImpiantoDialogProps) {
@@ -148,6 +152,7 @@ export default function SchemaImpiantoDialog({
             onSchemaChange={onSchemaChange}
             layoutSalvato={layoutSalvato}
             onLayoutChange={onLayoutChange}
+            onPreferenzeApplicateChange={onPreferenzeApplicateChange}
             taraturaPratica={taraturaPratica}
             onTaraturaPraticaChange={onTaraturaPraticaChange}
           />

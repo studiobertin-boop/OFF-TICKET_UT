@@ -42,6 +42,21 @@ export interface LayoutSalvato {
    * blocco quando la versione non combacia.
    */
   simboli?: Tarature
+  /**
+   * Impronta delle preferenze (`improntaPreferenze`, preferenze.ts) con cui questo disegno è stato
+   * GENERATO. Non entra in nessun calcolo geometrico: serve solo a dire all'operatore «le scelte
+   * in finestra sono cambiate dopo l'ultima generazione, premi *Rigenera da capo*» — perché
+   * cambiarle non ridisegna nulla, e senza avviso quella promessa diventa una trappola.
+   *
+   * È l'impronta di QUANDO si è disegnato, non quella di adesso: scrivere quella corrente a ogni
+   * salvataggio cancellerebbe l'avviso senza che nessuno abbia rigenerato nulla.
+   *
+   * Assente: ogni pratica salvata prima del 18-08-2026, e ogni salvataggio che ripiega sul layout
+   * già persistito. Campo nuovo e opzionale, non un cambio di formato — stessa ragione già decisa
+   * per `muroX` e `simboli`: alzare `VERSIONE` butterebbe via il layout salvato di OGNI pratica
+   * esistente.
+   */
+  preferenzeApplicate?: string
 }
 
 /**
@@ -50,7 +65,11 @@ export interface LayoutSalvato {
  * libreria e non di geometria, esattamente come la libreria che ogni chiamante di
  * `layoutSchema`/`renderSvg` passa già a parte — il chiamante la passa esplicita.
  */
-export function serializzaLayout(layout: SchemaLayout, simboli?: Tarature): LayoutSalvato {
+export function serializzaLayout(
+  layout: SchemaLayout,
+  simboli?: Tarature,
+  preferenzeApplicate?: string
+): LayoutSalvato {
   // Copia profonda, non solo degli array: chi tiene il risultato deve avere un'istantanea
   // vera. Senza clonare anche i singoli nodi/archi, un trascinamento successivo nell'editor
   // (che muta x/y in place sullo stesso oggetto) si propagherebbe dentro al "salvato".
@@ -63,6 +82,9 @@ export function serializzaLayout(layout: SchemaLayout, simboli?: Tarature): Layo
     // Omesso, non `{}`, quando non c'è nulla da tarare: un `simboli: {}` scritto sempre
     // renderebbe "assente" e "tarata a vuoto" indistinguibili nel salvato, come già per `muroX`.
     ...(simboli && Object.keys(simboli).length > 0 ? { simboli: structuredClone(simboli) } : {}),
+    // Omessa, non `undefined`, quando non c'è: un salvataggio che la portasse vuota non sarebbe
+    // più identico a uno scritto prima che il campo esistesse.
+    ...(preferenzeApplicate ? { preferenzeApplicate } : {}),
   }
 }
 
@@ -110,14 +132,20 @@ export function deserializzaLayout(
  * sulla tela — «usa solo questa volta»), inoltrata a `serializzaLayout` senza altra logica qui:
  * questa funzione decide SE scrivere un layout, non COSA porta con sé quando lo fa. Assente:
  * nessuna taratura di pratica da salvare, come ogni chiamante prima del Task 12.
+ *
+ * `preferenzeApplicate`: stessa cosa, e per la stessa ragione arriva già risolta da chi disegna
+ * (`SchemaImpiantoSection`). Vale **solo sul ramo che scrive un layout nuovo**: sul ripiego si
+ * riscrive il salvataggio di prima com'era, impronta compresa — sovrascrivergliela cancellerebbe
+ * l'avviso senza che nessuno abbia rigenerato nulla.
  */
 export function layoutDaPersistere(
   layoutCorrente: SchemaLayout | null,
   layoutRicalcolato: boolean,
   layoutSalvato: LayoutSalvato | null | undefined,
-  simboli?: Tarature
+  simboli?: Tarature,
+  preferenzeApplicate?: string
 ): LayoutSalvato | undefined {
-  if (layoutCorrente) return serializzaLayout(layoutCorrente, simboli)
+  if (layoutCorrente) return serializzaLayout(layoutCorrente, simboli, preferenzeApplicate)
   if (layoutRicalcolato) return undefined
   return layoutSalvato ?? undefined
 }
@@ -159,6 +187,14 @@ export interface EsitoRiconciliazione {
    * contarli due volte trasformerebbe una rimozione annunciata in un allarme in più.
    */
   archiScartati: number
+  /**
+   * Vero quando non c'era un layout salvato leggibile e si è generato da zero. Lo dice questa
+   * funzione invece di lasciarlo indovinare a chi la chiama: il ramo dipende anche dal controllo
+   * di versione, che vive qui dentro (`deserializzaLayout`), e chi monta la sezione lo usa per
+   * decidere quale impronta delle preferenze vale — quella salvata se si è riconciliato, quella
+   * di adesso se si è disegnato da capo.
+   */
+  daZero: boolean
 }
 
 /**
@@ -215,6 +251,7 @@ export function layoutIniziale(
       aggiuntiDaScheda: [],
       rimossi: [],
       archiScartati: 0,
+      daZero: true,
     }
   return riconcilia(ripristinato, modello, libreria)
 }
@@ -469,5 +506,5 @@ export function riconcilia(
   // vedi il commento sulla firma di questa funzione.
   const muro = salvato.muro ? muroDaAscissa(salvato.muro.x, nodi, libreria) : null
 
-  return { layout: { nodi, archi, muro, testi }, aggiunti, aggiuntiDaScheda, rimossi, archiScartati }
+  return { layout: { nodi, archi, muro, testi }, aggiunti, aggiuntiDaScheda, rimossi, archiScartati, daZero: false }
 }

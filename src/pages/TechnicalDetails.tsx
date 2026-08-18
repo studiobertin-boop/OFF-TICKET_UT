@@ -98,6 +98,10 @@ export const TechnicalDetails = () => {
   const [preferenzeSchema, setPreferenzeSchema] = useState<SchemaPreferenze>({})
   const [schema, setSchema] = useState<SchemaImpianto | null>(null)
   const [schemaLayoutSalvato, setSchemaLayoutSalvato] = useState<LayoutSalvato | null | undefined>(undefined)
+  // L'impronta delle preferenze con cui il disegno in memoria e' stato generato. Sta qui e non
+  // dentro la finestra perche' e' qui che si compone cio' che va in `additional_info`: la finestra
+  // si smonta alla chiusura, il salvataggio avviene subito dopo.
+  const [improntaSchemaApplicata, setImprontaSchemaApplicata] = useState<string | undefined>(undefined)
   const [schemaLayout, setSchemaLayout] = useState<SchemaLayout | null>(null)
   const [schemaLayoutRicalcolato, setSchemaLayoutRicalcolato] = useState(false)
   const [taraturaPratica, setTaraturaPratica] = useState<Tarature>({})
@@ -206,6 +210,7 @@ export const TechnicalDetails = () => {
     setPreferenzeSchema(info.schemaPreferenze ?? {})
     setSchemaLayoutSalvato(info.schemaLayout ?? null)
     setTaraturaPratica(info.schemaLayout?.simboli ?? {})
+    setImprontaSchemaApplicata(info.schemaLayout?.preferenzeApplicate)
     setSchemaDroppedRefs(dropped.filter((d) => d.startsWith('collegament')))
   }, [loading, technicalData, schedaCodes])
 
@@ -262,8 +267,15 @@ export const TechnicalDetails = () => {
   }, [id])
 
   const schemaLayoutDaPersistere = useMemo(
-    () => layoutDaPersistere(schemaLayout, schemaLayoutRicalcolato, schemaLayoutSalvato, taraturaPratica),
-    [schemaLayout, schemaLayoutRicalcolato, schemaLayoutSalvato, taraturaPratica]
+    () =>
+      layoutDaPersistere(
+        schemaLayout,
+        schemaLayoutRicalcolato,
+        schemaLayoutSalvato,
+        taraturaPratica,
+        improntaSchemaApplicata
+      ),
+    [schemaLayout, schemaLayoutRicalcolato, schemaLayoutSalvato, taraturaPratica, improntaSchemaApplicata]
   )
 
   /**
@@ -778,6 +790,7 @@ export const TechnicalDetails = () => {
               setSchemaLayoutRicalcolato(true)
             }}
             taraturaPratica={taraturaPratica}
+            onPreferenzeApplicateChange={setImprontaSchemaApplicata}
             onTaraturaPraticaChange={setTaraturaPratica}
           />
         )}
