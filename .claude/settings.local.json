@@ -56,7 +56,10 @@
       "Bash(python -c \"import fitz; print\\('pymupdf', fitz.__doc__\\)\")",
       "Bash(python -m pip install --quiet --disable-pip-version-check pymupdf)",
       "Bash(python3 -)",
-      "Read(//c/Users/FRANCE~1/AppData/Local/Temp/claude/c--Users-FrancescoBertin-Desktop-CLAUDE-CODE-OFF-TICKET-UT/31875c9c-5999-432a-8e2c-26248645a25b/scratchpad/schemi_esempio/**)"
+      "Read(//c/Users/FRANCE~1/AppData/Local/Temp/claude/c--Users-FrancescoBertin-Desktop-CLAUDE-CODE-OFF-TICKET-UT/31875c9c-5999-432a-8e2c-26248645a25b/scratchpad/schemi_esempio/**)",
+      "Bash(sort -k6,7)",
+      "Bash(python3 -c ' *)",
+      "Bash(sort -t_ -k1)"
     ],
     "deny": [],
     "ask": []

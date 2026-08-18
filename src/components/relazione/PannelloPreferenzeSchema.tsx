@@ -42,7 +42,7 @@ import {
   contigui,
   famiglieDaScheda,
   prossimoIdBypass,
-  risolviPreferenze,
+  preferenzeRisolteDaScheda,
 } from '@/services/schemaImpianto/preferenze'
 import type { SchemaNodo } from '@/services/schemaImpianto/types'
 
@@ -158,10 +158,11 @@ export default function PannelloPreferenzeSchema({
   onChange,
 }: PannelloPreferenzeSchemaProps) {
   const famiglie = useMemo(() => famiglieDaScheda(scheda), [scheda])
-  // `() => true` come regola di default: il pannello mostra spuntata ogni apparecchiatura che PUÒ
-  // scaricare condensa. Dal Blocco 2 questa dev'essere la stessa funzione che usa il generatore
-  // (`scaricaCondensa`), o la spunta mostrata qui mentirebbe sul disegno che uscirà.
-  const risolte = useMemo(() => risolviPreferenze(preferenze, famiglie, () => true), [preferenze, famiglie])
+  // `preferenzeRisolteDaScheda`, non una risoluzione propria: e' l'unico ingresso, e la regola di
+  // default delle condense che applica e' la stessa del generatore (`scaricaCondensa`). Fino al
+  // 18-08-2026 qui passava `() => true` e la spunta mostrata mentiva sul disegno che sarebbe
+  // uscito.
+  const risolte = useMemo(() => preferenzeRisolteDaScheda(scheda, preferenze), [scheda, preferenze])
 
   const [selezionati, setSelezionati] = useState<string[]>([])
 

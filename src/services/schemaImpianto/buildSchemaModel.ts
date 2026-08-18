@@ -211,8 +211,14 @@ function buildNodoRaccoltaCondense(scheda: SchedaDatiCompleta): SchemaNodo | nul
 /**
  * Nodi che scaricano condensa nel pozzo di raccolta. Sul compressore la condensa esce dal
  * disoleatore, quindi un compressore che non ne ha (tipicamente a pistoni) resta escluso.
+ *
+ * Esportata dal 18-08-2026: e' la regola di DEFAULT che il pannello delle preferenze mostra
+ * spuntata finche' l'operatore non sceglie (`risolviPreferenze`). Nel Blocco 1 il pannello ne
+ * usava una propria — `() => true` — e la spunta mostrata in finestra mentiva sul disegno che
+ * sarebbe uscito: un compressore a pistoni compariva spuntato e non scaricava. Una domanda, una
+ * risposta sola.
  */
-function scaricaCondensa(nodo: SchemaNodo): boolean {
+export function scaricaCondensa(nodo: SchemaNodo): boolean {
   if (nodo.tipo === 'compressore') return Boolean(nodo.accessorio)
   return nodo.tipo === 'serbatoio' || nodo.tipo === 'essiccatore' || nodo.tipo === 'filtro'
 }

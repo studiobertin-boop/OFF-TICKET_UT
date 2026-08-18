@@ -14,7 +14,7 @@
  */
 import type { SchemaPreferenze } from '@/services/relazione/types'
 import type { SchedaDatiCompleta } from '@/types/technicalSheet'
-import { ordinaCatenaTrattamento } from './buildSchemaModel'
+import { ordinaCatenaTrattamento, scaricaCondensa } from './buildSchemaModel'
 import type { SchemaNodo } from './types'
 
 /** Le apparecchiature di scheda che entrano nello schema, divise per come si dispongono. */
@@ -76,9 +76,18 @@ function nodoLeggero(
  *   al rango e con un ordine diverso darebbe un altro risultato.
  */
 export function famiglieDaScheda(scheda: SchedaDatiCompleta): FamiglieSchema {
-  const compressori = (scheda.compressori ?? []).map((c) =>
-    nodoLeggero(c.codice, 'compressore', 'Compressore', c.marca)
-  )
+  const compressori = (scheda.compressori ?? []).map((c) => {
+    // L'accessorio serve alla sola regola delle condense (`scaricaCondensa` legge
+    // `Boolean(nodo.accessorio)`): sul compressore la condensa esce dal disoleatore. Senza questo
+    // campo la regola condivisa risponderebbe «nessun compressore scarica» sui nodi leggeri —
+    // mentendo al contrario di come mentiva il `() => true` del Blocco 1.
+    const diso = (scheda.disoleatori ?? []).find((d) => d.compressore_associato === c.codice)
+    return nodoLeggero(c.codice, 'compressore', 'Compressore', c.marca, {
+      accessorio: diso
+        ? { codice: diso.codice, etichetta: 'Serbatoio disoleatore', valvoleSicurezza: [] }
+        : undefined,
+    })
+  })
 
   const serbatoi = [...(scheda.serbatoi ?? [])]
     .map((s, indice) => ({ s, indice }))
@@ -155,8 +164,7 @@ export function prossimoIdBypass(gruppi: { id: string }[]): string {
 
 export function risolviPreferenze(
   preferenze: SchemaPreferenze | undefined,
-  famiglie: FamiglieSchema,
-  scaricaDiDefault: (nodo: SchemaNodo) => boolean
+  famiglie: FamiglieSchema
 ): PreferenzeRisolte {
   const p = (preferenze ?? {}) as SchemaPreferenze
   const ordineCompressori = ordinaPerElenco(famiglie.compressori, p.ordineCompressori).map((n) => n.id)
@@ -169,7 +177,7 @@ export function risolviPreferenze(
   const condense = new Set<string>()
   for (const nodo of [...famiglie.compressori, ...famiglie.serbatoi, ...famiglie.stadi]) {
     const scelta = scelte[nodo.id]
-    if (typeof scelta === 'boolean' ? scelta : scaricaDiDefault(nodo)) condense.add(nodo.id)
+    if (typeof scelta === 'boolean' ? scelta : scaricaCondensa(nodo)) condense.add(nodo.id)
   }
 
   const bypass: { id: string; stadi: string[] }[] = []
@@ -204,4 +212,16 @@ export function improntaPreferenze(risolte: PreferenzeRisolte): string {
     condense: [...risolte.condense].sort(),
     bypass: risolte.bypass.map((g) => ({ id: g.id, stadi: g.stadi })),
   })
+}
+
+/**
+ * Le preferenze che valgono adesso, partendo dalla scheda. **L'unico ingresso** per chi ha in mano
+ * una scheda: pannello e generatore devono passare di qui, o le due strade tornerebbero a
+ * divergere sul default delle condense — il difetto che il Blocco 1 aveva lasciato aperto.
+ */
+export function preferenzeRisolteDaScheda(
+  scheda: SchedaDatiCompleta,
+  preferenze: SchemaPreferenze | undefined
+): PreferenzeRisolte {
+  return risolviPreferenze(preferenze, famiglieDaScheda(scheda))
 }

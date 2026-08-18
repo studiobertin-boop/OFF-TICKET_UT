@@ -1,9 +1,19 @@
 import { describe, it, expect } from 'vitest'
 import {
+  makeCompressore,
+  makeDatiImpianto,
+  makeDisoleatore,
+  makeFiltro,
+  makeScheda,
+  makeSerbatoio,
+} from '@/services/relazione/__tests__/fixtures'
+import { buildSchemaModel } from '../buildSchemaModel'
+import {
   contigui,
   famiglieDaScheda,
   improntaPreferenze,
   ordinaPerElenco,
+  preferenzeRisolteDaScheda,
   prossimoIdBypass,
   risolviPreferenze,
 } from '../preferenze'
@@ -23,7 +33,6 @@ const stadi = [nodo('F1'), nodo('E1', 'essiccatore'), nodo('F2'), nodo('F3')]
 const serbatoi = [nodo('S1', 'serbatoio'), nodo('S2', 'serbatoio')]
 const compressori = [nodo('C1', 'compressore'), nodo('C2', 'compressore')]
 const famiglie = { compressori, serbatoi, stadi }
-const scaricaSempre = () => true
 
 describe('famiglieDaScheda', () => {
   const scheda = {
@@ -124,45 +133,51 @@ describe('prossimoIdBypass', () => {
 
 describe('risolviPreferenze', () => {
   it('senza preferenze usa i default', () => {
-    const r = risolviPreferenze(undefined, famiglie, scaricaSempre)
+    const r = risolviPreferenze(undefined, famiglie)
     expect(r.ordineCompressori).toEqual(['C1', 'C2'])
     expect(r.ordineStadi).toEqual(['F1', 'E1', 'F2', 'F3'])
     expect(r.ordineSerbatoi).toEqual(['S1', 'S2'])
-    expect([...r.condense].sort()).toEqual(['C1', 'C2', 'E1', 'F1', 'F2', 'F3', 'S1', 'S2'])
+    // Niente C1/C2: sono compressori senza disoleatore, e la condensa esce da li' (`scaricaCondensa`).
+    expect([...r.condense].sort()).toEqual(['E1', 'F1', 'F2', 'F3', 'S1', 'S2'])
     expect(r.bypass).toEqual([])
     expect(r.bypassScartati).toEqual([])
   })
 
   it('riordina anche i compressori', () => {
-    const r = risolviPreferenze({ ordineCompressori: ['C2'] }, famiglie, scaricaSempre)
+    const r = risolviPreferenze({ ordineCompressori: ['C2'] }, famiglie)
     expect(r.ordineCompressori).toEqual(['C2', 'C1'])
   })
 
   it('il flag condense vale anche sui compressori', () => {
-    const r = risolviPreferenze({ condense: { C1: false } }, famiglie, scaricaSempre)
-    expect(r.condense.has('C1')).toBe(false)
-    expect(r.condense.has('C2')).toBe(true)
+    // Questi compressori non hanno disoleatore, quindi il default (`scaricaCondensa`) dice no:
+    // e' la scelta esplicita ad accenderli. Fino al 18-08-2026 il default arrivava da un
+    // parametro, e il test poteva fingere una regola che il disegno non usava.
+    const r = risolviPreferenze({ condense: { C1: true } }, famiglie)
+    expect(r.condense.has('C1')).toBe(true)
+    expect(r.condense.has('C2')).toBe(false)
   })
 
-  it('una condensa spenta a mano vince sul default', () => {
-    const r = risolviPreferenze({ condense: { F2: false } }, famiglie, scaricaSempre)
+  it('una condensa spenta a mano vince su un default positivo', () => {
+    const r = risolviPreferenze({ condense: { F2: false } }, famiglie)
     expect(r.condense.has('F2')).toBe(false)
     expect(r.condense.has('F1')).toBe(true)
   })
 
   it('una condensa accesa a mano vince su un default negativo', () => {
-    const r = risolviPreferenze({ condense: { F2: true } }, famiglie, () => false)
-    expect([...r.condense]).toEqual(['F2'])
+    // Il default negativo vero: un compressore senza disoleatore.
+    const r = risolviPreferenze({ condense: { C2: true } }, famiglie)
+    expect(r.condense.has('C2')).toBe(true)
+    expect(r.condense.has('C1')).toBe(false)
   })
 
   it('tiene un gruppo by-pass ancora contiguo', () => {
-    const r = risolviPreferenze({ bypass: [{ id: 'bp1', stadi: ['E1', 'F2'] }] }, famiglie, scaricaSempre)
+    const r = risolviPreferenze({ bypass: [{ id: 'bp1', stadi: ['E1', 'F2'] }] }, famiglie)
     expect(r.bypass).toEqual([{ id: 'bp1', stadi: ['E1', 'F2'] }])
     expect(r.bypassScartati).toEqual([])
   })
 
   it('riordina i membri del gruppo secondo l’ordine risolto', () => {
-    const r = risolviPreferenze({ bypass: [{ id: 'bp1', stadi: ['F2', 'E1'] }] }, famiglie, scaricaSempre)
+    const r = risolviPreferenze({ bypass: [{ id: 'bp1', stadi: ['F2', 'E1'] }] }, famiglie)
     expect(r.bypass[0].stadi).toEqual(['E1', 'F2'])
   })
 
@@ -170,35 +185,80 @@ describe('risolviPreferenze', () => {
     // Riordinando gli stadi, E1 e F2 non sono più attaccati.
     const r = risolviPreferenze(
       { ordineStadi: ['E1', 'F1', 'F2', 'F3'], bypass: [{ id: 'bp1', stadi: ['E1', 'F2'] }] },
-      famiglie,
-      scaricaSempre
+      famiglie
     )
     expect(r.bypass).toEqual([])
     expect(r.bypassScartati).toEqual(['bp1'])
   })
 
   it('accorcia un gruppo che nomina un’apparecchiatura sparita', () => {
-    const r = risolviPreferenze({ bypass: [{ id: 'bp1', stadi: ['E1', 'F9'] }] }, famiglie, scaricaSempre)
+    const r = risolviPreferenze({ bypass: [{ id: 'bp1', stadi: ['E1', 'F9'] }] }, famiglie)
     expect(r.bypass.map((g) => g.stadi)).toEqual([['E1']])
     expect(r.bypassScartati).toEqual([])
   })
 
   it('regge preferenze storte senza sollevare', () => {
     const storte = { ordineStadi: 'F1', condense: null, bypass: [{ id: 'bp1' }] } as never
-    expect(() => risolviPreferenze(storte, famiglie, scaricaSempre)).not.toThrow()
+    expect(() => risolviPreferenze(storte, famiglie)).not.toThrow()
   })
 })
 
 describe('improntaPreferenze', () => {
   it('non cambia quando l’ordine di due chiavi cambia', () => {
-    const a = risolviPreferenze({ condense: { F1: true, F2: false } }, famiglie, scaricaSempre)
-    const b = risolviPreferenze({ condense: { F2: false, F1: true } }, famiglie, scaricaSempre)
+    const a = risolviPreferenze({ condense: { F1: true, F2: false } }, famiglie)
+    const b = risolviPreferenze({ condense: { F2: false, F1: true } }, famiglie)
     expect(improntaPreferenze(a)).toBe(improntaPreferenze(b))
   })
 
   it('cambia quando cambia l’ordine degli stadi', () => {
-    const a = risolviPreferenze(undefined, famiglie, scaricaSempre)
-    const b = risolviPreferenze({ ordineStadi: ['F2'] }, famiglie, scaricaSempre)
+    const a = risolviPreferenze(undefined, famiglie)
+    const b = risolviPreferenze({ ordineStadi: ['F2'] }, famiglie)
     expect(improntaPreferenze(a)).not.toBe(improntaPreferenze(b))
+  })
+})
+
+describe('la regola di default delle condense è una sola', () => {
+  /** Due compressori, uno solo col disoleatore da cui la condensa esce davvero. */
+  const schedaDueCompressori = () =>
+    makeScheda({
+      compressori: [
+        makeCompressore({ codice: 'C1', ha_disoleatore: true }),
+        makeCompressore({ codice: 'C2', ha_disoleatore: false }),
+      ],
+      disoleatori: [makeDisoleatore({ codice: 'C1.1', compressore_associato: 'C1' })],
+      serbatoi: [makeSerbatoio({ codice: 'S1', ubicazione: 'SALA_COMPRESSORI' })],
+      filtri: [makeFiltro({ codice: 'F1', tipo: 'PREFILTRO' })],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'tanica' }),
+    })
+
+  it('la famiglia porta il disoleatore, o la regola non saprebbe su cosa decidere', () => {
+    const famiglieVere = famiglieDaScheda(schedaDueCompressori())
+    expect(famiglieVere.compressori.find((n) => n.id === 'C1')?.accessorio?.codice).toBe('C1.1')
+    expect(famiglieVere.compressori.find((n) => n.id === 'C2')?.accessorio).toBeUndefined()
+  })
+
+  it('chi il pannello mostra spuntato è chi il generatore collega al pozzo', () => {
+    // Il confronto che conta: non una funzione con se stessa, ma le due strade che il Blocco 1
+    // aveva lasciato divergere — la spunta mostrata in finestra e l'arco disegnato.
+    const scheda = schedaDueCompressori()
+    const risolte = preferenzeRisolteDaScheda(scheda, undefined)
+
+    const model = buildSchemaModel({
+      scheda,
+      collegamentiCompressoriSerbatoi: { C1: ['S1'], C2: ['S1'] },
+    })
+    const collegati = new Set(model.archi.filter((a) => a.stile === 'condensa').map((a) => a.da.nodo))
+
+    expect([...risolte.condense].sort()).toEqual([...collegati].sort())
+    // E in concreto: C2 non ha disoleatore, quindi non compare da nessuna delle due parti.
+    expect(risolte.condense.has('C1')).toBe(true)
+    expect(risolte.condense.has('C2')).toBe(false)
+  })
+
+  it('la scelta esplicita dell’operatore vince sulla regola', () => {
+    const scheda = schedaDueCompressori()
+    const risolte = preferenzeRisolteDaScheda(scheda, { condense: { C1: false, C2: true } })
+    expect(risolte.condense.has('C1')).toBe(false)
+    expect(risolte.condense.has('C2')).toBe(true)
   })
 })
