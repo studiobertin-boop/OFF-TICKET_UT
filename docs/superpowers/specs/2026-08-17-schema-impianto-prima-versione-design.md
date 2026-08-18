@@ -285,10 +285,19 @@ verdi per la ragione sbagliata, e la prova in pagina ha già trovato due volte d
    simboli, e ne legge l'**esistenza** delle ancore, mai la geometria. Senza, si finisce nel
    ripiego di `posizioneAncora` che attacca il tubo al centro del corpo: sbagliato ma plausibile,
    il peggior tipo di errore.
-4. **I due layout in produzione** (ORVED, LOWA R&D) non si devono muovere di un pixel: versione
-   invariata, nessun campo nuovo obbligatorio, nessun TEE aggiunto senza preferenze, ancore
-   salvate rispettate. Il nuovo aspetto lo vedono solo premendo «Rigenera da capo». Con un test su
-   `riconcilia` che parte da un salvataggio in stile pre-modifica.
+4. ~~**I layout salvati in produzione non si devono muovere di un pixel.**~~ **Vincolo tolto dal
+   committente il 18-08-2026: perdere i disegni salvati di ORVED e LOWA R&D non è un problema.**
+   Cade quindi il rischio più costoso della specifica, e con lui due cose: la verifica «aprire,
+   chiudere, confrontare byte per byte» sulle due pratiche, e il divieto di alzare `VERSIONE` in
+   `persistenza.ts` se un giorno servisse davvero.
+
+   **Cosa NON cade**, e va tenuto: le correzioni a `riconcilia` descritte sopra non riguardano i
+   disegni vecchi ma quelli **nuovi**, quando le preferenze cambiano a metà vita di una pratica —
+   un arco che arriva col ripiego invece che risolto, o uno stadio che resta scollegato sciogliendo
+   un by-pass, sarebbero difetti anche su un layout creato oggi. Restano.
+
+   La pratica **`002 test` (`fed244ee`) è quella designata dal committente per le prove**: è stata
+   creata apposta, e su di lei non serve ripristinare nulla.
 5. **L'effetto di prima generazione** (SchemaImpiantoSection.tsx:300-335) avrà `preferenze` fra le
    dipendenze, obbligatorio con `exhaustive-deps` a zero warning. Va verificato che la guardia
    `generazioneTentata` regga: un cambio di preferenze non deve **mai** ridisegnare da sé.
@@ -300,9 +309,7 @@ verdi per la ragione sbagliata, e la prova in pagina ha già trovato due volte d
 
 1. Gate verde su tutto il repo.
 2. Le tre fixture SVG: due rigenerate con diff letto e annotato, una invariata.
-3. In pagina, su una pratica di prova: generare senza preferenze e confrontare col secondo
-   riferimento; comporre un by-pass sulla sezione di trattamento, rigenerare e confrontare col
-   primo.
-4. Sui due layout in produzione: aprire, chiudere senza toccare nulla, verificare che il salvato
-   sia **identico byte per byte**.
-5. Solo dopo: merge simulato con `git merge-tree` contro `origin/main` aggiornato, poi push.
+3. In pagina, sulla pratica `002 test` (`fed244ee`, creata apposta dal committente): generare senza
+   preferenze e confrontare con `no bypass.png`; comporre un by-pass sulla sezione di trattamento,
+   rigenerare e confrontare con `si bypass.png`.
+4. Solo dopo: merge simulato con `git merge-tree` contro `origin/main` aggiornato, poi push.

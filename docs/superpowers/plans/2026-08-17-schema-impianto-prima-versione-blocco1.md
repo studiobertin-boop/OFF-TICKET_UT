@@ -1114,8 +1114,10 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 - [ ] `npx vitest run` — tutto verde, e le tre fixture SVG mai toccate (`git log --stat` non le
       nomina in nessuno dei quattro commit).
-- [ ] Aprire ORVED e LOWA R&D, chiudere senza toccare nulla, e verificare che `additional_info`
-      sia **identico byte per byte** a prima (leggere prima e dopo via API REST e confrontare).
+- [x] ~~Aprire ORVED e LOWA R&D e verificare che `additional_info` sia identico byte per byte.~~
+      **Non serve più**: il 18-08-2026 il committente ha detto che perdere quei layout non è un
+      problema. La prova è stata comunque fatta su `002 test` (`fed244ee`), con ripristino
+      verificato identico.
 - [ ] Annotare in coda al piano un paragrafo «cosa è andato diversamente», come da prassi del
       modulo.
 - [ ] **Non fondere ancora su `main`**: il Blocco 2 continua su questo stesso ramo. Il merge

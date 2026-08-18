@@ -163,9 +163,13 @@ stadi da sola porta il passo da 170 a 100.
 3. **Archi di lunghezza nulla** fra stadi adiacenti (a gioco 0). Nulla schianta, ma l'arco diventa
    non afferrabile sulla tela. Regola: **l'arco si emette sempre**, anche degenere — è il tessuto
    che ripara il disegno appena l'operatore separa i due nodi — e **non gli si mette mai un segno**.
-4. **I layout salvati non si devono muovere di un pixel.** Sono **tre**, non due: ORVED
-   `a8bbdbe1`, LOWA R&D `c6f56ca5` e `002 test` `fed244ee`. I primi due sono clienti veri. Aprirli,
-   chiuderli senza toccare nulla, e confrontare `additional_info` byte per byte.
+4. ~~I layout salvati non si devono muovere di un pixel.~~ **Non è più un vincolo** (committente,
+   18-08-2026): perdere i disegni salvati di ORVED (`a8bbdbe1`) e LOWA R&D (`c6f56ca5`) va bene.
+   Cadono la verifica byte-per-byte su quelle due pratiche e il divieto di alzare `VERSIONE` in
+   `persistenza.ts`. **Non cadono** le due correzioni a `riconcilia` del Blocco 3: riguardano i
+   disegni nuovi quando le preferenze cambiano a metà vita, non quelli vecchi.
+   **`002 test` (`fed244ee`) è la pratica designata per le prove**, creata apposta dal committente:
+   su di lei non serve ripristinare nulla a fine giro.
 5. **`t` di ripiego.** Ogni segno ancorato nasce con `t: 0.5`. Se il risolutore torna `null` per un
    difetto di geometria, la valvola compare a metà tubo: sbagliata ma visibile e correggibile.
    Degradazione voluta, mai un'eccezione.
@@ -195,7 +199,8 @@ stadi da sola porta il passo da 170 a 100.
 - **Un gruppo by-pass sopravvive solo se i membri restano contigui**; altrimenti cade tutto e lo si
   dice. Non si aggiusta un gruppo spezzato: indovinare è peggio che dirlo.
 - Le pratiche salvate **si ridisegnano** con le convenzioni nuove: un documento già consegnato, se
-  rigenerato, esce diverso. Prezzo accettato.
+  rigenerato, esce diverso. Prezzo accettato — e dal 18-08-2026 anche **perdere del tutto** i
+  layout salvati di ORVED e LOWA R&D è accettato.
 - La policy di UPDATE su `dm329_technical_data` resta aperta: qualunque `userdm329` scrive su ogni
   pratica. Rischio noto e accettato (tre persone dello stesso studio).
 
