@@ -40,7 +40,7 @@ import { posizioneAncora } from './renderSvg'
 import { latoImposto } from './symbols'
 import { instrada, tDaAncoraggio } from './tratti'
 import type { QuoteInstradamento } from './tratti'
-import type { SchemaArco, SchemaLayout } from './types'
+import type { SchemaArco, SchemaLatoAncora, SchemaLayout } from './types'
 
 /**
  * I gomiti del ponte di ogni by-pass, e la `forma` tolta dagli archi.
@@ -78,6 +78,17 @@ export function risolviPonti(
     }
   }
 
+  // I lati che i capi impongono: la giunzione e' l'unico simbolo che ne dichiari uno
+  // (`latoImposto`), ed e' da li' che si sa se un tubo imbocca il TEE di fianco o dall'alto.
+  const lati = (arco: SchemaArco) => {
+    const da = perId.get(arco.da.nodo)
+    const a = perId.get(arco.a.nodo)
+    return {
+      da: da ? latoImposto(da, arco.da.ancora, libreria) : undefined,
+      a: a ? latoImposto(a, arco.a.ancora, libreria) : undefined,
+    }
+  }
+
   const ponti = layout.archi
     .map((arco, i) => ({ arco, i, punti: arco.forma === 'ponte' ? capi(arco) : null }))
     .filter((v) => v.punti !== null)
@@ -89,7 +100,7 @@ export function risolviPonti(
   const corsiaPerArco = new Map(ponti.map((v, k) => [v.i, corsie[k]]))
 
   const archi = layout.archi.map((arco, i) => {
-    if (arco.forma !== 'ponte') return gradinoVersoIlTee(arco, capi(arco))
+    if (arco.forma !== 'ponte') return gradinoVersoIlTee(arco, capi(arco), lati(arco))
     const risolto = { ...arco }
     // La chiave si TOGLIE, non si mette a `undefined`: un layout che la portasse, anche vuota, non
     // sarebbe più identico a uno salvato prima che le forme esistessero. Copia più `delete` e non
@@ -132,10 +143,25 @@ export function risolviPonti(
  * gomito lì sarebbe markup in più su ogni documento consegnato, e un tratto di lunghezza nulla è
  * un tranello per gli ancoraggi, che contano vertici e tratti.
  */
-function gradinoVersoIlTee(arco: SchemaArco, punti: { da: { x: number; y: number }; a: { x: number; y: number } } | null): SchemaArco {
+/** Vero per i lati lungo cui il tubo imbocca in verticale. Un duplicato di due parole di
+ *  `tratti.ts` (`verticale`, privata): esportarla di la' per usarla qui toglierebbe a quel modulo
+ *  il diritto di cambiarla senza guardare altrove. */
+const imboccaInVerticale = (lato: SchemaLatoAncora | undefined) => lato === 'alto' || lato === 'basso'
+
+function gradinoVersoIlTee(
+  arco: SchemaArco,
+  punti: { da: { x: number; y: number }; a: { x: number; y: number } } | null,
+  lati: { da: SchemaLatoAncora | undefined; a: SchemaLatoAncora | undefined }
+): SchemaArco {
   // I gomiti tracciati a mano vincono su tutto: da quel momento il percorso è una scelta
   // dell'utente e nessuna euristica deve sovrascriverla.
   if (!punti || (arco.punti ?? []).length > 0) return arco
+  // Il gradino serve solo dove il TEE impone un lato ORIZZONTALE: e' li' che `rottaImboccata`
+  // piega sul capo LIBERO — sul fianco del serbatoio — e il tratto verticale sparisce dentro il
+  // contorno. Con un lato verticale la piega cade gia' sull'ascissa del TEE, che e' dove il
+  // riferimento la vuole: e' il montante che scende dal capo di monte di un by-pass (Blocco 5),
+  // e un gradino li' sarebbe uno scalino in piu' su un tubo che deve solo scendere.
+  if (imboccaInVerticale(lati.da) || imboccaInVerticale(lati.a)) return arco
   // Un TEE per capo e uno solo: fra due giunzioni c'è già il ponte, che ha la sua forma.
   if (eTeeBypass(arco.da.nodo) === eTeeBypass(arco.a.nodo)) return arco
   if (punti.da.y === punti.a.y) return arco

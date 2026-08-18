@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { risolviSegniAncorati } from '../segniAncorati'
+import { risolviPonti, risolviSegniAncorati } from '../segniAncorati'
 import { posizioneAncora } from '../renderSvg'
 import { instrada, tDaAncoraggio } from '../tratti'
 import type { SchemaAncoraggioSegno, SchemaLayout, SchemaNodoPosizionato } from '../types'
@@ -105,5 +105,74 @@ describe('risolviSegniAncorati', () => {
     layout.archi[0].a = { nodo: 'FANTASMA', ancora: 'sx' }
     expect(() => risolviSegniAncorati(layout, QUOTE)).not.toThrow()
     expect(risolviSegniAncorati(layout, QUOTE).archi[0].segni![0].t).toBe(0.5)
+  })
+})
+
+describe('il gradino verso un TEE', () => {
+  const giunzione = (id: string, x: number, y: number): SchemaNodoPosizionato => ({
+    id,
+    tipo: 'giunzione',
+    etichetta: id,
+    gruppo: 'LINEA_DISTRIBUZIONE',
+    valvoleSicurezza: [],
+    origine: 'scheda',
+    x,
+    y,
+  })
+  const filtro = (id: string, x: number, y: number): SchemaNodoPosizionato => ({
+    id,
+    tipo: 'filtro',
+    etichetta: id,
+    gruppo: 'LINEA_DISTRIBUZIONE',
+    valvoleSicurezza: [],
+    origine: 'scheda',
+    x,
+    y,
+  })
+
+  /** Il layout minimo che serve: due TEE (quello di monte in alto), uno stadio, e il ponte fra i
+   *  due — senza un ponte `risolviPonti` esce subito e il gradino non lo posa nessuno. */
+  const layout = (ancoraDalTee: string): SchemaLayout => ({
+    nodi: [giunzione('BP1-IN', 290, 0), giunzione('BP1-OUT', 700, 90), filtro('F1', 340, 40)],
+    archi: [
+      {
+        id: 'bp-1',
+        da: { nodo: 'BP1-IN', ancora: 'dx' },
+        a: { nodo: 'BP1-OUT', ancora: 'alto' },
+        stile: 'standard',
+        forma: 'ponte',
+      },
+      {
+        id: 'std-1',
+        da: { nodo: 'BP1-IN', ancora: ancoraDalTee },
+        a: { nodo: 'F1', ancora: 'sx' },
+        stile: 'standard',
+      },
+    ],
+    muro: null,
+    testi: [],
+  })
+
+  /** `risolviPonti` con le misure di allora: il Task 2 del Blocco 5 gliele toglie, e questa e'
+   *  l'unica riga da cambiare quando succede. */
+  const risolti = (l: SchemaLayout) => risolviPonti(l, { altezza: 90, passoCorsia: 90 })
+
+  const arco = (l: SchemaLayout) => l.archi.find((a) => a.id === 'std-1')!
+
+  it('col lato verticale scende sull’ascissa del TEE, senza gomiti a mezza strada', () => {
+    // E' il montante del by-pass: il TEE sta in alto, il tubo deve scendere di li' e poi entrare
+    // orizzontale nello stadio. La piega la posa gia' `rottaImboccata` sull'ascissa del TEE:
+    // aggiungerci un gradino significherebbe due scalini su un tubo che deve solo scendere.
+    expect(arco(risolti(layout('basso'))).punti ?? []).toHaveLength(0)
+  })
+
+  it('col lato orizzontale il gradino resta, ed e’ a mezza strada', () => {
+    // Non-regressione del difetto trovato guardando il disegno nel Blocco 3: con un lato
+    // orizzontale imposto e l'altro capo libero, `rottaImboccata` piega SUBITO sul capo libero e
+    // il tratto verticale corre rasente il fianco dell'apparecchiatura, invisibile perche'
+    // sovrapposto al suo contorno.
+    const punti = arco(risolti(layout('sx'))).punti ?? []
+    expect(punti).toHaveLength(2)
+    expect(punti[0].x).toBe(punti[1].x)
   })
 })
