@@ -125,14 +125,25 @@
  *
  * Dove il serbatoio e' VERTICALE si vede anche la convenzione 2: la dorsale scende fino
  * all'ancora `sx-basso` invece di fermarsi alla `sx`, 160 unita' piu' in alto.
+ *
+ * Ritoccato di nuovo il 18-08-2026, dopo che il committente ha corretto a mano il disegno
+ * generato. Due misure:
+ *
+ * - la **dorsale dei compressori scende**. Correva sopra il RIQUADRO del serbatoio, che comprende
+ *   lo spazio della valvola di sicurezza: ora passa un passo di griglia sopra il CORPO, e i
+ *   montanti non nascono piu' lunghi il doppio del disegno vero. Quando i compressori sono piu'
+ *   alti del corpo del serbatoio — col serbatoio ORIZZONTALE, che e' il caso di questa fixture —
+ *   sono loro a dettare la quota, con un margine piu' largo (60) che lascia posto alla valvola e
+ *   a un tratto di molla;
+ * - la **valvola della mandata scende di un altro passo**, da 10 a 20 unita' sotto la dorsale.
  */
 export const RIGHE_SVG_RIFERIMENTO_SENZA_TESTI = [
   `<svg xmlns="http://www.w3.org/2000/svg" width="910" height="802" viewBox="0 0 910 802">`,
   `<rect width="910" height="802" fill="#fff" />`,
-  `<path d="M 100 290 Q 105 285 100 280 Q 95 275 100 270 Q 100 265 100 260" fill="none" stroke="#000" stroke-width="2" />`,
-  `<path d="M 100 260 L 100 250 L 266 250 L 266 360 L 300 360" fill="none" stroke="#000" stroke-width="2" />`,
-  `<rect x="95.5" y="251" width="9" height="18" fill="#fff" stroke="none" />`,
-  `<path d="M 95.5 251 L 104.5 251 L 100 260 Z M 95.5 269 L 104.5 269 L 100 260 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" />`,
+  `<path d="M 100 290 Q 105 285 100 280 Q 95 275 100 270 Q 105 265 100 260 Q 100 255 100 250" fill="none" stroke="#000" stroke-width="2" />`,
+  `<path d="M 100 250 L 100 230 L 266 230 L 266 360 L 300 360" fill="none" stroke="#000" stroke-width="2" />`,
+  `<rect x="95.5" y="241" width="9" height="18" fill="#fff" stroke="none" />`,
+  `<path d="M 95.5 241 L 104.5 241 L 100 250 Z M 95.5 259 L 104.5 259 L 100 250 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" />`,
   `<path d="M 610 360 L 770 360" fill="none" stroke="#000" stroke-width="2" />`,
   `<rect x="681" y="355.5" width="18" height="9" fill="#fff" stroke="none" />`,
   `<path d="M 681 355.5 L 681 364.5 L 690 360 Z M 699 355.5 L 699 364.5 L 690 360 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" />`,

@@ -86,6 +86,20 @@ const MARGINE = 40
  */
 export const MARGINE_SUPERIORE = 110
 const PASSO_ORIZZONTALE = 60
+/**
+ * Quanto la dorsale dei compressori passa sopra il corpo del serbatoio (`quotaCollettore`).
+ * Un passo di griglia: la dorsale sfiora la capsula senza toccarla. Da guardare nel Blocco 4
+ * insieme alle altre distanze — e' una delle misure che il committente ha corretto a mano sul
+ * disegno del 18-08-2026.
+ */
+export const MARGINE_COLLETTORE = 10
+/**
+ * Quanto la dorsale passa sopra la cima dei COMPRESSORI. Piu' del margine sul serbatoio: qui il
+ * montante deve ospitare la valvola (due passi di griglia sotto la dorsale) e sotto di essa un
+ * tratto di flessibile che si veda. Conta solo quando i compressori sono piu' alti del corpo del
+ * serbatoio — cioe' col serbatoio ORIZZONTALE; col verticale detta sempre il serbatoio.
+ */
+export const MARGINE_COLLETTORE_COMPRESSORI = 60
 /** Distanza verticale fra la riga dei compressori e quella dei serbatoi. */
 const PASSO_VERTICALE = 80
 /** Corsia in basso riservata alla rete di linee condense e al pozzo di raccolta. */
@@ -574,12 +588,40 @@ export function dimensioniLayout(
   return { larghezza: destra + MARGINE, altezza: maxY + MARGINE }
 }
 
-/** Quota del collettore di mandata: appena sopra la fascia dei serbatoi, così i montanti dei compressori vi confluiscono senza attraversare nulla. */
-export function quotaCollettore(layout: SchemaLayout): number {
+/**
+ * Quota del collettore di mandata: appena sopra il CORPO del serbatoio, cosi' i montanti dei
+ * compressori vi confluiscono senza attraversare nulla e senza salire piu' del necessario.
+ *
+ * Il corpo e non il riquadro (correzione del committente sul disegno, 18-08-2026). Il riquadro del
+ * serbatoio comprende `MARGINE_VALVOLA_SERBATOIO` (40 unita') di spazio sopra la capsula per la
+ * valvola di sicurezza: misurando da li' il collettore correva 60 unita' piu' in alto del
+ * necessario, e i montanti dei compressori nascevano lunghi il doppio di quelli del disegno vero.
+ * Ora la dorsale sfiora la cima della capsula, passando sotto la valvola.
+ *
+ * `corpoNodo` e non `n.y + MARGINE_VALVOLA_SERBATOIO`: la stessa geometria che disegna, e l'unica
+ * che vale anche per il serbatoio orizzontale e per un simbolo tarato.
+ */
+export function quotaCollettore(layout: SchemaLayout, libreria: Tarature = {}): number {
   const serbatoi = layout.nodi.filter((n) => n.tipo === 'serbatoio')
-  const riferimento = serbatoi.length > 0 ? serbatoi : layout.nodi
+  const compressori = layout.nodi.filter((n) => n.tipo === 'compressore')
+  // I due vincoli, entrambi obbligatori: la dorsale passa sopra il corpo dei serbatoi (per non
+  // entrare nella capsula) e sopra i compressori (per non attraversarli, e perche' i loro montanti
+  // devono SALIRE). Vince il piu' alto dei due — cioe' la quota minore.
+  //
+  // Il caso che lo impone e' il serbatoio ORIZZONTALE, il cui corpo sta piu' in basso della cima
+  // dei compressori: guardando il solo serbatoio, la dorsale sarebbe finita sotto di loro, il
+  // montante si sarebbe accorciato a 10 unita' e la valvola ancorata sarebbe collassata sul capo
+  // del tubo (`t: 0`).
+  // I due margini sono diversi perche' i due vincoli lo sono: sopra il serbatoio la dorsale deve
+  // solo non toccare la capsula, sopra il compressore deve ospitare il montante — la valvola due
+  // passi sotto la dorsale piu' un tratto di flessibile che si veda.
+  const cime = [
+    ...serbatoi.map((n) => corpoNodo(n, libreria).y - MARGINE_COLLETTORE),
+    ...compressori.map((n) => n.y - MARGINE_COLLETTORE_COMPRESSORI),
+  ]
+  const riferimento = cime.length > 0 ? cime : layout.nodi.map((n) => n.y - MARGINE_COLLETTORE)
   if (riferimento.length === 0) return MARGINE
-  return Math.min(...riferimento.map((n) => n.y)) - MARGINE / 2
+  return Math.min(...riferimento)
 }
 
 /** Quota della corsia comune delle linee condense: appena sopra il pozzo di raccolta, così le linee vi scendono dentro dall'alto. */
@@ -596,7 +638,7 @@ export function quotaCorsiaCondense(layout: SchemaLayout, altezzaDisegno: number
  */
 export function quoteInstradamento(layout: SchemaLayout, libreria: Tarature = {}): QuoteInstradamento {
   return {
-    yCollettore: quotaCollettore(layout),
+    yCollettore: quotaCollettore(layout, libreria),
     yCorsiaCondense: quotaCorsiaCondense(layout, dimensioniLayout(layout, libreria).altezza, libreria),
   }
 }

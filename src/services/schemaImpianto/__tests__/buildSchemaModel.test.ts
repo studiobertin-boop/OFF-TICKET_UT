@@ -566,10 +566,11 @@ describe('le convenzioni grafiche dello studio', () => {
     expect(m.archi.find((a) => a.stile === 'flessibile')!.a.ancora).toBe('sx')
   })
 
-  it('la valvola della mandata sta un passo sotto la dorsale, e da lì in su il tubo è rigido', () => {
-    // Convenzione 1: sotto la valvola flessibile, sopra rigido.
+  it('la valvola della mandata sta sotto la dorsale, e da lì in su il tubo è rigido', () => {
+    // Convenzione 1: sotto la valvola flessibile, sopra rigido. Lo scarto è di DUE passi di
+    // griglia dal 18-08-2026 (correzione del committente sul disegno).
     const segno = buildSchemaModel(input()).archi.find((a) => a.stile === 'flessibile')!.segni![0]
-    expect(segno.ancoraggio).toEqual({ tipo: 'vertice', vertice: 1, scarto: -10 })
+    expect(segno.ancoraggio).toEqual({ tipo: 'vertice', vertice: 1, scarto: -20 })
     expect(segno.stileAValle).toBe('standard')
     expect(segno.t).toBe(0.5) // il ripiego, se la geometria non si risolve
   })
@@ -642,5 +643,25 @@ describe('le convenzioni grafiche dello studio', () => {
     // fila nell'ordine in cui li trova.
     expect(m.nodi.filter((n) => n.tipo === 'serbatoio').map((n) => n.id)).toEqual(['S2', 'S1'])
     expect(m.archi.find((a) => a.a.nodo === ID_UTENZE)!.da.nodo).toBe('S2')
+  })
+})
+
+describe('la valvola della mandata, dopo la correzione sul disegno', () => {
+  it('sta DUE passi di griglia sotto la dorsale, non uno', () => {
+    // Correzione del committente sul disegno del 18-08-2026: «abbassato di un passo di griglia le
+    // valvole di intercettazione delle linee compressori». Da -10 a -20.
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ codice: 'C1' })],
+      disoleatori: [],
+      serbatoi: [makeSerbatoio({ codice: 'S1', orientamento: 'VERTICALE' })],
+      essiccatori: [], scambiatori: [], filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const m = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    expect(m.archi.find((a) => a.stile === 'flessibile')!.segni![0].ancoraggio).toEqual({
+      tipo: 'vertice',
+      vertice: 1,
+      scarto: -20,
+    })
   })
 })

@@ -151,18 +151,29 @@
  *
  * Dove il serbatoio e' VERTICALE si vede anche la convenzione 2: la dorsale scende fino
  * all'ancora `sx-basso` invece di fermarsi alla `sx`, 160 unita' piu' in alto.
+ *
+ * Ritoccato di nuovo il 18-08-2026, dopo che il committente ha corretto a mano il disegno
+ * generato. Due misure:
+ *
+ * - la **dorsale dei compressori scende**. Correva sopra il RIQUADRO del serbatoio, che comprende
+ *   lo spazio della valvola di sicurezza: ora passa un passo di griglia sopra il CORPO, e i
+ *   montanti non nascono piu' lunghi il doppio del disegno vero. Quando i compressori sono piu'
+ *   alti del corpo del serbatoio — col serbatoio ORIZZONTALE, che e' il caso di questa fixture —
+ *   sono loro a dettare la quota, con un margine piu' largo (60) che lascia posto alla valvola e
+ *   a un tratto di molla;
+ * - la **valvola della mandata scende di un altro passo**, da 10 a 20 unita' sotto la dorsale.
  */
 export const RIGHE_SVG_RIFERIMENTO_CON_MURO = [
   `<svg xmlns="http://www.w3.org/2000/svg" width="730" height="1078" viewBox="0 0 730 1078">`,
   `<rect width="730" height="1078" fill="#fff" />`,
-  `<rect x="190" y="55" width="14" height="13" fill="none" stroke="#000" stroke-width="2" />`,
-  `<rect x="190" y="112" width="14" height="336" fill="none" stroke="#000" stroke-width="2" />`,
+  `<rect x="190" y="55" width="14" height="63" fill="none" stroke="#000" stroke-width="2" />`,
+  `<rect x="190" y="162" width="14" height="286" fill="none" stroke="#000" stroke-width="2" />`,
   `<rect x="190" y="492" width="14" height="113" fill="none" stroke="#000" stroke-width="2" />`,
-  `<path d="M 190 67 L 204 55 M 190 124 L 204 112 M 190 136 L 204 124 M 190 148 L 204 136 M 190 160 L 204 148 M 190 172 L 204 160 M 190 184 L 204 172 M 190 196 L 204 184 M 190 208 L 204 196 M 190 220 L 204 208 M 190 232 L 204 220 M 190 244 L 204 232 M 190 256 L 204 244 M 190 268 L 204 256 M 190 280 L 204 268 M 190 292 L 204 280 M 190 304 L 204 292 M 190 316 L 204 304 M 190 328 L 204 316 M 190 340 L 204 328 M 190 352 L 204 340 M 190 364 L 204 352 M 190 376 L 204 364 M 190 388 L 204 376 M 190 400 L 204 388 M 190 412 L 204 400 M 190 424 L 204 412 M 190 436 L 204 424 M 190 504 L 204 492 M 190 516 L 204 504 M 190 528 L 204 516 M 190 540 L 204 528 M 190 552 L 204 540 M 190 564 L 204 552 M 190 576 L 204 564 M 190 588 L 204 576 M 190 600 L 204 588" fill="none" stroke="#000" stroke-width="1" />`,
-  `<path d="M 100 290 Q 105 285 100 280 Q 95 275 100 270 Q 105 265 100 260 Q 95 255 100 250 Q 105 245 100 240 Q 95 235 100 230 Q 105 225 100 220 Q 95 215 100 210 Q 105 205 100 200 Q 95 195 100 190 Q 105 185 100 180 Q 95 175 100 170 Q 105 165 100 160 Q 95 155 100 150 Q 105 145 100 140 Q 95 135 100 130 Q 105 125 100 120 Q 95 115 100 110 Q 100 105 100 100" fill="none" stroke="#000" stroke-width="2" />`,
-  `<path d="M 100 100 L 100 90 L 266 90 L 266 360 L 300 360" fill="none" stroke="#000" stroke-width="2" />`,
-  `<rect x="95.5" y="91" width="9" height="18" fill="#fff" stroke="none" />`,
-  `<path d="M 95.5 91 L 104.5 91 L 100 100 Z M 95.5 109 L 104.5 109 L 100 100 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" />`,
+  `<path d="M 190 67 L 204 55 M 190 79 L 204 67 M 190 91 L 204 79 M 190 103 L 204 91 M 190 115 L 204 103 M 190 174 L 204 162 M 190 186 L 204 174 M 190 198 L 204 186 M 190 210 L 204 198 M 190 222 L 204 210 M 190 234 L 204 222 M 190 246 L 204 234 M 190 258 L 204 246 M 190 270 L 204 258 M 190 282 L 204 270 M 190 294 L 204 282 M 190 306 L 204 294 M 190 318 L 204 306 M 190 330 L 204 318 M 190 342 L 204 330 M 190 354 L 204 342 M 190 366 L 204 354 M 190 378 L 204 366 M 190 390 L 204 378 M 190 402 L 204 390 M 190 414 L 204 402 M 190 426 L 204 414 M 190 438 L 204 426 M 190 504 L 204 492 M 190 516 L 204 504 M 190 528 L 204 516 M 190 540 L 204 528 M 190 552 L 204 540 M 190 564 L 204 552 M 190 576 L 204 564 M 190 588 L 204 576 M 190 600 L 204 588" fill="none" stroke="#000" stroke-width="1" />`,
+  `<path d="M 100 290 Q 105 285 100 280 Q 95 275 100 270 Q 105 265 100 260 Q 95 255 100 250 Q 105 245 100 240 Q 95 235 100 230 Q 105 225 100 220 Q 95 215 100 210 Q 105 205 100 200 Q 95 195 100 190 Q 105 185 100 180 Q 95 175 100 170 Q 100 165 100 160" fill="none" stroke="#000" stroke-width="2" />`,
+  `<path d="M 100 160 L 100 140 L 266 140 L 266 360 L 300 360" fill="none" stroke="#000" stroke-width="2" />`,
+  `<rect x="95.5" y="151" width="9" height="18" fill="#fff" stroke="none" />`,
+  `<path d="M 95.5 151 L 104.5 151 L 100 160 Z M 95.5 169 L 104.5 169 L 100 160 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" />`,
   `<path d="M 400 200 L 560 200" fill="none" stroke="#000" stroke-width="2" />`,
   `<rect x="471" y="195.5" width="18" height="9" fill="#fff" stroke="none" />`,
   `<path d="M 471 195.5 L 471 204.5 L 480 200 Z M 489 195.5 L 489 204.5 L 480 200 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" />`,

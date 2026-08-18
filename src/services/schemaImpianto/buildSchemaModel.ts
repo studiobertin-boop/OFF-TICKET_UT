@@ -317,7 +317,9 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
   const libreria = input.libreria ?? {}
 
   /**
-   * Valvola di intercettazione un passo di griglia SOTTO il vertice dato (convenzione 1). La `t`
+   * Valvola di intercettazione DUE passi di griglia sotto il vertice dato. Erano uno fino al
+   * 18-08-2026, quando il committente le ha abbassate correggendo a mano il disegno generato
+   * (convenzione 1, che diceva «un passo»: il disegno vero ne vuole due). La `t`
    * nasce a 0,5 come ripiego: se la geometria non si risolve la valvola compare a meta' tubo,
    * sbagliata ma visibile e correggibile a mano, che e' meglio di un'eccezione a meta' generazione.
    */
@@ -327,7 +329,7 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
       tipo: 'valvola_intercettazione',
       t: 0.5,
       stileAValle,
-      ancoraggio: { tipo: 'vertice', vertice, scarto: -10 },
+      ancoraggio: { tipo: 'vertice', vertice, scarto: -20 },
     },
   ]
 

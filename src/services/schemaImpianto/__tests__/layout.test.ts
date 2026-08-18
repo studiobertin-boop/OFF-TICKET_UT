@@ -12,7 +12,10 @@ import {
 import { buildSchemaModel } from '../buildSchemaModel'
 import {
   GIOCO_FRA_STADI,
+  MARGINE_COLLETTORE,
   calcolaMuro,
+  corpoNodo,
+  quotaCollettore,
   catenaDagliArchi,
   muroDaAscissa,
   DIMENSIONI_NODO,
@@ -629,9 +632,9 @@ describe('quoteInstradamento', () => {
   function layoutDiProva(): SchemaLayout {
     return {
       nodi: [
-        // Più in alto del serbatoio più alto: se `quotaCollettore` perdesse il filtro
-        // `tipo === 'serbatoio'` e considerasse tutti i nodi, il minimo cadrebbe qui e il
-        // primo test lo scoprirebbe (atteso resterebbe 380 solo col filtro applicato).
+        // Più in alto del serbatoio più alto. Dal 18-08-2026 e' proprio questo compressore a
+        // dettare la quota del collettore: la dorsale deve passare sopra i compressori, non solo
+        // sopra i serbatoi, o coi serbatoi bassi (l'orizzontale) finirebbe sotto di loro.
         {
           id: 'C1', tipo: 'compressore', etichetta: 'Compressore', gruppo: 'SALA_COMPRESSORI',
           valvoleSicurezza: [], origine: 'scheda', x: 100, y: 200,
@@ -660,9 +663,27 @@ describe('quoteInstradamento', () => {
     }
   }
 
-  it('mette il collettore mezzo margine sopra il serbatoio più alto', () => {
-    // Serbatoio a y=400, MARGINE=40: 400 - 20 = 380.
-    expect(quoteInstradamento(layoutDiProva()).yCollettore).toBe(380)
+  it('mette il collettore sopra il più alto fra corpo dei serbatoi e cima dei compressori', () => {
+    // Due vincoli, vince il più alto. Serbatoio a y=400: il corpo comincia 40 unità più in basso
+    // (`MARGINE_VALVOLA_SERBATOIO`, lo spazio della valvola di sicurezza), quindi 440 - 10 = 430.
+    // Compressore a y=200: 200 - 60 = 140, e vince questo. Fino al 18-08-2026 la misura partiva
+    // dal RIQUADRO del serbatoio e ignorava i compressori: dava 380.
+    expect(quoteInstradamento(layoutDiProva()).yCollettore).toBe(140)
+  })
+
+  it('e col serbatoio orizzontale, il cui corpo sta in basso, sono i compressori a dettare', () => {
+    // Il caso che impone i due vincoli: guardando il solo serbatoio la dorsale finirebbe SOTTO la
+    // cima dei compressori, i montanti scenderebbero invece di salire e la valvola ancorata
+    // collasserebbe sul capo del tubo.
+    const layout = layoutDiProva()
+    const serbatoio = layout.nodi.find((n) => n.id === 'S1')!
+    serbatoio.orientamento = 'ORIZZONTALE'
+    // Il corpo finisce a 290, sotto la cima dei compressori (200): e' il caso da esercitare.
+    serbatoio.y = 250
+    expect(quoteInstradamento(layout).yCollettore).toBe(140)
+    expect(quoteInstradamento(layout).yCollettore).toBeLessThan(
+      layout.nodi.find((n) => n.tipo === 'compressore')!.y
+    )
   })
 
   it('mette la corsia condense 40 unità sopra il corpo del pozzo di raccolta', () => {
@@ -936,5 +957,33 @@ describe('il contratto di sola andata degli ancoraggi', () => {
     const risolto = layoutSchema(model).archi.find((a) => a.id === flex.id)!
     expect(risolto.segni![0].t).not.toBe(0.5)
     expect(risolto.segni![0]).not.toHaveProperty('ancoraggio')
+  })
+})
+
+describe('la dorsale dei compressori', () => {
+  it('corre appena sopra il CORPO del serbatoio, non sopra il suo riquadro', () => {
+    // Correzione del committente sul disegno del 18-08-2026. Il riquadro del serbatoio comprende
+    // lo spazio della valvola di sicurezza (`MARGINE_VALVOLA_SERBATOIO`, 40 unità): tenendo la
+    // dorsale sopra QUELLO, il collettore correva 60 unità più in alto del necessario, e i
+    // montanti dei compressori nascevano lunghi il doppio del disegno vero.
+    const layout = layoutSchema(
+      buildSchemaModel({ scheda: schedaConTreStadi(), collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    )
+    const serbatoio = nodo(layout, 'S1')
+    const cimaDelCorpo = corpoNodo(serbatoio).y
+
+    expect(quotaCollettore(layout)).toBe(cimaDelCorpo - MARGINE_COLLETTORE)
+    // E sta comunque sopra il corpo: la dorsale non deve entrare nella capsula.
+    expect(quotaCollettore(layout)).toBeLessThan(cimaDelCorpo)
+  })
+
+  it('senza serbatoi ripiega su qualcosa di disegnabile, invece di sollevare', () => {
+    const model: SchemaModel = {
+      nodi: [
+        { id: 'C1', tipo: 'compressore', etichetta: 'C1', gruppo: 'SALA_COMPRESSORI', valvoleSicurezza: [], origine: 'scheda' },
+      ],
+      archi: [],
+    }
+    expect(() => quotaCollettore(layoutSchema(model))).not.toThrow()
   })
 })
