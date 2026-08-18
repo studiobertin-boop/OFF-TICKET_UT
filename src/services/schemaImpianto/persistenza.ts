@@ -130,10 +130,11 @@ export interface EsitoRiconciliazione {
    */
   aggiunti: string[]
   /**
-   * Quelli di cui vale la pena avvisare l'utente. È `aggiunti` senza il terminale utenze: non è
-   * un'apparecchiatura (per questo resta fuori dalla lista e non conta per il muro) e non viene
-   * dalla scheda, quindi annunciarlo come «Aggiunte dalla scheda: UTENZE» sarebbe falso su
-   * entrambi i fronti — e capiterebbe una volta su ogni pratica già salvata.
+   * Quelli di cui vale la pena avvisare l'utente: è `aggiunti` senza i nodi che non sono
+   * apparecchiature — vedi `daAnnunciare`. Il terminale utenze non viene dalla scheda, e
+   * annunciarlo come «Aggiunte dalla scheda: UTENZE» sarebbe falso su entrambi i fronti, una
+   * volta su ogni pratica già salvata; le giunzioni di un by-pass compaiono e spariscono quando
+   * l'operatore crea o scioglie un gruppo, e non sono una notizia sulla scheda dati.
    *
    * Due elenchi invece di uno solo filtrato in presentazione: quale nodo sia un'apparecchiatura
    * è cognizione di dominio, e qui sta sotto un test di funzione pura, mentre nel componente
@@ -168,6 +169,20 @@ export interface EsitoRiconciliazione {
  * una scheda e la successiva. Due archi scollegati possono ricevere lo stesso id per
  * coincidenza: confrontare gli id scarterebbe in silenzio un arco nuovo davvero diverso.
  */
+/**
+ * Vale la pena nominarlo all'operatore quando compare o sparisce? Solo le APPARECCHIATURE: il
+ * terminale utenze non viene dalla scheda e non e' una di loro, e nemmeno le giunzioni di un
+ * by-pass, che compaiono e spariscono da se' quando l'operatore crea o scioglie un gruppo —
+ * annunciarle come «rimosse perche' non piu' in scheda» sarebbe falso su entrambi i fronti.
+ *
+ * Sta qui, sotto un test di funzione pura, e non nel componente che compone l'avviso: quale nodo
+ * sia un'apparecchiatura e' cognizione di dominio, e nel componente finirebbe fuori dalla
+ * copertura (la convenzione del progetto e': nessun test di interfaccia).
+ */
+function daAnnunciare(nodo: SchemaNodo): boolean {
+  return nodo.tipo !== 'utenze' && nodo.tipo !== 'giunzione'
+}
+
 function identitaArco(arco: SchemaArco): string {
   return `${arco.da.nodo}#${arco.da.ancora}->${arco.a.nodo}#${arco.a.ancora}:${arco.stile}`
 }
@@ -321,8 +336,13 @@ export function riconcilia(
       const etichetta = n.tipo === 'utenze' ? n.etichetta : daScheda.etichetta
       return { ...daScheda, etichetta, x: n.x, y: n.y }
     })
+  // Le giunzioni restano fuori dagli avvisi come il terminale utenze (vedi `daAnnunciare`): non
+  // sono apparecchiature, non vengono dalla scheda e non entrano in lista. Sciogliendo un
+  // by-pass l'operatore leggerebbe «Rimosse perche' non piu' in scheda: BP1-IN, BP1-OUT» —
+  // falso su entrambi i fronti, esattamente come lo sarebbe stato «Aggiunte dalla scheda:
+  // UTENZE».
   const rimossi = salvato.nodi
-    .filter((n) => n.origine !== 'manuale' && !inScheda.has(n.id))
+    .filter((n) => n.origine !== 'manuale' && !inScheda.has(n.id) && daAnnunciare(n))
     .map((n) => n.id)
 
   // Le apparecchiature nuove entrano nelle posizioni che l'auto-layout darebbe loro oggi,
@@ -331,7 +351,7 @@ export function riconcilia(
   const piede = superstiti.length > 0 ? Math.max(...superstiti.map((n) => n.y)) + 320 : 0
   const automatico = layoutSchema(modello, libreria)
   const aggiunti = nuovi.map((n) => n.id)
-  const aggiuntiDaScheda = nuovi.filter((n) => n.tipo !== 'utenze').map((n) => n.id)
+  const aggiuntiDaScheda = nuovi.filter(daAnnunciare).map((n) => n.id)
   const posizionati = nuovi.map((n) => {
     const proposto = automatico.nodi.find((p) => p.id === n.id)!
     if (n.tipo === 'utenze') {
@@ -352,7 +372,13 @@ export function riconcilia(
   const archiSalvati = salvato.archi
   const identitaSalvate = new Set(archiSalvati.map(identitaArco))
   const idTerminale = nodi.find((n) => n.tipo === 'utenze')?.id
-  const archiNuovi = modello.archi.filter(
+  // Gli archi che si RIPESCANO vengono dal layout automatico, non dal modello: stessi id e stessa
+  // identita', ma con le `t` dei segni gia' risolte e coi gomiti del ponte scritti. Presi dal
+  // modello entrerebbero nel salvataggio con la valvola a meta' tubo (la `t: 0.5` di ripiego) e
+  // con un by-pass collassato in una retta sovrapposta alla linea di processo — un disegno che
+  // esiste ma che il by-pass non si vede.
+  const archiProposti = automatico.archi
+  const archiNuovi = archiProposti.filter(
     (a) =>
       !identitaSalvate.has(identitaArco(a)) &&
       (aggiunti.includes(a.da.nodo) || aggiunti.includes(a.a.nodo)) &&
@@ -398,8 +424,35 @@ export function riconcilia(
   // elemento — e buttare via il suo tracciato a ogni riapertura contraddirebbe il principio che
   // il layout salvato è autorevole su *dove* passano le cose.
   if (idTerminale && !archi.some((a) => a.a.nodo === idTerminale)) {
-    const dalModello = modello.archi.find((a) => a.a.nodo === idTerminale && idNodi.has(a.da.nodo))
-    if (dalModello) archi.push(dalModello)
+    const proposto = archiProposti.find((a) => a.a.nodo === idTerminale && idNodi.has(a.da.nodo))
+    if (proposto) archi.push(proposto)
+  }
+
+  // Invariante della catena, sullo stampo di quella del terminale qui sopra: **ogni nodo che il
+  // modello raggiunge con una tubazione d'aria entrante deve averne ancora una** dopo la
+  // riconciliazione; se l'ha persa, si riprende quella proposta.
+  //
+  // Il caso che ripara e' lo scioglimento di un by-pass. I due TEE cadono e con loro i cinque
+  // archi che li toccavano, ma l'arco sostitutivo S1 → F1 non veniva ripescato: `archiNuovi` lo
+  // prende solo se un capo e' fra i nodi AGGIUNTI, e sciogliendo un gruppo non si aggiunge
+  // nulla. Il primo stadio restava scollegato su un disegno riaperto.
+  //
+  // Si legge dal MODELLO chi deve avere un ingresso, e non lo si decide per tipo: il primo
+  // serbatoio e i compressori non ricevono aria per natura, e inventare loro una tubazione
+  // sarebbe peggio del difetto che si ripara.
+  //
+  // Conseguenza accettata: un operatore che nell'editor stacca DELIBERATAMENTE uno stadio se lo
+  // ritrova ricollegato alla riapertura. Le due situazioni sono indistinguibili da qui, e fra un
+  // disegno con uno stadio a mezz'aria e uno ricollegato d'ufficio si sceglie il secondo — la
+  // stessa scelta gia' fatta per il terminale.
+  const conIngresso = (elenco: SchemaArco[], id: string) =>
+    elenco.some((a) => a.stile !== 'condensa' && a.a.nodo === id)
+  for (const nodo of nodi) {
+    if (!conIngresso(modello.archi, nodo.id) || conIngresso(archi, nodo.id)) continue
+    const proposto = archiProposti.find(
+      (a) => a.stile !== 'condensa' && a.a.nodo === nodo.id && idNodi.has(a.da.nodo)
+    )
+    if (proposto) archi.push(proposto)
   }
 
   // I testi liberi sopravvivono sempre, senza confronto col modello: sono manuali per

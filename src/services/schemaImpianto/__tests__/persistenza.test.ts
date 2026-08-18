@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { makeCompressore, makeDatiImpianto, makeEssiccatore, makeScheda, makeSeparatore, makeSerbatoio, makeValvola } from '@/services/relazione/__tests__/fixtures'
 import { buildSchemaModel } from '../buildSchemaModel'
+import { preferenzeRisolteDaScheda } from '../preferenze'
 import { layoutSchema, muroDaAscissa, DIMENSIONI_NODO } from '../layout'
 import { serializzaLayout, deserializzaLayout, riconcilia, layoutIniziale, layoutDaPersistere } from '../persistenza'
 import type { LayoutSalvato } from '../persistenza'
@@ -864,5 +865,139 @@ describe('taratura di pratica e riattacco degli archi orfani', () => {
   it('un salvato senza taratura di pratica non scrive `simboli`: resta indistinguibile da un layout di prima del blocco', () => {
     expect(serializzaLayout(layoutMinimo()).simboli).toBeUndefined()
     expect(serializzaLayout(layoutMinimo(), {}).simboli).toBeUndefined()
+  })
+})
+
+describe('il by-pass alla riapertura', () => {
+  const scheda = () =>
+    makeScheda({
+      compressori: [makeCompressore({ codice: 'C1', ha_disoleatore: false })],
+      disoleatori: [],
+      serbatoi: [makeSerbatoio({ codice: 'S1', orientamento: 'VERTICALE' })],
+      essiccatori: [makeEssiccatore({ codice: 'E1' })],
+      scambiatori: [],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+
+  /** Il modello con (o senza) un by-pass su E1, l'unico stadio della catena. */
+  const modello = (conBypass: boolean): SchemaModel => {
+    const s = scheda()
+    return buildSchemaModel({
+      scheda: s,
+      collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+      preferenze: preferenzeRisolteDaScheda(s, conBypass ? { bypass: [{ id: 'bp1', stadi: ['E1'] }] } : {}),
+    })
+  }
+
+  const arcoAria = (l: SchemaLayout, da: string, a: string) =>
+    l.archi.find((x) => x.da.nodo === da && x.a.nodo === a && x.stile !== 'condensa')
+
+  it('gli archi nuovi arrivano risolti dal layout automatico, non col ripiego del modello', () => {
+    // Presi dal modello entrerebbero nel salvataggio con la `t` di ripiego — 0,5, la valvola a
+    // meta' tubo — invece che con quella calcolata sulla polilinea vera.
+    //
+    // Si guarda la MANDATA del compressore e non un tratto di linea: fra due nodi alla stessa
+    // quota le due fonti danno lo stesso arco, e il test passerebbe a vuoto (ci e' passato, la
+    // prima volta che e' stato scritto). La mandata porta invece una valvola ancorata al vertice
+    // sotto la dorsale, e li' le due fonti si distinguono.
+    const conBypass = modello(true)
+    const automatico = layoutSchema(conBypass)
+    // Salvato: lo stesso impianto senza il compressore, cosi' C1 e' un nodo «aggiunto» e la sua
+    // mandata rientra fra gli `archiNuovi`.
+    const salvato: SchemaLayout = {
+      ...automatico,
+      nodi: automatico.nodi.filter((n) => n.id !== 'C1'),
+      archi: automatico.archi.filter((a) => a.da.nodo !== 'C1' && a.a.nodo !== 'C1'),
+    }
+
+    const ripescato = arcoAria(riconcilia(salvato, conBypass).layout, 'C1', 'S1')!
+    const atteso = arcoAria(automatico, 'C1', 'S1')!
+    // Il confronto e' con l'arco del layout AUTOMATICO e non con «diverso da 0,5»: una `t`
+    // diversa per caso passerebbe lo stesso.
+    expect(atteso.segni![0].t).not.toBe(0.5) // o il confronto non distinguerebbe le due fonti
+    expect(ripescato.segni!.map((s) => s.t)).toEqual(atteso.segni!.map((s) => s.t))
+  })
+
+  it('il ponte entra nel salvataggio coi suoi gomiti', () => {
+    // Il difetto che l'arco preso dal modello rende invisibile: il disegno esiste, ma il ponte
+    // e' una retta sovrapposta alla linea di processo.
+    const conBypass = modello(true)
+    const automatico = layoutSchema(conBypass)
+    const salvato: SchemaLayout = {
+      ...automatico,
+      nodi: automatico.nodi.filter((n) => !n.id.startsWith('BP1-')),
+      archi: automatico.archi.filter((a) => !a.da.nodo.startsWith('BP1-') && !a.a.nodo.startsWith('BP1-')),
+    }
+
+    const ponte = arcoAria(riconcilia(salvato, conBypass).layout, 'BP1-IN', 'BP1-OUT')!
+    expect(ponte.punti).toHaveLength(2)
+    // E la `forma` non torna a galla: il contratto di sola andata regge anche di qua.
+    expect(ponte).not.toHaveProperty('forma')
+  })
+
+  it('sciogliere un by-pass ricollega la catena invece di spezzarla', () => {
+    // I due TEE cadono e con loro i tre archi che li toccavano, ma l'arco sostitutivo S1 → E1 non
+    // veniva ripescato: `archiNuovi` lo prende solo se un capo e' fra i nodi AGGIUNTI, e nessuno
+    // dei due lo e'. Il risultato era uno stadio scollegato su un disegno riaperto.
+    const salvato = layoutSchema(modello(true))
+    const esito = riconcilia(salvato, modello(false))
+    expect(esito.layout.nodi.some((n) => n.tipo === 'giunzione')).toBe(false)
+    expect(arcoAria(esito.layout, 'S1', 'E1')).toBeDefined()
+  })
+
+  it('e non calpesta un tracciato fatto a mano', () => {
+    // L'invariante ripara chi non ha PIU' un ingresso, non chi ne ha uno diverso da quello che il
+    // modello proporrebbe: il layout salvato resta autorevole su *dove* passano le cose.
+    const senza = modello(false)
+    const salvato = layoutSchema(senza)
+    const aMano: SchemaLayout = {
+      ...salvato,
+      archi: salvato.archi.map((a) =>
+        a.a.nodo === 'E1' ? { ...a, punti: [{ x: 1, y: 2 }] } : a
+      ),
+    }
+    const entranti = riconcilia(aMano, senza).layout.archi.filter(
+      (a) => a.a.nodo === 'E1' && a.stile !== 'condensa'
+    )
+    expect(entranti).toHaveLength(1)
+    expect(entranti[0].punti).toEqual([{ x: 1, y: 2 }])
+  })
+
+  it('e non inventa ingressi per chi non ne ha per natura', () => {
+    // Il serbatoio di testa e i compressori non ricevono aria: l'invariante deve ignorarli, o
+    // aggiungerebbe tubi che nel modello non esistono.
+    const senza = modello(false)
+    const esito = riconcilia(layoutSchema(senza), senza)
+    expect(esito.layout.archi.filter((a) => a.a.nodo === 'C1' && a.stile !== 'condensa')).toHaveLength(0)
+    expect(esito.layout.archi).toHaveLength(senza.archi.length)
+  })
+
+  it('le giunzioni restano fuori dagli avvisi all operatore', () => {
+    // «Rimosse perche' non piu' in scheda: BP1-IN, BP1-OUT» sarebbe falso su entrambi i fronti,
+    // come lo sarebbe stato «Aggiunte dalla scheda: UTENZE» — che infatti e' gia' escluso. Una
+    // giunzione non e' un'apparecchiatura.
+    const sciolto = riconcilia(layoutSchema(modello(true)), modello(false))
+    expect(sciolto.rimossi).not.toContain('BP1-IN')
+    expect(sciolto.rimossi).not.toContain('BP1-OUT')
+
+    const creato = riconcilia(layoutSchema(modello(false)), modello(true))
+    expect(creato.aggiuntiDaScheda).not.toContain('BP1-IN')
+    // Ma l'elenco vero, a uso interno, li contiene: e' quello con cui si posizionano.
+    expect(creato.aggiunti).toContain('BP1-IN')
+    expect(creato.aggiunti).toContain('BP1-OUT')
+  })
+
+  it('riaprire senza cambiare nulla non muove nulla', () => {
+    // Il caso piu' comune, e quello che le due correzioni non devono guastare.
+    const conBypass = modello(true)
+    const salvato = layoutSchema(conBypass)
+    const esito = riconcilia(salvato, conBypass)
+    expect(esito.aggiunti).toEqual([])
+    expect(esito.rimossi).toEqual([])
+    expect(esito.layout.nodi.map((n) => `${n.id}@${n.x},${n.y}`)).toEqual(
+      salvato.nodi.map((n) => `${n.id}@${n.x},${n.y}`)
+    )
+    expect(esito.layout.archi.map((a) => a.id)).toEqual(salvato.archi.map((a) => a.id))
   })
 })
