@@ -73,7 +73,8 @@ export function nodoGiunzioneBypass(id: string): SchemaNodo {
 
 /**
  * Le corsie di una serie di intervalli, in modo che due che si sovrappongono non finiscano sulla
- * stessa. Gli intervalli sono in posizioni della catena, estremi compresi.
+ * stessa. Gli intervalli sono estremi compresi, in qualunque unità: posizioni della catena quando
+ * si linearizza, ascisse del disegno quando si tracciano i ponti sul layout.
  *
  * La corsia si **riusa** appena si libera invece di crescere con l'indice del gruppo: nel caso
  * normale i gruppi sono disgiunti, e impilare i ponti a quote diverse sarebbe uno scalino nel
@@ -92,6 +93,30 @@ export function corsieDeiPonti(intervalli: { inizio: number; fine: number }[]): 
     while (occupate.has(corsia)) corsia++
     corsie.push(corsia)
   }
+  return corsie
+}
+
+/**
+ * Le corsie nell'ordine in cui gli intervalli arrivano, assegnandole però dal ponte più **corto**
+ * al più lungo: con due gruppi annidati è quello interno a dover correre in basso, e quello
+ * esterno a scavalcarlo. Assegnandole nell'ordine di arrivo vincerebbe il più a sinistra — e con
+ * l'esterno che comincia prima si otterrebbe l'annidamento rovesciato, il ponte contenuto appeso
+ * sopra a quello che lo contiene.
+ *
+ * La usano in due: `linearizzaConBypass` sulle posizioni della catena, e `risolviPonti`
+ * (`segniAncorati.ts`) sulle ascisse del disegno. Devono dare la stessa risposta, e la danno
+ * perché è la stessa funzione.
+ */
+export function assegnaCorsie(intervalli: { inizio: number; fine: number }[]): number[] {
+  const perLarghezza = intervalli
+    .map((intervallo, i) => ({ intervallo, i }))
+    .sort(
+      (a, b) =>
+        a.intervallo.fine - a.intervallo.inizio - (b.intervallo.fine - b.intervallo.inizio) || a.i - b.i
+    )
+  const assegnate = corsieDeiPonti(perLarghezza.map((v) => v.intervallo))
+  const corsie: number[] = []
+  for (const [k, v] of perLarghezza.entries()) corsie[v.i] = assegnate[k]
   return corsie
 }
 
@@ -125,16 +150,7 @@ export function linearizzaConBypass(
     .filter((g): g is { gruppo: string; inizio: number; fine: number } => g !== null)
     .sort((a, b) => a.inizio - b.inizio || a.fine - b.fine)
 
-  // Le corsie si assegnano dal ponte più CORTO al più lungo, non nell'ordine della catena: con due
-  // gruppi annidati è il ponte interno a dover correre in basso, e quello esterno a scavalcarlo.
-  // Nell'ordine della catena vincerebbe il più a sinistra, e con l'esterno che comincia prima si
-  // otterrebbe l'annidamento rovesciato — l'interno appeso sopra a quello che lo contiene.
-  const perLarghezza = validi
-    .map((g, i) => ({ g, i }))
-    .sort((a, b) => a.g.fine - a.g.inizio - (b.g.fine - b.g.inizio) || a.i - b.i)
-  const corsiePerLarghezza = corsieDeiPonti(perLarghezza.map((v) => v.g))
-  const corsie: number[] = []
-  for (const [k, v] of perLarghezza.entries()) corsie[v.i] = corsiePerLarghezza[k]
+  const corsie = assegnaCorsie(validi)
 
   const ponti: PonteBypass[] = validi.map((g, i) => {
     const { inizio, fine } = idTeeBypass(g.gruppo)

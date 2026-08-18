@@ -7,7 +7,7 @@
  * destra. Funzione pura: nessun DOM, testabile in Node.
  */
 import { ordinaCatenaTrattamento } from './buildSchemaModel'
-import { risolviSegniAncorati } from './segniAncorati'
+import { risolviPonti, risolviSegniAncorati } from './segniAncorati'
 import type { Tarature } from './libreria'
 import {
   DIMENSIONI_NODO,
@@ -115,6 +115,37 @@ const CORSIA_CONDENSE = 120
  * 20: i codoli si toccano e formano il collegamento, che e' cio' che si vede nei due riferimenti.
  */
 export const GIOCO_FRA_STADI = 0
+
+/**
+ * Spazio fra l'ancora di una giunzione di by-pass e quella dello stadio vicino, di qua e di la'.
+ * Non e' `GIOCO_FRA_STADI`: le quattro ancore della giunzione COINCIDONO nel suo centro
+ * (symbols/index.ts), quindi a gioco zero il TEE finirebbe esattamente sulla punta del rombo
+ * accanto, e il pallino sparirebbe dentro il simbolo.
+ *
+ * Due passi di griglia. Da guardare nel Blocco 4: nel disegno di riferimento il TEE di monte sta
+ * ~12 unita' dalla punta del primo stadio e quello di valle ~25 da quella dell'ultimo.
+ */
+export const PASSO_GIUNZIONE = 20
+
+/**
+ * Di quanto la linea di processo SCENDE quando c'e' almeno un by-pass, e di quanto si separano due
+ * corsie di ponte che si sovrappongono. Serve perche' il ponte corra SOTTO l'uscita del serbatoio
+ * invece di accavallarcisi: senza, il cavalcavia nascerebbe alla stessa quota del bocchello del
+ * serbatoio e i due tratti si sovrapporrebbero.
+ *
+ * Da guardare nel Blocco 4: nel disegno di riferimento lo scarto fra l'uscita del serbatoio e la
+ * linea di processo misura circa 75 unita'.
+ */
+export const PASSO_CORSIA_BYPASS = 80
+
+/**
+ * Quanto il ponte di un by-pass corre sopra la linea di processo. Meno di
+ * `PASSO_CORSIA_BYPASS`, che e' esattamente cio' che lo fa passare sotto l'uscita del serbatoio.
+ *
+ * Da guardare nel Blocco 4: nel disegno corretto a mano il committente lo ha messo alla STESSA
+ * quota dell'uscita del serbatoio (cioe' con i due valori uguali), non venti unita' sotto.
+ */
+export const ALTEZZA_BYPASS = 60
 
 function posiziona(nodo: SchemaNodo, x: number, y: number): SchemaNodoPosizionato {
   return { ...nodo, x, y }
@@ -243,6 +274,12 @@ function disponiInRiga(
  * Il ripiego sul riquadro (`dim.altezza / 2`, `dim.larghezza`) vale per un simbolo che non
  * dichiara quelle ancore: mai per i tre rombi, che le hanno tutte, ma una taratura permanente puo'
  * sostituire l'elenco delle ancore (`ancoreDi`) e nulla le impone di tenerle.
+ *
+ * L'accumulatore e' l'ascissa della PROSSIMA ANCORA `sx`, non il bordo sinistro del prossimo
+ * riquadro. Sui simboli della catena le due formule coincidono — hanno tutti `sx` a `x: 0` — ma
+ * non sulla giunzione di un by-pass, le cui quattro ancore stanno nel CENTRO del riquadro: contando
+ * per bordi, il gioco davanti al TEE e quello dietro sarebbero diversi senza che nessuno l'abbia
+ * chiesto.
  */
 function disponiCatenaPerAncore(
   nodi: SchemaNodo[],
@@ -250,13 +287,19 @@ function disponiCatenaPerAncore(
   quotaLinea: number,
   libreria: Tarature = {}
 ): { posizionati: SchemaNodoPosizionato[]; xFinale: number } {
-  let x = xIniziale
-  const posizionati = nodi.map((nodo) => {
+  // Fra due elementi vale `PASSO_GIUNZIONE` se uno dei due e' un TEE, `GIOCO_FRA_STADI` altrimenti:
+  // le ancore coincidenti della giunzione la lascerebbero altrimenti sopra la punta del vicino.
+  const gioco = (a: SchemaNodo, b: SchemaNodo) =>
+    a.tipo === 'giunzione' || b.tipo === 'giunzione' ? PASSO_GIUNZIONE : GIOCO_FRA_STADI
+
+  let xAncora = xIniziale
+  const posizionati = nodi.map((nodo, i) => {
     const dim = dimensioniDi(nodo, libreria)
     const sx = ancoraDi(nodo, 'sx', libreria)
     const dx = ancoraDi(nodo, 'dx', libreria)
-    const collocato = posiziona(nodo, x, quotaLinea - (sx?.y ?? dim.altezza / 2))
-    x = collocato.x + (dx?.x ?? dim.larghezza) + GIOCO_FRA_STADI
+    const collocato = posiziona(nodo, xAncora - (sx?.x ?? 0), quotaLinea - (sx?.y ?? dim.altezza / 2))
+    const prossimo = nodi[i + 1]
+    xAncora = collocato.x + (dx?.x ?? dim.larghezza) + (prossimo ? gioco(nodo, prossimo) : 0)
     return collocato
   })
   // `xFinale` resta la regola di sempre — bordo destro dell'ultimo riquadro piu' il passo — e non
@@ -277,16 +320,24 @@ function disponiCatenaPerAncore(
  *
  * Senza serbatoi si ripiega sulla quota di prima: un impianto di soli stadi non ha un'uscita a cui
  * allinearsi, e sollevare la linea al bordo del foglio sarebbe peggio che lasciarla dov'era.
+ *
+ * **Con almeno un by-pass la linea SCENDE di una corsia.** Il ponte nasce sopra la linea di
+ * processo: lasciandola all'uscita del serbatoio, il cavalcavia correrebbe alla stessa quota del
+ * bocchello e i due tratti si sovrapporrebbero. Si guarda la CATENA e non le preferenze — il
+ * layout non le riceve, e la giunzione nella catena e' il fatto che conta: un gruppo caduto in
+ * `linearizzaConBypass` non ha lasciato TEE, e la linea giustamente non scende.
  */
 export function quotaLineaProcesso(
   serbatoi: SchemaNodoPosizionato[],
   ripiego: number,
-  libreria: Tarature = {}
+  libreria: Tarature = {},
+  catena: SchemaNodo[] = []
 ): number {
+  const scesa = catena.some((n) => n.tipo === 'giunzione') ? PASSO_CORSIA_BYPASS : 0
   const testa = serbatoi[0]
-  if (!testa) return ripiego
+  if (!testa) return ripiego + scesa
   const dx = ancoraDi(testa, 'dx', libreria)
-  return dx ? testa.y + dx.y : ripiego
+  return (dx ? testa.y + dx.y : ripiego) + scesa
 }
 
 /**
@@ -371,7 +422,7 @@ export function layoutSchema(model: SchemaModel, libreria: Tarature = {}): Schem
   )
   // La catena di trattamento sta a valle dei serbatoi, sulla quota della loro USCITA — non piu'
   // sulla loro mezzeria (`yCentroSerbatoi`, che resta il ripiego quando serbatoi non ce ne sono).
-  const quotaLinea = quotaLineaProcesso(rigaSerbatoi.posizionati, yCentroSerbatoi, libreria)
+  const quotaLinea = quotaLineaProcesso(rigaSerbatoi.posizionati, yCentroSerbatoi, libreria, catena)
   const rigaCatena = disponiCatenaPerAncore(catena, rigaSerbatoi.xFinale, quotaLinea, libreria)
 
   const yCondense = yBase + CORSIA_CONDENSE
@@ -409,10 +460,15 @@ export function layoutSchema(model: SchemaModel, libreria: Tarature = {}): Schem
   // aggiunge dalla barra.
   const layout: SchemaLayout = { nodi, archi: model.archi, muro: null, testi: [] }
 
-  // Ultimo passo, non uno dei primi: gli ancoraggi si risolvono sulla polilinea VERA, che esiste
-  // solo dopo che ogni nodo ha la sua posizione. Da qui in poi nessun segno porta piu'
-  // un'istruzione di ancoraggio — contratto di sola andata, vedi `segniAncorati.ts`.
-  return risolviSegniAncorati(layout, quoteInstradamento(layout, libreria), libreria)
+  // Ultimo passo, non uno dei primi: le istruzioni di sola andata si risolvono sulla geometria
+  // VERA, che esiste solo dopo che ogni nodo ha la sua posizione. Da qui in poi nessun arco porta
+  // piu' una `forma` e nessun segno un `ancoraggio` — vedi `segniAncorati.ts`.
+  //
+  // I ponti PRIMA degli ancoraggi, e non e' indifferente: le tre valvole del ponte sono ancorate
+  // ai suoi vertici, che esistono solo dopo che i gomiti sono scritti. Al contrario si
+  // troverebbero i due soli capi, e cadrebbero tutte sul ripiego a meta' tubo.
+  const conPonti = risolviPonti(layout, { altezza: ALTEZZA_BYPASS, passoCorsia: PASSO_CORSIA_BYPASS }, libreria)
+  return risolviSegniAncorati(conPonti, quoteInstradamento(conPonti, libreria), libreria)
 }
 
 /**

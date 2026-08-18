@@ -12,6 +12,8 @@ import {
 import { buildSchemaModel } from '../buildSchemaModel'
 import {
   GIOCO_FRA_STADI,
+  PASSO_GIUNZIONE,
+  PASSO_CORSIA_BYPASS,
   MARGINE_COLLETTORE,
   calcolaMuro,
   corpoNodo,
@@ -27,7 +29,9 @@ import {
   quoteInstradamento,
 } from '../layout'
 import { posizioneAncora, renderSvg } from '../renderSvg'
-import { dimensioniDi, SPESSORE_MURO } from '../symbols'
+import { preferenzeRisolteDaScheda } from '../preferenze'
+import { instrada, puntoSuTratto } from '../tratti'
+import { dimensioniDi, latoImposto, SPESSORE_MURO } from '../symbols'
 import type { Tarature } from '../libreria'
 import type { SchemaArco, SchemaLayout, SchemaModel, SchemaNodo, SchemaNodoPosizionato } from '../types'
 
@@ -1013,5 +1017,196 @@ describe('la dorsale dei compressori', () => {
       archi: [],
     }
     expect(() => quotaCollettore(layoutSchema(model))).not.toThrow()
+  })
+})
+
+describe('il by-pass nel layout', () => {
+  const scheda = () =>
+    makeScheda({
+      compressori: [makeCompressore({ codice: 'C1' })],
+      disoleatori: [makeDisoleatore({ codice: 'C1.1', compressore_associato: 'C1' })],
+      serbatoi: [makeSerbatoio({ codice: 'S1', orientamento: 'VERTICALE' })],
+      filtri: [makeFiltro({ codice: 'F1', tipo: 'PREFILTRO' }), makeFiltro({ codice: 'F2', tipo: 'LINEA' })],
+      essiccatori: [makeEssiccatore({ codice: 'E1' })],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'tanica' }),
+    })
+
+  const disegno = (gruppi: string[][] = [['F1', 'E1', 'F2']]) => {
+    const s = scheda()
+    return layoutSchema(
+      buildSchemaModel({
+        scheda: s,
+        collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+        preferenze: preferenzeRisolteDaScheda(s, {
+          bypass: gruppi.map((g, i) => ({ id: `bp${i + 1}`, stadi: g })),
+        }),
+      })
+    )
+  }
+
+  // Da una giunzione di by-pass escono DUE archi: la linea e il ponte. Il ponte e' quello che
+  // arriva sull'ALTRA giunzione — cercarlo per solo capo di partenza pesca la linea, che e'
+  // emessa per prima.
+  const ponteDi = (l: SchemaLayout, gruppo = 'BP1') =>
+    l.archi.find((a) => a.da.nodo === `${gruppo}-IN` && a.a.nodo === `${gruppo}-OUT`)!
+
+  /** La polilinea vera del ponte: gli stessi punti che disegnera' `renderSvg`. */
+  const polilineaPonte = (l: SchemaLayout, gruppo = 'BP1') => {
+    const arco = ponteDi(l, gruppo)
+    const da = nodo(l, arco.da.nodo)
+    const a = nodo(l, arco.a.nodo)
+    return instrada(
+      arco.stile,
+      posizioneAncora(da, arco.da.ancora),
+      posizioneAncora(a, arco.a.ancora),
+      arco.punti,
+      quoteInstradamento(l),
+      { da: latoImposto(da, arco.da.ancora), a: latoImposto(a, arco.a.ancora) }
+    )
+  }
+
+  it('le giunzioni cadono sulla linea di processo, come gli stadi', () => {
+    const l = disegno()
+    const quota = posizioneAncora(nodo(l, 'F1'), 'sx').y
+    for (const id of ['BP1-IN', 'BP1-OUT']) {
+      expect(posizioneAncora(nodo(l, id), 'sx').y).toBe(quota)
+    }
+  })
+
+  it('fra una giunzione e lo stadio vicino c’e’ PASSO_GIUNZIONE, di qua e di la’', () => {
+    // Asserzione sulla COSTANTE, non sul valore: il numero si chiude nel Blocco 4. Simmetrica di
+    // proposito — il TEE non deve stare appiccicato a uno dei due lati.
+    const l = disegno([['E1']])
+    expect(posizioneAncora(nodo(l, 'BP1-IN'), 'sx').x).toBe(
+      posizioneAncora(nodo(l, 'F1'), 'dx').x + PASSO_GIUNZIONE
+    )
+    expect(posizioneAncora(nodo(l, 'E1'), 'sx').x).toBe(
+      posizioneAncora(nodo(l, 'BP1-IN'), 'dx').x + PASSO_GIUNZIONE
+    )
+  })
+
+  it('senza giunzioni le distanze della catena non cambiano', () => {
+    // Non-regressione della convenzione 3: la riscrittura di `disponiCatenaPerAncore` dev'essere
+    // invisibile quando by-pass non ce ne sono.
+    const l = disegno([])
+    const stadi = l.nodi
+      .filter((n) => n.tipo === 'filtro' || n.tipo === 'essiccatore')
+      .sort((a, b) => a.x - b.x)
+    expect(stadi.length).toBeGreaterThan(1)
+    for (let i = 0; i < stadi.length - 1; i++) {
+      expect(posizioneAncora(stadi[i + 1], 'sx').x).toBe(posizioneAncora(stadi[i], 'dx').x + GIOCO_FRA_STADI)
+    }
+  })
+
+  it('con un by-pass la linea di processo scende di una corsia', () => {
+    const senza = posizioneAncora(nodo(disegno([]), 'F1'), 'sx').y
+    const con = posizioneAncora(nodo(disegno(), 'F1'), 'sx').y
+    expect(con).toBe(senza + PASSO_CORSIA_BYPASS)
+  })
+
+  it('e scende perche’ il ponte le passi SOTTO l’uscita del serbatoio, non addosso', () => {
+    // E' la ragione della corsia, e va fissata a parte: la sola discesa della linea passerebbe
+    // anche con un ponte che si accavalla all'uscita del serbatoio, che e' cio' che si voleva
+    // evitare.
+    const l = disegno()
+    const yPonte = Math.min(...polilineaPonte(l).map((p) => p.y))
+    expect(yPonte).toBeGreaterThan(posizioneAncora(nodo(l, 'S1'), 'dx').y)
+  })
+
+  it('senza by-pass la linea resta alla quota dell’uscita del serbatoio', () => {
+    // Non-regressione della convenzione 4.
+    const l = disegno([])
+    expect(posizioneAncora(nodo(l, 'F1'), 'sx').y).toBe(posizioneAncora(nodo(l, 'S1'), 'dx').y)
+  })
+
+  it('il ponte esce dal layout con quattro vertici: capo, gomito, gomito, capo', () => {
+    // E' su questo che contano i tre ancoraggi seminati da `buildArchi` — vertice 1, tratto 1,
+    // vertice 2. Cambiare il numero di gomiti sposta tutte e tre le valvole senza che nessun test
+    // del modello se ne accorga: il legame fra le due cose sta qui.
+    const punti = polilineaPonte(disegno())
+    expect(punti).toHaveLength(4)
+    expect(punti[0].x).toBe(punti[1].x) // montante di sinistra, verticale
+    expect(punti[1].y).toBe(punti[2].y) // la corsa orizzontale
+    expect(punti[2].x).toBe(punti[3].x) // montante di destra, verticale
+  })
+
+  it('senza gomiti il ponte collasserebbe sulla linea: per questo ci sono', () => {
+    // La prova che i gomiti non sono un'ottimizzazione. Tolti, `rottaImboccata` piega a `yMedia`
+    // — che coi due TEE alla stessa quota e' la loro stessa quota — e `dedup` riduce tutto a una
+    // retta orizzontale sovrapposta alla linea di processo: il by-pass sparirebbe alla vista pur
+    // esistendo nel modello.
+    const l = disegno()
+    const senzaGomiti = instrada(
+      'flessibile',
+      posizioneAncora(nodo(l, 'BP1-IN'), 'alto'),
+      posizioneAncora(nodo(l, 'BP1-OUT'), 'alto'),
+      undefined,
+      quoteInstradamento(l),
+      { da: latoImposto(nodo(l, 'BP1-IN'), 'alto'), a: latoImposto(nodo(l, 'BP1-OUT'), 'alto') }
+    )
+    expect(new Set(senzaGomiti.map((p) => p.y)).size).toBe(1)
+  })
+
+  it('le tre valvole del ponte finiscono dove le convenzioni le vogliono', () => {
+    // Si misura sui PUNTI ricalcolati, non sulle `t`: una `t` giusta su una polilinea sbagliata
+    // non e' una valvola al posto giusto.
+    const l = disegno()
+    const punti = polilineaPonte(l)
+    const yOrizzontale = punti[1].y
+    const posizioni = ponteDi(l).segni!.map((s) => puntoSuTratto(punti, s.t).punto)
+
+    // Sinistra e destra: sui due montanti, due passi di griglia sotto la corsa orizzontale.
+    expect(posizioni[0]).toEqual({ x: punti[1].x, y: yOrizzontale + 20 })
+    expect(posizioni[2]).toEqual({ x: punti[2].x, y: yOrizzontale + 20 })
+    // Centro: a meta' della corsa orizzontale.
+    expect(posizioni[1]).toEqual({ x: (punti[1].x + punti[2].x) / 2, y: yOrizzontale })
+  })
+
+  it('nessun arco in uscita da layoutSchema porta ancora forma', () => {
+    // Il contratto di sola andata, sullo stampo di quello gia' scritto per `ancoraggio`.
+    const l = disegno()
+    expect(l.archi.some((a) => (a.punti ?? []).length > 0)).toBe(true) // o passerebbe a vuoto
+    for (const arco of l.archi) expect(arco).not.toHaveProperty('forma')
+  })
+
+  it('il tubo dal serbatoio scende a mezza strada, non rasente il fianco del serbatoio', () => {
+    // Difetto trovato guardando il disegno, non dai test. Il TEE di monte impone il lato `sx`, e
+    // `rottaImboccata` con un capo solo imposto piega SUBITO: il tratto verticale correva sul
+    // bordo del serbatoio, invisibile perche' sovrapposto al suo contorno, e il tubo sembrava
+    // uscire dalla pancia invece che dal bocchello — sbagliato ma plausibile, il peggior tipo di
+    // errore per questo modulo.
+    const l = disegno()
+    const arco = l.archi.find((a) => a.da.nodo === 'S1' && a.a.nodo === 'BP1-IN')!
+    const uscita = posizioneAncora(nodo(l, 'S1'), 'dx')
+    const tee = posizioneAncora(nodo(l, 'BP1-IN'), 'sx')
+    const punti = instrada(
+      arco.stile,
+      uscita,
+      tee,
+      arco.punti,
+      quoteInstradamento(l),
+      { da: undefined, a: latoImposto(nodo(l, 'BP1-IN'), 'sx') }
+    )
+    // Quattro vertici: parte in orizzontale, scende a mezza strada, arriva in orizzontale.
+    expect(punti).toHaveLength(4)
+    expect(punti[1].x).toBe((uscita.x + tee.x) / 2)
+    expect(punti[1].x).toBeGreaterThan(uscita.x)
+    expect(punti[punti.length - 1].y).toBe(punti[punti.length - 2].y)
+  })
+
+  it('ma senza dislivello non inventa gomiti', () => {
+    // Dentro la catena i capi stanno tutti alla stessa quota: un gomito li' sarebbe markup in piu'
+    // in ogni documento consegnato, e un tratto di lunghezza nulla e' un tranello per gli
+    // ancoraggi, che contano vertici e tratti.
+    const l = disegno([['E1']])
+    const arco = l.archi.find((a) => a.da.nodo === 'F1' && a.a.nodo === 'BP1-IN')!
+    expect(arco.punti ?? []).toHaveLength(0)
+  })
+
+  it('due by-pass disgiunti corrono sulla stessa corsia, e non si vedono scalini', () => {
+    const l = disegno([['F1'], ['F2']])
+    const yPrimo = Math.min(...polilineaPonte(l, 'BP1').map((p) => p.y))
+    const ySecondo = Math.min(...polilineaPonte(l, 'BP2').map((p) => p.y))
+    expect(yPrimo).toBe(ySecondo)
   })
 })
