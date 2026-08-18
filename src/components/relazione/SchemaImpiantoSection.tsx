@@ -83,8 +83,9 @@ export interface SchemaImpiantoSectionProps {
    * - `undefined` — il genitore non ha ancora letto `additional_info`: non si genera e non si
    *   alza la guardia `generazioneTentata`, altrimenti alla lettura effettiva il valore vero
    *   arriverebbe a guardia già alzata e verrebbe ignorato.
-   * - `null` — letto, non c'è nessun layout salvato: si genera da zero.
-   * - `LayoutSalvato` — letto, c'è: si riconcilia.
+   * - `null` — letto, non c'è nessun layout salvato: è la prima generazione, e dal 18-08-2026
+   *   NON parte da sola — l'operatore la chiede premendo «Genera schema».
+   * - `LayoutSalvato` — letto, c'è: si riconcilia in automatico, come sempre.
    */
   layoutSalvato: LayoutSalvato | null | undefined
   /** Chiamata a ogni `disegna`, così il dialog ha sempre il layout corrente da persistere. */
@@ -337,10 +338,16 @@ export function SchemaImpiantoSection({
     [scheda, schemaPreferenze]
   )
 
-  // Prima generazione automatica: appena i dati bastano, l'utente trova la proposta già
-  // pronta. Non si rigenera da sola dopo: sovrascriverebbe le correzioni fatte nell'editor.
-  // Con un layout salvato la proposta è la riconciliazione, non l'auto-layout da zero: le
-  // posizioni ritoccate a mano non vanno perse solo perché il dialog è stato riaperto.
+  // Riconciliazione automatica di un layout SALVATO: appena i dati bastano, l'utente ritrova il
+  // suo disegno (ritoccato a mano nella sessione precedente) riconciliato con la scheda com'è
+  // adesso. Non si rigenera da sola dopo: sovrascriverebbe le correzioni fatte nell'editor.
+  //
+  // La PRIMA generazione — nessun layout mai salvato — non è automatica dal 18-08-2026 (difetto
+  // trovato su una pratica vera, BADOER INFISSI: lo schema nasceva da collegamenti e preferenze
+  // ancora a metà, prima che l'operatore avesse finito di dichiararli, e la sola via per vederlo
+  // giusto era «Rigenera da capo» — un pulsante pensato per SCARTARE una scelta, non per la prima
+  // occhiata). L'operatore lo chiede premendo «Genera schema» (il bottone qui sotto, già cablato
+  // su `rigenera`): questo effetto si limita a NON anticiparlo.
   const generazioneTentata = useRef(false)
   useEffect(() => {
     // Il genitore non ha ancora letto `additional_info`: aspetta il valore vero prima di
@@ -350,6 +357,11 @@ export function SchemaImpiantoSection({
     // di prima (il genitore lo sincronizza in un effetto suo, che parte dopo) e la guardia si
     // alzerebbe sul layout vecchio.
     if (layoutSalvato === undefined) return
+    // Nessun layout salvato: è la prima generazione, e da qui non parte più da sola — vedi il
+    // commento sopra. NON alza `generazioneTentata`: se una relazione salvata comparisse più
+    // tardi da un'altra fonte (caso raro, non escluso dal tipo), l'effetto deve poterla ancora
+    // riconciliare invece di restare bloccato su una guardia alzata quando non c'era nulla.
+    if (!layoutSalvato) return
     // Stessa cautela, sull'altro ingresso che arriva in ritardo: le tarature permanenti. Generare
     // prima che siano lette produrrebbe un disegno col simbolo di fabbrica e alzerebbe la
     // guardia, e non si rigenera più da soli — la taratura permanente non comparirebbe mai.
@@ -456,10 +468,17 @@ export function SchemaImpiantoSection({
 
       {puoGenerare ? (
         <Typography variant="body2" color="text.secondary">
-          Lo schema viene generato dai dati della scheda (apparecchiature, collegamenti
-          compressori-serbatoi, raccolta condense, ubicazione dei serbatoi). Rifiniscilo
-          nell’editor per aggiungere ciò che i dati non sanno — bypass, valvole aggiuntive,
-          tratti flessibili — oppure carica un disegno AutoCAD.
+          {layout
+            ? // C'è già un disegno (generato in questa sessione o riconciliato da un salvataggio
+              // precedente): il messaggio descrive cosa fare ADESSO, non come nasce la prima volta.
+              'Rifinisci lo schema nell’editor per aggiungere ciò che i dati non sanno — bypass, ' +
+              'valvole aggiuntive, tratti flessibili — oppure carica un disegno AutoCAD.'
+            : // Prima generazione: non parte da sola dal 18-08-2026 (vedi il commento sull'effetto
+              // qui sotto). L'operatore rivede collegamenti e preferenze e preme «Genera schema».
+              'Lo schema si genera dai dati della scheda (apparecchiature, collegamenti ' +
+              'compressori-serbatoi, raccolta condense, ubicazione dei serbatoi) quando premi ' +
+              '«Genera schema» qui sotto — controlla prima i collegamenti e le opzioni delle ' +
+              'apparecchiature, o rigenera dopo averle corrette.'}
         </Typography>
       ) : (
         <Alert severity="info">
