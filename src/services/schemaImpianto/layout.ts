@@ -100,8 +100,44 @@ export const MARGINE_COLLETTORE = 10
  * serbatoio — cioe' col serbatoio ORIZZONTALE; col verticale detta sempre il serbatoio.
  */
 export const MARGINE_COLLETTORE_COMPRESSORI = 60
-/** Distanza verticale fra la riga dei compressori e quella dei serbatoi. */
-const PASSO_VERTICALE = 80
+/**
+ * Spazio fra due compressori affiancati. Due passi di griglia: misurato su `no bypass.png`, fra il
+ * bordo destro di C1 e quello sinistro di C2 corrono 11,4 px, cioe' ~20 unita' alla scala di
+ * quell'immagine (0,581 px/unita', letta dal reticolo da 10 unita' della tela). E' la convenzione
+ * 8, «spazi ridotti allo stretto indispensabile»: prima valeva `PASSO_ORIZZONTALE`, 60.
+ *
+ * Suo e non `PASSO_ORIZZONTALE` perche' quello e' condiviso con `calcolaMuro` e con la corsia di
+ * raccolta, che il riferimento non smentisce.
+ */
+export const PASSO_COMPRESSORI = 20
+
+/**
+ * Spazio fra due serbatoi affiancati. Lo stesso dei compressori: i due riferimenti portano un
+ * serbatoio solo, quindi questa misura NON e' stata letta su un disegno — e' la scelta simmetrica,
+ * l'unica difendibile senza un dato. Se il committente un giorno ne fornisce uno con due serbatoi,
+ * si taglia qui senza toccare altro.
+ */
+export const PASSO_SERBATOI = 20
+
+/**
+ * Stacco fra il bordo destro dell'ultimo compressore e quello sinistro del primo serbatoio.
+ * Misurato ~90 su `no bypass.png` (53 px).
+ *
+ * Prima questo stacco non esisteva come nome: valeva `PASSO_ORIZZONTALE + PASSO_VERTICALE` = 140,
+ * dove il secondo era dichiarato «distanza VERTICALE fra la riga dei compressori e quella dei
+ * serbatoi» e veniva invece sommato all'ascissa. `PASSO_VERTICALE` e' stato tolto per questo: non
+ * descriveva cio' che faceva.
+ */
+export const STACCO_COMPRESSORI_SERBATOI = 90
+
+/**
+ * Stacco fra il bordo destro dell'ultimo serbatoio e l'ancora `sx` del primo stadio. Misurato ~73
+ * su `no bypass.png` (42,5 px). **Qui si allarga**, dai 60 di `PASSO_ORIZZONTALE`: su questo
+ * tratto sta la valvola di riserva all'uscita del serbatoio (convenzione 6), e a 60 le stava
+ * stretta. 70 e' la misura arrotondata al passo di griglia.
+ */
+export const STACCO_SERBATOI_LINEA = 70
+
 /** Corsia in basso riservata alla rete di linee condense e al pozzo di raccolta. */
 const CORSIA_CONDENSE = 120
 /**
@@ -258,15 +294,27 @@ export function muroDaAscissa(
  * chiamanti (compressori, catena, raccolta) hanno un'altezza uniforme per tipo: per loro
  * centro e base producono la stessa x/y di prima, `'centro'` resta il default apposta per non
  * toccarli.
+ *
+ * `passo` e' lo spazio fra due elementi della riga, e vale `PASSO_ORIZZONTALE` per chi non lo
+ * passa: le famiglie hanno passi diversi (`PASSO_COMPRESSORI`, `PASSO_SERBATOI`) dal Blocco 4,
+ * la riga della raccolta condense no.
+ *
+ * **`xFinale` e' il BORDO DESTRO dell'ultimo elemento**, non il bordo piu' un passo. Lo stacco
+ * verso cio' che segue lo mette il chiamante, con la costante che ne porta il nome: fino al
+ * 18-08-2026 ci finiva dentro un `PASSO_ORIZZONTALE` implicito, e i due stacchi del disegno —
+ * compressori → serbatoi e serbatoi → linea — non erano regolabili separatamente. Con la riga
+ * vuota `xFinale` resta `xIniziale`, come prima.
  */
 function disponiInRiga(
   nodi: SchemaNodo[],
   xIniziale: number,
   quota: number,
   allineamento: 'centro' | 'basso' = 'centro',
-  libreria: Tarature = {}
+  libreria: Tarature = {},
+  passo: number = PASSO_ORIZZONTALE
 ): { posizionati: SchemaNodoPosizionato[]; xFinale: number } {
   let x = xIniziale
+  let bordoDestro = xIniziale
   const posizionati = nodi.map((nodo) => {
     // `dimensioniDi`, non `DIMENSIONI_NODO[nodo.tipo]`: per tutti i tipi tranne il serbatoio
     // orizzontale coincidono (Task 4, Blocco 3), ma per lui `DIMENSIONI_NODO['serbatoio']`
@@ -275,10 +323,11 @@ function disponiInRiga(
     const dim = dimensioniDi(nodo, libreria)
     const y = allineamento === 'basso' ? quota - dim.altezza : quota - dim.altezza / 2
     const collocato = posiziona(nodo, x, y)
-    x += dim.larghezza + PASSO_ORIZZONTALE
+    bordoDestro = x + dim.larghezza
+    x = bordoDestro + passo
     return collocato
   })
-  return { posizionati, xFinale: x }
+  return { posizionati, xFinale: bordoDestro }
 }
 
 /**
@@ -428,18 +477,33 @@ export function layoutSchema(model: SchemaModel, libreria: Tarature = {}): Schem
   const yCentroCompressori = yBase - altezzaCompressore / 2
   const yCentroSerbatoi = yBase - altezzaSerbatoio / 2
 
-  const rigaCompressori = disponiInRiga(compressori, MARGINE, yCentroCompressori, 'centro', libreria)
+  // Ogni stacco porta il nome di cio' che separa (Blocco 4, convenzione 8): `xFinale` e' il bordo
+  // destro della riga, e lo spazio verso la famiglia seguente lo mette qui il chiamante.
+  const rigaCompressori = disponiInRiga(
+    compressori,
+    MARGINE,
+    yCentroCompressori,
+    'centro',
+    libreria,
+    PASSO_COMPRESSORI
+  )
   const rigaSerbatoi = disponiInRiga(
     serbatoi,
-    rigaCompressori.xFinale + PASSO_VERTICALE,
+    rigaCompressori.xFinale + STACCO_COMPRESSORI_SERBATOI,
     yBase,
     'basso',
-    libreria
+    libreria,
+    PASSO_SERBATOI
   )
   // La catena di trattamento sta a valle dei serbatoi, sulla quota della loro USCITA — non piu'
   // sulla loro mezzeria (`yCentroSerbatoi`, che resta il ripiego quando serbatoi non ce ne sono).
   const quotaLinea = quotaLineaProcesso(rigaSerbatoi.posizionati, yCentroSerbatoi, libreria, catena)
-  const rigaCatena = disponiCatenaPerAncore(catena, rigaSerbatoi.xFinale, quotaLinea, libreria)
+  const rigaCatena = disponiCatenaPerAncore(
+    catena,
+    rigaSerbatoi.xFinale + STACCO_SERBATOI_LINEA,
+    quotaLinea,
+    libreria
+  )
 
   const yCondense = yBase + CORSIA_CONDENSE
   const rigaRaccolta = disponiInRiga(raccolta, Math.max(rigaCatena.xFinale, MARGINE), yCondense, 'centro', libreria)

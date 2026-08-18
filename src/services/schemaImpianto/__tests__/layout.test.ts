@@ -15,6 +15,9 @@ import {
   PASSO_GIUNZIONE,
   PASSO_CORSIA_BYPASS,
   MARGINE_COLLETTORE,
+  PASSO_COMPRESSORI,
+  STACCO_COMPRESSORI_SERBATOI,
+  STACCO_SERBATOI_LINEA,
   calcolaMuro,
   corpoNodo,
   quotaCollettore,
@@ -1008,6 +1011,56 @@ describe('il contratto di sola andata degli ancoraggi', () => {
     const risolto = layoutSchema(model).archi.find((a) => a.id === flex.id)!
     expect(risolto.segni![0].t).not.toBe(0.5)
     expect(risolto.segni![0]).not.toHaveProperty('ancoraggio')
+  })
+})
+
+describe('gli stacchi fra le famiglie', () => {
+  const impianto = () =>
+    layoutSchema(
+      buildSchemaModel({
+        scheda: schedaTrePiuUno(),
+        collegamentiCompressoriSerbatoi: { C1: ['S1'], C2: ['S1'], C3: ['S1'] },
+      })
+    )
+  const compressoriDi = (l: SchemaLayout) =>
+    l.nodi.filter((n) => n.tipo === 'compressore').sort((a, b) => a.x - b.x)
+
+  it('due compressori affiancati stanno a due passi di griglia l’uno dall’altro', () => {
+    // Convenzione 8, misurata su `no bypass.png`: fra il bordo destro di C1 e quello sinistro di
+    // C2 corrono 11,4 px, cioe' ~20 unita' alla scala di quell'immagine (0,581 px/unita', letta
+    // dal reticolo da 10 unita' della tela). Prima erano 60, cioe' `PASSO_ORIZZONTALE`.
+    const compressori = compressoriDi(impianto())
+    expect(compressori.length).toBeGreaterThan(1)
+    for (let i = 0; i + 1 < compressori.length; i++) {
+      const bordoDestro = compressori[i].x + dimensioniDi(compressori[i]).larghezza
+      expect(compressori[i + 1].x - bordoDestro).toBe(PASSO_COMPRESSORI)
+    }
+  })
+
+  it('il serbatoio segue i compressori a un solo stacco, non a due sommati', () => {
+    // Prima valeva `PASSO_ORIZZONTALE + PASSO_VERTICALE` = 140, e nessuno dei due nomi diceva
+    // «stacco fra la sala compressori e i serbatoi» — il secondo si dichiarava perfino VERTICALE.
+    // Misurato ~90 sul riferimento (53 px fra il bordo destro di C2 e quello sinistro di S1).
+    const l = impianto()
+    const compressori = compressoriDi(l)
+    const ultimo = compressori[compressori.length - 1]
+    const serbatoio = nodo(l, 'S1')
+    expect(serbatoio.x - (ultimo.x + dimensioniDi(ultimo).larghezza)).toBe(STACCO_COMPRESSORI_SERBATOI)
+  })
+
+  it('il primo stadio segue il serbatoio a `STACCO_SERBATOI_LINEA` dal suo bordo', () => {
+    // Su questo tratto sta la valvola di riserva all'uscita del serbatoio (convenzione 6):
+    // misurato ~73 sul riferimento (42,5 px), contro i 60 di prima. E' l'unico dei tre stacchi
+    // che CRESCE — a 60 la valvola ci stava stretta.
+    const l = layoutSchema(
+      buildSchemaModel({ scheda: schedaConTreStadi(), collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    )
+    const serbatoio = nodo(l, 'S1')
+    const primo = l.nodi
+      .filter((n) => n.tipo === 'filtro' || n.tipo === 'essiccatore')
+      .sort((a, b) => a.x - b.x)[0]
+    const bordoSerbatoio = serbatoio.x + dimensioniDi(serbatoio).larghezza
+    expect(posizioneAncora(primo, 'sx').x - bordoSerbatoio).toBe(STACCO_SERBATOI_LINEA)
   })
 })
 
