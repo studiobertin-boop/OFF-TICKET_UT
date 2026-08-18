@@ -932,10 +932,29 @@ describe('la linea di processo si dispone per ancore', () => {
     }
   })
 
-  it('il passo fra due stadi è 100, non i 170 del riquadro più PASSO_ORIZZONTALE', () => {
-    // Il numero della convenzione 3. Non fissa `GIOCO_FRA_STADI` — quello si chiude nel Blocco 4,
-    // guardando il disegno — ma fissa che l'avanzamento venga dalle ANCORE (il rombo le ha a 0 e
-    // 100 su un riquadro di 110) e non dal riquadro piu' il passo orizzontale.
+  it('i codoli di due stadi adiacenti si toccano punta a punta, senza entrare l’uno nell’altro', () => {
+    // `simboloRombo` (symbols/index.ts) disegna il rombo fra x=0 e x=100 dentro un riquadro largo
+    // 110, con le ancore sx/dx sulle DUE PUNTE e un codolo di 10 unita' che sporge fuori da
+    // ciascuna. Il collegamento fra due stadi e' fatto dai due codoli che si incontrano: a gioco 0
+    // il codolo sinistro del secondo rombo entrava di 10 unita' nel corpo del primo, e i due
+    // simboli sembravano fusi — cio' che il disegno mostrava prima del Blocco 4.
+    //
+    // Non e' un doppione del test qui sopra: quello fissa che il passo venga dalle ANCORE, questo
+    // fissa PERCHE' il gioco non puo' essere zero. Il primo passa anche a gioco 0.
+    const CODOLO = 10
+    const stadi = stadiDi(disegno())
+    expect(stadi.length).toBeGreaterThan(1)
+    for (let i = 0; i < stadi.length - 1; i++) {
+      const puntaDx = posizioneAncora(stadi[i], 'dx').x
+      const puntaSx = posizioneAncora(stadi[i + 1], 'sx').x
+      expect(puntaDx + CODOLO).toBe(puntaSx - CODOLO)
+    }
+  })
+
+  it('il passo fra due stadi viene dalle ancore, non dal riquadro più PASSO_ORIZZONTALE', () => {
+    // Il numero della convenzione 3. Non fissa `GIOCO_FRA_STADI` — quello e' una scelta del
+    // committente, chiusa a 20 nel Blocco 4 — ma fissa che l'avanzamento venga dalle ANCORE (il
+    // rombo le ha a 0 e 100 su un riquadro di 110) e non dal riquadro piu' il passo orizzontale.
     const stadi = stadiDi(disegno())
     for (let i = 0; i < stadi.length - 1; i++) {
       expect(stadi[i + 1].x - stadi[i].x).toBe(100 + GIOCO_FRA_STADI)

@@ -105,16 +105,22 @@ const PASSO_VERTICALE = 80
 /** Corsia in basso riservata alla rete di linee condense e al pozzo di raccolta. */
 const CORSIA_CONDENSE = 120
 /**
- * Spazio fra l'ancora `dx` di uno stadio e l'ancora `sx` del successivo. **Zero**: il committente
- * vuole le ancore coincidenti — passo 100 invece dei 170 di prima (riquadro 110 piu'
- * `PASSO_ORIZZONTALE`), che e' la convenzione 3.
+ * Spazio fra l'ancora `dx` di uno stadio e l'ancora `sx` del successivo: **venti unita'**, due
+ * passi di griglia. Il passo fra stadi vale quindi 120 (ancore a 100 piu' il gioco), contro i 170
+ * di prima del Blocco 2 (riquadro 110 piu' `PASSO_ORIZZONTALE`), che e' la convenzione 3.
  *
- * Da guardare nel Blocco 4, non da decidere qui: i rombi portano codoli da 10 unita' che sporgono
- * FUORI dal riquadro (`simboloRombo`, symbols/index.ts), quindi a gioco 0 il codolo destro di ogni
- * stadio entra di 10 unita' nella punta del vicino. Se il disegno lo mostra, il valore giusto e'
- * 20: i codoli si toccano e formano il collegamento, che e' cio' che si vede nei due riferimenti.
+ * Deciso dal committente il 18-08-2026, e confermato dalla misura sul riferimento: su
+ * `no bypass.png` i centri dei quattro rombi cadono a 331/401/470/540 px, un passo di 69,7 px che
+ * alla scala di quell'immagine (0,581 px/unita', letta dal reticolo da 10 unita' della tela) fa
+ * **120,0 unita'**.
+ *
+ * Non e' un valore estetico ma la condizione perche' il collegamento fra due stadi si veda:
+ * `simboloRombo` (symbols/index.ts) disegna un codolo di 10 unita' che sporge FUORI da ciascuna
+ * delle due punte. A gioco 20 i due codoli si toccano e formano il tratto di tubo; a gioco 0 il
+ * codolo sinistro del secondo rombo entrava di 10 unita' nel corpo del primo, e i due simboli
+ * sembravano fusi.
  */
-export const GIOCO_FRA_STADI = 0
+export const GIOCO_FRA_STADI = 20
 
 /**
  * Spazio fra l'ancora di una giunzione di by-pass e quella dello stadio vicino, di qua e di la'.
