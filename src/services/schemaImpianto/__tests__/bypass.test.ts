@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { corsieDeiPonti, idTeeBypass, linearizzaConBypass, nodoGiunzioneBypass } from '../bypass'
+import {
+  capoDiValleDi,
+  corsieDeiPonti,
+  eCapoDiMonte,
+  idTeeBypass,
+  linearizzaConBypass,
+  nodoGiunzioneBypass,
+} from '../bypass'
 import type { SchemaNodo } from '../types'
 
 const nodo = (id: string, tipo: SchemaNodo['tipo'] = 'filtro'): SchemaNodo => ({
@@ -153,5 +160,31 @@ describe('corsieDeiPonti', () => {
         { inizio: 7, fine: 8 },
       ])
     ).toEqual([0, 1, 0])
+  })
+})
+
+describe('riconoscere il capo di monte', () => {
+  it('lo distingue da quello di valle, e da tutto il resto', () => {
+    // La quota di un capo di by-pass dipende da quale dei due e' (Blocco 5): il layout deve
+    // saperlo dall'id, che e' l'unica cosa che ha in mano mentre dispone la sequenza.
+    expect(eCapoDiMonte('BP1-IN')).toBe(true)
+    expect(eCapoDiMonte('BP12-IN')).toBe(true)
+    expect(eCapoDiMonte('BP1-OUT')).toBe(false)
+    expect(eCapoDiMonte('M-1')).toBe(false)
+    expect(eCapoDiMonte('F1')).toBe(false)
+  })
+
+  it('trova il capo di valle che gli fa coppia', () => {
+    expect(capoDiValleDi('BP1-IN')).toBe('BP1-OUT')
+    expect(capoDiValleDi('BP12-IN')).toBe('BP12-OUT')
+  })
+
+  it('i due riconoscitori e gli id sono la stessa cosa detta due volte', () => {
+    // Se `idTeeBypass` cambiasse forma agli id, questi due lo seguirebbero senza che nessuno se ne
+    // accorga: il legame va fissato qui.
+    const { inizio, fine } = idTeeBypass('bp3')
+    expect(eCapoDiMonte(inizio)).toBe(true)
+    expect(eCapoDiMonte(fine)).toBe(false)
+    expect(capoDiValleDi(inizio)).toBe(fine)
   })
 })

@@ -1204,23 +1204,39 @@ describe('il by-pass nel layout', () => {
     )
   }
 
-  it('le giunzioni cadono sulla linea di processo, come gli stadi', () => {
+  it('la giunzione di valle cade sulla linea di processo, come gli stadi', () => {
     const l = disegno()
-    const quota = posizioneAncora(nodo(l, 'F1'), 'sx').y
-    for (const id of ['BP1-IN', 'BP1-OUT']) {
-      expect(posizioneAncora(nodo(l, id), 'sx').y).toBe(quota)
-    }
+    expect(posizioneAncora(nodo(l, 'BP1-OUT'), 'sx').y).toBe(posizioneAncora(nodo(l, 'F1'), 'sx').y)
   })
 
-  it('fra una giunzione e lo stadio vicino c’e’ PASSO_GIUNZIONE, di qua e di la’', () => {
-    // Asserzione sulla COSTANTE, non sul valore: il numero si chiude nel Blocco 4. Simmetrica di
-    // proposito — il TEE non deve stare appiccicato a uno dei due lati.
-    const l = disegno([['E1']])
-    expect(posizioneAncora(nodo(l, 'BP1-IN'), 'sx').x).toBe(
-      posizioneAncora(nodo(l, 'F1'), 'dx').x + PASSO_GIUNZIONE
+  it('la giunzione di monte sta invece alla quota dell’uscita del serbatoio', () => {
+    // La scelta del committente sul suo disegno (18-08-2026), ed e' ASIMMETRICA di proposito: a
+    // monte il flusso si divide PRIMA di scendere negli stadi, a valle si ricongiunge SULLA linea
+    // e prosegue verso le utenze a quella quota. Renderla simmetrica aggiungerebbe verso le utenze
+    // un tratto verticale che nel riferimento non c'e'.
+    const l = disegno()
+    expect(posizioneAncora(nodo(l, 'BP1-IN'), 'sx').y).toBe(posizioneAncora(nodo(l, 'S1'), 'dx').y)
+    // La stessa cosa detta in unita' di corsia: sta `PASSO_CORSIA_BYPASS` sopra la linea, cioe'
+    // esattamente di quanto la linea era scesa per fargli posto.
+    expect(posizioneAncora(nodo(l, 'BP1-IN'), 'sx').y).toBe(
+      posizioneAncora(nodo(l, 'F1'), 'sx').y - PASSO_CORSIA_BYPASS
     )
-    expect(posizioneAncora(nodo(l, 'E1'), 'sx').x).toBe(
-      posizioneAncora(nodo(l, 'BP1-IN'), 'dx').x + PASSO_GIUNZIONE
+  })
+
+  it('il TEE di monte sta un PASSO_GIUNZIONE prima della punta del primo stadio scavalcato', () => {
+    // Asserzione sulla COSTANTE, non sul valore. La simmetria del Blocco 3 non c'e' piu' e non
+    // deve esserci: di qua il TEE sta SOPRA la linea, di la' e' di fianco. La misura sul
+    // riferimento (Blocco 5) da' 20,6 unita' di qua e 28 di la': un passo solo le copre entrambe.
+    const l = disegno()
+    expect(posizioneAncora(nodo(l, 'BP1-IN'), 'sx').x).toBe(
+      posizioneAncora(nodo(l, 'F1'), 'sx').x - PASSO_GIUNZIONE
+    )
+  })
+
+  it('e il TEE di valle un PASSO_GIUNZIONE dopo la punta dell’ultimo, sulla linea', () => {
+    const l = disegno()
+    expect(posizioneAncora(nodo(l, 'BP1-OUT'), 'sx').x).toBe(
+      posizioneAncora(nodo(l, 'F2'), 'dx').x + PASSO_GIUNZIONE
     )
   })
 
@@ -1243,23 +1259,22 @@ describe('il by-pass nel layout', () => {
     expect(con).toBe(senza + PASSO_CORSIA_BYPASS)
   })
 
-  it('la corsa del ponte cade sulla quota dell’uscita del serbatoio, e comincia oltre di essa', () => {
-    // E' l'invariante che il committente ha disegnato a mano su `si bypass.png`: il tratto che esce
-    // dal serbatoio e la corsa del ponte sono la STESSA orizzontale — una sola riga forte, y=74/75,
-    // lunga 322 px su 643. La linea di processo scende di una corsia proprio perche' il ponte possa
-    // correre li': e' quindi `ALTEZZA_BYPASS === PASSO_CORSIA_BYPASS`, non un numero libero, e il
-    // legame fra le due costanti va fissato qui o si sfalderebbe alla prima taratura.
-    //
-    // Fino al 18-08-2026 questo test chiedeva che il ponte stesse piu' in BASSO dell'uscita: era
-    // un'approssimazione della regola. Cio' che tiene i due tratti separati non e' la quota — sono
-    // complanari — ma l'ascissa: la corsa del ponte comincia dove la linea di processo e' gia'
-    // scesa, cioe' a destra del bocchello.
+  it('la corsa del ponte cade sulla quota dell’uscita del serbatoio, e le e’ ADIACENTE', () => {
+    // La prima meta' resta vera per un'altra ragione: non perche' il ponte salga di
+    // `ALTEZZA_BYPASS` sopra due capi complanari, ma perche' il capo di monte e' gia' li'.
+    // La seconda cambia: il tratto che arriva da S1 e la corsa del ponte non sono piu' disgiunti,
+    // si TOCCANO sul TEE — ed e' cio' che il riferimento mostra come una riga sola, da x=270
+    // (bocchello di S1) a x=575, senza interruzioni.
     const l = disegno()
     const uscita = posizioneAncora(nodo(l, 'S1'), 'dx')
     const punti = polilineaPonte(l)
+    expect(punti[0].y).toBe(uscita.y)
     expect(punti[1].y).toBe(uscita.y)
-    expect(punti[2].y).toBe(uscita.y)
-    expect(punti[1].x).toBeGreaterThan(uscita.x)
+    expect(punti[0].x).toBeGreaterThan(uscita.x)
+    // E l'arco che arriva da S1 finisce dove il ponte comincia, senza gomiti fra i due: il gradino
+    // dal serbatoio sparisce da se', perche' i suoi due capi sono ora alla stessa quota.
+    const daSerbatoio = l.archi.find((a) => a.da.nodo === 'S1' && a.a.nodo === 'BP1-IN')!
+    expect(daSerbatoio.punti ?? []).toHaveLength(0)
   })
 
   it('senza by-pass la linea resta alla quota dell’uscita del serbatoio', () => {
@@ -1268,47 +1283,77 @@ describe('il by-pass nel layout', () => {
     expect(posizioneAncora(nodo(l, 'F1'), 'sx').y).toBe(posizioneAncora(nodo(l, 'S1'), 'dx').y)
   })
 
-  it('il ponte esce dal layout con quattro vertici: capo, gomito, gomito, capo', () => {
-    // E' su questo che contano i tre ancoraggi seminati da `buildArchi` — vertice 1, tratto 1,
-    // vertice 2. Cambiare il numero di gomiti sposta tutte e tre le valvole senza che nessun test
-    // del modello se ne accorga: il legame fra le due cose sta qui.
+  it('il ponte esce dal layout con tre vertici: capo, gomito, capo', () => {
+    // E' su questo che contano i due ancoraggi seminati da `buildArchi` — meta' del tratto 0 e
+    // vertice 1. Cambiare il numero di gomiti sposta le due valvole senza che nessun test del
+    // modello se ne accorga: il legame fra le due cose sta qui.
     const punti = polilineaPonte(disegno())
-    expect(punti).toHaveLength(4)
-    expect(punti[0].x).toBe(punti[1].x) // montante di sinistra, verticale
-    expect(punti[1].y).toBe(punti[2].y) // la corsa orizzontale
-    expect(punti[2].x).toBe(punti[3].x) // montante di destra, verticale
+    expect(punti).toHaveLength(3)
+    expect(punti[0].y).toBe(punti[1].y) // la corsa orizzontale, tratto 0
+    expect(punti[1].x).toBe(punti[2].x) // la gamba che scende, tratto 1
   })
 
-  it('senza gomiti il ponte collasserebbe sulla linea: per questo ci sono', () => {
-    // La prova che i gomiti non sono un'ottimizzazione. Tolti, `rottaImboccata` piega a `yMedia`
-    // — che coi due TEE alla stessa quota e' la loro stessa quota — e `dedup` riduce tutto a una
-    // retta orizzontale sovrapposta alla linea di processo: il by-pass sparirebbe alla vista pur
-    // esistendo nel modello.
+  it('col capo di monte preso dall’alto il ponte piegherebbe a mezza quota: per questo il gomito', () => {
+    // La ragione del gomito CAMBIA col Blocco 5. Prima: coi due TEE alla stessa quota
+    // `rottaImboccata` piegava a `yMedia` — la loro stessa quota — e `dedup` riduceva il ponte a
+    // una retta sovrapposta alla linea di processo. Ora i due capi stanno a quote diverse, e la
+    // piega dipende dai LATI: prendendo il capo di monte dall'ancora `alto` (verticale su
+    // entrambi i capi) la corsa cadrebbe a meta' fra le due quote — un ponte che non corre ne'
+    // sulla quota del suo capo ne' su quella della linea.
     const l = disegno()
-    const senzaGomiti = instrada(
-      'flessibile',
+    const quotaMonte = posizioneAncora(nodo(l, 'BP1-IN'), 'alto').y
+    const quotaValle = posizioneAncora(nodo(l, 'BP1-OUT'), 'alto').y
+    const dallAlto = instrada(
+      'standard',
       posizioneAncora(nodo(l, 'BP1-IN'), 'alto'),
       posizioneAncora(nodo(l, 'BP1-OUT'), 'alto'),
       undefined,
       quoteInstradamento(l),
       { da: latoImposto(nodo(l, 'BP1-IN'), 'alto'), a: latoImposto(nodo(l, 'BP1-OUT'), 'alto') }
     )
-    expect(new Set(senzaGomiti.map((p) => p.y)).size).toBe(1)
+    expect(dallAlto.some((p) => p.y !== quotaMonte && p.y !== quotaValle)).toBe(true)
+    // Preso di FIANCO, invece, la piega che `rottaImboccata` produce da se' coincide col gomito
+    // scritto dal layout: il ponte non dipende da un'euristica per stare al suo posto. Questo
+    // test e' la sentinella del giorno in cui le due risposte divergessero.
+    const senzaGomiti = instrada(
+      'standard',
+      posizioneAncora(nodo(l, 'BP1-IN'), 'dx'),
+      posizioneAncora(nodo(l, 'BP1-OUT'), 'alto'),
+      undefined,
+      quoteInstradamento(l),
+      { da: latoImposto(nodo(l, 'BP1-IN'), 'dx'), a: latoImposto(nodo(l, 'BP1-OUT'), 'alto') }
+    )
+    expect(senzaGomiti).toEqual(polilineaPonte(l))
   })
 
-  it('le tre valvole del ponte finiscono dove le convenzioni le vogliono', () => {
+  it('le tre valvole finiscono dove le convenzioni le vogliono, su DUE archi', () => {
     // Si misura sui PUNTI ricalcolati, non sulle `t`: una `t` giusta su una polilinea sbagliata
-    // non e' una valvola al posto giusto.
+    // non e' una valvola al posto giusto. Dal Blocco 5 le tre valvole non stanno piu' tutte sul
+    // ponte: quella di monte e' scesa sul montante, che e' un normale arco della catena.
     const l = disegno()
     const punti = polilineaPonte(l)
-    const yOrizzontale = punti[1].y
-    const posizioni = ponteDi(l).segni!.map((s) => puntoSuTratto(punti, s.t).punto)
+    const segniPonte = ponteDi(l).segni!.map((s) => puntoSuTratto(punti, s.t).punto)
+    // Centro: a meta' della corsa orizzontale, che ora e' il tratto 0.
+    expect(segniPonte[0]).toEqual({ x: (punti[0].x + punti[1].x) / 2, y: punti[0].y })
+    // Valle: due passi di griglia sotto il gomito, sulla gamba che scende.
+    expect(segniPonte[1]).toEqual({ x: punti[1].x, y: punti[1].y + 20 })
 
-    // Sinistra e destra: sui due montanti, due passi di griglia sotto la corsa orizzontale.
-    expect(posizioni[0]).toEqual({ x: punti[1].x, y: yOrizzontale + 20 })
-    expect(posizioni[2]).toEqual({ x: punti[2].x, y: yOrizzontale + 20 })
-    // Centro: a meta' della corsa orizzontale.
-    expect(posizioni[1]).toEqual({ x: (punti[1].x + punti[2].x) / 2, y: yOrizzontale })
+    // Monte: due passi sotto il TEE, sul montante che scende verso il primo stadio scavalcato.
+    const montante = l.archi.find((a) => a.da.nodo === 'BP1-IN' && a.a.nodo === 'F1')!
+    const puntiMontante = instrada(
+      montante.stile,
+      posizioneAncora(nodo(l, 'BP1-IN'), montante.da.ancora),
+      posizioneAncora(nodo(l, 'F1'), 'sx'),
+      montante.punti,
+      quoteInstradamento(l),
+      { da: latoImposto(nodo(l, 'BP1-IN'), montante.da.ancora), a: undefined }
+    )
+    expect(puntiMontante).toHaveLength(3)
+    expect(puntiMontante[0].x).toBe(puntiMontante[1].x) // scende sull'ascissa del TEE
+    expect(puntoSuTratto(puntiMontante, montante.segni![0].t).punto).toEqual({
+      x: puntiMontante[0].x,
+      y: puntiMontante[0].y + 20,
+    })
   })
 
   it('nessun arco in uscita da layoutSchema porta ancora forma', () => {
@@ -1318,37 +1363,41 @@ describe('il by-pass nel layout', () => {
     for (const arco of l.archi) expect(arco).not.toHaveProperty('forma')
   })
 
-  it('il tubo dal serbatoio scende a mezza strada, non rasente il fianco del serbatoio', () => {
-    // Difetto trovato guardando il disegno, non dai test. Il TEE di monte impone il lato `sx`, e
-    // `rottaImboccata` con un capo solo imposto piega SUBITO: il tratto verticale correva sul
-    // bordo del serbatoio, invisibile perche' sovrapposto al suo contorno, e il tubo sembrava
-    // uscire dalla pancia invece che dal bocchello — sbagliato ma plausibile, il peggior tipo di
-    // errore per questo modulo.
-    const l = disegno()
-    const arco = l.archi.find((a) => a.da.nodo === 'S1' && a.a.nodo === 'BP1-IN')!
-    const uscita = posizioneAncora(nodo(l, 'S1'), 'dx')
+  it('il tubo che sale a un TEE di monte in mezzo alla catena fa il gradino a mezza strada', () => {
+    // Difetto trovato guardando il disegno, non dai test (Blocco 3). Il TEE impone il lato `sx`, e
+    // `rottaImboccata` con un capo solo imposto piega SUBITO, sul capo libero: il tratto verticale
+    // correva sul bordo dell'apparecchiatura, invisibile perche' sovrapposto al suo contorno, e il
+    // tubo sembrava uscire dalla pancia invece che dal bocchello — sbagliato ma plausibile, il
+    // peggior tipo di errore per questo modulo.
+    //
+    // Dal Blocco 5 il caso non e' piu' quello dell'uscita del serbatoio: col by-pass in testa alla
+    // catena il TEE di monte sta alla quota del bocchello e fra i due non c'e' dislivello (lo
+    // fissa «la corsa del ponte ... e le e' ADIACENTE», qui sopra). La regola resta viva dove il
+    // dislivello c'e' ancora: un by-pass che comincia in MEZZO alla catena, dove la linea sale
+    // dallo stadio precedente fino al TEE.
+    const l = disegno([['E1']])
+    const arco = l.archi.find((a) => a.da.nodo === 'F1' && a.a.nodo === 'BP1-IN')!
+    const partenza = posizioneAncora(nodo(l, 'F1'), 'dx')
     const tee = posizioneAncora(nodo(l, 'BP1-IN'), 'sx')
-    const punti = instrada(
-      arco.stile,
-      uscita,
-      tee,
-      arco.punti,
-      quoteInstradamento(l),
-      { da: undefined, a: latoImposto(nodo(l, 'BP1-IN'), 'sx') }
-    )
-    // Quattro vertici: parte in orizzontale, scende a mezza strada, arriva in orizzontale.
+    expect(tee.y).toBeLessThan(partenza.y)
+    const punti = instrada(arco.stile, partenza, tee, arco.punti, quoteInstradamento(l), {
+      da: undefined,
+      a: latoImposto(nodo(l, 'BP1-IN'), 'sx'),
+    })
+    // Quattro vertici: parte in orizzontale, sale a mezza strada, arriva in orizzontale.
     expect(punti).toHaveLength(4)
-    expect(punti[1].x).toBe((uscita.x + tee.x) / 2)
-    expect(punti[1].x).toBeGreaterThan(uscita.x)
+    expect(punti[1].x).toBe((partenza.x + tee.x) / 2)
+    expect(punti[1].x).toBeGreaterThan(partenza.x)
     expect(punti[punti.length - 1].y).toBe(punti[punti.length - 2].y)
   })
 
   it('ma senza dislivello non inventa gomiti', () => {
-    // Dentro la catena i capi stanno tutti alla stessa quota: un gomito li' sarebbe markup in piu'
-    // in ogni documento consegnato, e un tratto di lunghezza nulla e' un tranello per gli
-    // ancoraggi, che contano vertici e tratti.
+    // Dentro la catena i capi stanno tutti alla stessa quota — il capo di VALLE resta sulla linea,
+    // come gli stadi — e un gomito li' sarebbe markup in piu' in ogni documento consegnato, oltre
+    // che un tranello per gli ancoraggi, che contano vertici e tratti.
     const l = disegno([['E1']])
-    const arco = l.archi.find((a) => a.da.nodo === 'F1' && a.a.nodo === 'BP1-IN')!
+    const arco = l.archi.find((a) => a.da.nodo === 'E1' && a.a.nodo === 'BP1-OUT')!
+    expect(posizioneAncora(nodo(l, 'BP1-OUT'), 'sx').y).toBe(posizioneAncora(nodo(l, 'E1'), 'dx').y)
     expect(arco.punti ?? []).toHaveLength(0)
   })
 
@@ -1357,5 +1406,18 @@ describe('il by-pass nel layout', () => {
     const yPrimo = Math.min(...polilineaPonte(l, 'BP1').map((p) => p.y))
     const ySecondo = Math.min(...polilineaPonte(l, 'BP2').map((p) => p.y))
     expect(yPrimo).toBe(ySecondo)
+    // Dal Blocco 5 la corsia non e' piu' una proprieta' del ponte ma della quota a cui il layout
+    // posa il suo capo di MONTE: e' quello che questo test sorveglia adesso.
+    expect(posizioneAncora(nodo(l, 'BP1-IN'), 'sx').y).toBe(posizioneAncora(nodo(l, 'BP2-IN'), 'sx').y)
+  })
+
+  it('due by-pass annidati mettono i capi di monte su due quote diverse', () => {
+    // Le corsie servono a questo e a nient'altro. Il gruppo interno corre in basso e quello che lo
+    // contiene lo scavalca: `assegnaCorsie` assegna dal ponte piu' CORTO al piu' lungo, ed e' la
+    // stessa funzione che usa `linearizzaConBypass` — le due risposte non possono divergere.
+    const l = disegno([['F1', 'E1', 'F2'], ['E1']])
+    const monte = (g: string) => posizioneAncora(nodo(l, `${g}-IN`), 'sx').y
+    expect(monte('BP2')).toBeGreaterThan(monte('BP1'))
+    expect(monte('BP1')).toBe(monte('BP2') - PASSO_CORSIA_BYPASS)
   })
 })

@@ -931,7 +931,9 @@ describe('il by-pass alla riapertura', () => {
     }
 
     const ponte = arcoAria(riconcilia(salvato, conBypass).layout, 'BP1-IN', 'BP1-OUT')!
-    expect(ponte.punti).toHaveLength(2)
+    // UN gomito dal Blocco 5: il ponte parte dal capo di monte, gia' in alto, corre e scende sul
+    // capo di valle. Erano due quando saliva da una linea complanare.
+    expect(ponte.punti).toHaveLength(1)
     // E la `forma` non torna a galla: il contratto di sola andata regge anche di qua.
     expect(ponte).not.toHaveProperty('forma')
   })

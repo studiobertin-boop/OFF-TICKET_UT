@@ -15,7 +15,7 @@ import type {
   Separatore,
 } from '@/types/technicalSheet'
 import { elencaValvole } from '@/utils/valvoleImpianto'
-import { eTeeBypass, linearizzaConBypass, nodoGiunzioneBypass } from './bypass'
+import { eCapoDiMonte, eTeeBypass, linearizzaConBypass, nodoGiunzioneBypass } from './bypass'
 import type { Tarature } from './libreria'
 // `import type` e non un import di valore: `preferenze.ts` importa `ordinaCatenaTrattamento` e
 // `scaricaCondensa` da QUI, e un import vero chiuderebbe il cerchio. I tipi spariscono in
@@ -354,8 +354,8 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
     ancoraggio: { tipo: 'vertice', vertice, scarto: verso * SCARTO_VALVOLA },
   })
 
-  /** Valvola di intercettazione a meta' di un tratto: la riserva (tratto 0) e quella al centro
-   *  della corsa orizzontale del ponte (tratto 1). */
+  /** Valvola di intercettazione a meta' di un tratto: la riserva e quella al centro della corsa
+   *  orizzontale del ponte, che dal Blocco 5 e' il tratto 0 per tutt'e due. */
   const valvolaAMeta = (tratto: number, stileAValle?: SchemaArcoStile): SchemaSegnoTubo => ({
     id: prossimoId('segno'),
     tipo: 'valvola_intercettazione',
@@ -415,14 +415,27 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
       ...(capoDiTee(sequenza[0]) ? {} : { segni: valvolaDiRiserva() }),
     })
     for (let i = 0; i < sequenza.length - 1; i++) {
+      // Dal capo di MONTE di un by-pass la linea esce dal BASSO: quel TEE sta alla quota
+      // dell'uscita del serbatoio (Blocco 5) e il tubo scende sulla sua ascissa fino alla punta
+      // dello stadio scavalcato. E' il LATO imposto a dare la forma: con `dx` la rotta correrebbe
+      // orizzontale sopra lo stadio e scenderebbe sulla sua punta, che nel riferimento non c'e'.
+      const dalCapoDiMonte = eCapoDiMonte(sequenza[i].id)
       // Nessun segno fra due stadi consecutivi: le valvole d'ufficio a meta' tratto spariscono
       // (convenzione 6). L'arco pero' si emette SEMPRE, anche quando i due stadi sono adiacenti e
       // il tratto e' degenere: e' il tessuto che ripara il disegno appena l'operatore li separa.
+      //
+      // L'unico che porta un segno e' il montante che scende dal capo di monte, e degenere non e'
+      // mai: fra i suoi due capi c'e' sempre una corsia intera. La valvola e' il MIRROR della
+      // convenzione 1 — rigido dal TEE fino a due passi sotto, flessibile da li' in giu', come la
+      // mandata del compressore ma col tubo che scende invece di salire. Vertice 0 con scarto
+      // positivo: `tDaAncoraggio` (tratti.ts) lo gestisce, il tratto su cui muoversi e'
+      // `lunghezze[0]`, che esiste.
       archi.push({
         id: prossimoId('std'),
-        da: { nodo: sequenza[i].id, ancora: 'dx' },
+        da: { nodo: sequenza[i].id, ancora: dalCapoDiMonte ? 'basso' : 'dx' },
         a: { nodo: sequenza[i + 1].id, ancora: 'sx' },
         stile: 'standard',
+        ...(dalCapoDiMonte ? { segni: [valvolaAlVertice(0, 'flessibile', 1)] } : {}),
       })
     }
   }
@@ -451,20 +464,23 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
   for (const ponte of ponti) {
     archi.push({
       id: prossimoId('bp'),
-      // Entrambi i capi sull'ancora ALTA del TEE: e' da li' che il ponte si stacca dalla linea.
-      da: { nodo: ponte.inizio, ancora: 'alto' },
+      // Il capo di monte si stacca di FIANCO — il ponte corre alla sua stessa quota, che dal
+      // Blocco 5 e' quella dell'uscita del serbatoio — e quello di valle riceve dall'ALTO, perche'
+      // il ponte gli scende addosso. I due lati imposti sono cio' che da' al ponte la sua forma
+      // anche senza il gomito che il layout gli scrive.
+      da: { nodo: ponte.inizio, ancora: 'dx' },
       a: { nodo: ponte.fine, ancora: 'alto' },
-      // Flessibile alla partenza: dal TEE fino alla valvola del montante. Sopra le valvole i due
-      // `stileAValle` lo riportano a rigido e poi di nuovo a flessibile (convenzione 5).
-      stile: 'flessibile',
+      // RIGIDO dalla partenza (Blocco 5): la corsa orizzontale e' rigida, e la valvola del gomito
+      // passa a flessibile la sola gamba che scende sul capo di valle (convenzione 5). La terza
+      // valvola del by-pass non e' piu' qui: sta sul montante che scende dal capo di monte.
+      stile: 'standard',
       forma: 'ponte',
       segni: [
-        // Vertice 1 = gomito di sinistra, vertice 2 = gomito di destra, tratto 1 = la corsa
-        // orizzontale fra i due. Li fissa `risolviPonti` (bypass.ts), che emette esattamente due
-        // gomiti: cambiarne il numero sposta tutte e tre le valvole.
-        valvolaAlVertice(1, 'standard', -1),
-        valvolaAMeta(1),
-        valvolaAlVertice(2, 'flessibile', 1),
+        // Tratto 0 = la corsa orizzontale, vertice 1 = il gomito. Li fissa `risolviPonti`
+        // (segniAncorati.ts), che emette esattamente UN gomito: cambiarne il numero sposta
+        // entrambe le valvole.
+        valvolaAMeta(0),
+        valvolaAlVertice(1, 'flessibile', 1),
       ],
     })
   }

@@ -719,42 +719,65 @@ describe('il by-pass nel modello', () => {
     expect(dopo(m, 'BP1-OUT')).toBe('F2')
   })
 
-  it('il ponte è un arco solo, flessibile, che unisce i due TEE dall’alto', () => {
+  it('il ponte è un arco solo, rigido, che parte di fianco al TEE di monte e scende su quello di valle', () => {
+    // `standard` e non piu' `flessibile` (Blocco 5): il ponte e' rigido dalla partenza, e la
+    // valvola del gomito lo passa a flessibile per la sola gamba che scende. E parte dal FIANCO
+    // del capo di monte: e' il lato imposto a dare la forma, e con l'ancora `alto` la corsa
+    // cadrebbe a mezza quota (il test gemello sta in `layout.test.ts`).
     const ponte = conBypass(['F1', 'E1', 'F2']).archi.filter((a) => a.forma === 'ponte')
     expect(ponte).toHaveLength(1)
     expect(ponte[0]).toMatchObject({
-      da: { nodo: 'BP1-IN', ancora: 'alto' },
+      da: { nodo: 'BP1-IN', ancora: 'dx' },
       a: { nodo: 'BP1-OUT', ancora: 'alto' },
-      stile: 'flessibile',
+      stile: 'standard',
     })
   })
 
-  it('il ponte porta tre valvole ancorate ai vertici dei gomiti, coi loro stili a valle', () => {
-    // Convenzione 5. Gli scarti sono di DUE passi di griglia e non uno: il committente ha
-    // abbassato le valvole della mandata il 18-08-2026, e le due misure devono restare uguali o
-    // due valvole affiancate nel disegno starebbero a quote diverse.
+  it('il ponte porta DUE valvole: il centro della corsa e il gomito di valle', () => {
+    // Convenzione 5, con la ridistribuzione del Blocco 5: la terza valvola e' scesa sul montante
+    // di monte. Gli scarti sono di DUE passi di griglia e non uno — il committente ha abbassato
+    // le valvole della mandata il 18-08-2026, e le due misure devono restare uguali o due valvole
+    // affiancate nel disegno starebbero a quote diverse.
     const ponte = conBypass(['F1', 'E1', 'F2']).archi.find((a) => a.forma === 'ponte')!
-    expect(ponte.segni).toHaveLength(3)
-    const [sinistra, centro, destra] = ponte.segni!
-    expect(sinistra.ancoraggio).toEqual({ tipo: 'vertice', vertice: 1, scarto: -20 })
-    expect(sinistra.stileAValle).toBe('standard')
-    expect(centro.ancoraggio).toEqual({ tipo: 'meta', tratto: 1 })
+    expect(ponte.segni).toHaveLength(2)
+    const [centro, valle] = ponte.segni!
+    expect(centro.ancoraggio).toEqual({ tipo: 'meta', tratto: 0 })
     expect(centro.stileAValle).toBeUndefined()
-    expect(destra.ancoraggio).toEqual({ tipo: 'vertice', vertice: 2, scarto: 20 })
-    expect(destra.stileAValle).toBe('flessibile')
+    expect(valle.ancoraggio).toEqual({ tipo: 'vertice', vertice: 1, scarto: 20 })
+    expect(valle.stileAValle).toBe('flessibile')
     // Tutte col ripiego a metà tubo, se la geometria non si risolvesse.
     expect(ponte.segni!.every((s) => s.t === 0.5 && s.tipo === 'valvola_intercettazione')).toBe(true)
   })
 
-  it('lo scarto delle valvole del ponte è lo stesso di quello della mandata', () => {
+  it('la terza valvola sta sul montante che scende dal TEE di monte, col rigido sopra', () => {
+    // Il mirror della convenzione 1: sopra la valvola rigido, sotto flessibile — come la mandata
+    // del compressore, ma col tubo che scende invece di salire. L'arco e' un normale arco della
+    // catena, e la sua ancora di partenza e' `basso` perche' il tubo deve scendere sull'ascissa
+    // del TEE: con `dx` correrebbe orizzontale sopra lo stadio e scenderebbe sulla sua punta.
+    const montante = conBypass(['F1', 'E1', 'F2']).archi.find(
+      (a) => a.da.nodo === 'BP1-IN' && a.a.nodo === 'F1'
+    )!
+    expect(montante.da.ancora).toBe('basso')
+    expect(montante.stile).toBe('standard')
+    expect(montante.segni).toHaveLength(1)
+    expect(montante.segni![0].ancoraggio).toEqual({ tipo: 'vertice', vertice: 0, scarto: 20 })
+    expect(montante.segni![0].stileAValle).toBe('flessibile')
+  })
+
+  it('lo scarto delle valvole del by-pass è lo stesso di quello della mandata', () => {
     // Il legame che il committente ha chiesto esplicitamente: se un giorno si ritocca uno dei due
-    // numeri senza l'altro, questo test cade.
+    // numeri senza l'altro, questo test cade. Dal Blocco 5 il primo segno del ponte e' quello a
+    // META' tratto, che uno scarto non ce l'ha: si pesca quello ancorato a un VERTICE.
     const m = conBypass(['F1', 'E1', 'F2'])
     const mandata = m.archi.find((a) => a.stile === 'flessibile' && a.forma !== 'ponte')!.segni![0]
-    const ponte = m.archi.find((a) => a.forma === 'ponte')!.segni![0]
+    const ponte = m.archi
+      .find((a) => a.forma === 'ponte')!
+      .segni!.find((s) => s.ancoraggio?.tipo === 'vertice')!
+    const montante = m.archi.find((a) => a.da.nodo === 'BP1-IN' && a.a.nodo === 'F1')!.segni![0]
     const scarto = (s: typeof mandata) =>
       s.ancoraggio?.tipo === 'vertice' ? Math.abs(s.ancoraggio.scarto) : null
     expect(scarto(ponte)).toBe(scarto(mandata))
+    expect(scarto(montante)).toBe(scarto(mandata))
   })
 
   it('la valvola di riserva sparisce dove il ponte ne mette già una', () => {
@@ -764,6 +787,10 @@ describe('il by-pass nel modello', () => {
     const m = conBypass(['F1', 'E1', 'F2'])
     expect(m.archi.find((a) => a.da.nodo === 'S1' && a.stile === 'standard')!.segni).toBeUndefined()
     expect(m.archi.find((a) => a.a.nodo === ID_UTENZE)!.segni).toBeUndefined()
+    // Dal Blocco 5 la valvola che rende superflua la riserva non sta piu' sul ponte ma sul
+    // montante — stesso TEE, stessa distanza dal bocchello del serbatoio: la regola non cambia,
+    // cambia l'arco su cui guardarla.
+    expect(m.archi.find((a) => a.da.nodo === 'BP1-IN' && a.a.nodo === 'F1')!.segni).toHaveLength(1)
   })
 
   it('ma resta ai due capi quando il by-pass sta in mezzo alla catena', () => {
@@ -784,12 +811,15 @@ describe('il by-pass nel modello', () => {
     expect(dopo(m, 'S1')).toBe('F1')
   })
 
-  it('gli archi del ponte non entrano fra quelli delle condense né fra quelli di linea', () => {
-    // Il ponte è flessibile come la mandata del compressore: chi filtra per stile lo raccoglie.
-    // Serve `forma` per distinguerlo, ed è il motivo per cui il campo esiste.
+  it('il ponte è rigido come gli archi di linea: senza `forma` non lo si distinguerebbe', () => {
+    // Dal Blocco 5 il ponte non e' piu' flessibile come la mandata del compressore: e' `standard`
+    // come la linea di processo, e chi filtra per stile lo raccoglie INSIEME AGLI ARCHI DI LINEA.
+    // Serve `forma` per distinguerlo, ed e' il motivo per cui il campo esiste — la ragione e'
+    // cambiata, il campo no.
     const m = conBypass(['F1', 'E1', 'F2'])
-    const flessibili = m.archi.filter((a) => a.stile === 'flessibile')
-    expect(flessibili).toHaveLength(2)
-    expect(flessibili.filter((a) => a.forma === 'ponte')).toHaveLength(1)
+    expect(m.archi.filter((a) => a.stile === 'flessibile')).toHaveLength(1) // la sola mandata
+    const standard = m.archi.filter((a) => a.stile === 'standard')
+    expect(standard.filter((a) => a.forma === 'ponte')).toHaveLength(1)
+    expect(standard.length).toBeGreaterThan(1)
   })
 })

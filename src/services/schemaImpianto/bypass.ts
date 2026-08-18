@@ -50,6 +50,19 @@ export function eTeeBypass(id: string): boolean {
   return /^BP\d+-(IN|OUT)$/.test(id)
 }
 
+/** Vero per il capo di MONTE di un by-pass (`BP1-IN`). Dal Blocco 5 i due capi non stanno piu'
+ *  alla stessa quota — quello di monte sale a quella dell'uscita del serbatoio, quello di valle
+ *  resta sulla linea — e chi dispone la sequenza deve distinguerli avendo in mano il solo id. */
+export function eCapoDiMonte(id: string): boolean {
+  return /^BP\d+-IN$/.test(id)
+}
+
+/** Il capo di valle che fa coppia con un capo di monte: `BP1-IN` → `BP1-OUT`. Serve ad accoppiarli
+ *  nella sequenza per sapere quale intervallo scavalca il ponte, cioe' su che corsia corre. */
+export function capoDiValleDi(idMonte: string): string {
+  return idMonte.replace(/-IN$/, '-OUT')
+}
+
 /**
  * Il nodo giunzione di un TEE di by-pass.
  *

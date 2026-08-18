@@ -7,6 +7,7 @@
  * destra. Funzione pura: nessun DOM, testabile in Node.
  */
 import { ordinaCatenaTrattamento } from './buildSchemaModel'
+import { assegnaCorsie, capoDiValleDi, eCapoDiMonte } from './bypass'
 import { risolviPonti, risolviSegniAncorati } from './segniAncorati'
 import type { Tarature } from './libreria'
 import {
@@ -356,6 +357,34 @@ function disponiInRiga(
  * per bordi, il gioco davanti al TEE e quello dietro sarebbero diversi senza che nessuno l'abbia
  * chiesto.
  */
+/**
+ * Le corsie dei ponti, per id del capo di MONTE. Dal Blocco 5 il ponte corre alla quota del suo
+ * capo di monte, quindi la corsia non e' piu' una proprieta' del ponte ma della QUOTA a cui qui si
+ * posa quel capo: questo e' l'unico posto che la puo' decidere.
+ *
+ * Gli intervalli sono posizioni nella SEQUENZA e non ascisse: qui la sequenza e' quella che si sta
+ * disponendo, e le due danno lo stesso ordine. `assegnaCorsie` e' la stessa funzione che usa
+ * `linearizzaConBypass` (bypass.ts) — assegna dal ponte piu' corto al piu' lungo, cosi' con due
+ * gruppi annidati e' l'interno a correre in basso — e usarne un'altra farebbe divergere due
+ * risposte che devono coincidere.
+ *
+ * Un capo di monte senza il suo capo di valle nella sequenza non e' un caso da riparare qui: resta
+ * senza corsia e si posa sulla linea, come qualunque altra giunzione.
+ */
+function corsieDeiCapiDiMonte(nodi: SchemaNodo[]): Map<string, number> {
+  const posizione = new Map(nodi.map((n, i) => [n.id, i]))
+  const capi = nodi
+    .filter((nodo) => eCapoDiMonte(nodo.id))
+    .map((nodo) => ({
+      monte: nodo.id,
+      inizio: posizione.get(nodo.id) ?? 0,
+      fine: posizione.get(capoDiValleDi(nodo.id)),
+    }))
+    .filter((capo): capo is { monte: string; inizio: number; fine: number } => capo.fine !== undefined)
+  const corsie = assegnaCorsie(capi)
+  return new Map(capi.map((capo, i) => [capo.monte, corsie[i]]))
+}
+
 function disponiCatenaPerAncore(
   nodi: SchemaNodo[],
   xIniziale: number,
@@ -367,12 +396,23 @@ function disponiCatenaPerAncore(
   const gioco = (a: SchemaNodo, b: SchemaNodo) =>
     a.tipo === 'giunzione' || b.tipo === 'giunzione' ? PASSO_GIUNZIONE : GIOCO_FRA_STADI
 
+  // La quota del capo di MONTE di un by-pass non e' quella della linea: sta una corsia piu' in
+  // alto, cioe' esattamente dove la linea sarebbe stata se non fosse scesa per fargli posto —
+  // sulla quota dell'uscita del serbatoio (`quotaLineaProcesso`). E' la scelta del committente sul
+  // suo disegno (18-08-2026), ed e' ASIMMETRICA: il capo di VALLE resta sulla linea, perche' li'
+  // il flusso si ricongiunge e prosegue verso le utenze a quella quota.
+  const corsie = corsieDeiCapiDiMonte(nodi)
+  const quotaDi = (nodo: SchemaNodo) => {
+    const corsia = corsie.get(nodo.id)
+    return corsia === undefined ? quotaLinea : quotaLinea - PASSO_CORSIA_BYPASS * (corsia + 1)
+  }
+
   let xAncora = xIniziale
   const posizionati = nodi.map((nodo, i) => {
     const dim = dimensioniDi(nodo, libreria)
     const sx = ancoraDi(nodo, 'sx', libreria)
     const dx = ancoraDi(nodo, 'dx', libreria)
-    const collocato = posiziona(nodo, xAncora - (sx?.x ?? 0), quotaLinea - (sx?.y ?? dim.altezza / 2))
+    const collocato = posiziona(nodo, xAncora - (sx?.x ?? 0), quotaDi(nodo) - (sx?.y ?? dim.altezza / 2))
     const prossimo = nodi[i + 1]
     xAncora = collocato.x + (dx?.x ?? dim.larghezza) + (prossimo ? gioco(nodo, prossimo) : 0)
     return collocato
@@ -557,7 +597,7 @@ export function layoutSchema(model: SchemaModel, libreria: Tarature = {}): Schem
   // I ponti PRIMA degli ancoraggi, e non e' indifferente: le tre valvole del ponte sono ancorate
   // ai suoi vertici, che esistono solo dopo che i gomiti sono scritti. Al contrario si
   // troverebbero i due soli capi, e cadrebbero tutte sul ripiego a meta' tubo.
-  const conPonti = risolviPonti(layout, { altezza: ALTEZZA_BYPASS, passoCorsia: PASSO_CORSIA_BYPASS }, libreria)
+  const conPonti = risolviPonti(layout, libreria)
   return risolviSegniAncorati(conPonti, quoteInstradamento(conPonti, libreria), libreria)
 }
 

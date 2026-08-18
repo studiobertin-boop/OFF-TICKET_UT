@@ -153,9 +153,7 @@ describe('il gradino verso un TEE', () => {
     testi: [],
   })
 
-  /** `risolviPonti` con le misure di allora: il Task 2 del Blocco 5 gliele toglie, e questa e'
-   *  l'unica riga da cambiare quando succede. */
-  const risolti = (l: SchemaLayout) => risolviPonti(l, { altezza: 90, passoCorsia: 90 })
+  const risolti = (l: SchemaLayout) => risolviPonti(l)
 
   const arco = (l: SchemaLayout) => l.archi.find((a) => a.id === 'std-1')!
 

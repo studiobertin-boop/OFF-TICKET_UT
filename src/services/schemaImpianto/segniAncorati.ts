@@ -34,7 +34,7 @@
  * quelle due in `symbols/index.ts` — sono geometria dei simboli, non resa — e riesportarle da qui
  * per non toccare gli importatori.
  */
-import { assegnaCorsie, eTeeBypass } from './bypass'
+import { eTeeBypass } from './bypass'
 import type { Tarature } from './libreria'
 import { posizioneAncora } from './renderSvg'
 import { latoImposto } from './symbols'
@@ -49,24 +49,22 @@ import type { SchemaArco, SchemaLatoAncora, SchemaLayout } from './types'
  * (gomito sinistro, corsa orizzontale, gomito destro), che esistono solo dopo che i gomiti sono
  * scritti. `layoutSchema` chiama le due in quest'ordine, e non è negoziabile.
  *
- * **I gomiti non sono un'ottimizzazione.** Entrambi i capi del ponte stanno su una giunzione, che
- * impone il lato: senza, `rottaImboccata` piega a `yMedia` — che coi due TEE alla stessa quota è la
- * loro stessa quota — e `dedup` collassa tutto in una retta orizzontale sovrapposta alla linea di
- * processo. Il by-pass sparirebbe alla vista pur esistendo nel modello.
+ * **Il gomito non è un'ottimizzazione.** Fino al Blocco 4 i due capi stavano alla stessa quota, e
+ * senza gomiti `rottaImboccata` piegava a `yMedia` — che con due capi complanari è la loro stessa
+ * quota — e `dedup` collassava tutto in una retta sovrapposta alla linea di processo: il by-pass
+ * spariva alla vista pur esistendo nel modello. Dal Blocco 5 i due capi stanno a quote DIVERSE, e
+ * la ragione è un'altra: senza il gomito la piega la sceglie `rottaImboccata` dai lati imposti ai
+ * capi, e prendendo il capo di monte dall'alto la corsa cadrebbe a metà fra le due quote invece
+ * che sulla quota del capo. Prendendolo di FIANCO — che è ciò che `buildSchemaModel` fa — le due
+ * risposte coincidono, e un test lo fissa (`layout.test.ts`): è la sentinella del giorno in cui
+ * divergessero.
  *
- * Le corsie si ricalcolano QUI dalle ascisse vere invece di arrivare dal modello: su un layout
- * riaperto l'operatore può aver spostato le apparecchiature, e due ponti che nel modello non si
- * sovrapponevano possono sovrapporsi sul disegno di adesso. È la stessa `assegnaCorsie` che usa
- * `linearizzaConBypass`, così le due risposte non possono divergere.
- *
- * `altezza` e `passoCorsia` arrivano dal chiamante e non si leggono da `layout.ts`, che importa
- * QUESTO modulo: le costanti vivono là insieme alle altre distanze del disegno.
+ * Le corsie non si calcolano più qui: dal Blocco 5 la quota del ponte è quella del suo capo di
+ * monte, che il layout ha già posato sulla corsia giusta (`corsieDeiCapiDiMonte`, layout.ts). Su
+ * un layout riaperto vale lo stesso, e per la stessa ragione per cui prima le si ricalcolava: la
+ * quota che conta è quella che il nodo ha ADESSO, spostato a mano o no.
  */
-export function risolviPonti(
-  layout: SchemaLayout,
-  misure: { altezza: number; passoCorsia: number },
-  libreria: Tarature = {}
-): SchemaLayout {
+export function risolviPonti(layout: SchemaLayout, libreria: Tarature = {}): SchemaLayout {
   const perId = new Map(layout.nodi.map((n) => [n.id, n]))
   const capi = (arco: SchemaArco) => {
     const da = perId.get(arco.da.nodo)
@@ -94,12 +92,7 @@ export function risolviPonti(
     .filter((v) => v.punti !== null)
   if (ponti.length === 0) return layout
 
-  const corsie = assegnaCorsie(
-    ponti.map((v) => ({ inizio: Math.min(v.punti!.da.x, v.punti!.a.x), fine: Math.max(v.punti!.da.x, v.punti!.a.x) }))
-  )
-  const corsiaPerArco = new Map(ponti.map((v, k) => [v.i, corsie[k]]))
-
-  const archi = layout.archi.map((arco, i) => {
+  const archi = layout.archi.map((arco) => {
     if (arco.forma !== 'ponte') return gradinoVersoIlTee(arco, capi(arco), lati(arco))
     const risolto = { ...arco }
     // La chiave si TOGLIE, non si mette a `undefined`: un layout che la portasse, anche vuota, non
@@ -111,11 +104,10 @@ export function risolviPonti(
     // Un capo mancante non è un disegno da riparare qui: l'arco resta senza gomiti, e almeno la
     // `forma` non gli sopravvive — è la stessa degradazione scelta per gli ancoraggi.
     if (!punti) return risolto
-    const yPonte =
-      Math.min(punti.da.y, punti.a.y) - misure.altezza - (corsiaPerArco.get(i) ?? 0) * misure.passoCorsia
-    // Esattamente DUE gomiti: sale, corre, ridiscende. Quattro vertici, tre tratti — ed è su
-    // quel conto che si appoggiano i tre ancoraggi delle valvole del ponte.
-    return { ...risolto, punti: [{ x: punti.da.x, y: yPonte }, { x: punti.a.x, y: yPonte }] }
+    // Un gomito SOLO: il ponte parte dal capo di monte, che dal Blocco 5 è già alla sua quota,
+    // corre orizzontale e scende sul capo di valle. Tre vertici, due tratti — ed è su quel conto
+    // che si appoggiano i due ancoraggi delle valvole del ponte.
+    return { ...risolto, punti: [{ x: punti.a.x, y: punti.da.y }] }
   })
 
   return { ...layout, archi }
