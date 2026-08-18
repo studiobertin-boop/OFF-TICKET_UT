@@ -1348,5 +1348,32 @@ git commit -m "feat(schema): il disegno generato segue le preferenze scelte in f
 
 ## Cosa è andato diversamente
 
-*(Da riempire durante l'esecuzione: le sorprese, le decisioni cambiate, i difetti trovati in
-pagina. È la sezione che la sessione successiva legge per prima.)*
+**Task 1–3** — come previsto. Nel Task 2 la prima stesura dei test aveva due buchi trovati con la
+prova «rompi apposta e guarda»: nessuno fissava che *`layoutSchema`* usasse `catenaDagliArchi` (i
+test la chiamavano tutti direttamente), e il filtro sulle condense non era discriminato da nessun
+caso. Due test aggiunti. Nel Task 3, il test sull'arco d'aria uscente passava già con la regola
+vecchia: rafforzato col caso che separa davvero le due letture — un separatore che riceve condensa
+*e* ha l'uscita d'aria verso le utenze.
+
+**Task 4, due sorprese.**
+
+1. **`svgRiferimentoConTee` è cambiata**, e la consegna diceva di fermarsi. Ci si è fermati, e la
+   premessa si è rivelata **sbagliata**: quella fixture *non* costruisce il layout a mano — parte
+   da `layoutSchema(buildSchemaModel(…))` e costruisce a mano solo la giunzione. Il diff è di due
+   righe, la stessa causa delle altre due fixture. Nessun simbolo né instradamento toccati. La
+   regola «se cambia, fermarsi» ha comunque fatto il suo lavoro: ha imposto di guardare.
+2. **Il vertice doppio.** Con la linea dritta, `rottaLinea` produceva `L 690 360 L 690 360` — due
+   vertici coincidenti più uno collineare. Prima del Blocco 2 non capitava mai (le quote
+   differivano sempre di 55); ora è il caso normale. Non basta `dedup` (toglie i coincidenti, non
+   i collineari): il caso dritto è esplicito. Conta perché un tratto di lunghezza nulla è un
+   tranello per gli ancoraggi del Task 6, che contano vertici e tratti.
+
+Due test di `renderSvg` avevano perso il loro oggetto e sono stati riscritti, non aggiustati: «la
+freccia orientata come il tratto» ora usa la mandata del compressore (l'arco verso le utenze è
+dritto e non ha più due giaciture) e «la mandata di linea gira a metà strada» sposta un nodo per
+ricreare il caso con la piega, che ora si ottiene solo trascinando nell'editor. Aggiunto il test
+del caso dritto, che è il nuovo normale.
+
+Il test «l'ancora dx coincide con la sx del successivo» usa `GIOCO_FRA_STADI` nell'asserzione:
+prova la *regola*, non il *valore* — voluto, il valore si chiude nel Blocco 4. Il numero della
+convenzione 3 è fissato da un test separato (passo 100 + gioco).
