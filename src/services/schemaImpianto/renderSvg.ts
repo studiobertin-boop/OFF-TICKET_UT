@@ -67,8 +67,6 @@ const RIENTRO_DESCRIZIONE = 12
  * test, che sulla larghezza si fidano della stessa stima del disegno.
  */
 const LARGHEZZA_CARATTERE_TABELLA = 0.62
-/** Larghezza del riquadro della nota: invariata da sempre, cambia solo il centro su cui si posa. */
-const LARGHEZZA_NOTA = 680
 const INTESTAZIONE_TABELLA = 'LISTA APPARECCHIATURE'
 const ALTEZZA_NOTA = 90
 
@@ -309,6 +307,22 @@ function larghezzaRichiestaTabella(righe: RigaTabella[]): number {
   return Math.max(COLONNA_CODICE + descrizione, intestazione)
 }
 
+/**
+ * Larghezza del riquadro della nota, stretta al proprio contenuto — MAI piu' larga della
+ * tabella (`larghezzaRichiestaTabella`, sopra), a cui sta incolonnata: prima era un numero fisso
+ * (680, «invariata da sempre»), e su una tabella tirata al proprio contenuto la nota poteva
+ * sporgere oltre di lei, il difetto trovato su una pratica vera (BADOER INFISSI, 18-08-2026).
+ *
+ * Stessa stima di carattere della tabella (`LARGHEZZA_CARATTERE_TABELLA`), non quella delle
+ * annotazioni libere (0,5): come le celle, anche questo riquadro ha un bordo da non superare, e
+ * la ragione per cui 0,5 non basta a un testo bordato e' la stessa scritta li' sopra.
+ */
+function larghezzaRichiestaNota(note: string[], larghezzaTabella: number): number {
+  const piuLunga = Math.max(0, ...note.map((r) => r.length))
+  const contenuto = RIENTRO_DESCRIZIONE * 2 + piuLunga * 18 * LARGHEZZA_CARATTERE_TABELLA
+  return Math.min(larghezzaTabella, contenuto)
+}
+
 /** Blocco largo `larghezza` centrato su `centro`, riportato dentro il margine se sborda a sinistra. */
 function bloccoCentrato(centro: number, larghezza: number): { x: number; larghezza: number } {
   return { x: Math.max(MARGINE, centro - larghezza / 2), larghezza }
@@ -352,9 +366,8 @@ function renderTestiLiberi(testi: SchemaTestoLibero[]): string {
   return testi.map((t) => testoMultiRiga(t.x, t.y, t.contenuto, TESTO_LIBERO.dimensione, 'start')).join('')
 }
 
-function renderNota(note: string[], centro: number, yTop: number): string {
+function renderNota(note: string[], x: number, w: number, yTop: number): string {
   if (note.length === 0) return ''
-  const { x, larghezza: w } = bloccoCentrato(centro, LARGHEZZA_NOTA)
   const h = 24 * note.length + 24
   const righe = note
     .map(
@@ -392,7 +405,7 @@ export function renderSvg(layout: SchemaLayout, libreria: Tarature = {}, options
   const estensione = estensioneOrizzontale(layout.nodi, layout.testi ?? [], layout.muro, libreria)
   const centro = (estensione.sinistra + estensione.destra) / 2
   const tabella = bloccoCentrato(centro, larghezzaRichiestaTabella(righe))
-  const nota = bloccoCentrato(centro, LARGHEZZA_NOTA)
+  const nota = bloccoCentrato(centro, larghezzaRichiestaNota(note, tabella.larghezza))
   const larghezzaTotale = Math.max(
     dimensioniDisegno.larghezza,
     tabella.x + tabella.larghezza + MARGINE,
@@ -413,7 +426,7 @@ export function renderSvg(layout: SchemaLayout, libreria: Tarature = {}, options
     archi.svg,
     nodi,
     renderTestiLiberi(layout.testi ?? []),
-    renderNota(note, centro, yNota),
+    renderNota(note, nota.x, nota.larghezza, yNota),
     renderTabella(righe, tabella.x, tabella.larghezza, yTabella),
     '</svg>',
   ].join('')

@@ -107,6 +107,18 @@ describe('la fascia sotto il disegno', () => {
     }
   }
 
+  /** Il riquadro della nota, per confrontarne la larghezza con quella della tabella. `frammento`
+   *  e' un pezzo del testo della nota, per trovare il `<rect>` giusto qualunque sia il contenuto. */
+  function notaRect(svg: string, frammento: string): { x: number; larghezza: number } {
+    const i = svg.indexOf(frammento)
+    const inizio = svg.lastIndexOf('<rect', i)
+    const rect = svg.slice(inizio, svg.indexOf('/>', inizio))
+    return {
+      x: Number(/ x="(-?[\d.]+)"/.exec(rect)![1]),
+      larghezza: Number(/ width="(-?[\d.]+)"/.exec(rect)![1]),
+    }
+  }
+
   /**
    * Il terminale utenze NON serve allo scopo: `righeLista` lo esclude dalla tabella di proposito
    * (occuperebbe una riga che non dice nulla). Si allunga l'etichetta del compressore, che una
@@ -197,6 +209,29 @@ describe('la fascia sotto il disegno', () => {
 
   it('un blocco che sborda a sinistra si riporta dentro il margine', () => {
     expect(intestazione(svgStrettoASinistra()).x).toBeGreaterThanOrEqual(40)
+  })
+
+  it('la nota non è mai più larga della tabella, anche se il contenuto lo chiederebbe', () => {
+    // Difetto trovato su una pratica vera (BADOER INFISSI, 18-08-2026): il riquadro della nota
+    // era largo un numero fisso (680, «invariata da sempre»), e su una tabella stretta al proprio
+    // contenuto la nota poteva sporgere oltre di lei. Una frase lunga come questa, sulla tabella
+    // minima di `svgMinimo`, ci sarebbe finita dentro con lo stesso difetto.
+    const svg = svgMinimo(['Collegamenti effettuati con tubazioni da Ø40 a Ø63mm, linee da Ø25 a Ø32mm'])
+    const tabella = intestazione(svg)
+    const nota = notaRect(svg, 'Collegamenti effettuati')
+
+    expect(nota.larghezza).toBeLessThanOrEqual(tabella.larghezza)
+  })
+
+  it('si stringe al proprio contenuto quando basta meno della tabella', () => {
+    // La meta' della richiesta, non solo il tetto: con un contenuto corto la nota non deve
+    // restare larga quanto la tabella «perche' puo'» — deve stringersi a quello che le due righe
+    // scritte chiedono davvero.
+    const svg = svgMinimo(['Ø25mm'])
+    const tabella = intestazione(svg)
+    const nota = notaRect(svg, 'Ø25mm')
+
+    expect(nota.larghezza).toBeLessThan(tabella.larghezza)
   })
 })
 
