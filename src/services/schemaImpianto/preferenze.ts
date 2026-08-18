@@ -249,3 +249,32 @@ export function preferenzeRisolteDaScheda(
 ): PreferenzeRisolte {
   return risolviPreferenze(preferenze, famiglieDaScheda(scheda))
 }
+
+/**
+ * I collegamenti compressori→serbatoi che valgono adesso, partendo dalla scheda. Stessa regola
+ * di `condense` in `risolviPreferenze`: **chiave assente = default** (tutti i compressori
+ * collegati al primo serbatoio — il caso più comune, un solo serbatoio in sala), **chiave
+ * presente, anche vuota = vince quella**. È la distinzione che permette all'operatore di
+ * lasciare deliberatamente un compressore scollegato: se ogni salvataggio venisse riletto come
+ * "vuoto = ancora da scegliere", quella scelta non potrebbe mai restare.
+ *
+ * Difetto trovato su una pratica vera (BADOER INFISSI, 18-08-2026): i campi nascevano vuoti e
+ * bastava compilarne uno perché `puoGenerareSchema` desse via libera — con il secondo
+ * compressore rimasto invisibile nel disegno, senza che nulla lo segnalasse.
+ *
+ * Non pota gli id salvati per compressori spariti dalla scheda: è il lavoro di
+ * `potaCollegamenti` (equipmentCodes.ts), contro i codici correnti dell'intera pratica, non
+ * solo dei compressori. Qui si risponde solo per i compressori che la scheda ha ADESSO.
+ */
+export function collegamentiRisolti(
+  scheda: SchedaDatiCompleta,
+  salvato: Record<string, string[]> | undefined
+): Record<string, string[]> {
+  const primoSerbatoio = scheda.serbatoi?.[0]?.codice
+  const risolti: Record<string, string[]> = {}
+  for (const compressore of scheda.compressori ?? []) {
+    const scelta = salvato?.[compressore.codice]
+    risolti[compressore.codice] = scelta ?? (primoSerbatoio ? [primoSerbatoio] : [])
+  }
+  return risolti
+}

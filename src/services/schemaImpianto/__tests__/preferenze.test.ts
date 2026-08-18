@@ -15,6 +15,7 @@ import {
   ordinaPerElenco,
   preferenzeRisolteDaScheda,
   preferenzeDaRiapplicare,
+  collegamentiRisolti,
   prossimoIdBypass,
   risolviPreferenze,
 } from '../preferenze'
@@ -298,5 +299,49 @@ describe('preferenzeDaRiapplicare', () => {
   it('e falso quando l impronta salvata e una stringa vuota', () => {
     // Difensivo: `schemaLayout` arriva da `additional_info`, che Zod dichiara permissivo.
     expect(preferenzeDaRiapplicare('', risolte)).toBe(false)
+  })
+})
+
+describe('collegamentiRisolti', () => {
+  const scheda = (compressori: string[], serbatoi: string[]) =>
+    makeScheda({
+      compressori: compressori.map((codice) => makeCompressore({ codice })),
+      serbatoi: serbatoi.map((codice) => makeSerbatoio({ codice })),
+      disoleatori: [],
+      essiccatori: [],
+      filtri: [],
+    })
+
+  it('senza nulla di salvato, propone tutti i compressori collegati al primo serbatoio', () => {
+    // Difetto trovato su una pratica vera (BADOER INFISSI, 18-08-2026): i campi nascevano vuoti,
+    // e bastava compilarne uno perche' lo schema si generasse — con l'altro compressore rimasto
+    // invisibile nel disegno, senza che nulla lo segnalasse.
+    const risolti = collegamentiRisolti(scheda(['C1', 'C2'], ['S1']), undefined)
+    expect(risolti).toEqual({ C1: ['S1'], C2: ['S1'] })
+  })
+
+  it('un compressore già salvato non viene toccato, anche se il salvataggio lo scollega', () => {
+    // Chiave PRESENTE (anche vuota) vince sempre sul default: è il modo con cui l'operatore
+    // dichiara "questo compressore non è collegato a nulla", e riproporgli il default a ogni
+    // apertura glielo impedirebbe per sempre. Stessa regola di `condense` in `risolviPreferenze`.
+    const risolti = collegamentiRisolti(scheda(['C1', 'C2'], ['S1', 'S2']), { C1: [], C2: ['S2'] })
+    expect(risolti).toEqual({ C1: [], C2: ['S2'] })
+  })
+
+  it('un compressore nuovo, non ancora salvato, prende comunque il default', () => {
+    const risolti = collegamentiRisolti(scheda(['C1', 'C2'], ['S1']), { C1: ['S1'] })
+    expect(risolti).toEqual({ C1: ['S1'], C2: ['S1'] })
+  })
+
+  it('senza serbatoi il default è un array vuoto, non un collegamento inventato', () => {
+    const risolti = collegamentiRisolti(scheda(['C1'], []), undefined)
+    expect(risolti).toEqual({ C1: [] })
+  })
+
+  it('un id salvato per un compressore sparito dalla scheda non compare nel risultato', () => {
+    // Non è il suo lavoro potarlo: quello lo fa `potaCollegamenti` (equipmentCodes.ts) contro i
+    // codici correnti. Qui si risponde solo per i compressori che la scheda ha ADESSO.
+    const risolti = collegamentiRisolti(scheda(['C1'], ['S1']), { C1: ['S1'], C9: ['S1'] })
+    expect(risolti).toEqual({ C1: ['S1'] })
   })
 })

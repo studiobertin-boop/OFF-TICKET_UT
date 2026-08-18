@@ -40,6 +40,7 @@ import type { Tarature } from '@/services/schemaImpianto/libreria'
 import type { LayoutSalvato } from '@/services/schemaImpianto/persistenza'
 import { layoutDaPersistere } from '@/services/schemaImpianto/persistenza'
 import type { SchemaLayout } from '@/services/schemaImpianto/types'
+import { collegamentiRisolti } from '@/services/schemaImpianto/preferenze'
 
 /**
  * Pota i soli collegamenti compressori→serbatoi contro i codici presenti in scheda.
@@ -206,7 +207,12 @@ export const TechnicalDetails = () => {
       technicalData.additional_info as AdditionalInfo | undefined,
       schedaCodes
     )
-    setCollegamenti(info.collegamentiCompressoriSerbatoi ?? {})
+    // `collegamentiRisolti`, non `?? {}`: una pratica mai aperta (o un compressore appena
+    // aggiunto) propone tutti i compressori collegati al primo serbatoio — il caso comune, un
+    // solo serbatoio in sala — invece di lasciare i campi vuoti finché l'operatore non li tocca.
+    // Un salvataggio presente, anche con un compressore deliberatamente scollegato (`[]`), vince
+    // sempre sul default: vedi `collegamentiRisolti` (services/schemaImpianto/preferenze.ts).
+    setCollegamenti(collegamentiRisolti(technicalData.equipment_data as SchedaDatiCompleta, info.collegamentiCompressoriSerbatoi))
     setPreferenzeSchema(info.schemaPreferenze ?? {})
     setSchemaLayoutSalvato(info.schemaLayout ?? null)
     setTaraturaPratica(info.schemaLayout?.simboli ?? {})
