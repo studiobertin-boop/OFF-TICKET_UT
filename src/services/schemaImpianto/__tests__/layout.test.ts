@@ -779,6 +779,34 @@ describe('catenaDagliArchi', () => {
     expect(catenaDagliArchi(model, null).map((n) => n.id)).toEqual(['F1', 'F3'])
   })
 
+  it('non segue il ponte di un by-pass, nemmeno quando è il primo arco che esce dal TEE', () => {
+    // Da una giunzione di by-pass escono DUE archi: la linea e il ponte. `catenaDagliArchi`
+    // prende il primo che trova, e seguendo il ponte salterebbe tutti gli stadi scavalcati —
+    // che finirebbero fra gli orfani, appesi in coda nell'ordine di default: un disegno con le
+    // linee incrociate, cioe' il difetto che questa funzione e' nata per chiudere.
+    //
+    // Il ponte sta PRIMO nell'elenco di proposito: con la sola difesa dell'ordine di emissione
+    // in `buildArchi` questo test sarebbe verde per la ragione sbagliata.
+    const model: SchemaModel = {
+      nodi: [
+        stadio('BP1-IN', 'giunzione'),
+        { ...stadio('F1'), prefiltro: true },
+        stadio('F2'),
+        stadio('BP1-OUT', 'giunzione'),
+        serbatoio,
+      ],
+      archi: [
+        { ...aria('BP1-IN', 'BP1-OUT'), stile: 'flessibile', forma: 'ponte' },
+        aria('S1', 'BP1-IN'),
+        aria('BP1-IN', 'F1'),
+        aria('F1', 'F2'),
+        aria('F2', 'BP1-OUT'),
+        aria('BP1-OUT', 'UTENZE'),
+      ],
+    }
+    expect(catenaDagliArchi(model, null).map((n) => n.id)).toEqual(['BP1-IN', 'F1', 'F2', 'BP1-OUT'])
+  })
+
   it('non segue le linee condense, che non dicono nulla sull’ordine dell’aria', () => {
     // L'arco condensa esce da S1 PRIMA di quello d'aria: seguendolo, la catena si fermerebbe sul
     // pozzo e i due filtri ricadrebbero fra gli orfani, cioe' nell'ordine di default F1 → F2 —

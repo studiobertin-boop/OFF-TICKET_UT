@@ -665,3 +665,131 @@ describe('la valvola della mandata, dopo la correzione sul disegno', () => {
     })
   })
 })
+
+describe('il by-pass nel modello', () => {
+  // Stessa scheda dei test delle convenzioni: catena F1 (prefiltro) → E1 → F2 (linea).
+  const scheda = () =>
+    makeScheda({
+      compressori: [makeCompressore({ codice: 'C1' })],
+      disoleatori: [makeDisoleatore({ codice: 'C1.1', compressore_associato: 'C1' })],
+      serbatoi: [makeSerbatoio({ codice: 'S1', orientamento: 'VERTICALE' })],
+      filtri: [makeFiltro({ codice: 'F1', tipo: 'PREFILTRO' }), makeFiltro({ codice: 'F2', tipo: 'LINEA' })],
+      essiccatori: [makeEssiccatore({ codice: 'E1' })],
+      scambiatori: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'tanica' }),
+    })
+
+  const conBypass = (stadi: string[]) => {
+    const s = scheda()
+    return buildSchemaModel({
+      scheda: s,
+      collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+      preferenze: preferenzeRisolteDaScheda(s, { bypass: [{ id: 'bp1', stadi }] }),
+    })
+  }
+
+  /** Il nodo che l'arco d'aria raggiunge partendo da `id`, saltando il ponte. */
+  const dopo = (m: ReturnType<typeof buildSchemaModel>, id: string) =>
+    m.archi.find((a) => a.da.nodo === id && a.stile === 'standard')!.a.nodo
+
+  it('mette due giunzioni nel modello, di origine scheda', () => {
+    const m = conBypass(['F1', 'E1', 'F2'])
+    const giunzioni = m.nodi.filter((n) => n.tipo === 'giunzione')
+    expect(giunzioni.map((n) => n.id)).toEqual(['BP1-IN', 'BP1-OUT'])
+    // 'manuale' le renderebbe indistruttibili, e sciogliere il gruppo lascerebbe due TEE orfani.
+    expect(giunzioni.every((n) => n.origine === 'scheda')).toBe(true)
+  })
+
+  it('la linea di processo passa DENTRO le giunzioni, non le scavalca', () => {
+    const m = conBypass(['F1', 'E1', 'F2'])
+    expect(dopo(m, 'S1')).toBe('BP1-IN')
+    expect(dopo(m, 'BP1-IN')).toBe('F1')
+    expect(dopo(m, 'F2')).toBe('BP1-OUT')
+    expect(dopo(m, 'BP1-OUT')).toBe(ID_UTENZE)
+    // E nessun arco salta da S1 direttamente al primo stadio: sarebbe la linea sdoppiata.
+    expect(m.archi.some((a) => a.da.nodo === 'S1' && a.a.nodo === 'F1')).toBe(false)
+  })
+
+  it('un by-pass in mezzo alla catena mette i TEE ai confini del gruppo, non della catena', () => {
+    const m = conBypass(['E1'])
+    expect(dopo(m, 'S1')).toBe('F1')
+    expect(dopo(m, 'F1')).toBe('BP1-IN')
+    expect(dopo(m, 'BP1-IN')).toBe('E1')
+    expect(dopo(m, 'E1')).toBe('BP1-OUT')
+    expect(dopo(m, 'BP1-OUT')).toBe('F2')
+  })
+
+  it('il ponte è un arco solo, flessibile, che unisce i due TEE dall’alto', () => {
+    const ponte = conBypass(['F1', 'E1', 'F2']).archi.filter((a) => a.forma === 'ponte')
+    expect(ponte).toHaveLength(1)
+    expect(ponte[0]).toMatchObject({
+      da: { nodo: 'BP1-IN', ancora: 'alto' },
+      a: { nodo: 'BP1-OUT', ancora: 'alto' },
+      stile: 'flessibile',
+    })
+  })
+
+  it('il ponte porta tre valvole ancorate ai vertici dei gomiti, coi loro stili a valle', () => {
+    // Convenzione 5. Gli scarti sono di DUE passi di griglia e non uno: il committente ha
+    // abbassato le valvole della mandata il 18-08-2026, e le due misure devono restare uguali o
+    // due valvole affiancate nel disegno starebbero a quote diverse.
+    const ponte = conBypass(['F1', 'E1', 'F2']).archi.find((a) => a.forma === 'ponte')!
+    expect(ponte.segni).toHaveLength(3)
+    const [sinistra, centro, destra] = ponte.segni!
+    expect(sinistra.ancoraggio).toEqual({ tipo: 'vertice', vertice: 1, scarto: -20 })
+    expect(sinistra.stileAValle).toBe('standard')
+    expect(centro.ancoraggio).toEqual({ tipo: 'meta', tratto: 1 })
+    expect(centro.stileAValle).toBeUndefined()
+    expect(destra.ancoraggio).toEqual({ tipo: 'vertice', vertice: 2, scarto: 20 })
+    expect(destra.stileAValle).toBe('flessibile')
+    // Tutte col ripiego a metà tubo, se la geometria non si risolvesse.
+    expect(ponte.segni!.every((s) => s.t === 0.5 && s.tipo === 'valvola_intercettazione')).toBe(true)
+  })
+
+  it('lo scarto delle valvole del ponte è lo stesso di quello della mandata', () => {
+    // Il legame che il committente ha chiesto esplicitamente: se un giorno si ritocca uno dei due
+    // numeri senza l'altro, questo test cade.
+    const m = conBypass(['F1', 'E1', 'F2'])
+    const mandata = m.archi.find((a) => a.stile === 'flessibile' && a.forma !== 'ponte')!.segni![0]
+    const ponte = m.archi.find((a) => a.forma === 'ponte')!.segni![0]
+    const scarto = (s: typeof mandata) =>
+      s.ancoraggio?.tipo === 'vertice' ? Math.abs(s.ancoraggio.scarto) : null
+    expect(scarto(ponte)).toBe(scarto(mandata))
+  })
+
+  it('la valvola di riserva sparisce dove il ponte ne mette già una', () => {
+    // Convenzione 6: con un by-pass che scavalca il primo (o l'ultimo) stadio quella valvola c'è
+    // già sul ponte, e metterne una seconda a un passo di distanza è ciò che nei riferimenti non
+    // si vede.
+    const m = conBypass(['F1', 'E1', 'F2'])
+    expect(m.archi.find((a) => a.da.nodo === 'S1' && a.stile === 'standard')!.segni).toBeUndefined()
+    expect(m.archi.find((a) => a.a.nodo === ID_UTENZE)!.segni).toBeUndefined()
+  })
+
+  it('ma resta ai due capi quando il by-pass sta in mezzo alla catena', () => {
+    const m = conBypass(['E1'])
+    expect(m.archi.find((a) => a.da.nodo === 'S1' && a.stile === 'standard')!.segni).toHaveLength(1)
+    expect(m.archi.find((a) => a.a.nodo === ID_UTENZE)!.segni).toHaveLength(1)
+  })
+
+  it('senza by-pass il modello è quello del Blocco 2, senza giunzioni né ponti', () => {
+    const s = scheda()
+    const m = buildSchemaModel({
+      scheda: s,
+      collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+      preferenze: preferenzeRisolteDaScheda(s, {}),
+    })
+    expect(m.nodi.some((n) => n.tipo === 'giunzione')).toBe(false)
+    expect(m.archi.some((a) => a.forma)).toBe(false)
+    expect(dopo(m, 'S1')).toBe('F1')
+  })
+
+  it('gli archi del ponte non entrano fra quelli delle condense né fra quelli di linea', () => {
+    // Il ponte è flessibile come la mandata del compressore: chi filtra per stile lo raccoglie.
+    // Serve `forma` per distinguerlo, ed è il motivo per cui il campo esiste.
+    const m = conBypass(['F1', 'E1', 'F2'])
+    const flessibili = m.archi.filter((a) => a.stile === 'flessibile')
+    expect(flessibili).toHaveLength(2)
+    expect(flessibili.filter((a) => a.forma === 'ponte')).toHaveLength(1)
+  })
+})

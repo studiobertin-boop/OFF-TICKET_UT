@@ -317,6 +317,12 @@ export function catenaDagliArchi(model: SchemaModel, pozzo: SchemaNodo | null): 
     // linea. Il primo vince — con due uscite dallo stesso nodo il disegno e' comunque ambiguo, e
     // sceglierne una in silenzio e' meglio che fermarsi.
     if (arco.stile === 'condensa') continue
+    // E nemmeno il ponte di un by-pass, che e' aria ma non e' la linea: da una giunzione di
+    // by-pass escono DUE archi, e seguendo il ponte la catena salterebbe di netto tutti gli stadi
+    // scavalcati — che finirebbero fra gli orfani, appesi in coda nell'ordine di default, cioe'
+    // col disegno a linee incrociate che questa funzione e' nata per chiudere. Il ponte non e'
+    // ambiguo come due uscite qualunque: si sa gia' che non e' lui la strada dell'aria di linea.
+    if (arco.forma === 'ponte') continue
     if (!successore.has(arco.da.nodo)) successore.set(arco.da.nodo, arco.a.nodo)
   }
 

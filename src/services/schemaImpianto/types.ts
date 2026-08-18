@@ -206,6 +206,22 @@ export interface SchemaSegnoTubo {
   ancoraggio?: SchemaAncoraggioSegno
 }
 
+/**
+ * Forma che il LAYOUT deve dare a un arco appena generato, quando la rotta automatica non basta.
+ * Oggi ce n'è una sola: `'ponte'`, il cavalcavia di un by-pass — sale dalla giunzione di monte,
+ * corre orizzontale sopra gli stadi scavalcati e ridiscende su quella di valle.
+ *
+ * I gomiti del ponte **non sono un'ottimizzazione**: entrambi i capi stanno su una giunzione, che
+ * impone il lato, e senza gomiti `rottaImboccata` (tratti.ts) piega a `yMedia` — che coi due TEE
+ * alla stessa quota è la loro stessa quota — e `dedup` collassa tutto in una retta orizzontale
+ * sovrapposta alla linea di processo. Il by-pass sparirebbe alla vista pur esistendo nel modello.
+ *
+ * È un'istruzione **di sola andata**, come `SchemaAncoraggioSegno`: `layoutSchema` la consuma,
+ * scrive i `punti` assoluti e la toglie. Non compare mai in un layout salvato — per questo il
+ * formato su disco non cambia.
+ */
+export type SchemaFormaArco = 'ponte'
+
 export interface SchemaArco {
   id: string
   da: SchemaCapo
@@ -215,6 +231,12 @@ export interface SchemaArco {
   punti?: { x: number; y: number }[]
   /** Valvole di intercettazione e riduttori di pressione posati sul tratto. */
   segni?: SchemaSegnoTubo[]
+  /**
+   * Come il layout deve piegare questo arco. Assente — il caso di ogni arco tracciato a mano, di
+   * ogni layout salvato e di ogni arco che l'auto-layout instrada da sé — vale la rotta di sempre.
+   * Vedi `SchemaFormaArco`: entra nel layout e non ne esce.
+   */
+  forma?: SchemaFormaArco
 }
 
 /** Output di `buildSchemaModel`: struttura logica, senza ancora una disposizione grafica. */

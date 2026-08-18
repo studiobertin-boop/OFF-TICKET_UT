@@ -15,6 +15,7 @@ import type {
   Separatore,
 } from '@/types/technicalSheet'
 import { elencaValvole } from '@/utils/valvoleImpianto'
+import { eTeeBypass, linearizzaConBypass, nodoGiunzioneBypass } from './bypass'
 import type { Tarature } from './libreria'
 // `import type` e non un import di valore: `preferenze.ts` importa `ordinaCatenaTrattamento` e
 // `scaricaCondensa` da QUI, e un import vero chiuderebbe il cerchio. I tipi spariscono in
@@ -310,6 +311,14 @@ function ancoraMandata(serbatoio: SchemaNodo | undefined, libreria: Tarature): s
   return ancoraDi(serbatoio, 'sx-basso', libreria) ? 'sx-basso' : 'sx'
 }
 
+/**
+ * Quanto una valvola di intercettazione sta lontano dal gomito, lungo il tubo. Due passi di
+ * griglia dal 18-08-2026, uno prima. **Un numero solo per la mandata del compressore
+ * (convenzione 1) e per i montanti del ponte (convenzione 5)**: sono valvole che nel disegno
+ * finiscono affiancate, e a misure diverse starebbero a quote diverse.
+ */
+const SCARTO_VALVOLA = 20
+
 function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCondense: SchemaNodo | null): SchemaArco[] {
   const archi: SchemaArco[] = []
   let contatore = 0
@@ -317,31 +326,46 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
   const libreria = input.libreria ?? {}
 
   /**
-   * Valvola di intercettazione DUE passi di griglia sotto il vertice dato. Erano uno fino al
-   * 18-08-2026, quando il committente le ha abbassate correggendo a mano il disegno generato
-   * (convenzione 1, che diceva «un passo»: il disegno vero ne vuole due). La `t`
-   * nasce a 0,5 come ripiego: se la geometria non si risolve la valvola compare a meta' tubo,
-   * sbagliata ma visibile e correggibile a mano, che e' meglio di un'eccezione a meta' generazione.
+   * Valvola di intercettazione DUE passi di griglia lontano dal vertice dato, sul tratto che
+   * scende. Erano uno fino al 18-08-2026, quando il committente le ha abbassate correggendo a mano
+   * il disegno generato (convenzione 1, che diceva «un passo»: il disegno vero ne vuole due).
+   *
+   * **Lo stesso numero vale per le valvole del ponte** (convenzione 5): due valvole affiancate nel
+   * disegno — quella della mandata e quella del montante di un by-pass — starebbero altrimenti a
+   * quote diverse. Un test lega esplicitamente le due misure.
+   *
+   * `verso` dice da che parte del vertice sta la valvola LUNGO la polilinea: −1 sul tratto
+   * entrante (il montante che sale verso il gomito), +1 su quello uscente (il montante che
+   * ridiscende dopo il gomito).
+   *
+   * La `t` nasce a 0,5 come ripiego: se la geometria non si risolve la valvola compare a meta'
+   * tubo, sbagliata ma visibile e correggibile a mano, che e' meglio di un'eccezione a meta'
+   * generazione.
    */
-  const valvolaSottoIlVertice = (vertice: number, stileAValle?: SchemaArcoStile): SchemaSegnoTubo[] => [
-    {
-      id: prossimoId('segno'),
-      tipo: 'valvola_intercettazione',
-      t: 0.5,
-      stileAValle,
-      ancoraggio: { tipo: 'vertice', vertice, scarto: -20 },
-    },
-  ]
+  const valvolaAlVertice = (
+    vertice: number,
+    stileAValle?: SchemaArcoStile,
+    verso: -1 | 1 = -1
+  ): SchemaSegnoTubo => ({
+    id: prossimoId('segno'),
+    tipo: 'valvola_intercettazione',
+    t: 0.5,
+    stileAValle,
+    ancoraggio: { tipo: 'vertice', vertice, scarto: verso * SCARTO_VALVOLA },
+  })
+
+  /** Valvola di intercettazione a meta' di un tratto: la riserva (tratto 0) e quella al centro
+   *  della corsa orizzontale del ponte (tratto 1). */
+  const valvolaAMeta = (tratto: number, stileAValle?: SchemaArcoStile): SchemaSegnoTubo => ({
+    id: prossimoId('segno'),
+    tipo: 'valvola_intercettazione',
+    t: 0.5,
+    stileAValle,
+    ancoraggio: { tipo: 'meta', tratto },
+  })
 
   /** Valvola di riserva, a meta' del primo tratto (convenzione 6). */
-  const valvolaDiRiserva = (): SchemaSegnoTubo[] => [
-    {
-      id: prossimoId('segno'),
-      tipo: 'valvola_intercettazione',
-      t: 0.5,
-      ancoraggio: { tipo: 'meta', tratto: 0 },
-    },
-  ]
+  const valvolaDiRiserva = (): SchemaSegnoTubo[] => [valvolaAMeta(0)]
 
   const perId = new Map(nodi.map((n) => [n.id, n]))
 
@@ -354,8 +378,8 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
         stile: 'flessibile',
         // Il montante sale flessibile fino alla valvola, e da li' in su e' rigido (convenzione 1):
         // il vertice 1 della rotta flessibile e' il punto in cui il montante incontra la dorsale,
-        // e lo scarto di -10 e' il passo di griglia sotto di essa.
-        segni: valvolaSottoIlVertice(1, 'standard'),
+        // e lo scarto e' quanto la valvola sta sotto di essa.
+        segni: [valvolaAlVertice(1, 'standard')],
       })
     }
   }
@@ -369,29 +393,35 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
         .filter((n): n is SchemaNodo => Boolean(n))
     : catenaDiDefault
 
+  // Le giunzioni dei by-pass entrano nella sequenza della linea: da qui in giu' si ragiona sulla
+  // SEQUENZA (stadi e TEE insieme), non piu' sulla catena dei soli stadi. Un gruppo non contiguo,
+  // vuoto o su stadi che la catena non ha cade qui senza rumore (vedi `bypass.ts`).
+  const { sequenza, ponti } = linearizzaConBypass(catenaLinea, input.preferenze?.bypass ?? [])
+
   // Convenzione 6: la valvola di riserva e' quella con cui l'operatore isola la sezione. Con un
   // by-pass che scavalca il primo (o l'ultimo) stadio quella valvola c'e' gia' sul ponte, e
-  // metterne una seconda a un passo di distanza e' cio' che nei riferimenti non si vede. Nel
-  // Blocco 2 `bypass` e' sempre vuoto, quindi entrambe le valvole ci sono sempre.
-  const scavalcati = new Set((input.preferenze?.bypass ?? []).flatMap((g) => g.stadi))
+  // metterne una seconda a un passo di distanza e' cio' che nei riferimenti non si vede. La
+  // domanda si pone sulla SEQUENZA — «il capo della linea e' un TEE?» — e non sull'elenco degli
+  // stadi scavalcati: e' la stessa regola, detta dove e' vera anche quando il gruppo e' caduto.
+  const capoDiTee = (nodo: SchemaNodo | undefined) => nodo?.tipo === 'giunzione'
 
   const serbatoiChiave = nodi.filter((n) => n.tipo === 'serbatoio').map((n) => n.id)
-  if (catenaLinea.length > 0 && serbatoiChiave.length > 0) {
+  if (sequenza.length > 0 && serbatoiChiave.length > 0) {
     archi.push({
       id: prossimoId('std'),
       da: { nodo: serbatoiChiave[0], ancora: 'dx' },
-      a: { nodo: catenaLinea[0].id, ancora: 'sx' },
+      a: { nodo: sequenza[0].id, ancora: 'sx' },
       stile: 'standard',
-      ...(scavalcati.has(catenaLinea[0].id) ? {} : { segni: valvolaDiRiserva() }),
+      ...(capoDiTee(sequenza[0]) ? {} : { segni: valvolaDiRiserva() }),
     })
-    for (let i = 0; i < catenaLinea.length - 1; i++) {
+    for (let i = 0; i < sequenza.length - 1; i++) {
       // Nessun segno fra due stadi consecutivi: le valvole d'ufficio a meta' tratto spariscono
       // (convenzione 6). L'arco pero' si emette SEMPRE, anche quando i due stadi sono adiacenti e
       // il tratto e' degenere: e' il tessuto che ripara il disegno appena l'operatore li separa.
       archi.push({
         id: prossimoId('std'),
-        da: { nodo: catenaLinea[i].id, ancora: 'dx' },
-        a: { nodo: catenaLinea[i + 1].id, ancora: 'sx' },
+        da: { nodo: sequenza[i].id, ancora: 'dx' },
+        a: { nodo: sequenza[i + 1].id, ancora: 'sx' },
         stile: 'standard',
       })
     }
@@ -399,7 +429,7 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
 
   // Tubazione finale verso le utenze. Il nodo esiste solo se ha da chi partire, quindi qui si
   // decide anche se `buildSchemaModel` deve aggiungerlo (vedi `sorgente`, sotto).
-  const ultimo = catenaLinea.length > 0 ? catenaLinea[catenaLinea.length - 1] : undefined
+  const ultimo = sequenza.length > 0 ? sequenza[sequenza.length - 1] : undefined
   const sorgente = ultimo ? ultimo.id : serbatoiChiave[0]
   if (sorgente) {
     archi.push({
@@ -407,7 +437,35 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
       da: { nodo: sorgente, ancora: 'dx' },
       a: { nodo: ID_UTENZE, ancora: 'in' },
       stile: 'standard',
-      ...(ultimo && scavalcati.has(ultimo.id) ? {} : { segni: valvolaDiRiserva() }),
+      ...(capoDiTee(ultimo) ? {} : { segni: valvolaDiRiserva() }),
+    })
+  }
+
+  // I ponti DOPO tutti gli archi della linea, e non e' indifferente: da una giunzione di by-pass
+  // escono due archi, e `catenaDagliArchi` (layout.ts) segue il primo che trova. Emettendo il
+  // ponte per primo la catena salterebbe tutti gli stadi scavalcati.
+  //
+  // Non e' pero' l'unica difesa — sarebbe fragile, basta che un domani qualcuno riordini questa
+  // funzione: `catenaDagliArchi` salta gli archi `forma: 'ponte'` per conto suo, e il test che lo
+  // fissa mette il ponte per primo di proposito.
+  for (const ponte of ponti) {
+    archi.push({
+      id: prossimoId('bp'),
+      // Entrambi i capi sull'ancora ALTA del TEE: e' da li' che il ponte si stacca dalla linea.
+      da: { nodo: ponte.inizio, ancora: 'alto' },
+      a: { nodo: ponte.fine, ancora: 'alto' },
+      // Flessibile alla partenza: dal TEE fino alla valvola del montante. Sopra le valvole i due
+      // `stileAValle` lo riportano a rigido e poi di nuovo a flessibile (convenzione 5).
+      stile: 'flessibile',
+      forma: 'ponte',
+      segni: [
+        // Vertice 1 = gomito di sinistra, vertice 2 = gomito di destra, tratto 1 = la corsa
+        // orizzontale fra i due. Li fissa `risolviPonti` (bypass.ts), che emette esattamente due
+        // gomiti: cambiarne il numero sposta tutte e tre le valvole.
+        valvolaAlVertice(1, 'standard', -1),
+        valvolaAMeta(1),
+        valvolaAlVertice(2, 'flessibile', 1),
+      ],
     })
   }
 
@@ -474,6 +532,15 @@ export function buildSchemaModel(input: BuildSchemaModelInput): SchemaModel {
   // incoerenti. Si decide guardando gli archi appena costruiti, unica fonte.
   const archi = buildArchi(nodi, input, raccoltaCondense)
   if (archi.some((a) => a.a.nodo === ID_UTENZE)) nodi.push(nodoUtenze())
+
+  // Le giunzioni dei by-pass entrano come il terminale: guardando gli ARCHI appena costruiti,
+  // unica fonte. Un gruppo caduto in `linearizzaConBypass` non ha lasciato archi, e cosi' non
+  // lascia nemmeno due TEE appesi nel vuoto. L'ordine nell'array non conta per loro — non stanno
+  // in nessuna riga di `layoutSchema`, ci arrivano da `catenaDagliArchi` — ma resta deterministico
+  // perche' segue quello degli archi.
+  for (const id of new Set(archi.flatMap((a) => [a.da.nodo, a.a.nodo]).filter(eTeeBypass))) {
+    nodi.push(nodoGiunzioneBypass(id))
+  }
 
   return { nodi, archi }
 }
