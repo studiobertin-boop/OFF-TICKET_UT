@@ -312,7 +312,12 @@ describe('renderSvg', () => {
 
     // Il confronto è con lo STESSO disegno prima del cambio: contare i tratti dritti in assoluto
     // non discrimina, perché il disegno ne porta già altri (la linea verso il terminale).
+    //
+    // Dal 18-08-2026 la valvola della mandata NASCE già con `stileAValle: 'standard'`
+    // (convenzione 1: sotto la valvola flessibile, sopra rigido), quindi il «prima» si costruisce
+    // togliendolo — non aggiungendolo, che ora non cambierebbe nulla.
     const disegnoDi = (svg: string) => svg.slice(0, svg.indexOf('LISTA APPARECCHIATURE'))
+    delete valvola.stileAValle
     const primaDi = disegnoDi(renderSvg(layout))
     valvola.stileAValle = 'standard'
     const dopo = disegnoDi(renderSvg(layout))
@@ -438,11 +443,17 @@ describe('renderSvg', () => {
     expect(svg).not.toMatch(/&(?!amp;|lt;|gt;|quot;|apos;|#)/)
   })
 
-  it('disegna il flessibile ondulato per tutta la lunghezza, non a riccioli', () => {
-    const svg = svgMinimo()
+  it('disegna il flessibile ondulato per tutto il suo troncone, non a riccioli', () => {
     // La firma del flessibile è il suo tracciato a curve (comandi Q). Fino al 17-08-2026 questo
     // pattern finiva su `marker-end`, la punta che ogni tratto portava in coda: ora le frecce si
     // posano a mano e quel pezzo non c'è più.
+    //
+    // Il troncone e non l'intero arco: dal 18-08-2026 la valvola della mandata dichiara
+    // `stileAValle: 'standard'` e da lì in su il tubo è rigido (convenzione 1). Si toglie la
+    // valvola per misurare l'onda su tutta la lunghezza, che è quel che questo test vuole vedere.
+    const layout = layoutMinimo()
+    for (const arco of layout.archi) arco.segni = []
+    const svg = renderSvg(layout)
     const flessibile = svg.match(/<path d="M [^"]*Q [^"]*" fill="none" stroke="#000"[^>]*\/>/g) ?? []
 
     expect(flessibile.length).toBeGreaterThan(0)
@@ -471,6 +482,10 @@ describe('renderSvg', () => {
       buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
     )
     const arco = layout.archi.find((a) => a.stile === 'flessibile')!
+    // Senza segni: la ROTTA e' quel che si misura, e i tronconi la spezzerebbero in due `<path>`.
+    // Dal 18-08-2026 la valvola della mandata dichiara `stileAValle: 'standard'` e il vertice del
+    // collettore cade nel pezzo rigido, dove i comandi sono `L` e non `Q` (convenzione 1).
+    arco.segni = []
     const indice = new Map(layout.nodi.map((n) => [n.id, n]))
     const pA = posizioneAncora(indice.get(arco.a.nodo)!, arco.a.ancora)
     const quote = quoteInstradamento(layout)
@@ -1029,6 +1044,10 @@ describe('righeLegenda — riduttore di pressione', () => {
       dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
     })
     const layout = layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } }))
+    // Svuotati TUTTI, poi i segni sul primo: dal 18-08-2026 anche la tubazione verso le utenze
+    // nasce con la sua valvola di riserva (convenzione 6), e lasciarla vanificherebbe il caso
+    // «nessuna valvola nel disegno» che questi test devono esercitare.
+    for (const arco of layout.archi) arco.segni = []
     layout.archi[0].segni = segni
     return layout
   }

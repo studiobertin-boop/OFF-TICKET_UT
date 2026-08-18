@@ -18,6 +18,7 @@ import {
   puoGenerareSchema,
 } from '../buildSchemaModel'
 import { capoValido } from '../agganci'
+import { preferenzeRisolteDaScheda } from '../preferenze'
 import { pozzoCondense } from '../layout'
 
 describe('buildSchemaModel', () => {
@@ -295,7 +296,7 @@ describe('buildSchemaModel', () => {
 })
 
 describe('ancoraggio degli archi automatici', () => {
-  it('la mandata del compressore parte dal cielo ed entra nel fianco del serbatoio', () => {
+  it('la mandata del compressore parte dal cielo ed entra nel fianco BASSO del serbatoio', () => {
     const scheda = makeScheda({
       dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
       essiccatori: [],
@@ -306,7 +307,10 @@ describe('ancoraggio degli archi automatici', () => {
     const mandata = model.archi.find((a) => a.stile === 'flessibile')
 
     expect(mandata?.da).toEqual({ nodo: 'C1', ancora: 'alto-out' })
-    expect(mandata?.a).toEqual({ nodo: 'S1', ancora: 'sx' })
+    // `sx-basso` e non `sx` dal 18-08-2026 (convenzione 2): la dorsale scende con un gradino e si
+    // aggancia al fianco in basso, non 160 unita' piu' in alto. Il serbatoio di default e'
+    // verticale, l'unico dei due che ha quell'ancora.
+    expect(mandata?.a).toEqual({ nodo: 'S1', ancora: 'sx-basso' })
   })
 
   it('ogni arco generato usa ancore che ne accettano lo stile', () => {
@@ -516,5 +520,127 @@ describe('terminale verso le utenze', () => {
     // E non riceve né emette condensa.
     expect(modello.archi.some((a) => a.stile === 'condensa' && a.a.nodo === 'UTENZE')).toBe(false)
     expect(modello.archi.some((a) => a.stile === 'condensa' && a.da.nodo === 'UTENZE')).toBe(false)
+  })
+})
+
+describe('le convenzioni grafiche dello studio', () => {
+  /** Un compressore col disoleatore, un serbatoio verticale, tre stadi: F1 → E1 → F2. */
+  const schedaConTreStadi = () =>
+    makeScheda({
+      compressori: [makeCompressore({ codice: 'C1' })],
+      disoleatori: [makeDisoleatore({ codice: 'C1.1', compressore_associato: 'C1' })],
+      serbatoi: [makeSerbatoio({ codice: 'S1', orientamento: 'VERTICALE' })],
+      filtri: [makeFiltro({ codice: 'F1', tipo: 'PREFILTRO' }), makeFiltro({ codice: 'F2', tipo: 'LINEA' })],
+      essiccatori: [makeEssiccatore({ codice: 'E1' })],
+      scambiatori: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'tanica' }),
+    })
+
+  const input = (extra = {}) => ({
+    scheda: schedaConTreStadi(),
+    collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+    ...extra,
+  })
+
+  it('la mandata del compressore si aggancia in basso al serbatoio verticale', () => {
+    // Convenzione 2: la dorsale scende con un gradino e si aggancia al fianco IN BASSO, non a
+    // 160 unita' piu' in alto come faceva fino al 18-08-2026.
+    const m = buildSchemaModel(input())
+    expect(m.archi.find((a) => a.stile === 'flessibile')!.a.ancora).toBe('sx-basso')
+  })
+
+  it('ma sull’orizzontale, che non ha quell’ancora, resta sx invece di finire al centro del corpo', () => {
+    // `sx-basso` non esiste sul serbatoio ORIZZONTALE. Chiederlo comunque farebbe ripiegare
+    // `posizioneAncora` sul centro del corpo — un tubo attaccato in mezzo alla pancia: sbagliato
+    // ma plausibile, il peggior tipo di errore.
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ codice: 'C1' })],
+      disoleatori: [],
+      serbatoi: [makeSerbatoio({ codice: 'S1', orientamento: 'ORIZZONTALE' })],
+      essiccatori: [],
+      scambiatori: [],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const m = buildSchemaModel(input({ scheda }))
+    expect(m.archi.find((a) => a.stile === 'flessibile')!.a.ancora).toBe('sx')
+  })
+
+  it('la valvola della mandata sta un passo sotto la dorsale, e da lì in su il tubo è rigido', () => {
+    // Convenzione 1: sotto la valvola flessibile, sopra rigido.
+    const segno = buildSchemaModel(input()).archi.find((a) => a.stile === 'flessibile')!.segni![0]
+    expect(segno.ancoraggio).toEqual({ tipo: 'vertice', vertice: 1, scarto: -10 })
+    expect(segno.stileAValle).toBe('standard')
+    expect(segno.t).toBe(0.5) // il ripiego, se la geometria non si risolve
+  })
+
+  it('fra due stadi consecutivi non c’è più la valvola d’ufficio', () => {
+    // Convenzione 6, seconda meta': spariscono le valvole a meta' di ogni tratto fra stadi.
+    const m = buildSchemaModel(input())
+    const stadi = new Set(['F1', 'E1', 'F2'])
+    const fraStadi = m.archi.filter(
+      (a) => a.stile === 'standard' && stadi.has(a.da.nodo) && stadi.has(a.a.nodo)
+    )
+    expect(fraStadi.length).toBeGreaterThan(0)
+    expect(fraStadi.every((a) => (a.segni ?? []).length === 0)).toBe(true)
+  })
+
+  it('la valvola di riserva sta all’uscita del serbatoio e prima delle utenze', () => {
+    const m = buildSchemaModel(input())
+    const uscita = m.archi.find((a) => a.da.nodo === 'S1' && a.stile === 'standard')!
+    const utenze = m.archi.find((a) => a.a.nodo === ID_UTENZE)!
+    for (const arco of [uscita, utenze]) {
+      expect(arco.segni).toHaveLength(1)
+      expect(arco.segni![0].ancoraggio).toEqual({ tipo: 'meta', tratto: 0 })
+    }
+  })
+
+  it('le condense seguono il flag dell’operatore, non più il tipo', () => {
+    const scheda = schedaConTreStadi()
+    const risolte = preferenzeRisolteDaScheda(scheda, { condense: { F1: false, C1: false } })
+    const m = buildSchemaModel(input({ scheda, preferenze: risolte }))
+    const scarichi = m.archi.filter((a) => a.stile === 'condensa').map((a) => a.da.nodo)
+    expect(scarichi).not.toContain('F1')
+    expect(scarichi).not.toContain('C1')
+    expect(scarichi).toContain('S1')
+  })
+
+  it('senza preferenze si comporta come prima: le condense per tipo', () => {
+    const scarichi = buildSchemaModel(input())
+      .archi.filter((a) => a.stile === 'condensa')
+      .map((a) => a.da.nodo)
+    expect(scarichi).toContain('F1')
+    expect(scarichi).toContain('S1')
+    expect(scarichi).toContain('C1') // ha il disoleatore
+  })
+
+  it('l’ordine degli stadi scelto dall’operatore diventa l’ordine in cui gli archi li collegano', () => {
+    const scheda = schedaConTreStadi()
+    const risolte = preferenzeRisolteDaScheda(scheda, { ordineStadi: ['F2', 'E1', 'F1'] })
+    const m = buildSchemaModel(input({ scheda, preferenze: risolte }))
+    const dopo = (id: string) => m.archi.find((a) => a.da.nodo === id && a.stile === 'standard')!.a.nodo
+    expect(dopo('S1')).toBe('F2')
+    expect(dopo('F2')).toBe('E1')
+    expect(dopo('E1')).toBe('F1')
+    expect(dopo('F1')).toBe(ID_UTENZE)
+  })
+
+  it('l’ordine dei serbatoi scelto decide anche quale è quello di testa', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ codice: 'C1' })],
+      disoleatori: [],
+      serbatoi: [
+        makeSerbatoio({ codice: 'S1', ubicazione: 'SALA_COMPRESSORI' }),
+        makeSerbatoio({ codice: 'S2', ubicazione: 'SALA_COMPRESSORI' }),
+      ],
+      essiccatori: [], scambiatori: [], filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const risolte = preferenzeRisolteDaScheda(scheda, { ordineSerbatoi: ['S2', 'S1'] })
+    const m = buildSchemaModel(input({ scheda, preferenze: risolte, collegamentiCompressoriSerbatoi: { C1: ['S1'] } }))
+    // L'ordine dell'array e' l'ordine del disegno: `layoutSchema` filtra per tipo e dispone in
+    // fila nell'ordine in cui li trova.
+    expect(m.nodi.filter((n) => n.tipo === 'serbatoio').map((n) => n.id)).toEqual(['S2', 'S1'])
+    expect(m.archi.find((a) => a.a.nodo === ID_UTENZE)!.da.nodo).toBe('S2')
   })
 })

@@ -15,9 +15,16 @@ import type {
   Separatore,
 } from '@/types/technicalSheet'
 import { elencaValvole } from '@/utils/valvoleImpianto'
+import type { Tarature } from './libreria'
+// `import type` e non un import di valore: `preferenze.ts` importa `ordinaCatenaTrattamento` e
+// `scaricaCondensa` da QUI, e un import vero chiuderebbe il cerchio. I tipi spariscono in
+// compilazione, quindi a runtime la dipendenza resta a senso unico.
+import type { PreferenzeRisolte } from './preferenze'
+import { ancoraDi } from './symbols'
 import type {
   SchemaAccessorioDipendente,
   SchemaArco,
+  SchemaArcoStile,
   SchemaGruppo,
   SchemaModel,
   SchemaNodo,
@@ -29,6 +36,17 @@ export interface BuildSchemaModelInput {
   scheda: SchedaDatiCompleta
   /** `AdditionalInfo.collegamentiCompressoriSerbatoi` — { C1: ['S1','S2'] }. */
   collegamentiCompressoriSerbatoi: Record<string, string[]>
+  /**
+   * Le scelte dell'operatore GIA' RISOLTE (`preferenzeRisolteDaScheda`). Assenti: i default di
+   * sempre — ordine per rango di tipo, condense per tipo, nessun by-pass — cosi' una pratica che
+   * non ha mai aperto il pannello genera esattamente come prima.
+   */
+  preferenze?: PreferenzeRisolte
+  /**
+   * La libreria dei simboli, da cui si legge l'ESISTENZA delle ancore e mai la loro geometria
+   * (vedi `ancoraMandata`).
+   */
+  libreria?: Tarature
 }
 
 /** Etichetta di tabella nello stesso formato delle relazioni storiche: "Compressore KAESER Mod. CSD 90 SFC". */
@@ -277,30 +295,84 @@ function nodoUtenze(): SchemaNodo {
   }
 }
 
+/**
+ * L'ancora del serbatoio a cui arriva la mandata del compressore: quella BASSA, come nei disegni
+ * di riferimento — la dorsale scende con un gradino e si aggancia al fianco in basso, non a 160
+ * unita' piu' in alto (convenzione 2).
+ *
+ * Si legge l'ESISTENZA dell'ancora, mai la sua geometria: `sx-basso` non c'e' sul serbatoio
+ * ORIZZONTALE (symbols/index.ts), e una taratura permanente puo' toglierlo anche al verticale.
+ * Chiederlo comunque farebbe ripiegare `posizioneAncora` sul centro del corpo del serbatoio — un
+ * tubo attaccato in mezzo alla pancia: sbagliato ma plausibile, il peggior tipo di errore.
+ */
+function ancoraMandata(serbatoio: SchemaNodo | undefined, libreria: Tarature): string {
+  if (!serbatoio) return 'sx'
+  return ancoraDi(serbatoio, 'sx-basso', libreria) ? 'sx-basso' : 'sx'
+}
+
 function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCondense: SchemaNodo | null): SchemaArco[] {
   const archi: SchemaArco[] = []
   let contatore = 0
   const prossimoId = (prefisso: string) => `${prefisso}-${++contatore}`
-  // Ogni arco flessibile o di linea nasce con una valvola di intercettazione a metà tratto:
-  // prima del 12-08-2026 la valvola la disegnava `renderSvg` d'ufficio a un punto fisso, ora è
-  // un segno vero seminato qui, spostabile nell'editor e letto dalla legenda (Task 3/4).
-  const segnoValvolaDiDefault = (): SchemaSegnoTubo[] => [
-    { id: prossimoId('segno'), tipo: 'valvola_intercettazione', t: 0.5 },
+  const libreria = input.libreria ?? {}
+
+  /**
+   * Valvola di intercettazione un passo di griglia SOTTO il vertice dato (convenzione 1). La `t`
+   * nasce a 0,5 come ripiego: se la geometria non si risolve la valvola compare a meta' tubo,
+   * sbagliata ma visibile e correggibile a mano, che e' meglio di un'eccezione a meta' generazione.
+   */
+  const valvolaSottoIlVertice = (vertice: number, stileAValle?: SchemaArcoStile): SchemaSegnoTubo[] => [
+    {
+      id: prossimoId('segno'),
+      tipo: 'valvola_intercettazione',
+      t: 0.5,
+      stileAValle,
+      ancoraggio: { tipo: 'vertice', vertice, scarto: -10 },
+    },
   ]
+
+  /** Valvola di riserva, a meta' del primo tratto (convenzione 6). */
+  const valvolaDiRiserva = (): SchemaSegnoTubo[] => [
+    {
+      id: prossimoId('segno'),
+      tipo: 'valvola_intercettazione',
+      t: 0.5,
+      ancoraggio: { tipo: 'meta', tratto: 0 },
+    },
+  ]
+
+  const perId = new Map(nodi.map((n) => [n.id, n]))
 
   for (const [compressoreId, serbatoiIds] of Object.entries(input.collegamentiCompressoriSerbatoi)) {
     for (const serbatoioId of serbatoiIds) {
       archi.push({
         id: prossimoId('flex'),
         da: { nodo: compressoreId, ancora: 'alto-out' },
-        a: { nodo: serbatoioId, ancora: 'sx' },
+        a: { nodo: serbatoioId, ancora: ancoraMandata(perId.get(serbatoioId), libreria) },
         stile: 'flessibile',
-        segni: segnoValvolaDiDefault(),
+        // Il montante sale flessibile fino alla valvola, e da li' in su e' rigido (convenzione 1):
+        // il vertice 1 della rotta flessibile e' il punto in cui il montante incontra la dorsale,
+        // e lo scarto di -10 e' il passo di griglia sotto di essa.
+        segni: valvolaSottoIlVertice(1, 'standard'),
       })
     }
   }
 
-  const catenaLinea = ordinaCatenaTrattamento(nodi, raccoltaCondense)
+  // L'ordine scelto dall'operatore vince su quello di default; senza preferenze resta
+  // `ordinaCatenaTrattamento`, il generatore di sempre.
+  const catenaDiDefault = ordinaCatenaTrattamento(nodi, raccoltaCondense)
+  const catenaLinea = input.preferenze
+    ? input.preferenze.ordineStadi
+        .map((id) => catenaDiDefault.find((n) => n.id === id))
+        .filter((n): n is SchemaNodo => Boolean(n))
+    : catenaDiDefault
+
+  // Convenzione 6: la valvola di riserva e' quella con cui l'operatore isola la sezione. Con un
+  // by-pass che scavalca il primo (o l'ultimo) stadio quella valvola c'e' gia' sul ponte, e
+  // metterne una seconda a un passo di distanza e' cio' che nei riferimenti non si vede. Nel
+  // Blocco 2 `bypass` e' sempre vuoto, quindi entrambe le valvole ci sono sempre.
+  const scavalcati = new Set((input.preferenze?.bypass ?? []).flatMap((g) => g.stadi))
+
   const serbatoiChiave = nodi.filter((n) => n.tipo === 'serbatoio').map((n) => n.id)
   if (catenaLinea.length > 0 && serbatoiChiave.length > 0) {
     archi.push({
@@ -308,28 +380,32 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
       da: { nodo: serbatoiChiave[0], ancora: 'dx' },
       a: { nodo: catenaLinea[0].id, ancora: 'sx' },
       stile: 'standard',
-      segni: segnoValvolaDiDefault(),
+      ...(scavalcati.has(catenaLinea[0].id) ? {} : { segni: valvolaDiRiserva() }),
     })
     for (let i = 0; i < catenaLinea.length - 1; i++) {
+      // Nessun segno fra due stadi consecutivi: le valvole d'ufficio a meta' tratto spariscono
+      // (convenzione 6). L'arco pero' si emette SEMPRE, anche quando i due stadi sono adiacenti e
+      // il tratto e' degenere: e' il tessuto che ripara il disegno appena l'operatore li separa.
       archi.push({
         id: prossimoId('std'),
         da: { nodo: catenaLinea[i].id, ancora: 'dx' },
         a: { nodo: catenaLinea[i + 1].id, ancora: 'sx' },
         stile: 'standard',
-        segni: segnoValvolaDiDefault(),
       })
     }
   }
 
   // Tubazione finale verso le utenze. Il nodo esiste solo se ha da chi partire, quindi qui si
   // decide anche se `buildSchemaModel` deve aggiungerlo (vedi `sorgente`, sotto).
-  const sorgente = catenaLinea.length > 0 ? catenaLinea[catenaLinea.length - 1].id : serbatoiChiave[0]
+  const ultimo = catenaLinea.length > 0 ? catenaLinea[catenaLinea.length - 1] : undefined
+  const sorgente = ultimo ? ultimo.id : serbatoiChiave[0]
   if (sorgente) {
     archi.push({
       id: prossimoId('ut'),
       da: { nodo: sorgente, ancora: 'dx' },
       a: { nodo: ID_UTENZE, ancora: 'in' },
       stile: 'standard',
+      ...(ultimo && scavalcati.has(ultimo.id) ? {} : { segni: valvolaDiRiserva() }),
     })
   }
 
@@ -340,7 +416,9 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
     const ancoraArrivo = raccoltaCondense.tipo === 'separatore' ? 'sx' : 'alto-in'
     for (const nodo of nodi) {
       if (nodo.id === raccoltaCondense.id) continue
-      if (scaricaCondensa(nodo)) {
+      // Il flag per apparecchiatura, col default per tipo gia' applicato da `risolviPreferenze`:
+      // dal 18-08-2026 la selezione non e' piu' per tipo (convenzione 7).
+      if (input.preferenze ? input.preferenze.condense.has(nodo.id) : scaricaCondensa(nodo)) {
         archi.push({
           id: prossimoId('cond'),
           da: { nodo: nodo.id, ancora: 'basso-out' },
@@ -354,13 +432,31 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
   return archi
 }
 
+/**
+ * Riordina secondo l'elenco scelto dall'operatore. L'ordine dell'ARRAY e' l'ordine del disegno:
+ * `layoutSchema` filtra per tipo e dispone in fila nell'ordine in cui trova i nodi qui. Riordinare
+ * a valle, nel layout, vorrebbe dire avere due ordinamenti — che e' esattamente il difetto che
+ * `catenaDagliArchi` e' nato per chiudere.
+ *
+ * `indexOf` torna -1 per un id non nominato, che lo porterebbe in testa: non capita, perche'
+ * `risolviPreferenze` restituisce elenchi COMPLETI (ogni apparecchiatura di scheda ci compare,
+ * nominata o no). Sta scritto perche' chi passa di qui non lo sa.
+ */
+function perElenco(elenco: string[] | undefined, elementi: SchemaNodo[]): SchemaNodo[] {
+  if (!elenco) return elementi
+  return [...elementi].sort((a, b) => elenco.indexOf(a.id) - elenco.indexOf(b.id))
+}
+
 export function buildSchemaModel(input: BuildSchemaModelInput): SchemaModel {
   const { scheda } = input
   const valvoleImpianto = elencaValvole(scheda)
 
   const nodi: SchemaNodo[] = [
-    ...(scheda.compressori ?? []).map((c) => buildCompressoreNodo(c, scheda, valvoleImpianto)),
-    ...buildSerbatoioNodi(scheda, valvoleImpianto),
+    ...perElenco(
+      input.preferenze?.ordineCompressori,
+      (scheda.compressori ?? []).map((c) => buildCompressoreNodo(c, scheda, valvoleImpianto))
+    ),
+    ...perElenco(input.preferenze?.ordineSerbatoi, buildSerbatoioNodi(scheda, valvoleImpianto)),
     ...(scheda.essiccatori ?? []).map((e) => buildEssiccatoreNodo(e, scheda)),
     ...(scheda.filtri ?? []).map((f) => buildFiltroNodo(f, scheda)),
     ...(scheda.separatori ?? []).map(buildSeparatoreNodo),

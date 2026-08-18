@@ -137,6 +137,20 @@
  * `rottaLinea` non emette piu' quando i capi stanno alla stessa quota. Nessun simbolo e nessuna
  * regola di instradamento sono stati toccati: il resto del disegno e' identico carattere per
  * carattere.
+ *
+ * Generato di nuovo il 18-08-2026, Task 6 del Blocco 2 («il modello dice dove vanno le valvole e
+ * da dove esce la mandata»). Tre cambiamenti, tutti voluti:
+ *
+ * - la **mandata del compressore si spezza in due tronconi**: ondulata dal cielo del compressore
+ *   fino alla valvola, dritta da li' in su (`stileAValle: 'standard'` sul segno) — convenzione 1,
+ *   «sotto la valvola flessibile, sopra rigido»;
+ * - la **valvola della mandata passa dal mezzo del tubo al montante**, un passo di griglia (10)
+ *   sotto la dorsale: e' il primo ancoraggio che `risolviSegniAncorati` traduce davvero in una `t`;
+ * - compare la **valvola di riserva prima del tratto verso le utenze** (convenzione 6), a meta'
+ *   del primo tratto.
+ *
+ * Dove il serbatoio e' VERTICALE si vede anche la convenzione 2: la dorsale scende fino
+ * all'ancora `sx-basso` invece di fermarsi alla `sx`, 160 unita' piu' in alto.
  */
 export const RIGHE_SVG_RIFERIMENTO_CON_MURO = [
   `<svg xmlns="http://www.w3.org/2000/svg" width="730" height="1078" viewBox="0 0 730 1078">`,
@@ -145,10 +159,13 @@ export const RIGHE_SVG_RIFERIMENTO_CON_MURO = [
   `<rect x="190" y="112" width="14" height="336" fill="none" stroke="#000" stroke-width="2" />`,
   `<rect x="190" y="492" width="14" height="113" fill="none" stroke="#000" stroke-width="2" />`,
   `<path d="M 190 67 L 204 55 M 190 124 L 204 112 M 190 136 L 204 124 M 190 148 L 204 136 M 190 160 L 204 148 M 190 172 L 204 160 M 190 184 L 204 172 M 190 196 L 204 184 M 190 208 L 204 196 M 190 220 L 204 208 M 190 232 L 204 220 M 190 244 L 204 232 M 190 256 L 204 244 M 190 268 L 204 256 M 190 280 L 204 268 M 190 292 L 204 280 M 190 304 L 204 292 M 190 316 L 204 304 M 190 328 L 204 316 M 190 340 L 204 328 M 190 352 L 204 340 M 190 364 L 204 352 M 190 376 L 204 364 M 190 388 L 204 376 M 190 400 L 204 388 M 190 412 L 204 400 M 190 424 L 204 412 M 190 436 L 204 424 M 190 504 L 204 492 M 190 516 L 204 504 M 190 528 L 204 516 M 190 540 L 204 528 M 190 552 L 204 540 M 190 564 L 204 552 M 190 576 L 204 564 M 190 588 L 204 576 M 190 600 L 204 588" fill="none" stroke="#000" stroke-width="1" />`,
-  `<path d="M 100 290 Q 105 285 100 280 Q 95 275 100 270 Q 105 265 100 260 Q 95 255 100 250 Q 105 245 100 240 Q 95 235 100 230 Q 105 225 100 220 Q 95 215 100 210 Q 105 205 100 200 Q 95 195 100 190 Q 105 185 100 180 Q 95 175 100 170 Q 105 165 100 160 Q 95 155 100 150 Q 105 145 100 140 Q 95 135 100 130 Q 105 125 100 120 Q 95 115 100 110 Q 105 105 100 100 Q 95 95 100 90 Q 104.88 95 109.76 90 Q 114.65 85 119.53 90 Q 124.41 95 129.29 90 Q 134.18 85 139.06 90 Q 143.94 95 148.82 90 Q 153.71 85 158.59 90 Q 163.47 95 168.35 90 Q 173.24 85 178.12 90 Q 183 95 187.88 90 Q 192.76 85 197.65 90 Q 202.53 95 207.41 90 Q 212.29 85 217.18 90 Q 222.06 95 226.94 90 Q 231.82 85 236.71 90 Q 241.59 95 246.47 90 Q 251.35 85 256.24 90 Q 261.12 95 266 90 Q 261 95 266 100 Q 271 105 266 110 Q 261 115 266 120 Q 271 125 266 130 Q 261 135 266 140 Q 271 145 266 150 Q 261 155 266 160 Q 271 165 266 170 Q 261 175 266 180 Q 271 185 266 190 Q 261 195 266 200 Q 271.67 205 277.33 200 Q 283 195 288.67 200 Q 294.33 200 300 200" fill="none" stroke="#000" stroke-width="2" />`,
-  `<rect x="146" y="85.5" width="18" height="9" fill="#fff" stroke="none" />`,
-  `<path d="M 146 85.5 L 146 94.5 L 155 90 Z M 164 85.5 L 164 94.5 L 155 90 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" />`,
+  `<path d="M 100 290 Q 105 285 100 280 Q 95 275 100 270 Q 105 265 100 260 Q 95 255 100 250 Q 105 245 100 240 Q 95 235 100 230 Q 105 225 100 220 Q 95 215 100 210 Q 105 205 100 200 Q 95 195 100 190 Q 105 185 100 180 Q 95 175 100 170 Q 105 165 100 160 Q 95 155 100 150 Q 105 145 100 140 Q 95 135 100 130 Q 105 125 100 120 Q 95 115 100 110 Q 100 105 100 100" fill="none" stroke="#000" stroke-width="2" />`,
+  `<path d="M 100 100 L 100 90 L 266 90 L 266 360 L 300 360" fill="none" stroke="#000" stroke-width="2" />`,
+  `<rect x="95.5" y="91" width="9" height="18" fill="#fff" stroke="none" />`,
+  `<path d="M 95.5 91 L 104.5 91 L 100 100 Z M 95.5 109 L 104.5 109 L 100 100 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" />`,
   `<path d="M 400 200 L 560 200" fill="none" stroke="#000" stroke-width="2" />`,
+  `<rect x="471" y="195.5" width="18" height="9" fill="#fff" stroke="none" />`,
+  `<path d="M 471 195.5 L 471 204.5 L 480 200 Z M 489 195.5 L 489 204.5 L 480 200 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" />`,
   `<path d="M 100 410 L 100 470 L 500 470 L 500 510" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="7 10" />`,
   `<path d="M 350 410 L 350 470 L 500 470 L 500 510" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="7 10" />`,
   `<g transform="translate(40 290)"><rect x="0" y="0" width="120" height="120" fill="none" stroke="#000" stroke-width="2" /><circle cx="83.88" cy="65.88000000000001" r="30" fill="none" stroke="#000" stroke-width="2" /><path d="M 70.38 39.18000000000001 L 109.97999999999999 50.88000000000001" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M 70.38 92.58000000000001 L 109.97999999999999 80.88000000000001" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><text x="110" y="20" font-family="Arial, Helvetica, sans-serif" font-size="24" text-anchor="end" dominant-baseline="central" fill="#000">C1</text><rect x="3.2399999999999998" y="54" width="47.88" height="60.12" fill="none" stroke="#000" stroke-width="2" /><text x="7.24" y="102.12" font-family="Arial, Helvetica, sans-serif" font-size="14" text-anchor="start" dominant-baseline="central" fill="#000">C1.1</text><rect x="21.12" y="37.44" width="12" height="12" fill="none" stroke="#000" stroke-width="2" /><path d="M 21.12 40.44 L 33.120000000000005 40.44 M 21.12 43.44 L 33.120000000000005 43.44 M 21.12 46.44 L 33.120000000000005 46.44" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><text x="21.12" y="24.439999999999998" font-family="Arial, Helvetica, sans-serif" font-size="14" text-anchor="start" dominant-baseline="central" fill="#000">C1.2</text></g>`,

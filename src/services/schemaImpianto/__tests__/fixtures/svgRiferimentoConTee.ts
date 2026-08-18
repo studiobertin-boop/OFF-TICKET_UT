@@ -117,13 +117,28 @@
  * `rottaLinea` non emette piu' quando i capi stanno alla stessa quota. Nessun simbolo e nessuna
  * regola di instradamento sono stati toccati: il resto del disegno e' identico carattere per
  * carattere.
+ *
+ * Generato di nuovo il 18-08-2026, Task 6 del Blocco 2 («il modello dice dove vanno le valvole e
+ * da dove esce la mandata»). Tre cambiamenti, tutti voluti:
+ *
+ * - la **mandata del compressore si spezza in due tronconi**: ondulata dal cielo del compressore
+ *   fino alla valvola, dritta da li' in su (`stileAValle: 'standard'` sul segno) — convenzione 1,
+ *   «sotto la valvola flessibile, sopra rigido»;
+ * - la **valvola della mandata passa dal mezzo del tubo al montante**, un passo di griglia (10)
+ *   sotto la dorsale: e' il primo ancoraggio che `risolviSegniAncorati` traduce davvero in una `t`;
+ * - compare la **valvola di riserva prima del tratto verso le utenze** (convenzione 6), a meta'
+ *   del primo tratto.
+ *
+ * Dove il serbatoio e' VERTICALE si vede anche la convenzione 2: la dorsale scende fino
+ * all'ancora `sx-basso` invece di fermarsi alla `sx`, 160 unita' piu' in alto.
  */
 export const RIGHE_SVG_RIFERIMENTO_CON_TEE = [
   `<svg xmlns="http://www.w3.org/2000/svg" width="910" height="802" viewBox="0 0 910 802">`,
   `<rect width="910" height="802" fill="#fff" />`,
-  `<path d="M 100 290 Q 105 285 100 280 Q 95 275 100 270 Q 105 265 100 260 Q 95 255 100 250 Q 104.88 255 109.76 250 Q 114.65 245 119.53 250 Q 124.41 255 129.29 250 Q 134.18 245 139.06 250 Q 143.94 255 148.82 250 Q 153.71 245 158.59 250 Q 163.47 255 168.35 250 Q 173.24 245 178.12 250 Q 183 255 187.88 250 Q 192.76 245 197.65 250 Q 202.53 255 207.41 250 Q 212.29 245 217.18 250 Q 222.06 255 226.94 250 Q 231.82 245 236.71 250 Q 241.59 255 246.47 250 Q 251.35 245 256.24 250 Q 261.12 255 266 250 Q 261 255 266 260 Q 271 265 266 270 Q 261 275 266 280 Q 271 285 266 290 Q 261 295 266 300 Q 271 305 266 310 Q 261 315 266 320 Q 271 325 266 330 Q 261 335 266 340 Q 271 345 266 350 Q 261 355 266 360 Q 271.67 365 277.33 360 Q 283 355 288.67 360 Q 294.33 360 300 360" fill="none" stroke="#000" stroke-width="2" />`,
-  `<rect x="226" y="245.5" width="18" height="9" fill="#fff" stroke="none" />`,
-  `<path d="M 226 245.5 L 226 254.5 L 235 250 Z M 244 245.5 L 244 254.5 L 235 250 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" />`,
+  `<path d="M 100 290 Q 105 285 100 280 Q 95 275 100 270 Q 100 265 100 260" fill="none" stroke="#000" stroke-width="2" />`,
+  `<path d="M 100 260 L 100 250 L 266 250 L 266 360 L 300 360" fill="none" stroke="#000" stroke-width="2" />`,
+  `<rect x="95.5" y="251" width="9" height="18" fill="#fff" stroke="none" />`,
+  `<path d="M 95.5 251 L 104.5 251 L 100 260 Z M 95.5 269 L 104.5 269 L 100 260 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" />`,
   `<path d="M 610 360 L 690 360" fill="none" stroke="#000" stroke-width="2" />`,
   `<path d="M 690 360 L 770 360" fill="none" stroke="#000" stroke-width="2" />`,
   `<g transform="translate(40 290)"><rect x="0" y="0" width="120" height="120" fill="none" stroke="#000" stroke-width="2" /><circle cx="60" cy="60" r="30" fill="none" stroke="#000" stroke-width="2" /><path d="M 46.5 33.3 L 86.1 45" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M 46.5 86.7 L 86.1 75" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><text x="10" y="20" font-family="Arial, Helvetica, sans-serif" font-size="24" text-anchor="start" dominant-baseline="central" fill="#000">C1</text></g>`,

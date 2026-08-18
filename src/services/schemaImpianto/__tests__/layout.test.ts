@@ -99,7 +99,14 @@ describe('layoutSchema', () => {
     const layout = layoutSchema(model)
 
     expect(layout.nodi.map((n) => n.id).sort()).toEqual(model.nodi.map((n) => n.id).sort())
-    expect(layout.archi).toEqual(model.archi)
+    // Gli archi per IDENTITA' e non in deep-equal: dal 18-08-2026 il layout risolve gli ancoraggi
+    // dei segni in `t` numeriche e toglie l'istruzione (`segniAncorati.ts`), quindi gli oggetti
+    // non sono piu' gli stessi del modello. Quel che questo test deve fissare e' che non se ne
+    // perda ne' se ne inventi nessuno.
+    expect(layout.archi.map((a) => a.id)).toEqual(model.archi.map((a) => a.id))
+    expect(layout.archi.map((a) => `${a.da.nodo}->${a.a.nodo}:${a.stile}`)).toEqual(
+      model.archi.map((a) => `${a.da.nodo}->${a.a.nodo}:${a.stile}`)
+    )
   })
 
   it('restituisce sempre testi: [], mai assente: chi legge il layout non deve ripiegare su ?? []', () => {
