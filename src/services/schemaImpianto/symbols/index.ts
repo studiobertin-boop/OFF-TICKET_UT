@@ -14,6 +14,7 @@
  * si limita a riesportare `DIMENSIONI_NODO` per i consumatori esistenti.
  */
 import { arrotonda, ondula } from '../tratti'
+import type { Punto } from '../tratti'
 import { PASSO_GRIGLIA } from '../griglia'
 import type { SchemaArcoStile, SchemaNodoTipo, SchemaNodo, SchemaAncora, SchemaLatoAncora, ChiaveSimbolo } from '../types'
 import { chiaveSimbolo } from '../types'
@@ -38,6 +39,49 @@ export const TRATTO = 2
  * scala: cambia solo quale dei due numeri è il dash e quale il gap.
  */
 export const TRATTEGGIO_CONDENSE = '7 10'
+
+/**
+ * Fase da dare al tratteggio di una linea condense (`stroke-dashoffset`), perche' due linee che
+ * percorrono la stessa corsia orizzontale disegnino i trattini sulla STESSA griglia.
+ *
+ * Il difetto che chiude: `stroke-dasharray` riparte da capo su ogni `<path>`, e le condense
+ * scendono da quote diverse. Sulla corsia comune ogni linea arriva con una fase sua, i trattini
+ * dell'una cadono nei vuoti dell'altra, e sei linee sovrapposte disegnano una riga continua —
+ * osservato dal committente il 18-08-2026 e verificato sul PNG della pratica di prova, dove il
+ * tratteggio e' rado finche' corre una linea sola e si infittisce da dove la seconda si sovrappone.
+ *
+ * La formula. In SVG la fase alla distanza `s` lungo il tracciato vale `(s + dashoffset) mod P`.
+ * Perche' la fase in un punto dipenda dalla sua ASCISSA e non da quanto si e' gia' percorso, con
+ * `L` = lunghezza fino all'inizio dell'orizzontale e `x0` = ascissa di quel punto, serve
+ * `dashoffset ≡ x0 − L (mod P)`. Percorrendo l'orizzontale verso SINISTRA la fase cresce mentre
+ * `x` cala: per far cadere i trattini sugli stessi intervalli assoluti serve allora
+ * `dashoffset ≡ trattino − x0 − L (mod P)`. Il caso esiste — nulla obbliga il pozzo di raccolta a
+ * stare a destra di tutto.
+ *
+ * Sta qui, accanto al tratteggio che fasa, e non in `renderSvg`: non la usa solo il documento, la
+ * usa anche `SchemaEdgeTubazione` per le stesse linee sulla tela dell'editor. Con due formule, tela
+ * e documento tornerebbero a mostrare tratteggi diversi — la divergenza che `instrada` condivisa e'
+ * nata per chiudere.
+ *
+ * Torna 0 per un tracciato che non ha un tratto orizzontale: `dedup` puo' averne tolto i punti di
+ * mezzo, e un offset calcolato su un tratto che non c'e' sarebbe un numero preso dal nulla.
+ */
+export function sfasamentoCondense(punti: Punto[]): number {
+  const [trattino, vuoto] = TRATTEGGIO_CONDENSE.split(' ').map(Number)
+  const periodo = trattino + vuoto
+  let percorso = 0
+  for (let i = 0; i + 1 < punti.length; i++) {
+    const a = punti[i]
+    const b = punti[i + 1]
+    if (a.y === b.y && a.x !== b.x) {
+      const grezzo = b.x > a.x ? a.x - percorso : trattino - a.x - percorso
+      return ((grezzo % periodo) + periodo) % periodo
+    }
+    percorso += Math.abs(b.x - a.x) + Math.abs(b.y - a.y)
+  }
+  return 0
+}
+
 /**
  * Tratteggio della verticale interna del filtro (`simboloRombo`, segno `verticale-tratteggiata`).
  * Rapporto dash:gap fra 3:1 e 4:1, misurato sui quattro trattini che il blocco CAD `filtro`

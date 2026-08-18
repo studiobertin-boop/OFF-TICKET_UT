@@ -13,7 +13,7 @@
 import { useCallback, useState } from 'react'
 import { BaseEdge, EdgeLabelRenderer, useReactFlow, type EdgeProps } from '@xyflow/react'
 import { Divider, ListItemText, Menu, MenuItem, Typography } from '@mui/material'
-import { frecciaDirezione, riduttorePressione, valvolaIntercettazione, TRATTEGGIO_CONDENSE } from '@/services/schemaImpianto/symbols'
+import { frecciaDirezione, riduttorePressione, valvolaIntercettazione, TRATTEGGIO_CONDENSE, sfasamentoCondense } from '@/services/schemaImpianto/symbols'
 import { codiceVisibile } from '@/services/schemaImpianto/codici'
 import {
   ondula,
@@ -515,6 +515,9 @@ export function SchemaEdgeTubazione({
         const tratto = {
           ...coloreTratto,
           strokeDasharray: pezzo.stile === 'condensa' ? TRATTEGGIO_CONDENSE : undefined,
+          // La stessa fase del documento (`sfasamentoCondense`): con due formule, tela e documento
+          // tornerebbero a disegnare tratteggi diversi sulla stessa corsia condense.
+          strokeDashoffset: pezzo.stile === 'condensa' ? sfasamentoCondense(pezzo.punti) : undefined,
         }
         // `BaseEdge` solo per il primo: porta l'`id` con cui react-flow riconosce l'arco, e due
         // elementi con lo stesso id ne farebbero rendere uno solo.

@@ -24,6 +24,7 @@ import {
   TESTO_LIBERO,
   TRATTO,
   TRATTEGGIO_CONDENSE,
+  sfasamentoCondense,
 } from './symbols'
 import {
   instrada,
@@ -135,7 +136,12 @@ function trattoSvg(punti: Punto[], stile: SchemaArcoStile): string {
   if (stile === 'flessibile') {
     return `<path d="${ondula(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
   }
-  const tratteggio = stile === 'condensa' ? ` stroke-dasharray="${TRATTEGGIO_CONDENSE}"` : ''
+  // La condensa porta anche una FASE: senza, le linee che corrono sulla corsia comune riempirebbero
+  // i vuoti l'una dell'altra e sembrerebbero una riga continua (`sfasamentoCondense`, symbols).
+  const tratteggio =
+    stile === 'condensa'
+      ? ` stroke-dasharray="${TRATTEGGIO_CONDENSE}" stroke-dashoffset="${sfasamentoCondense(punti)}"`
+      : ''
   return `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}"${tratteggio} />`
 }
 

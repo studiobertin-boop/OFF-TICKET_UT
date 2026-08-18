@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { chiaveSimbolo } from '../types'
 import type { SchemaNodo, SchemaNodoTipo } from '../types'
-import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloMuro, simboloUtenze, valvolaIntercettazione, riduttorePressione, valvolaScarico, testoMultiRiga, frecciaDirezione, campioneTubazione, TRATTEGGIO_CONDENSE, MARGINE_VALVOLA_SERBATOIO, simboloTrasformato, inviluppo, riquadroDi } from '../symbols'
+import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloMuro, simboloUtenze, valvolaIntercettazione, riduttorePressione, valvolaScarico, testoMultiRiga, frecciaDirezione, campioneTubazione, TRATTEGGIO_CONDENSE, sfasamentoCondense, MARGINE_VALVOLA_SERBATOIO, simboloTrasformato, inviluppo, riquadroDi } from '../symbols'
+import type { Punto } from '../tratti'
 import { capoValido } from '../agganci'
 import { TARATURA_NEUTRA, type Tarature } from '../libreria'
 import { PASSO_GRIGLIA } from '../griglia'
@@ -856,4 +857,53 @@ describe('il codice disegnato dentro il simbolo', () => {
       expect(svg, tipo).not.toContain('>M-X1<')
     })
   }
+})
+
+describe('sfasamentoCondense — i tratteggi delle condense cadono sulla stessa griglia', () => {
+  const [TRATTINO, VUOTO] = TRATTEGGIO_CONDENSE.split(' ').map(Number)
+  const PERIODO = TRATTINO + VUOTO
+
+  /** La fase in un punto del tratto orizzontale, come la calcola SVG: (percorso + offset) mod P. */
+  const fase = (punti: Punto[], x: number) => {
+    const percorso = Math.abs(punti[1].y - punti[0].y) + Math.abs(x - punti[1].x)
+    return (((percorso + sfasamentoCondense(punti)) % PERIODO) + PERIODO) % PERIODO
+  }
+
+  it('due linee scese da quote diverse cadono sulla stessa fase alla stessa ascissa', () => {
+    // E' il difetto vero: sei condense sulla stessa corsia, ognuna scesa da un'altezza diversa.
+    // Senza fase ogni <path> riparte da capo, e i trattini dell'una riempiono i vuoti dell'altra —
+    // sei linee sovrapposte disegnano una riga continua.
+    const a: Punto[] = [{ x: 100, y: 200 }, { x: 100, y: 500 }, { x: 900, y: 500 }, { x: 900, y: 540 }]
+    const b: Punto[] = [{ x: 300, y: 173 }, { x: 300, y: 500 }, { x: 900, y: 500 }, { x: 900, y: 540 }]
+    for (const x of [400, 555, 700, 899]) expect(fase(a, x)).toBeCloseTo(fase(b, x), 6)
+  })
+
+  it('la fase alla stessa ascissa non dipende da dove la linea comincia', () => {
+    const a: Punto[] = [{ x: 100, y: 200 }, { x: 100, y: 500 }, { x: 900, y: 500 }, { x: 900, y: 540 }]
+    const b: Punto[] = [{ x: 137, y: 200 }, { x: 137, y: 500 }, { x: 900, y: 500 }, { x: 900, y: 540 }]
+    expect(fase(a, 800)).toBeCloseTo(fase(b, 800), 6)
+  })
+
+  it('un tracciato senza tratto orizzontale non chiede nessuna fase', () => {
+    // Difesa: `dedup` puo' aver tolto i punti di mezzo, e un offset calcolato su un tratto che non
+    // c'e' sarebbe un numero preso dal nulla.
+    expect(sfasamentoCondense([{ x: 100, y: 200 }, { x: 100, y: 500 }])).toBe(0)
+    expect(sfasamentoCondense([])).toBe(0)
+  })
+
+  it('anche un’orizzontale percorsa verso sinistra cade sulla stessa griglia', () => {
+    // Il pozzo di raccolta non e' obbligato a stare a destra di tutto.
+    const destra: Punto[] = [{ x: 100, y: 200 }, { x: 100, y: 500 }, { x: 900, y: 500 }, { x: 900, y: 540 }]
+    const sinistra: Punto[] = [{ x: 900, y: 260 }, { x: 900, y: 500 }, { x: 100, y: 500 }, { x: 100, y: 540 }]
+    const faseSinistra = (x: number) => {
+      const percorso = 240 + (900 - x)
+      return (((percorso + sfasamentoCondense(sinistra)) % PERIODO) + PERIODO) % PERIODO
+    }
+    // Il trattino copre [0, TRATTINO) della fase. Verso sinistra la fase cresce mentre x cala:
+    // perche' i trattini cadano sugli stessi intervalli assoluti, le due fasi devono sommare a
+    // TRATTINO (modulo il periodo).
+    for (const x of [300, 500, 777]) {
+      expect((faseSinistra(x) + fase(destra, x)) % PERIODO).toBeCloseTo(TRATTINO % PERIODO, 6)
+    }
+  })
 })

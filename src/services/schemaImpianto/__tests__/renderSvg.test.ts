@@ -613,7 +613,11 @@ describe('attacco alle ancore', () => {
       /<path d="M ([\d.]+) ([\d.]+) L ([\d.]+) ([\d.]+) L ([\d.]+) ([\d.]+) L ([\d.]+) ([\d.]+) Z"/
     )!
     const [vertSx, vertSy] = [Number(rombo[7]), Number(rombo[8])]
-    const atteso = `L ${sep.x + vertSx} ${sep.y + vertSy}" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="7 10" />`
+    // Il frammento si ferma al tratteggio e NON arriva alla chiusura del tag: dal 18-08-2026 la
+    // condensa porta anche uno `stroke-dashoffset` (`sfasamentoCondense`, symbols), e ancorare
+    // l'attesa a `/>` faceva cadere questo test per un attributo che non c'entra con cio' che
+    // deve provare — che la linea ARRIVI sul vertice sinistro del rombo, di fianco e non dall'alto.
+    const atteso = `L ${sep.x + vertSx} ${sep.y + vertSy}" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="7 10"`
     expect(svg).toContain(atteso)
   })
 

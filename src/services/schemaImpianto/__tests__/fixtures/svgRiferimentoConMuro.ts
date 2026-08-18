@@ -174,6 +174,15 @@
  * Verificato sul diff, e non a occhio: il markup e' identico carattere per carattere a meno dei
  * numeri, e fra i numeri cambiano SOLO quelli dell'asse x — `x`, `x1`, `x2`, le ascisse dentro `d` e
  * `transform`, `viewBox` e `width`. Nessuna ordinata, nessuna altezza, nessun simbolo.
+ *
+ * Ritoccata il 18-08-2026, Task 5 del Blocco 4 («i tratteggi delle condense cadono sulla stessa
+ * griglia»). Due delle tre linee condense di questo impianto prendono uno `stroke-dashoffset`
+ * (`sfasamentoCondense`, symbols/index.ts): 6 per quella che parte da x=100 e 2 per quella da x=300,
+ * cosi' che entrambe cadano sulla griglia assoluta `x mod 17` invece di ripartire da capo ognuna per
+ * conto suo. La terza ha offset 0 e resta scritta com'era. Nient'altro cambia: stesse coordinate,
+ * stessi simboli, stessa tabella.
+ *
+ * E' la fixture che copre questo cambiamento — le altre due non portano linee condense.
  */
 export const RIGHE_SVG_RIFERIMENTO_CON_MURO = [
   `<svg xmlns="http://www.w3.org/2000/svg" width="730" height="1078" viewBox="0 0 730 1078">`,
@@ -189,8 +198,8 @@ export const RIGHE_SVG_RIFERIMENTO_CON_MURO = [
   `<path d="M 350 200 L 520 200" fill="none" stroke="#000" stroke-width="2" />`,
   `<rect x="426" y="195.5" width="18" height="9" fill="#fff" stroke="none" />`,
   `<path d="M 426 195.5 L 426 204.5 L 435 200 Z M 444 195.5 L 444 204.5 L 435 200 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" />`,
-  `<path d="M 100 410 L 100 470 L 460 470 L 460 510" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="7 10" />`,
-  `<path d="M 300 410 L 300 470 L 460 470 L 460 510" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="7 10" />`,
+  `<path d="M 100 410 L 100 470 L 460 470 L 460 510" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="7 10" stroke-dashoffset="6" />`,
+  `<path d="M 300 410 L 300 470 L 460 470 L 460 510" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="7 10" stroke-dashoffset="2" />`,
   `<g transform="translate(40 290)"><rect x="0" y="0" width="120" height="120" fill="none" stroke="#000" stroke-width="2" /><circle cx="83.88" cy="65.88000000000001" r="30" fill="none" stroke="#000" stroke-width="2" /><path d="M 70.38 39.18000000000001 L 109.97999999999999 50.88000000000001" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M 70.38 92.58000000000001 L 109.97999999999999 80.88000000000001" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><text x="110" y="20" font-family="Arial, Helvetica, sans-serif" font-size="24" text-anchor="end" dominant-baseline="central" fill="#000">C1</text><rect x="3.2399999999999998" y="54" width="47.88" height="60.12" fill="none" stroke="#000" stroke-width="2" /><text x="7.24" y="102.12" font-family="Arial, Helvetica, sans-serif" font-size="14" text-anchor="start" dominant-baseline="central" fill="#000">C1.1</text><rect x="21.12" y="37.44" width="12" height="12" fill="none" stroke="#000" stroke-width="2" /><path d="M 21.12 40.44 L 33.120000000000005 40.44 M 21.12 43.44 L 33.120000000000005 43.44 M 21.12 46.44 L 33.120000000000005 46.44" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><text x="21.12" y="24.439999999999998" font-family="Arial, Helvetica, sans-serif" font-size="14" text-anchor="start" dominant-baseline="central" fill="#000">C1.2</text></g>`,
   `<g transform="translate(250 110)"><rect x="0" y="40" width="100" height="260" rx="50" ry="50" fill="none" stroke="#000" stroke-width="2" /><text x="50" y="170" font-family="Arial, Helvetica, sans-serif" font-size="24" text-anchor="middle" dominant-baseline="central" fill="#000">S1</text><path d="M 50 40 L 50 34" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><rect x="44" y="22" width="12" height="12" fill="none" stroke="#000" stroke-width="2" /><path d="M 44 25 L 56 25 M 44 28 L 56 28 M 44 31 L 56 31" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><text x="50" y="10" font-family="Arial, Helvetica, sans-serif" font-size="14" text-anchor="middle" dominant-baseline="central" fill="#000">S1.1</text><path d="M 45.5 301 L 54.5 301 L 50 310 Z M 45.5 319 L 54.5 319 L 50 310 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M 50 319 L 50 327" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /></g>`,
   `<g transform="translate(420 510)"><rect x="0" y="0" width="80" height="40" fill="none" stroke="#000" stroke-width="2" /><text x="40" y="20" font-family="Arial, Helvetica, sans-serif" font-size="20" text-anchor="middle" dominant-baseline="central" fill="#000">T</text></g>`,
