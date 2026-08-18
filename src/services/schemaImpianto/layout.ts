@@ -96,10 +96,20 @@ export const MARGINE_COLLETTORE = 10
 /**
  * Quanto la dorsale passa sopra la cima dei COMPRESSORI. Piu' del margine sul serbatoio: qui il
  * montante deve ospitare la valvola (due passi di griglia sotto la dorsale) e sotto di essa un
- * tratto di flessibile che si veda. Conta solo quando i compressori sono piu' alti del corpo del
- * serbatoio — cioe' col serbatoio ORIZZONTALE; col verticale detta sempre il serbatoio.
+ * tratto di flessibile che si veda.
+ *
+ * **Ottanta unita', misurate su `no bypass.png`**: la dorsale sta a y=135 e la cima dei compressori
+ * a y=181, 46 px che alla scala di quell'immagine (0,581 px/unita') fanno 79. Restano cosi' 60
+ * unita' di flessibile sotto la valvola, cioe' le quattro ondulazioni che si contano sul
+ * riferimento; a 60 ne restavano 40, e se ne vedevano due.
+ *
+ * Conta solo quando i compressori sono piu' alti del corpo del serbatoio — cioe' col serbatoio
+ * ORIZZONTALE; **col verticale detta sempre il serbatoio**, ed e' il motivo per cui sul disegno
+ * della pratica di prova questo numero da solo non accorcia i montanti. Vedi `quotaCollettore` piu'
+ * sotto: la domanda se il vincolo del serbatoio debba valere anche quando la dorsale non gli passa
+ * mai sopra e' aperta col committente (Task 4 del Blocco 4).
  */
-export const MARGINE_COLLETTORE_COMPRESSORI = 60
+export const MARGINE_COLLETTORE_COMPRESSORI = 80
 /**
  * Spazio fra due compressori affiancati. Due passi di griglia: misurato su `no bypass.png`, fra il
  * bordo destro di C1 e quello sinistro di C2 corrono 11,4 px, cioe' ~20 unita' alla scala di

@@ -15,6 +15,7 @@ import {
   PASSO_GIUNZIONE,
   PASSO_CORSIA_BYPASS,
   MARGINE_COLLETTORE,
+  MARGINE_COLLETTORE_COMPRESSORI,
   PASSO_COMPRESSORI,
   STACCO_COMPRESSORI_SERBATOI,
   STACCO_SERBATOI_LINEA,
@@ -673,9 +674,13 @@ describe('quoteInstradamento', () => {
   it('mette il collettore sopra il più alto fra corpo dei serbatoi e cima dei compressori', () => {
     // Due vincoli, vince il più alto. Serbatoio a y=400: il corpo comincia 40 unità più in basso
     // (`MARGINE_VALVOLA_SERBATOIO`, lo spazio della valvola di sicurezza), quindi 440 - 10 = 430.
-    // Compressore a y=200: 200 - 60 = 140, e vince questo. Fino al 18-08-2026 la misura partiva
-    // dal RIQUADRO del serbatoio e ignorava i compressori: dava 380.
-    expect(quoteInstradamento(layoutDiProva()).yCollettore).toBe(140)
+    // Compressore a y=200: vince questo. Fino al 18-08-2026 la misura partiva dal RIQUADRO del
+    // serbatoio e ignorava i compressori: dava 380.
+    //
+    // Contro la COSTANTE e non contro il numero: il margine sui compressori si e' mosso una volta
+    // (60 -> 80 nel Blocco 4, al valore misurato sul riferimento) e questo test cadeva per un
+    // motivo che non e' suo — cio' che deve fissare e' QUALE dei due vincoli vince, non quanto vale.
+    expect(quoteInstradamento(layoutDiProva()).yCollettore).toBe(200 - MARGINE_COLLETTORE_COMPRESSORI)
   })
 
   it('e col serbatoio orizzontale, il cui corpo sta in basso, sono i compressori a dettare', () => {
@@ -687,7 +692,7 @@ describe('quoteInstradamento', () => {
     serbatoio.orientamento = 'ORIZZONTALE'
     // Il corpo finisce a 290, sotto la cima dei compressori (200): e' il caso da esercitare.
     serbatoio.y = 250
-    expect(quoteInstradamento(layout).yCollettore).toBe(140)
+    expect(quoteInstradamento(layout).yCollettore).toBe(200 - MARGINE_COLLETTORE_COMPRESSORI)
     expect(quoteInstradamento(layout).yCollettore).toBeLessThan(
       layout.nodi.find((n) => n.tipo === 'compressore')!.y
     )
@@ -1079,6 +1084,29 @@ describe('la dorsale dei compressori', () => {
     expect(quotaCollettore(layout)).toBe(cimaDelCorpo - MARGINE_COLLETTORE)
     // E sta comunque sopra il corpo: la dorsale non deve entrare nella capsula.
     expect(quotaCollettore(layout)).toBeLessThan(cimaDelCorpo)
+  })
+
+  it('col serbatoio orizzontale sta a `MARGINE_COLLETTORE_COMPRESSORI` sopra i compressori', () => {
+    // E' il caso in cui il vincolo dei compressori vince: la capsula di un serbatoio ORIZZONTALE
+    // sta piu' in basso della loro cima. Il montante deve ospitare la valvola (due passi sotto la
+    // dorsale) e sotto di essa un tratto di flessibile che si veda: misurato ~79 unita' su
+    // `no bypass.png` (46 px fra la dorsale a y=135 e la cima dei compressori a y=181).
+    const SCARTO_VALVOLA = 20 // `buildSchemaModel.ts`, convenzione 1: non si esporta per un test
+    const l = layoutSchema(
+      buildSchemaModel({
+        scheda: makeScheda({
+          compressori: [makeCompressore({ codice: 'C1' })],
+          disoleatori: [makeDisoleatore({ codice: 'C1.1', compressore_associato: 'C1' })],
+          serbatoi: [makeSerbatoio({ orientamento: 'ORIZZONTALE' })],
+        }),
+        collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+      })
+    )
+    const compressore = nodo(l, 'C1')
+    expect(quotaCollettore(l)).toBe(compressore.y - MARGINE_COLLETTORE_COMPRESSORI)
+    // E sotto la valvola resta un tratto di flessibile che si vede: sono le quattro ondulazioni
+    // che si contano sul riferimento.
+    expect(compressore.y - quotaCollettore(l) - SCARTO_VALVOLA).toBeGreaterThanOrEqual(50)
   })
 
   it('senza serbatoi ripiega su qualcosa di disegnabile, invece di sollevare', () => {

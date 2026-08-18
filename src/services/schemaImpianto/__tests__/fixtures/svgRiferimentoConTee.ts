@@ -166,14 +166,25 @@
  * — ma la sua ragione e' un'altra: qui, a differenza delle altre due, si vede la geometria del TEE
  * (pallino al centro del riquadro e tubi che vi convergono), che nessun altro test del documento
  * copre.
+ *
+ * Generato di nuovo il 18-08-2026, Task 4 del Blocco 4 («la dorsale scende sulla cima dei
+ * compressori»). `MARGINE_COLLETTORE_COMPRESSORI` passa da 60 a 80, il valore misurato su
+ * `no bypass.png` (46 px fra la dorsale e la cima dei compressori, cioe' 79 unita' alla scala di
+ * quell'immagine). Questa fixture porta un serbatoio ORIZZONTALE, il cui corpo sta piu' in basso
+ * della cima dei compressori: e' il caso in cui sono loro a dettare la quota, e infatti si muove.
+ *
+ * Verificato sul diff: cambiano SOLO le ordinate, di 20 unita', e il montante flessibile guadagna
+ * due ondulazioni perche' e' piu' lungo di altrettanto (`ondula` ne emette una ogni 10 unita', quindi
+ * il tracciato ha due `Q` in piu' — l'unica riga in cui cambia il markup, e cambia in lunghezza, non
+ * in forma). Nessuna ascissa, nessuna larghezza, nessun simbolo.
  */
 export const RIGHE_SVG_RIFERIMENTO_CON_TEE = [
   `<svg xmlns="http://www.w3.org/2000/svg" width="870" height="802" viewBox="0 0 870 802">`,
   `<rect width="870" height="802" fill="#fff" />`,
-  `<path d="M 100 290 Q 105 285 100 280 Q 95 275 100 270 Q 105 265 100 260 Q 100 255 100 250" fill="none" stroke="#000" stroke-width="2" />`,
-  `<path d="M 100 250 L 100 230 L 216 230 L 216 360 L 250 360" fill="none" stroke="#000" stroke-width="2" />`,
-  `<rect x="95.5" y="241" width="9" height="18" fill="#fff" stroke="none" />`,
-  `<path d="M 95.5 241 L 104.5 241 L 100 250 Z M 95.5 259 L 104.5 259 L 100 250 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" />`,
+  `<path d="M 100 290 Q 105 285 100 280 Q 95 275 100 270 Q 105 265 100 260 Q 95 255 100 250 Q 105 245 100 240 Q 100 235 100 230" fill="none" stroke="#000" stroke-width="2" />`,
+  `<path d="M 100 230 L 100 210 L 216 210 L 216 360 L 250 360" fill="none" stroke="#000" stroke-width="2" />`,
+  `<rect x="95.5" y="221" width="9" height="18" fill="#fff" stroke="none" />`,
+  `<path d="M 95.5 221 L 104.5 221 L 100 230 Z M 95.5 239 L 104.5 239 L 100 230 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" />`,
   `<path d="M 560 360 L 645 360" fill="none" stroke="#000" stroke-width="2" />`,
   `<path d="M 645 360 L 730 360" fill="none" stroke="#000" stroke-width="2" />`,
   `<g transform="translate(40 290)"><rect x="0" y="0" width="120" height="120" fill="none" stroke="#000" stroke-width="2" /><circle cx="60" cy="60" r="30" fill="none" stroke="#000" stroke-width="2" /><path d="M 46.5 33.3 L 86.1 45" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M 46.5 86.7 L 86.1 75" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><text x="10" y="20" font-family="Arial, Helvetica, sans-serif" font-size="24" text-anchor="start" dominant-baseline="central" fill="#000">C1</text></g>`,
