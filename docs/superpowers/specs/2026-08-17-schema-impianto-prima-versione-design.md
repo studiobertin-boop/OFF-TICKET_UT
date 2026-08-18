@@ -13,11 +13,16 @@ zero.
 L'obiettivo è che la **prima** versione rispetti già le convenzioni grafiche dello studio, così
 che l'operatore ritocchi le eccezioni invece di ricostruire la regola.
 
-Riferimento: due schemi reali forniti dal committente, uno con by-pass sulla sezione di
-trattamento e linea condense parziale, uno senza by-pass. **Vanno salvati in
-`DOCUMENTAZIONE/relazione/` prima di cominciare il blocco 4** (nomi proposti:
-`riferimento-con-bypass.png`, `riferimento-senza-bypass.png`): sono il metro con cui si giudica
-il risultato, e senza di loro il blocco di taratura visiva non ha un termine di paragone.
+Riferimento: due schemi reali forniti dal committente, salvati in git (i PNG non rientrano nella
+regola che ignora `DOCUMENTAZIONE/**` — quella copre solo xlsx, docx, csv e pdf):
+
+- **`DOCUMENTAZIONE/relazione/si bypass.png`** — un by-pass che scavalca l'intera sezione di
+  trattamento (F1, E1, F2, F3), condense su tutte le apparecchiature.
+- **`DOCUMENTAZIONE/relazione/no bypass.png`** — nessun by-pass, valvola all'uscita del serbatoio,
+  condense solo su S1, F1 ed E1. *Manca la valvola prima del tratto verso le utenze: dimenticata
+  dal committente nel disegnare l'esempio, ma la convenzione la prevede (vedi §6).*
+
+Sono il metro con cui si giudica il risultato: senza di loro il Blocco 4 tara le distanze a occhio.
 
 ## Le convenzioni da riprodurre
 
