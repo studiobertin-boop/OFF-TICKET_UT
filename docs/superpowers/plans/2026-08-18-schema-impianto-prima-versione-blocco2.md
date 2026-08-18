@@ -1431,3 +1431,28 @@ trovato — è la prima volta per questo modulo. Cinque cose verificate:
 
 Stato della pratica ripristinato (spunta e ordine rimessi, rigenerato). Un solo errore in console,
 preesistente e in `EquipmentAutocomplete`: estraneo a questo lavoro.
+
+## Il giro di correzioni del committente (18-08-2026, dopo la verifica)
+
+Il committente ha corretto a mano il disegno generato e messo i due a confronto. Tre osservazioni,
+due recepite subito perché sono geometria di questo blocco e il Blocco 3 ci si appoggia sopra.
+
+1. **La dorsale dei compressori era troppo alta.** `quotaCollettore` misurava dal RIQUADRO del
+   serbatoio, che comprende le 40 unità di spazio per la valvola di sicurezza: la dorsale correva
+   60 unità più in alto del necessario, e i montanti nascevano lunghi il doppio del disegno vero.
+   Ora passa `MARGINE_COLLETTORE` (10) sopra il **corpo**.
+   **Il primo tentativo era sbagliato e i test lo hanno mostrato subito:** col serbatoio
+   ORIZZONTALE il corpo sta più in basso della cima dei compressori, la dorsale finiva *sotto* di
+   loro, il montante si accorciava a 10 unità e la valvola ancorata collassava a `t: 0`. La regola
+   giusta tiene **due vincoli** — sopra il corpo dei serbatoi *e* sopra i compressori, vince il più
+   alto — con un margine più largo sui compressori (`MARGINE_COLLETTORE_COMPRESSORI`, 60), che deve
+   ospitare la valvola più un tratto di molla visibile.
+2. **La valvola della mandata scende da 10 a 20 unità** sotto la dorsale. La convenzione 1 diceva
+   «un passo di griglia»: il disegno vero ne vuole due. **Vale anche per le valvole del ponte del
+   Blocco 3**, o due valvole affiancate starebbero a quote diverse.
+3. **Il tratteggio delle condense si perde dove le linee si sovrappongono.** Registrato per il
+   Blocco 4 con le due strade possibili (fasare i tratteggi con `stroke-dashoffset`, oppure un
+   collettore condense unico) nella consegna
+   `docs/superpowers/2026-08-18-prossima-sessione-blocco3-bypass.md`.
+
+Fixture rigenerate una terza volta, diff letto e annotato. Gate: 1394 test verdi.
