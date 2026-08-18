@@ -28,13 +28,25 @@ import type {
 } from './types'
 
 /**
- * Vero se il nodo riceve esclusivamente linee condense: è il segno che fa da pozzo di
- * raccolta e non da stadio di trattamento dell'aria. Si legge dagli archi invece di
- * ripetere qui la regola su `raccolta_condense`, che vive già in `buildSchemaModel`.
+ * Vero se una tubazione d'aria tocca il nodo, in entrata o in uscita. E' il criterio con cui si
+ * distingue un separatore che TRATTA l'aria di linea da uno che RACCOGLIE condensa. Si legge dagli
+ * archi invece di ripetere qui la regola su `raccolta_condense`, che vive gia' in
+ * `buildSchemaModel`.
+ *
+ * Fino al 18-08-2026 il criterio era «riceve solo condensa», che guarda gli archi ENTRANTI. Col
+ * flag per apparecchiatura l'operatore puo' spegnere ogni scarico: un pozzo senza piu' archi
+ * entranti smetteva di essere riconosciuto, e `catenaDagliArchi` lo raccoglieva fra gli orfani
+ * trascinandolo dentro la catena di trattamento — un'apparecchiatura che salta dalla corsia bassa
+ * alla linea di processo perche' e' stata tolta una spunta. Guardare l'aria invece della condensa
+ * e' la stessa domanda posta dalla parte che non dipende dalle spunte.
+ *
+ * Il caso limite noto: un separatore di linea a cui l'operatore stacca a mano, nell'editor,
+ * entrambe le tubazioni d'aria diventa un pozzo, e la corsia condense si riquota su di lui. E' un
+ * disegno gia' incoerente di suo, e fra le due letture si sceglie quella che non dipende da una
+ * spunta.
  */
-export function riceveSoloCondensa(id: string, model: Pick<SchemaModel, 'archi'>): boolean {
-  const entranti = model.archi.filter((a) => a.a.nodo === id)
-  return entranti.length > 0 && entranti.every((a) => a.stile === 'condensa')
+export function toccatoDaAria(id: string, model: Pick<SchemaModel, 'archi'>): boolean {
+  return model.archi.some((a) => a.stile !== 'condensa' && (a.da.nodo === id || a.a.nodo === id))
 }
 
 /**
@@ -47,7 +59,7 @@ export function pozzoCondense<T extends SchemaNodo>(
   archi: Pick<SchemaModel, 'archi'>
 ): T | null {
   return (
-    nodi.find((n) => n.tipo === 'tanica' || (n.tipo === 'separatore' && riceveSoloCondensa(n.id, archi))) ??
+    nodi.find((n) => n.tipo === 'tanica' || (n.tipo === 'separatore' && !toccatoDaAria(n.id, archi))) ??
     null
   )
 }

@@ -19,6 +19,7 @@ import {
   dimensioniLayout,
   estensioneOrizzontale,
   layoutSchema,
+  pozzoCondense,
   quoteInstradamento,
 } from '../layout'
 import { renderSvg } from '../renderSvg'
@@ -773,5 +774,56 @@ describe('catenaDagliArchi', () => {
       ],
     }
     expect(catenaDagliArchi(model, pozzo).map((n) => n.id)).toEqual(['F1'])
+  })
+})
+
+describe('pozzoCondense quando le condense sono tutte spente', () => {
+  const sep: SchemaNodo = {
+    id: 'SEP1',
+    tipo: 'separatore',
+    etichetta: 'SEP1',
+    gruppo: 'LINEA_DISTRIBUZIONE',
+    valvoleSicurezza: [],
+    origine: 'scheda',
+  }
+  const s1: SchemaNodo = { ...sep, id: 'S1', tipo: 'serbatoio', gruppo: 'SALA_COMPRESSORI' }
+
+  it('resta il pozzo anche se non riceve più nulla', () => {
+    // L'operatore ha tolto ogni spunta: il separatore non ha piu' archi entranti. Prima del
+    // 18-08-2026 `pozzoCondense` tornava null e il separatore finiva trascinato dentro la linea
+    // di processo, in disaccordo con gli archi.
+    const model = {
+      nodi: [sep, s1],
+      archi: [
+        { id: 'ut', da: { nodo: 'S1', ancora: 'dx' }, a: { nodo: 'UTENZE', ancora: 'in' }, stile: 'standard' as const },
+      ],
+    }
+    expect(pozzoCondense(model.nodi, model)?.id).toBe('SEP1')
+  })
+
+  it('non è il pozzo se l’aria lo attraversa, cioè se è uno stadio di linea', () => {
+    const model = {
+      nodi: [sep, s1],
+      archi: [
+        { id: 'a1', da: { nodo: 'S1', ancora: 'dx' }, a: { nodo: 'SEP1', ancora: 'sx' }, stile: 'standard' as const },
+        { id: 'c1', da: { nodo: 'S1', ancora: 'basso-out' }, a: { nodo: 'SEP1', ancora: 'sx' }, stile: 'condensa' as const },
+      ],
+    }
+    expect(pozzoCondense(model.nodi, model)).toBeNull()
+  })
+
+  it('un arco d’aria USCENTE basta a escluderlo, non solo uno entrante', () => {
+    // Il caso che separa le due regole: un separatore che sta in fondo alla linea (aria in
+    // uscita verso le utenze) e riceve anche condensa dal serbatoio. Guardando i soli archi
+    // ENTRANTI — la regola fino al 18-08-2026 — sarebbero tutti condensa, e il separatore
+    // verrebbe scambiato per il pozzo pur essendo l'ultimo stadio di trattamento.
+    const model = {
+      nodi: [sep, s1],
+      archi: [
+        { id: 'c1', da: { nodo: 'S1', ancora: 'basso-out' }, a: { nodo: 'SEP1', ancora: 'sx' }, stile: 'condensa' as const },
+        { id: 'a1', da: { nodo: 'SEP1', ancora: 'dx' }, a: { nodo: 'UTENZE', ancora: 'in' }, stile: 'standard' as const },
+      ],
+    }
+    expect(pozzoCondense(model.nodi, model)).toBeNull()
   })
 })
