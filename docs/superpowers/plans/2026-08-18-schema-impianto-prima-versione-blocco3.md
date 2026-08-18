@@ -554,3 +554,110 @@ apposta — 2 compressori, 1 serbatoio, 2 essiccatori, 3 filtri, 1 separatore. R
 - **Alzare `VERSIONE` in `persistenza.ts`.** `preferenzeApplicate` è un campo opzionale, non un
   cambio di formato — stessa ragione già decisa per `muroX` e `simboli`.
 - **Fondere o pubblicare.** Il merge simulato dice cosa succederebbe; la decisione è del committente.
+
+---
+
+## Cosa è andato diversamente
+
+**Task 1.** Come previsto, salvo un buco nei test trovato con la prova «rompi apposta»: il
+`.reverse()` sui TEE di valle si poteva togliere senza far cadere nulla, perché **nessun test
+copriva i gruppi annidati** — il caso per cui quel `.reverse()` esiste. Aggiunti due test, e
+scoperto guardandoli che l'assegnazione delle corsie era anche **rovesciata**: nell'ordine della
+catena vince il gruppo più a sinistra, cioè quello esterno, e il ponte contenuto finiva appeso
+sopra a quello che lo contiene. Le corsie ora si assegnano dal ponte più corto al più lungo
+(`assegnaCorsie`). Caso patologico e irraggiungibile dal pannello — `selezioneLibera` spegne «Crea
+by-pass» su righe già in un gruppo — ma ci si arriva scrivendo a mano in `additional_info`.
+
+**Task 2.** Come previsto. La difesa doppia sul ponte (ordine di emissione *più*
+`catenaDagliArchi` che salta `forma: 'ponte'`) è servita: il test la esercita mettendo il ponte
+per primo, e togliendo il salto cade.
+
+**Nota di metodo, pagata due volte.** I file del repo hanno fine riga **CRLF**: le mutazioni
+«rompi apposta» scritte con pattern multi-riga non agganciano e sembrano innocue — due mutazioni
+sono risultate «non colte dai test» quando in realtà non erano mai state applicate. Verificare
+sempre che la mutazione sia entrata (`git diff --stat`) prima di concludere che manca un test.
+
+**Task 3, una sorpresa che i test non potevano trovare.** Guardando il disegno rasterizzato:
+**il tubo dal serbatoio scendeva rasente il fianco del serbatoio**, con il tratto verticale
+sovrapposto al contorno della capsula e quindi invisibile — il tubo sembrava uscire dalla pancia
+invece che dal bocchello. Causa: la giunzione impone il lato `sx`, e `rottaImboccata` con un capo
+solo imposto piega **subito**, sul capo libero. Rimediato con un gradino a mezza strada
+(`gradinoVersoIlTee`, segniAncorati.ts), che è la stessa forma che `rottaLinea` dà a un tubo fra
+due quote diverse. **Non** toccando `rottaImboccata`, che governa ogni arco che tocca un TEE,
+compresi quelli inseriti a mano nell'editor.
+
+È «sbagliato ma plausibile», la classe di difetto che questa specifica nomina come la peggiore, e
+nessun test lo avrebbe visto: la geometria era coerente, solo nascosta sotto un altro simbolo.
+
+`risolviPonti` è finita in `segniAncorati.ts` e non in `bypass.ts`: le serve `posizioneAncora`, e
+importarla da `bypass.ts` avrebbe allargato l'anello dei moduli fino a comprendere
+`buildSchemaModel`. `segniAncorati.ts` è già il modulo delle istruzioni di sola andata risolte come
+ultimo passo del layout, e l'anello che ha è già documentato.
+
+**Task 4.** Il primo test scritto — «gli archi nuovi arrivano risolti» — **passava a vuoto**: era
+costruito su un arco di linea fra due nodi alla stessa quota, dove le due fonti (modello e layout
+automatico) danno esattamente lo stesso oggetto. Riscritto sulla **mandata del compressore**, che
+porta una valvola ancorata e quindi distingue le due fonti, con un'asserzione in più che fissa che
+il valore atteso non sia il ripiego `0.5` — o il confronto non proverebbe nulla.
+
+**Task 5.** Come previsto. Il campo `preferenzeApplicate` viaggia dentro `schemaLayout`, che Zod
+dichiara `z.any()`: la potatura di `z.object` non lo riguarda, e un test lo fissa comunque.
+
+## La prova in pagina
+
+Fatta il 18-08-2026 sulla pratica **`002 test`** (`fed244ee`), con login vero, dev server sulla
+5199, e il confronto visivo rasterizzando con `sharp`.
+
+**Il confronto col riferimento.** Lo schema generato dalla scheda vera, con un by-pass su tutta la
+sezione di trattamento (E1, E2, F1, F2, F3), **combacia con `si bypass.png`** su tutti e cinque i
+punti del blocco: ponte presente e non collassato; tre valvole (due sui montanti a due passi sotto
+l'orizzontale, una a metà corsa); montanti flessibili sotto le valvole e rigidi sopra, corsa
+orizzontale rigida; linea di processo sotto l'uscita del serbatoio col ponte in mezzo; nessuna
+valvola di riserva doppia ai capi del ponte. Senza by-pass la linea resta dritta alla quota
+dell'uscita del serbatoio: il Blocco 2 non è regredito.
+
+**La prova interattiva**, sei cose verificate:
+
+1. **Il gruppo si crea** selezionando le righe contigue: compare la banda «by-pass bp1».
+2. **Un cambio di preferenze non ridisegna.** Il blob dell'anteprima resta **identico** dopo la
+   creazione del gruppo. La guardia `generazioneTentata` regge anche dopo che il Task 5 ha toccato
+   quell'effetto.
+3. **L'avviso compare e sparisce quando deve.** Togliendo una spunta dopo una generazione:
+   l'avviso compare e il disegno **non** si muove; rimettendola, sparisce da sé. Su una pratica
+   salvata prima del 18-08-2026 **non compare**, ed è voluto: senza impronta salvata non si sa se
+   qualcosa è cambiato.
+4. **Il dato salvato è pulito.** Riletto da Supabase: `preferenzeApplicate` scritta (Zod non la
+   cancella), i due TEE salvati di origine `scheda`, il ponte coi suoi gomiti, le `t` risolte
+   (0,0526 / 0,5 / 0,9474 — non il ripiego), e **zero ancoraggi e zero forme residue**. I due
+   contratti di sola andata reggono fino al disco.
+5. **Sciogliere un by-pass non spezza la catena** — la prova del difetto chiuso nel Task 4.
+   Sciolto il gruppo *senza* rigenerare e riaperta la pratica, la riconciliazione toglie i due TEE
+   e **ricollega S1 → E1 e F3 → UTENZE**, con le valvole di riserva che tornano ai due capi.
+   Senza l'invariante nuova il primo stadio sarebbe rimasto scollegato.
+6. **Le giunzioni restano fuori dagli avvisi.** Nello stesso giro l'unico avviso mostrato è quello
+   delle preferenze cambiate: nessun «Rimosse perché non più in scheda: BP1-IN, BP1-OUT».
+
+Un solo errore in console, **preesistente e in `EquipmentAutocomplete`** (`Invalid prop children
+supplied to Box`), estraneo a questo lavoro — lo stesso già registrato nel Blocco 2.
+
+**Stato della pratica ripristinato**: preferenze come le ho trovate (nessun gruppo, spunta di F2,
+ordine stadi invariato), catena dritta senza TEE, nessun residuo. L'unica differenza è che il
+layout salvato porta ora `preferenzeApplicate`, che prima non esisteva: un campo in più e coerente,
+non una perdita. Dev server spento, porta 5199 libera.
+
+## Da guardare nel Blocco 4 (raccolto guardando i disegni)
+
+Oltre a quanto già in consegna (compattezza in larghezza, `GIOCO_FRA_STADI`, tratteggio delle
+condense):
+
+- **`ALTEZZA_BYPASS` (60) è probabilmente troppo poco.** Nel disegno corretto a mano dal
+  committente il ponte corre alla **stessa quota** dell'uscita del serbatoio, cioè con
+  `ALTEZZA_BYPASS == PASSO_CORSIA_BYPASS`; qui sta 20 unità più in basso. La conseguenza visibile è
+  che il tratto di flessibile sotto le valvole dei montanti è corto — una sola ondulazione — mentre
+  nel riferimento se ne vedono tre o quattro.
+- **`PASSO_GIUNZIONE` (20)**: nel riferimento il TEE di monte sta ~12 unità dalla punta del primo
+  stadio e quello di valle ~25 da quella dell'ultimo. Un valore solo per entrambi è la scelta
+  simmetrica; se il committente li vuole diversi, servono due costanti.
+- **Dove cade il gradino dal serbatoio.** Ora sta a mezza strada; nel riferimento il committente
+  fa correre l'orizzontale fin quasi al primo stadio e scende lì. Le due forme sono entrambe
+  sensate, ma la seconda accorcia la linea di processo di un passo.
