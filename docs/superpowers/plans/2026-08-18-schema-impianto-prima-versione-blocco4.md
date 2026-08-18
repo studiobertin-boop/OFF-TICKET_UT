@@ -1349,4 +1349,164 @@ Il merge e il push si fanno **solo** dopo il suo via libera.
 
 ## Cosa è andato diversamente
 
-*(da scrivere durante l'esecuzione — Task 7, Passo 9)*
+**Le misure, prima di tutto.** I due riferimenti sono esportazioni dell'editor di questo progetto e
+portano il reticolo di puntini della tela, che vale `PASSO_GRIGLIA = 10`. Da lì si ricava la scala
+di ciascuna immagine (0,5575 px/unità su `si bypass.png`, 0,581 su `no bypass.png`), e da lì ogni
+numero di questo blocco è una misura e non un'impressione. La controprova che ha dato fiducia a
+tutto il resto: i centri dei quattro rombi su `no bypass.png` cadono a 331/401/470/540 px, un passo
+di 69,7 px che a quella scala fa **120,0 unità** — esattamente il passo che `GIOCO_FRA_STADI = 20`
+produce. La scala e la decisione del committente si sono confermate a vicenda.
+
+Due misure della consegna sono risultate diverse da quanto annotato nel Blocco 3, e vince la
+misura: `PASSO_CORSIA_BYPASS` è **90**, non «~75» (50,5 px a 0,5575), e lo conferma il conto delle
+ondulazioni sotto le valvole dei montanti; `MARGINE_COLLETTORE_COMPRESSORI` è **80**, misurato,
+contro i 60 che c'erano.
+
+**Task 1.** Come previsto. Il test nuovo è l'unico che coglie il gioco a zero — gli altri della
+convenzione 3 asseriscono sulla costante e passano comunque, per scelta di questo modulo. Trovato
+e corretto un titolo diventato bugiardo: «il passo fra due stadi è 100» asseriva `100 +
+GIOCO_FRA_STADI`, quindi passava a 20 col titolo che diceva il numero sbagliato.
+
+**Task 2, un test esistente riscritto e non allentato.** «e scende perché il ponte le passi SOTTO
+l'uscita del serbatoio» asseriva `yPonte > uscita.y`, e con `ALTEZZA_BYPASS === PASSO_CORSIA_BYPASS`
+cade per costruzione. Non era una regressione: quel test fissava un'**approssimazione** della
+regola. Ciò che tiene separati i due tratti non è la quota — sono complanari, ed è proprio per
+questo che su `si bypass.png` si legge **una sola riga forte** a y=74/75 — ma l'ascissa: la corsa
+del ponte comincia dove la linea di processo è già scesa. Il test ora dice questo.
+
+**Task 3, una premessa dei documenti precedenti era falsa.** La specifica e le consegne dei Blocchi
+2 e 3 dicevano che `svgRiferimentoConTee` «costruisce il layout a mano», e ne ricavavano la regola
+«se cambia, ci si ferma». **A mano è solo il TEE**: `layoutConTee` parte da `layoutSchema` sulla
+stessa scheda minima delle altre due e ci innesta la giunzione a metà del tubo S1 → UTENZE. Ogni
+costante che muove il serbatoio muove anche quel disegno. La regola resta buona nella sostanza — se
+cambia, si **guarda** il diff prima di qualsiasi altra cosa — ma la sua ragione è un'altra, ed è
+ora scritta nell'header della fixture.
+
+**Come si è guardato il diff, e perché non a occhio.** Le fixture sono 43 e 66 righe lunghe fino a
+2000 caratteri: «cambiano solo le ascisse» non è una cosa che si firmi guardando. Si è scritto un
+confronto strutturato (`confronta.mts`, fra gli attrezzi) che pone due domande separate — il markup
+è identico a meno dei numeri? quali attributi cambiano, e di quanto? — e risponde per nome di
+attributo. Ha pagato subito: la prima stesura non agganciava `x1`/`x2` (la regex del nome non
+ammetteva cifre) e le righe della tabella sfuggivano al confronto **in silenzio**. Corretta, ha
+certificato che il Task 3 muove solo `x`, `x1`, `x2`, le ascisse dentro `d` e `transform`, `viewBox`
+e `width`, e nient'altro.
+
+**Task 4, e la domanda che ha aperto.** `MARGINE_COLLETTORE_COMPRESSORI` a 80 da solo **non
+accorciava i montanti** sulla pratica di prova: `quotaCollettore` prendeva il minimo fra due
+vincoli, e col serbatoio verticale vinceva sempre il serbatoio. Rese le due varianti a fianco del
+riferimento e mostrate al committente.
+
+**Task 4b, la risposta.** Il committente ha scelto di **togliere il vincolo del serbatoio**. Non è
+una distanza ma una regola, e ha avuto il suo task, il suo test e il suo commit. La ragione per cui
+quel vincolo non serviva, ora scritta nel codice e fissata da un test: la dorsale non passa **mai**
+sopra il serbatoio, si aggancia a `sx-basso` (verticale) o a `sx` (orizzontale) e **tutt'e due
+stanno sul bordo sinistro della capsula**, `x: 0` in coordinate locali — la corsa orizzontale
+finisce dove il serbatoio comincia e da lì scende di fianco. Il test lo prova su entrambi gli
+orientamenti, ed è la sentinella: se un giorno la mandata si agganciasse a un'ancora interna, cade
+lì, ed è quello il momento di rimettere il vincolo. Col verticale la dorsale scendeva 90 unità.
+
+**Task 5, e una seconda premessa sbagliata — mia.** Il piano diceva «nessuna delle tre fixture
+porta linee condense (verificato: zero occorrenze di `condensa`)». La verifica era sbagliata:
+cercava la **parola**, che nell'SVG non compare mai — quello che compare è `stroke-dasharray`.
+`svgRiferimentoConMuro` ne porta **tre**, ed è caduta al primo giro. È la fixture che copre questo
+cambiamento, e la sua caduta è stata l'unica prova indipendente che la fase arriva davvero fino al
+documento. Un secondo test è caduto per una ragione che non era sua: ancorava l'attesa a `/>`, cioè
+alla fine del tag, e un attributo in più bastava a romperlo pur non c'entrando nulla con ciò che
+prova.
+
+La fase è stata verificata a mano sui numeri della fixture prima di accettarla: offset 6 per la
+linea che parte da x=100 dopo 60 di discesa, offset 2 per quella da x=300 — e in entrambi i casi la
+fase in un punto vale `x mod 17`, cioè la stessa griglia assoluta.
+
+**Nota di metodo, pagata di nuovo.** I file del repo hanno fine riga **CRLF**: la prima sostituzione
+di un import scritta con `\n` non ha agganciato nulla e sembrava innocua. E un attrezzo scritto per
+l'occasione non è partito perché il **suo stesso commento in testa** nominava la sequenza che chiude
+un blocco, chiudendolo in anticipo.
+
+**Il rapporto delle prove «rompi apposta».** Sette mutazioni, tutte verificate entrate con
+`git diff --stat` prima di trarne conclusioni. Un buco vero trovato: portare
+`STACCO_COMPRESSORI_SERBATOI` da 90 a 140 **non fa cadere il suo test**, che assérisce sulla
+costante — è la convenzione di questo modulo, e il valore lo fissano le fixture, che infatti sono
+cadute tutte e tre. La copertura complementare è stata provata nell'altro verso: sbagliare il
+**cablaggio** (`PASSO_ORIZZONTALE` al posto di `PASSO_COMPRESSORI` al punto di attacco) fa cadere il
+test e **non** le fixture, che hanno un compressore solo.
+
+## L'esito
+
+**Gate verde su tutto il repo** al commit `daf1e89`: **1462 test** (erano 1451), 101 file, `tsc`
+pulito, eslint **non un warning più** della baseline (0 su `services/schemaImpianto`, 3 su
+`components/schemaImpianto`, 18 sul gruppo relazione).
+
+**Le tre fixture rigenerate**, ciascuna col paragrafo del perché in testa e col diff letto attributo
+per attributo. Nessuna toccata per far tornare verde un test.
+
+**Il confronto coi riferimenti**, sulla scheda vera di `002 test`:
+
+| | prima | ora | riferimento |
+|---|---|---|---|
+| passo fra stadi | 100 (rombi fusi) | **120** | 120 |
+| corsia del by-pass | 80 | **90** | ~90 |
+| quota del ponte | 20 sotto l'uscita | **alla stessa quota** | stessa quota |
+| fra due compressori | 60 | **20** | ~20 |
+| ultimo compressore → serbatoio | 140 | **90** | ~90 |
+| serbatoio → primo stadio | 60 | **70** | ~73 |
+| dorsale sopra i compressori | 150 | **80** | ~79 |
+| tratteggio condense | si chiude nelle sovrapposizioni | **rado e regolare** | rado |
+
+**Il merge simulato**, con `git fetch` prima: `git merge-tree --write-tree origin/main HEAD` dà
+**zero conflitti**, e `git merge-base` conferma che `origin/main` è ancora `8381f53`, cioè la base
+del ramo — sarebbe un **fast-forward**. Non fuso e non pubblicato: la decisione è del committente.
+
+## Cosa resta aperto
+
+**Il Task 6b — la giunzione di monte del by-pass alla quota dell'uscita del serbatoio.** Il
+committente l'ha scelto, ma guardando il codice è più grande di come questo piano l'aveva inquadrato
+e **non è stato eseguito**: va fatto sapendo che è un blocco, non un task. Il perché, e la forma
+esatta che il riferimento mostra, sono scritti qui sotto.
+
+**La forma vera del riferimento, misurata dopo la scelta.** L'anteprima mostrata al committente
+metteva **entrambe** le giunzioni in alto; il disegno ne mette in alto **solo quella di monte**.
+Su `si bypass.png`, al capo destro, la linea prosegue verso le utenze alla quota della **linea di
+processo** (y=125 da x=574 a x=610): la giunzione di valle sta quindi in basso, e il ponte le
+arriva dall'alto. È asimmetrico ed è giusto che lo sia — a monte il flusso si divide prima di
+scendere negli stadi, a valle si ricongiunge sulla linea e prosegue.
+
+Cosa comporta:
+
+- **`layout.ts`** — le giunzioni `-IN` si posano a `quotaLinea − PASSO_CORSIA_BYPASS`, le `-OUT`
+  restano sulla linea. Con più gruppi che si sovrappongono, le corsie vanno assegnate **qui**
+  (`assegnaCorsie`, bypass.ts), perché oggi le calcola `risolviPonti` dalla quota del ponte, che
+  non sarebbe più sua.
+- **`segniAncorati.ts`** — il ponte passa da quattro vertici a **tre**: corre orizzontale alla
+  quota della `-IN` e scende sulla `-OUT`. Un gomito solo. `risolviPonti` si semplifica (non deve
+  più calcolare `yPonte` né le corsie), ma il commento che spiega perché i gomiti sono obbligatori
+  va riscritto: la ragione cambia.
+- **`buildSchemaModel.ts`** — le tre valvole si ridistribuiscono. Sul ponte ne restano **due**
+  (metà del tratto 0, e vertice 1 con scarto +20 sulla gamba discendente, con `stileAValle:
+  'flessibile'`); la terza si sposta sull'arco `BP1-IN → primo stadio scavalcato`, che diventa
+  `stile: 'standard'` con la valvola a vertice 0 scarto +20 e `stileAValle: 'flessibile'` — sopra
+  la valvola rigido, sotto flessibile, il **mirror** della convenzione 1.
+- **I test del Blocco 3 sul ponte** — «il ponte esce dal layout con quattro vertici», «le tre
+  valvole del ponte finiscono dove le convenzioni le vogliono», «le giunzioni cadono sulla linea
+  di processo, come gli stadi» e «senza gomiti il ponte collasserebbe sulla linea» fissano tutti
+  la forma vecchia e vanno **riscritti**, non allentati.
+- **`PASSO_GIUNZIONE`** torna in gioco: col TEE in alto, la sua distanza orizzontale dalla punta
+  del primo stadio misura ~3 unità sul riferimento, perché lì sta **sopra** e non di fianco.
+
+**Il gradino dal serbatoio** resta a metà strada, per scelta del committente (18-08-2026). Da
+notare per chi riprende: se il Task 6b si fa, nel caso col by-pass il gradino **sparisce da sé** —
+l'arco `S1 → BP1-IN` avrebbe i due capi alla stessa quota, e `gradinoVersoIlTee` non emette nulla.
+La scelta continua a valere per gli altri casi.
+
+**`PASSO_SERBATOI = 20` non è misurato**: i due riferimenti portano un serbatoio solo. È la scelta
+simmetrica coi compressori, ed è dichiarata tale nel commento.
+
+**La prova interattiva in pagina non è stata fatta** in questo blocco. Il confronto visivo sì, sul
+disegno generato dalla scheda vera di `002 test` letta dal DB. Resta da provare in pagina, prima o
+dopo il merge: che «Rigenera da capo» mostri le distanze nuove, che un cambio di preferenze
+continui a non ridisegnare da sé, e che **tela e documento disegnino lo stesso tratteggio** sulle
+condense — è la ragione per cui `sfasamentoCondense` sta nei simboli e non in `renderSvg`, e
+nessun test può vederlo.
+
+**Nel checkout principale** resta la copia non tracciata `no byass.png`, col refuso: va cancellata
+quando il ramo viene fuso.
