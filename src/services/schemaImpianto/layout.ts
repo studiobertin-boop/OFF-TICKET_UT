@@ -195,6 +195,53 @@ function disponiInRiga(
   return { posizionati, xFinale: x }
 }
 
+/**
+ * La sequenza della linea di processo, letta da CHI GLI ARCHI COLLEGANO e non ri-derivata per
+ * rango di tipo. `ordinaCatenaTrattamento` non conosce le preferenze dell'operatore ne' le
+ * giunzioni di un by-pass: dal 18-08-2026 il modello puo' collegare gli stadi in un ordine che
+ * quella funzione non saprebbe riprodurre, e disporli con due regole diverse significa disegnare
+ * le linee incrociate. Resta l'ordine di DEFAULT dentro `buildSchemaModel`, che e' il posto dove
+ * un ordine va deciso; qui si legge quello deciso.
+ *
+ * Si parte dal serbatoio di testa e si seguono gli archi d'aria. Il `visto` non e' una cautela di
+ * stile: un layout riaperto e ricollegato a mano nell'editor puo' contenere un ciclo, e senza si
+ * girerebbe in tondo per sempre.
+ *
+ * Gli stadi che gli archi non raggiungono si appendono in coda nell'ordine di default: uno stadio
+ * scollegato (l'operatore ha cancellato una tubazione) e' meglio disegnarlo in fondo che non
+ * disegnarlo affatto.
+ */
+export function catenaDagliArchi(model: SchemaModel, pozzo: SchemaNodo | null): SchemaNodo[] {
+  const perId = new Map(model.nodi.map((n) => [n.id, n]))
+  const inLinea = (n: SchemaNodo): boolean =>
+    n.id !== pozzo?.id &&
+    (n.tipo === 'essiccatore' || n.tipo === 'filtro' || n.tipo === 'separatore' || n.tipo === 'giunzione')
+
+  const successore = new Map<string, string>()
+  for (const arco of model.archi) {
+    // Solo l'aria: le condense corrono su una rete propria e non dicono nulla sull'ordine della
+    // linea. Il primo vince — con due uscite dallo stesso nodo il disegno e' comunque ambiguo, e
+    // sceglierne una in silenzio e' meglio che fermarsi.
+    if (arco.stile === 'condensa') continue
+    if (!successore.has(arco.da.nodo)) successore.set(arco.da.nodo, arco.a.nodo)
+  }
+
+  const serbatoioDiTesta = model.nodi.find((n) => n.tipo === 'serbatoio')
+  const catena: SchemaNodo[] = []
+  const visto = new Set<string>()
+  let corrente = serbatoioDiTesta ? successore.get(serbatoioDiTesta.id) : undefined
+  while (corrente && !visto.has(corrente)) {
+    visto.add(corrente)
+    const nodo = perId.get(corrente)
+    if (nodo && inLinea(nodo)) catena.push(nodo)
+    corrente = successore.get(corrente)
+  }
+
+  const presi = new Set(catena.map((n) => n.id))
+  const orfani = ordinaCatenaTrattamento(model.nodi, pozzo).filter((n) => !presi.has(n.id))
+  return [...catena, ...orfani]
+}
+
 export function layoutSchema(model: SchemaModel, libreria: Tarature = {}): SchemaLayout {
   const compressori = model.nodi.filter((n) => n.tipo === 'compressore')
   const serbatoi = model.nodi.filter((n) => n.tipo === 'serbatoio')
@@ -202,7 +249,7 @@ export function layoutSchema(model: SchemaModel, libreria: Tarature = {}): Schem
   // quando è lui a raccogliere (in quel caso resta fuori dalla catena di trattamento).
   const pozzo = pozzoCondense(model.nodi, model)
   const raccolta = pozzo ? [pozzo] : []
-  const catena = ordinaCatenaTrattamento(model.nodi, pozzo)
+  const catena = catenaDagliArchi(model, pozzo)
 
   const altezzaCompressore = DIMENSIONI_NODO.compressore.altezza
   const altezzaSerbatoio = DIMENSIONI_NODO.serbatoio.altezza

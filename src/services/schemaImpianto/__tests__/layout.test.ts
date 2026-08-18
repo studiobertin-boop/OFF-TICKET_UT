@@ -12,6 +12,7 @@ import {
 import { buildSchemaModel } from '../buildSchemaModel'
 import {
   calcolaMuro,
+  catenaDagliArchi,
   muroDaAscissa,
   DIMENSIONI_NODO,
   MARGINE_SUPERIORE,
@@ -23,7 +24,7 @@ import {
 import { renderSvg } from '../renderSvg'
 import { dimensioniDi, SPESSORE_MURO } from '../symbols'
 import type { Tarature } from '../libreria'
-import type { SchemaLayout, SchemaNodoPosizionato } from '../types'
+import type { SchemaArco, SchemaLayout, SchemaModel, SchemaNodo, SchemaNodoPosizionato } from '../types'
 
 function nodo(layout: SchemaLayout, id: string) {
   const trovato = layout.nodi.find((n) => n.id === id)
@@ -687,5 +688,90 @@ describe('estensioneOrizzontale', () => {
     const layout = { ...vuoto, nodi: [serbatoioA('S1', 300, 0), serbatoioA('S2', 800, 0)] }
     const destra = estensioneOrizzontale(layout.nodi, layout.testi, layout.muro).destra
     expect(dimensioniLayout(layout).larghezza).toBe(destra + 40)
+  })
+})
+
+describe('catenaDagliArchi', () => {
+  const stadio = (id: string, tipo: SchemaNodo['tipo'] = 'filtro'): SchemaNodo => ({
+    id,
+    tipo,
+    etichetta: id,
+    gruppo: 'SALA_COMPRESSORI',
+    valvoleSicurezza: [],
+    origine: 'scheda',
+  })
+  const serbatoio: SchemaNodo = { ...stadio('S1'), tipo: 'serbatoio' }
+  const aria = (da: string, a: string): SchemaArco => ({
+    id: `${da}-${a}`,
+    da: { nodo: da, ancora: 'dx' },
+    a: { nodo: a, ancora: 'sx' },
+    stile: 'standard',
+  })
+
+  it('segue gli archi, non il rango per tipo', () => {
+    // Per rango sarebbe F1 (prefiltro), E1, F2. Gli archi dicono l'opposto, e vincono loro.
+    const model: SchemaModel = {
+      nodi: [{ ...stadio('F1'), prefiltro: true }, stadio('E1', 'essiccatore'), stadio('F2'), serbatoio],
+      archi: [aria('S1', 'F2'), aria('F2', 'E1'), aria('E1', 'F1'), aria('F1', 'UTENZE')],
+    }
+    expect(catenaDagliArchi(model, null).map((n) => n.id)).toEqual(['F2', 'E1', 'F1'])
+  })
+
+  it('non gira in tondo su un grafo ciclico', () => {
+    const model: SchemaModel = {
+      nodi: [stadio('F1'), stadio('F2'), serbatoio],
+      archi: [aria('S1', 'F1'), aria('F1', 'F2'), aria('F2', 'F1')],
+    }
+    expect(catenaDagliArchi(model, null).map((n) => n.id)).toEqual(['F1', 'F2'])
+  })
+
+  it('appende in coda gli stadi che gli archi non raggiungono, nell’ordine di default', () => {
+    // F3 e' scollegato: senza il ripiego sparirebbe dal disegno, che e' peggio di un ordine strano.
+    const model: SchemaModel = {
+      nodi: [stadio('F1'), stadio('F3'), serbatoio],
+      archi: [aria('S1', 'F1')],
+    }
+    expect(catenaDagliArchi(model, null).map((n) => n.id)).toEqual(['F1', 'F3'])
+  })
+
+  it('non segue le linee condense, che non dicono nulla sull’ordine dell’aria', () => {
+    // L'arco condensa esce da S1 PRIMA di quello d'aria: seguendolo, la catena si fermerebbe sul
+    // pozzo e i due filtri ricadrebbero fra gli orfani, cioe' nell'ordine di default F1 → F2 —
+    // l'opposto di quello che gli archi d'aria collegano.
+    const model: SchemaModel = {
+      nodi: [{ ...stadio('F1'), prefiltro: true }, stadio('F2'), stadio('T', 'tanica'), serbatoio],
+      archi: [
+        { id: 'c1', da: { nodo: 'S1', ancora: 'basso-out' }, a: { nodo: 'T', ancora: 'alto-in' }, stile: 'condensa' },
+        aria('S1', 'F2'),
+        aria('F2', 'F1'),
+      ],
+    }
+    expect(catenaDagliArchi(model, stadio('T', 'tanica')).map((n) => n.id)).toEqual(['F2', 'F1'])
+  })
+
+  it('e’ layoutSchema a usarla: il disegno dispone nell’ordine in cui gli archi collegano', () => {
+    // Senza questo, `layoutSchema` potrebbe tornare a `ordinaCatenaTrattamento` e nessuno dei test
+    // qui sopra se ne accorgerebbe: chiamano tutti la funzione direttamente.
+    const model: SchemaModel = {
+      nodi: [{ ...stadio('F1'), prefiltro: true }, stadio('F2'), serbatoio],
+      archi: [aria('S1', 'F2'), aria('F2', 'F1')],
+    }
+    const disposti = layoutSchema(model)
+      .nodi.filter((n) => n.tipo === 'filtro')
+      .sort((a, b) => a.x - b.x)
+      .map((n) => n.id)
+    expect(disposti).toEqual(['F2', 'F1'])
+  })
+
+  it('il pozzo di raccolta resta fuori dalla linea', () => {
+    const pozzo = stadio('SEP1', 'separatore')
+    const model: SchemaModel = {
+      nodi: [stadio('F1'), pozzo, serbatoio],
+      archi: [
+        aria('S1', 'F1'),
+        { id: 'c1', da: { nodo: 'F1', ancora: 'basso-out' }, a: { nodo: 'SEP1', ancora: 'sx' }, stile: 'condensa' },
+      ],
+    }
+    expect(catenaDagliArchi(model, pozzo).map((n) => n.id)).toEqual(['F1'])
   })
 })
