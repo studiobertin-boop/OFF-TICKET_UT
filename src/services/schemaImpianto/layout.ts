@@ -14,6 +14,7 @@ import {
   MARGINE_VALVOLA_SERBATOIO,
   SPESSORE_MURO,
   TESTO_LIBERO,
+  ancoraDi,
   dimensioniDi,
   riquadroDi,
 } from './symbols'
@@ -88,6 +89,17 @@ const PASSO_ORIZZONTALE = 60
 const PASSO_VERTICALE = 80
 /** Corsia in basso riservata alla rete di linee condense e al pozzo di raccolta. */
 const CORSIA_CONDENSE = 120
+/**
+ * Spazio fra l'ancora `dx` di uno stadio e l'ancora `sx` del successivo. **Zero**: il committente
+ * vuole le ancore coincidenti — passo 100 invece dei 170 di prima (riquadro 110 piu'
+ * `PASSO_ORIZZONTALE`), che e' la convenzione 3.
+ *
+ * Da guardare nel Blocco 4, non da decidere qui: i rombi portano codoli da 10 unita' che sporgono
+ * FUORI dal riquadro (`simboloRombo`, symbols/index.ts), quindi a gioco 0 il codolo destro di ogni
+ * stadio entra di 10 unita' nella punta del vicino. Se il disegno lo mostra, il valore giusto e'
+ * 20: i codoli si toccano e formano il collegamento, che e' cio' che si vede nei due riferimenti.
+ */
+export const GIOCO_FRA_STADI = 0
 
 function posiziona(nodo: SchemaNodo, x: number, y: number): SchemaNodoPosizionato {
   return { ...nodo, x, y }
@@ -208,6 +220,61 @@ function disponiInRiga(
 }
 
 /**
+ * La catena di trattamento disposta per ANCORE e non per riquadri: l'ancora `sx` di ogni stadio
+ * cade sulla quota della linea, e l'avanzamento e' la distanza fra l'ancora `dx` di uno e la `sx`
+ * del successivo. Sono le convenzioni 3 e 4 insieme — la stessa regola detta sull'asse x e
+ * sull'asse y.
+ *
+ * Il ripiego sul riquadro (`dim.altezza / 2`, `dim.larghezza`) vale per un simbolo che non
+ * dichiara quelle ancore: mai per i tre rombi, che le hanno tutte, ma una taratura permanente puo'
+ * sostituire l'elenco delle ancore (`ancoreDi`) e nulla le impone di tenerle.
+ */
+function disponiCatenaPerAncore(
+  nodi: SchemaNodo[],
+  xIniziale: number,
+  quotaLinea: number,
+  libreria: Tarature = {}
+): { posizionati: SchemaNodoPosizionato[]; xFinale: number } {
+  let x = xIniziale
+  const posizionati = nodi.map((nodo) => {
+    const dim = dimensioniDi(nodo, libreria)
+    const sx = ancoraDi(nodo, 'sx', libreria)
+    const dx = ancoraDi(nodo, 'dx', libreria)
+    const collocato = posiziona(nodo, x, quotaLinea - (sx?.y ?? dim.altezza / 2))
+    x = collocato.x + (dx?.x ?? dim.larghezza) + GIOCO_FRA_STADI
+    return collocato
+  })
+  // `xFinale` resta la regola di sempre — bordo destro dell'ultimo riquadro piu' il passo — e non
+  // l'ascissa dell'ultima ancora: la usano il terminale utenze e la corsia condense, e stringerla
+  // qui sposterebbe anche loro. La compattezza in larghezza e' il Blocco 4.
+  const ultimo = posizionati[posizionati.length - 1]
+  const xFinale = ultimo
+    ? ultimo.x + dimensioniDi(ultimo, libreria).larghezza + PASSO_ORIZZONTALE
+    : xIniziale
+  return { posizionati, xFinale }
+}
+
+/**
+ * Quota su cui corre la linea di processo: quella dell'ancora `dx` del serbatoio di testa
+ * (convenzione 4). Fino al 18-08-2026 la catena era centrata sulla mezzeria dei serbatoi, 55 unita'
+ * piu' in basso, e la linea nasceva con un gomito che nei disegni di riferimento non c'e' — che
+ * l'operatore raddrizzava a mano su ogni pratica.
+ *
+ * Senza serbatoi si ripiega sulla quota di prima: un impianto di soli stadi non ha un'uscita a cui
+ * allinearsi, e sollevare la linea al bordo del foglio sarebbe peggio che lasciarla dov'era.
+ */
+export function quotaLineaProcesso(
+  serbatoi: SchemaNodoPosizionato[],
+  ripiego: number,
+  libreria: Tarature = {}
+): number {
+  const testa = serbatoi[0]
+  if (!testa) return ripiego
+  const dx = ancoraDi(testa, 'dx', libreria)
+  return dx ? testa.y + dx.y : ripiego
+}
+
+/**
  * La sequenza della linea di processo, letta da CHI GLI ARCHI COLLEGANO e non ri-derivata per
  * rango di tipo. `ordinaCatenaTrattamento` non conosce le preferenze dell'operatore ne' le
  * giunzioni di un by-pass: dal 18-08-2026 il modello puo' collegare gli stadi in un ordine che
@@ -281,8 +348,10 @@ export function layoutSchema(model: SchemaModel, libreria: Tarature = {}): Schem
     'basso',
     libreria
   )
-  // La catena di trattamento sta a valle dei serbatoi, sulla stessa fascia orizzontale.
-  const rigaCatena = disponiInRiga(catena, rigaSerbatoi.xFinale, yCentroSerbatoi, 'centro', libreria)
+  // La catena di trattamento sta a valle dei serbatoi, sulla quota della loro USCITA — non piu'
+  // sulla loro mezzeria (`yCentroSerbatoi`, che resta il ripiego quando serbatoi non ce ne sono).
+  const quotaLinea = quotaLineaProcesso(rigaSerbatoi.posizionati, yCentroSerbatoi, libreria)
+  const rigaCatena = disponiCatenaPerAncore(catena, rigaSerbatoi.xFinale, quotaLinea, libreria)
 
   const yCondense = yBase + CORSIA_CONDENSE
   const rigaRaccolta = disponiInRiga(raccolta, Math.max(rigaCatena.xFinale, MARGINE), yCondense, 'centro', libreria)
@@ -296,7 +365,7 @@ export function layoutSchema(model: SchemaModel, libreria: Tarature = {}): Schem
   // l'ancora scenderebbe sotto la fascia e la tubazione arriverebbe con un gomito.
   const utenze = model.nodi.filter((n) => n.tipo === 'utenze')
   const posizionatiUtenze = utenze.map((n) =>
-    posiziona(n, rigaCatena.xFinale, yCentroSerbatoi - dimensioniDi(n, libreria).altezza)
+    posiziona(n, rigaCatena.xFinale, quotaLinea - dimensioniDi(n, libreria).altezza)
   )
 
   const nodi = [

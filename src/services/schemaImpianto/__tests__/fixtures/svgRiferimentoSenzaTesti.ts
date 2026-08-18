@@ -103,6 +103,14 @@
  * carattere. La prova in pagina ha mostrato due descrizioni USCIRE dal bordo destro della cella —
  * marca e modello arrivano in maiuscolo dal catalogo, e su quelle 0,5 sottostima (misurato: 0,587).
  * La tabella si allarga di conseguenza, e con lei il foglio; il disegno non cambia.
+ *
+ * Generato di nuovo il 18-08-2026, Task 4 del Blocco 2 («la linea di processo si dispone per
+ * ancore»). Due righe cambiate, per un'unica causa: il terminale utenze si allinea alla quota
+ * dell'ancora `dx` del serbatoio (convenzione 4) invece che alla mezzeria del suo riquadro, e la
+ * tubazione che vi arriva diventa quindi DRITTA — spariscono i due vertici della piega, che
+ * `rottaLinea` non emette piu' quando i capi stanno alla stessa quota. Nessun simbolo e nessuna
+ * regola di instradamento sono stati toccati: il resto del disegno e' identico carattere per
+ * carattere.
  */
 export const RIGHE_SVG_RIFERIMENTO_SENZA_TESTI = [
   `<svg xmlns="http://www.w3.org/2000/svg" width="910" height="802" viewBox="0 0 910 802">`,
@@ -110,10 +118,10 @@ export const RIGHE_SVG_RIFERIMENTO_SENZA_TESTI = [
   `<path d="M 100 290 Q 105 285 100 280 Q 95 275 100 270 Q 105 265 100 260 Q 95 255 100 250 Q 104.88 255 109.76 250 Q 114.65 245 119.53 250 Q 124.41 255 129.29 250 Q 134.18 245 139.06 250 Q 143.94 255 148.82 250 Q 153.71 245 158.59 250 Q 163.47 255 168.35 250 Q 173.24 245 178.12 250 Q 183 255 187.88 250 Q 192.76 245 197.65 250 Q 202.53 255 207.41 250 Q 212.29 245 217.18 250 Q 222.06 255 226.94 250 Q 231.82 245 236.71 250 Q 241.59 255 246.47 250 Q 251.35 245 256.24 250 Q 261.12 255 266 250 Q 261 255 266 260 Q 271 265 266 270 Q 261 275 266 280 Q 271 285 266 290 Q 261 295 266 300 Q 271 305 266 310 Q 261 315 266 320 Q 271 325 266 330 Q 261 335 266 340 Q 271 345 266 350 Q 261 355 266 360 Q 271.67 365 277.33 360 Q 283 355 288.67 360 Q 294.33 360 300 360" fill="none" stroke="#000" stroke-width="2" />`,
   `<rect x="226" y="245.5" width="18" height="9" fill="#fff" stroke="none" />`,
   `<path d="M 226 245.5 L 226 254.5 L 235 250 Z M 244 245.5 L 244 254.5 L 235 250 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" />`,
-  `<path d="M 610 360 L 690 360 L 690 260 L 770 260" fill="none" stroke="#000" stroke-width="2" />`,
+  `<path d="M 610 360 L 770 360" fill="none" stroke="#000" stroke-width="2" />`,
   `<g transform="translate(40 290)"><rect x="0" y="0" width="120" height="120" fill="none" stroke="#000" stroke-width="2" /><circle cx="60" cy="60" r="30" fill="none" stroke="#000" stroke-width="2" /><path d="M 46.5 33.3 L 86.1 45" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M 46.5 86.7 L 86.1 75" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><text x="10" y="20" font-family="Arial, Helvetica, sans-serif" font-size="24" text-anchor="start" dominant-baseline="central" fill="#000">C1</text></g>`,
   `<g transform="translate(300 270)"><rect x="0" y="40" width="310" height="100" rx="50" ry="50" fill="none" stroke="#000" stroke-width="2" /><text x="192.2" y="90" font-family="Arial, Helvetica, sans-serif" font-size="24" text-anchor="middle" dominant-baseline="central" fill="#000">S1</text><path d="M 70 40 L 70 34" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><rect x="64" y="22" width="12" height="12" fill="none" stroke="#000" stroke-width="2" /><path d="M 64 25 L 76 25 M 64 28 L 76 28 M 64 31 L 76 31" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><text x="70" y="10" font-family="Arial, Helvetica, sans-serif" font-size="14" text-anchor="middle" dominant-baseline="central" fill="#000">S1.1</text><path d="M 235.5 141 L 244.5 141 L 240 150 Z M 235.5 159 L 244.5 159 L 240 150 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M 240 159 L 240 167" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /></g>`,
-  `<g transform="translate(670 90)"><path d="M 100 170 L 100 68.5" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="10 7" /><path d="M 94 69.5 L 100 56.5 L 106 69.5 Z" fill="#000" /><text xml:space="preserve" font-family="Arial, Helvetica, sans-serif" font-size="18" text-anchor="middle" dominant-baseline="central" fill="#000"><tspan x="100" y="19">Utenze</tspan><tspan x="100" y="41.5">aria</tspan></text></g>`,
+  `<g transform="translate(670 190)"><path d="M 100 170 L 100 68.5" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="10 7" /><path d="M 94 69.5 L 100 56.5 L 106 69.5 Z" fill="#000" /><text xml:space="preserve" font-family="Arial, Helvetica, sans-serif" font-size="18" text-anchor="middle" dominant-baseline="central" fill="#000"><tspan x="100" y="19">Utenze</tspan><tspan x="100" y="41.5">aria</tspan></text></g>`,
   `<rect x="130" y="490" width="650" height="34" fill="none" stroke="#000" stroke-width="2" />`,
   `<text x="455" y="507" font-family="Arial, Helvetica, sans-serif" font-size="20" text-anchor="middle" dominant-baseline="central" fill="#000">LISTA APPARECCHIATURE</text>`,
   `<rect x="130" y="524" width="650" height="34" fill="none" stroke="#000" stroke-width="1" />`,

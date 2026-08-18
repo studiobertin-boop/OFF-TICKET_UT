@@ -336,16 +336,22 @@ describe('renderSvg', () => {
     const layout = layoutSchema(
       buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
     )
-    // Il tratto verso il terminale utenze fa (610,360) → (645,360) → (645,260) → (680,260): a
-    // t=0,1 lo si percorre verso destra, a t=0,5 verso l'alto. Due frecce sullo stesso arco, su
+    // La mandata del compressore fa (100,290) → (100,250) → (266,250) → (266,360) → (300,360): a
+    // t=0,1 la si percorre verso l'alto, a t=0,3 verso destra. Due frecce sullo stesso arco, su
     // due giaciture diverse: se seguissero un orientamento fisso invece del tubo, una delle due
     // uscirebbe di traverso.
-    const terminale = layout.nodi.find((n) => n.tipo === 'utenze')!
-    const arco = layout.archi.find((a) => a.a.nodo === terminale.id)!
+    //
+    // Prima del 18-08-2026 questo test usava il tratto verso il terminale utenze, che allora
+    // aveva un gomito. Ora quel tratto e' dritto — il terminale sta sulla quota dell'uscita del
+    // serbatoio (convenzione 4) — e non ha piu' due giaciture da esercitare.
+    const arco = layout.archi.find((a) => a.stile === 'flessibile')!
     const senza = renderSvg(layout)
+    // Aggiunte ai segni esistenti, non al loro posto: l'arco porta gia' la sua valvola, e
+    // toglierla falserebbe il conto dei triangoli rispetto a `senza`.
     arco.segni = [
+      ...(arco.segni ?? []),
       { id: 'F1', tipo: 'freccia_direzione', t: 0.1 },
-      { id: 'F2', tipo: 'freccia_direzione', t: 0.5 },
+      { id: 'F2', tipo: 'freccia_direzione', t: 0.3 },
     ]
     const con = renderSvg(layout)
 
@@ -363,9 +369,14 @@ describe('renderSvg', () => {
       .map((p) => [...p.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]))
     expect(triangoli).toHaveLength(2)
 
+    // Distinti per forma e non per posizione nell'array: quale delle due venga emessa prima
+    // dipende dall'ordine dei segni, che non e' cio' che questo test vuole fissare.
+    const orizzontale = triangoli.find((t) => t[1][0] === t[2][0])!
+    const verticale = triangoli.find((t) => t[1][1] === t[2][1])!
+    expect(orizzontale).toBeDefined()
+    expect(verticale).toBeDefined()
+
     // Sul tratto orizzontale: i due capi della base condividono l'ascissa e la punta è a destra.
-    const [orizzontale, verticale] = triangoli
-    expect(orizzontale[1][0]).toBe(orizzontale[2][0])
     expect(orizzontale[0][0]).toBeGreaterThan(orizzontale[1][0])
 
     // Sul montante che sale: la base condivide l'ordinata e la punta sta più in alto (y minore).
@@ -485,12 +496,38 @@ describe('renderSvg', () => {
     const arco = layout.archi.find(
       (a) => a.stile === 'standard' && indice.get(a.a.nodo)!.tipo !== 'utenze'
     )!
+    // Il nodo di arrivo spostato in verticale, come farebbe l'operatore trascinandolo nell'editor:
+    // dal 18-08-2026 la linea di processo NASCE dritta (convenzione 4), quindi il caso con la
+    // piega — quello che questa regola governa — si ottiene solo scostando un capo dalla fascia.
+    const arrivo = indice.get(arco.a.nodo)!
+    arrivo.y += 120
+
     const pDa = posizioneAncora(indice.get(arco.da.nodo)!, arco.da.ancora)
-    const pA = posizioneAncora(indice.get(arco.a.nodo)!, arco.a.ancora)
+    const pA = posizioneAncora(arrivo, arco.a.ancora)
+    expect(pDa.y).not.toBe(pA.y)
     const xMedia = (pDa.x + pA.x) / 2
 
     const svg = renderSvg(layout)
     expect(svg).toContain(`M ${pDa.x} ${pDa.y} L ${xMedia} ${pDa.y} L ${xMedia} ${pA.y} L ${pA.x} ${pA.y}`)
+  })
+
+  it('e quando i due capi sono già alla stessa quota va dritta, senza vertici inutili', () => {
+    // Il caso NORMALE dal 18-08-2026: la linea di processo nasce allineata. Una piega a meta'
+    // strada qui sarebbe due vertici coincidenti nel markup di ogni documento consegnato, e un
+    // tratto di lunghezza nulla su cui gli ancoraggi contano (`tDaAncoraggio`).
+    const scheda = makeScheda({ dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }) })
+    const layout = layoutSchema(
+      buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    )
+    const indice = new Map(layout.nodi.map((n) => [n.id, n]))
+    const arco = layout.archi.find(
+      (a) => a.stile === 'standard' && indice.get(a.a.nodo)!.tipo !== 'utenze'
+    )!
+    const pDa = posizioneAncora(indice.get(arco.da.nodo)!, arco.da.ancora)
+    const pA = posizioneAncora(indice.get(arco.a.nodo)!, arco.a.ancora)
+    expect(pDa.y).toBe(pA.y)
+
+    expect(renderSvg(layout)).toContain(`M ${pDa.x} ${pDa.y} L ${pA.x} ${pA.y}"`)
   })
 
   // Stessa logica ancora, applicata a `rottaCondensa`: il vertice che discrimina è il primo, dove

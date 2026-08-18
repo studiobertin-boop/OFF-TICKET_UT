@@ -899,3 +899,26 @@ describe('tDaAncoraggio', () => {
     expect(tDaAncoraggio(fermo, { tipo: 'meta', tratto: 0 })).toBeNull()
   })
 })
+
+describe('rottaLinea con i capi alla stessa quota', () => {
+  it('non lascia il vertice doppio della piega che non c’è', () => {
+    // Dal 18-08-2026 la linea di processo nasce dritta (convenzione 4), quindi i due capi hanno
+    // la STESSA quota e la piega a meta' strada non esiste: senza deduplicare, la spezzata porta
+    // due vertici coincidenti. Non e' solo markup sporco in ogni documento — un tratto di
+    // lunghezza nulla e' un tranello per gli ancoraggi, che contano i vertici e i tratti
+    // (`tDaAncoraggio`).
+    expect(rottaLinea({ x: 100, y: 50 }, { x: 300, y: 50 })).toEqual([
+      { x: 100, y: 50 },
+      { x: 300, y: 50 },
+    ])
+  })
+
+  it('ma la piega resta quando le quote differiscono davvero', () => {
+    expect(rottaLinea({ x: 100, y: 50 }, { x: 300, y: 90 })).toEqual([
+      { x: 100, y: 50 },
+      { x: 200, y: 50 },
+      { x: 200, y: 90 },
+      { x: 300, y: 90 },
+    ])
+  })
+})

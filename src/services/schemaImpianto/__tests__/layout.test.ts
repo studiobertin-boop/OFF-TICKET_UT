@@ -11,6 +11,7 @@ import {
 } from '@/services/relazione/__tests__/fixtures'
 import { buildSchemaModel } from '../buildSchemaModel'
 import {
+  GIOCO_FRA_STADI,
   calcolaMuro,
   catenaDagliArchi,
   muroDaAscissa,
@@ -22,7 +23,7 @@ import {
   pozzoCondense,
   quoteInstradamento,
 } from '../layout'
-import { renderSvg } from '../renderSvg'
+import { posizioneAncora, renderSvg } from '../renderSvg'
 import { dimensioniDi, SPESSORE_MURO } from '../symbols'
 import type { Tarature } from '../libreria'
 import type { SchemaArco, SchemaLayout, SchemaModel, SchemaNodo, SchemaNodoPosizionato } from '../types'
@@ -72,6 +73,18 @@ function schedaTrePiuUno() {
       makeDisoleatore({ codice: 'C2.1', compressore_associato: 'C2' }),
       makeDisoleatore({ codice: 'C3.1', compressore_associato: 'C3' }),
     ],
+    dati_impianto: makeDatiImpianto({ raccolta_condense: 'tanica' }),
+  })
+}
+
+/** Un compressore, un serbatoio verticale, tre stadi: il caso minimo con una linea di processo. */
+function schedaConTreStadi() {
+  return makeScheda({
+    compressori: [makeCompressore({ codice: 'C1' })],
+    disoleatori: [makeDisoleatore({ codice: 'C1.1', compressore_associato: 'C1' })],
+    serbatoi: [makeSerbatoio({ codice: 'S1', orientamento: 'VERTICALE' })],
+    filtri: [makeFiltro({ codice: 'F1', tipo: 'PREFILTRO' }), makeFiltro({ codice: 'F2', tipo: 'LINEA' })],
+    essiccatori: [makeEssiccatore({ codice: 'E1' })],
     dati_impianto: makeDatiImpianto({ raccolta_condense: 'tanica' }),
   })
 }
@@ -568,10 +581,13 @@ describe('layoutSchema', () => {
       // quella del registro — il riquadro del terminale cresce con la scritta, e dal 17-08-2026
       // l'etichetta di default è già su due righe. Con `DIMENSIONI_NODO.utenze.altezza` questo
       // test tornava lo stesso, ma solo finché l'etichetta stava sotto la soglia di crescita.
+      //
+      // Dal 18-08-2026 la fascia è la quota delle ANCORE della linea, non il centro dei riquadri:
+      // l'ancora `sx` del rombo sta a 50 sul riquadro 110, cioè 5 unità sopra la mezzeria. La
+      // differenza si vedeva come un gomito di 5 unità all'ingresso di ogni stadio.
       const quotaAncora = utenze.y + dimensioniDi(utenze).altezza
-      const centroEssiccatore = essiccatore.y + DIMENSIONI_NODO.essiccatore.altezza / 2
 
-      expect(quotaAncora).toBe(centroEssiccatore)
+      expect(quotaAncora).toBe(posizioneAncora(essiccatore, 'sx').y)
     })
 
     it('mette l’ancora alla quota della fascia anche con un’etichetta su molte righe', () => {
@@ -584,10 +600,10 @@ describe('layoutSchema', () => {
 
       // L'ancora `in` sta in fondo al codolo: con la scritta su più righe il fondo del riquadro
       // non è più a `DIMENSIONI_NODO.utenze.altezza` fisso, ma a `dimensioniDi(utenze).altezza`.
+      // La fascia è la quota dell'ancora dello stadio, non il centro del suo riquadro (18-08-2026).
       const quotaAncora = utenze.y + dimensioniDi(utenze).altezza
-      const centroEssiccatore = essiccatore.y + DIMENSIONI_NODO.essiccatore.altezza / 2
 
-      expect(quotaAncora).toBe(centroEssiccatore)
+      expect(quotaAncora).toBe(posizioneAncora(essiccatore, 'sx').y)
     })
 
     it('allarga il disegno fino a comprendere la scritta', () => {
@@ -825,5 +841,60 @@ describe('pozzoCondense quando le condense sono tutte spente', () => {
       ],
     }
     expect(pozzoCondense(model.nodi, model)).toBeNull()
+  })
+})
+
+describe('la linea di processo si dispone per ancore', () => {
+  const disegno = () =>
+    layoutSchema(
+      buildSchemaModel({ scheda: schedaConTreStadi(), collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    )
+  const stadiDi = (l: SchemaLayout) =>
+    l.nodi.filter((n) => n.tipo === 'filtro' || n.tipo === 'essiccatore').sort((a, b) => a.x - b.x)
+
+  it('l’ancora sx di ogni stadio sta sulla quota dell’ancora dx del serbatoio', () => {
+    // Convenzione 4: la linea nasce dritta. Fino al 18-08-2026 gli stadi erano centrati sulla
+    // mezzeria dei serbatoi, 55 unita' piu' in basso, e la linea partiva con un gomito che
+    // l'operatore raddrizzava a mano su ogni pratica.
+    const l = disegno()
+    const quota = posizioneAncora(nodo(l, 'S1'), 'dx').y
+    for (const stadio of stadiDi(l)) {
+      expect(posizioneAncora(stadio, 'sx').y).toBe(quota)
+    }
+  })
+
+  it('l’ancora dx di uno stadio coincide con l’ancora sx del successivo', () => {
+    // Convenzione 3: passo 100, non i 170 del riquadro piu' PASSO_ORIZZONTALE.
+    const stadi = stadiDi(disegno())
+    expect(stadi.length).toBeGreaterThan(1)
+    for (let i = 0; i < stadi.length - 1; i++) {
+      expect(posizioneAncora(stadi[i + 1], 'sx').x).toBe(posizioneAncora(stadi[i], 'dx').x + GIOCO_FRA_STADI)
+    }
+  })
+
+  it('il passo fra due stadi è 100, non i 170 del riquadro più PASSO_ORIZZONTALE', () => {
+    // Il numero della convenzione 3. Non fissa `GIOCO_FRA_STADI` — quello si chiude nel Blocco 4,
+    // guardando il disegno — ma fissa che l'avanzamento venga dalle ANCORE (il rombo le ha a 0 e
+    // 100 su un riquadro di 110) e non dal riquadro piu' il passo orizzontale.
+    const stadi = stadiDi(disegno())
+    for (let i = 0; i < stadi.length - 1; i++) {
+      expect(stadi[i + 1].x - stadi[i].x).toBe(100 + GIOCO_FRA_STADI)
+    }
+  })
+
+  it('il terminale utenze sta sulla stessa quota, così la linea vi entra dritta', () => {
+    const l = disegno()
+    expect(posizioneAncora(nodo(l, 'UTENZE'), 'in').y).toBe(posizioneAncora(nodo(l, 'S1'), 'dx').y)
+  })
+
+  it('senza serbatoi la quota ripiega su quella di prima, invece di sollevare', () => {
+    const model: SchemaModel = {
+      nodi: [
+        { id: 'F1', tipo: 'filtro', etichetta: 'F1', gruppo: 'SALA_COMPRESSORI', valvoleSicurezza: [], origine: 'scheda' },
+      ],
+      archi: [],
+    }
+    expect(() => layoutSchema(model)).not.toThrow()
+    expect(layoutSchema(model).nodi[0].y).toBeGreaterThanOrEqual(0)
   })
 })

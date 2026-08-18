@@ -458,8 +458,22 @@ export function rottaFlessibile(pDa: Punto, pA: Punto, yCollettore: number): Pun
   ]
 }
 
-/** Mandata di linea fra due stadi di trattamento: spezzata che gira a metà strada. */
+/**
+ * Mandata di linea fra due stadi di trattamento: spezzata che gira a meta' strada.
+ *
+ * Quando i due capi stanno alla stessa quota la piega non esiste, e la rotta e' un segmento solo:
+ * senza il caso esplicito la spezzata porterebbe due vertici coincidenti piu' uno collineare.
+ * Prima del 18-08-2026 il caso non si presentava — l'uscita del serbatoio e l'ingresso del primo
+ * stadio differivano sempre di 55 unita' — ma la linea di processo ora nasce dritta (convenzione
+ * 4), quindi e' il caso NORMALE. Non e' solo markup ridondante in ogni documento consegnato: un
+ * tratto di lunghezza nulla e' un tranello per gli ancoraggi, che contano vertici e tratti
+ * (`tDaAncoraggio`).
+ */
 export function rottaLinea(pDa: Punto, pA: Punto): Punto[] {
+  // Capi alla stessa quota: un segmento solo. Non basterebbe `dedup` — toglie i vertici
+  // COINCIDENTI, e ne resterebbe comunque uno collineare a meta' strada, cioe' due tratti dove
+  // ce n'e' uno. Che e' proprio il numero su cui gli ancoraggi contano.
+  if (pDa.y === pA.y) return [{ x: pDa.x, y: pDa.y }, { x: pA.x, y: pA.y }]
   const xMedia = (pDa.x + pA.x) / 2
   return [
     { x: pDa.x, y: pDa.y },
