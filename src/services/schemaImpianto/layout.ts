@@ -190,25 +190,21 @@ export const PASSO_GIUNZIONE = 20
  * letta dal reticolo da 10 unita' della tela) fa 90,6. Controprova indipendente: con una corsia di
  * 90 e la valvola due passi sotto l'orizzontale, sotto la valvola restano 70 unita' di flessibile,
  * cioe' le tre o quattro ondulazioni che si contano sul riferimento.
+ *
+ * **E' anche la quota del PONTE**, dal Blocco 5: la linea scende di una corsia proprio perche' il
+ * capo di monte di un by-pass possa stare sulla quota dell'uscita del serbatoio, e su
+ * `si bypass.png` quei due tratti sono la STESSA orizzontale — una sola riga forte a y=74/75, dal
+ * bocchello (x=270) al gomito del ponte (x=575), senza interruzioni. Cio' che tiene separati il
+ * tratto che esce dal serbatoio e la corsa del ponte non e' la quota — sono complanari — ma
+ * l'ascissa: si toccano sul TEE, e da li' in la' e' ponte.
+ *
+ * Fino al Blocco 4 la relazione stava in una costante a parte (`ALTEZZA_BYPASS =
+ * PASSO_CORSIA_BYPASS`), che serviva a far salire il ponte SOPRA due capi complanari; ora il capo
+ * di monte e' gia' li' e quella costante non aveva piu' lettori. Il legame lo fissa un test
+ * (`layout.test.ts`, «la giunzione di monte sta invece alla quota dell'uscita del serbatoio»), non
+ * piu' un'uguaglianza fra due numeri.
  */
 export const PASSO_CORSIA_BYPASS = 90
-
-/**
- * Quanto il ponte di un by-pass corre sopra la linea di processo. **Esattamente
- * `PASSO_CORSIA_BYPASS`**, e non un numero suo: la linea di processo scende di una corsia proprio
- * perche' il ponte possa correre alla quota dell'uscita del serbatoio, e su `si bypass.png` quei
- * due tratti sono la STESSA orizzontale — una sola riga forte a y=74/75, lunga 322 px su 643.
- *
- * Cio' che tiene i due tratti separati non e' la quota, ma l'ascissa: la corsa del ponte comincia
- * dove la linea di processo e' gia' scesa, cioe' a destra del bocchello.
- *
- * Fino al 18-08-2026 valeva 60, e il ponte passava 20 unita' sotto il bocchello: il tratto di
- * flessibile sotto le valvole dei montanti si riduceva a una sola ondulazione contro le tre o
- * quattro del disegno vero. Un test lega le due misure (`layout.test.ts`, «la corsa del ponte cade
- * sulla quota dell'uscita del serbatoio»): scriverle uguali per caso non basta, la relazione e' il
- * disegno.
- */
-export const ALTEZZA_BYPASS = PASSO_CORSIA_BYPASS
 
 function posiziona(nodo: SchemaNodo, x: number, y: number): SchemaNodoPosizionato {
   return { ...nodo, x, y }
