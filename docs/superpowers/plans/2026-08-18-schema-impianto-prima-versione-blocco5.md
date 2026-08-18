@@ -1085,16 +1085,125 @@ Trappole di interazione, tutte già pagate:
 
 ---
 
-## Conseguenze note, da riferire al committente a fine blocco
+---
 
-1. **Un by-pass che comincia a metà catena disegna una gobba.** Con il capo di monte in alto, la
-   linea di processo sale dallo stadio precedente fino al TEE e ridiscende subito dopo. Nel
-   riferimento non si vede perché lì il by-pass parte dal serbatoio, che è **già** a quella quota.
-   È la lettura letterale della decisione del committente; se la gobba non gli piace, la variante
-   è «sale solo il capo di monte del by-pass che parte dal serbatoio», ed è un ritocco di una riga
-   in `corsieDeiCapiDiMonte`. **Da mostrargli, non da decidere.**
-2. **Col by-pass la catena scivola 20 unità a destra** rispetto al caso senza: il TEE di monte
-   occupa un `PASSO_GIUNZIONE` prima del primo stadio. Sul riferimento la distanza vera fra
-   bocchello e primo stadio è 58 unità col by-pass contro le ~73 senza — il committente ha
-   **stretto** a mano, non allargato. Sono 15-35 unità su un disegno largo un migliaio: sotto la
-   soglia di ciò che questo blocco tara, e non si tocca senza una sua parola.
+## Cosa è andato diversamente
+
+**La misura che ha smentito la consegna, prima di tutto.** La consegna dava il TEE di monte a ~3
+unità dalla punta del primo stadio e ne concludeva che `PASSO_GIUNZIONE` andava tarato in questo
+blocco. La misura dice **20,6**: a x≈293 su `si bypass.png` non c'è la punta del rombo ma il
+pallino della maniglia che l'editor disegna sull'ancora, e la punta vera — il vertice sinistro,
+dove sta l'ancora `sx` — è a 302,5. Il Task 4 è diventato quindi un task di sola documentazione:
+il valore era già quello giusto, mancava la misura che lo giustificasse e il pavimento sotto cui
+non si scende.
+
+**Il capo di valle del riferimento porta DUE nodi, non uno.** Sul disegno del committente, al capo
+di valle, ci sono due giunzioni con le loro quattro maniglie: una in cima (574,5 / 74,5) e una
+sulla linea (574,5 / 125). È il modo in cui si disegna un gomito a mano nell'editor, inserendo un
+TEE. Il nostro ponte il gomito lo fa con un vertice di polilinea, che non disegna simboli: stessa
+geometria, un pallino in meno. La scelta del committente è rispettata alla lettera.
+
+**Il Task 2 è rimasto uno solo, ed era giusto così.** Le tre parti — dove si posa la `-IN`, quanti
+vertici ha il ponte, dove stanno le valvole — non stanno in piedi separate: gli ancoraggi contano i
+vertici, e i vertici dipendono dalla quota del capo. Spezzarlo avrebbe dato un gate su uno stato
+che nessuno vuole.
+
+**Tre cadute che il piano non aveva previsto**, tutte conseguenze della stessa cosa e tutte
+riscritte dove la regola ora vive:
+
+1. «il tubo dal serbatoio scende a mezza strada» — col by-pass in testa alla catena il dislivello
+   fra bocchello e TEE **non c'è più**, e la rotta è dritta. La regola del gradino resta viva dove
+   il dislivello c'è ancora: un by-pass che comincia in MEZZO alla catena. Il test è stato spostato
+   lì, e prova la stessa cosa di prima sul caso in cui è ancora vera.
+2. «ma senza dislivello non inventa gomiti» — provava l'arco `F1 → BP1-IN`, che ora un dislivello
+   ce l'ha. Spostato sull'arco `E1 → BP1-OUT`, dove i due capi sono davvero complanari.
+3. `persistenza.test.ts`, «il ponte entra nel salvataggio coi suoi gomiti» — due gomiti diventano
+   uno. La promessa non cambia: il ponte entra nel salvataggio con la forma risolta dal layout.
+
+**Il rapporto delle prove «rompi apposta».** Cinque mutazioni sul Task 2, tutte verificate entrate
+prima di trarne conclusioni, tutte con almeno un test che cade: la quota della `-IN` (6 test), il
+gomito rovesciato (4), l'ancora del montante da `basso` a `dx` (2), il ponte che torna flessibile
+(2), la valvola del gomito dal lato sbagliato (2). La quarta al primo colpo **non è entrata** — il
+testo di ancoraggio era sbagliato — e i test sono rimasti verdi: senza il controllo che la
+mutazione fosse entrata sarebbe passata per un buco di copertura. È la trappola CRLF, in un'altra
+veste.
+
+**Nessuna fixture si è mossa**, come previsto. E la prova indipendente più forte: il disegno
+generato dalla scheda vera **senza** by-pass è identico **byte a byte** a quello del Blocco 4.
+
+## L'esito
+
+**Gate verde su tutto il repo** al commit `10fcfcb`: **1471 test** (erano 1462), 101 file, `tsc`
+pulito, eslint 0 su `services/schemaImpianto`.
+
+**Il confronto col riferimento**, sulla scheda vera di `002 test`, misurato e non guardato:
+
+| | riferimento | generato |
+|---|---|---|
+| il TEE di monte e l'uscita del serbatoio | stessa quota, una riga sola | una riga sola, dal bocchello al gomito |
+| il montante di monte | scende sull'ascissa del TEE | scende sull'ascissa del TEE |
+| la valvola del montante | due passi sotto il TEE, flessibile sotto | due passi sotto, flessibile sotto |
+| la corsa del ponte | dritta, una valvola a metà | dritta, una valvola a metà |
+| il capo di valle | sulla linea, la linea prosegue a quella quota | sulla linea, prosegue senza salti |
+
+## La prova in pagina
+
+Fatta per intero sulla pratica `002 test`, e **lo stato della pratica è stato ripristinato
+identico** (confronto del JSON, non a occhio).
+
+- **«Rigenera da capo» mostra il by-pass nuovo** — layout generato in pagina: `BP1-IN` a 90 sopra
+  la linea, `BP1-OUT` sulla linea, ponte con un gomito solo, montante con la valvola a `t=0,182`
+  (20 unità su 110) e ponte con le sue a `t=0,444` e `t=0,914` (360/810 e 740/810). I numeri sono
+  quelli che la geometria impone.
+- **Tela e documento disegnano lo STESSO tratteggio sulle condense** — verificato sui NUMERI e non
+  a occhio: stessi punti di attacco e stessi `stroke-dashoffset` (2, 8, 9, 10, 11, 12) sulle sei
+  linee. *Al primo giro sembravano diversi: era l'attrezzo di confronto a rendere il documento
+  **senza la libreria di tarature**, che in produzione esiste e sposta le ancore. Il difetto era
+  della misura, non del prodotto — ed è la stessa svista che ha aperto il punto qui sotto.*
+- **Un cambio di preferenze non ridisegna da sé** — impronta SHA-256 del blob dell'anteprima
+  identica prima e dopo aver acceso e spento una condensa.
+- **Chiudi e riapri** — ricaricata la pagina, il layout riconciliato porta ancora `BP1-IN` in alto,
+  il ponte e il montante; le preferenze sono in `additional_info` (Zod non le ha cancellate).
+
+## Quello che la prova in pagina ha trovato, e NON è di questo blocco
+
+**In produzione il passo fra due stadi esce 140, non 120.** La tabella `schema_simboli` porta
+quattro tarature attive che spostano le ancore dei rombi dai VERTICI alle punte dei codoli
+(`sx: -10`, `dx: 110`, `basso-out: 110`). Con quelle, `GIOCO_FRA_STADI = 20` non fa combaciare i
+codoli — li allontana di altre 20 unità:
+
+```
+[SENZA tarature]                stadi a 560 680 800 920 1040 → passo 120
+[CON le tarature di produzione] stadi a 570 710 850 990 1130 → passo 140
+```
+
+Il riferimento del committente dice **120**. Il Blocco 4 aveva tarato `GIOCO_FRA_STADI` misurando
+il disegno generato **senza** libreria, dove 20 è il numero giusto perché le ancore stanno sui
+vertici e i due codoli da 10 si toccano; con le ancore già sulle punte, il numero giusto sarebbe
+**0** — che è poi ciò che la specifica diceva in origine («default 0, ancore coincidenti»).
+
+**Non è stato toccato**, per due ragioni: `GIOCO_FRA_STADI = 20` è una decisione esplicita del
+committente («non riaprire»), e la correzione dipende da quale delle due cose lui considera vera —
+la costante o le tarature, che sono un dato suo e che qualcuno ha scritto per una ragione. **Va
+deciso da lui.** La prova è ripetibile: `libreria-check.mts` (fra gli attrezzi) genera lo stesso
+schema due volte, con e senza libreria, e stampa i passi.
+
+*Da notare per chi riprende: la stessa svista può aver toccato le altre distanze tarate nel Blocco
+4 (`STACCO_*`, `MARGINE_COLLETTORE_COMPRESSORI`). Il by-pass no: le sue misure sono state
+verificate in pagina, con le tarature attive, e tornano.*
+
+## Cosa resta aperto
+
+**Un by-pass che comincia a metà catena disegna una gobba**: la linea di processo sale dallo stadio
+precedente fino al TEE di monte e ridiscende subito dopo. Nel riferimento non si vede perché lì il
+by-pass parte dal serbatoio, che è **già** a quella quota. È la lettura letterale della decisione
+del committente; la variante — «sale solo il capo di monte del by-pass che parte dal serbatoio» —
+è un ritocco di una riga in `corsieDeiCapiDiMonte`. **Da mostrargli, non da decidere.**
+
+**Col by-pass la catena scivola 20 unità a destra** rispetto al caso senza, perché il TEE di monte
+occupa un `PASSO_GIUNZIONE` prima del primo stadio. Sul riferimento la distanza vera fra bocchello
+e primo stadio è 58 unità col by-pass contro le ~73 senza: il committente ha stretto a mano, non
+allargato. Sotto la soglia di ciò che questo blocco tara.
+
+**`PASSO_SERBATOI = 20` non è misurato** e resta così: i due riferimenti portano un serbatoio solo.
+Si chiude solo con un disegno che ne mostri due affiancati — **chiederglielo, non indovinare**.
