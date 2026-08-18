@@ -13,6 +13,7 @@ import { buildSchemaModel } from '../buildSchemaModel'
 import {
   GIOCO_FRA_STADI,
   PASSO_GIUNZIONE,
+  PASSO_TERMINALE,
   PASSO_CORSIA_BYPASS,
   MARGINE_COLLETTORE_COMPRESSORI,
   PASSO_COMPRESSORI,
@@ -587,6 +588,20 @@ describe('layoutSchema', () => {
       const altri = layout.nodi.filter((n) => n.tipo !== 'utenze')
 
       expect(utenze.x).toBeGreaterThan(Math.max(...altri.map((n) => n.x)))
+    })
+
+    it('l’ancora dista PASSO_TERMINALE da quella dell’ultimo elemento della linea, non di più', () => {
+      // Difetto trovato su una pratica vera (BADOER INFISSI, 18-08-2026): il terminale si
+      // posava sul bordo destro della catena PIU' `PASSO_ORIZZONTALE` (60, un margine fra
+      // FAMIGLIE — lo stesso che separa i compressori dai serbatoi — non fra un elemento e il
+      // tratto che lo prosegue), e ci sommava anche la meta' larghezza del proprio riquadro:
+      // 170 unita' invece delle 20 che separano ogni altro elemento della catena, con la
+      // valvola di riserva a meta' di un tratto lunghissimo su entrambi i lati.
+      const layout = layoutConUtenze()
+      const utenze = layout.nodi.find((n) => n.tipo === 'utenze')!
+      const essiccatore = layout.nodi.find((n) => n.tipo === 'essiccatore')!
+
+      expect(posizioneAncora(utenze, 'in').x - posizioneAncora(essiccatore, 'dx').x).toBe(PASSO_TERMINALE)
     })
 
     it('mette l’ancora alla quota della fascia su cui corrono le tubazioni di linea', () => {

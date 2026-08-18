@@ -195,6 +195,22 @@ export const GIOCO_FRA_STADI = 20
 export const PASSO_GIUNZIONE = 20
 
 /**
+ * Spazio fra l'ancora dell'ultimo elemento della linea (uno stadio, o il capo di valle di un
+ * by-pass) e l'ancora `in` del terminale utenze. Due passi di griglia, la stessa unita' che il
+ * modulo usa ovunque per «due elementi vicini» (`GIOCO_FRA_STADI`, `SCARTO_VALVOLA`,
+ * `PASSO_GIUNZIONE`): non e' una misura presa su un riferimento — i due PNG del committente non
+ * portano un terminale con un'etichetta corta da misurare — ma il valore da correggere per primo
+ * se il disegno vero lo smentisce.
+ *
+ * **Difetto trovato su una pratica vera, non dai test** (BADOER INFISSI, 18-08-2026): il
+ * terminale si posava a `rigaCatena.xFinale`, che porta dentro `PASSO_ORIZZONTALE` (60 — un
+ * margine fra FAMIGLIE, lo stesso che separa compressori e serbatoi, condiviso con `calcolaMuro`
+ * e la corsia di raccolta) piu' meta' della larghezza del proprio riquadro: 170 unita' invece di
+ * 20, con la valvola di riserva a meta' di un tratto lunghissimo su entrambi i lati.
+ */
+export const PASSO_TERMINALE = 20
+
+/**
  * Di quanto la linea di processo SCENDE quando c'e' almeno un by-pass, e di quanto si separano due
  * corsie di ponte che si sovrappongono. Serve perche' il ponte possa correre alla quota dell'uscita
  * del serbatoio senza accavallarcisi.
@@ -575,10 +591,33 @@ export function layoutSchema(model: SchemaModel, libreria: Tarature = {}): Schem
   // andare a capo (`dimensioniDi`, in `symbols/index.ts`, lo fa crescere con le righe): si
   // posiziona quindi da lì, non da `DIMENSIONI_NODO.utenze.altezza`, o con un'etichetta lunga
   // l'ancora scenderebbe sotto la fascia e la tubazione arriverebbe con un gomito.
+  //
+  // L'ascissa NON è `rigaCatena.xFinale`: quella porta dentro `PASSO_ORIZZONTALE`, un margine fra
+  // FAMIGLIE che non descrive il terminale — il terminale è la STESSA linea che continua, non una
+  // famiglia nuova. Si cerca invece l'arco che arriva a lui (ce n'è al più uno: è lo stesso la cui
+  // esistenza ha fatto nascere il nodo, in `buildSchemaModel`) e si parte dalla SUA ancora — così
+  // vale anche col by-pass, dove la sorgente è il capo di valle e non un elemento della catena.
   const utenze = model.nodi.filter((n) => n.tipo === 'utenze')
-  const posizionatiUtenze = utenze.map((n) =>
-    posiziona(n, rigaCatena.xFinale, quotaLinea - dimensioniDi(n, libreria).altezza)
-  )
+  const nodiPrimaDelTerminale = [
+    ...rigaCompressori.posizionati,
+    ...rigaSerbatoi.posizionati,
+    ...rigaCatena.posizionati,
+    ...rigaRaccolta.posizionati,
+  ]
+  const posizionatiUtenze = utenze.map((n) => {
+    const larghezza = dimensioniDi(n, libreria).larghezza
+    const arcoFinale = model.archi.find((a) => a.a.nodo === n.id)
+    const partenza = arcoFinale ? nodiPrimaDelTerminale.find((m) => m.id === arcoFinale.da.nodo) : undefined
+    const ancoraPartenza = partenza && arcoFinale ? ancoraDi(partenza, arcoFinale.da.ancora, libreria) : undefined
+    // Ripiego se l'arco o il suo capo non si trovano (non dovrebbe capitare: `buildSchemaModel`
+    // crea il nodo utenze solo quando quell'arco esiste): resta il vecchio bordo destro, sbagliato
+    // ma non `NaN`.
+    const bordoSinistro =
+      partenza && ancoraPartenza
+        ? partenza.x + ancoraPartenza.x + PASSO_TERMINALE - larghezza / 2
+        : rigaCatena.xFinale
+    return posiziona(n, bordoSinistro, quotaLinea - dimensioniDi(n, libreria).altezza)
+  })
 
   const nodi = [
     ...rigaCompressori.posizionati,

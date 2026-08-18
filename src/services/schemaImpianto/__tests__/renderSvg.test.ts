@@ -39,6 +39,35 @@ function svgMinimo(noteTubazioni?: string[]) {
 }
 
 /**
+ * Un disegno DAVVERO largo: due stadi in piu' oltre a compressore e serbatoio. Serve ai test che
+ * vogliono un disegno piu' largo della tabella per costruzione, non per un margine incidentale —
+ * `layoutMinimo` lo era prima del Blocco 5b (fix di `PASSO_TERMINALE`), ma solo perche' il
+ * terminale nasceva troppo lontano: col terminale tirato vicino, un impianto di due soli nodi puo'
+ * finire piu' stretto della tabella, e i due test che seguono smetterebbero di discriminare nulla.
+ */
+function layoutLargo() {
+  const scheda = makeScheda({
+    compressori: [makeCompressore({ ha_disoleatore: false })],
+    disoleatori: [],
+    serbatoi: [makeSerbatoio({ orientamento: 'ORIZZONTALE' })],
+    essiccatori: [makeEssiccatore(), makeEssiccatore({ codice: 'E2' })],
+    scambiatori: [],
+    filtri: [],
+    dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+  })
+  return layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } }))
+}
+
+function svgLargo() {
+  return renderSvg(layoutLargo())
+}
+
+function svgLargoSpostatoADestra(dx: number) {
+  const layout = layoutLargo()
+  return renderSvg({ ...layout, nodi: layout.nodi.map((n) => ({ ...n, x: n.x + dx })) })
+}
+
+/**
  * Impianto con `muro` valorizzato e almeno due tubazioni che ne scavalcano l'ascissa: la mandata
  * del compressore verso il serbatoio in linea, e la linea condense del disoleatore verso la
  * tanica. Dal Blocco D4 `layoutSchema` non disegna più il muro da sé (lo aggiunge solo il
@@ -95,11 +124,6 @@ describe('la fascia sotto il disegno', () => {
     })
   }
 
-  function svgSpostatoADestra(dx: number) {
-    const layout = layoutMinimo()
-    return renderSvg({ ...layout, nodi: layout.nodi.map((n) => ({ ...n, x: n.x + dx })) })
-  }
-
   /**
    * Un disegno DAVVERO stretto, appoggiato all'origine: un'apparecchiatura sola. Traslare il
    * disegno completo non basta — è più largo della tabella, e il blocco centrato non sborda mai:
@@ -112,7 +136,10 @@ describe('la fascia sotto il disegno', () => {
   }
 
   it('non è più larga quanto tutto il foglio', () => {
-    const svg = svgMinimo()
+    // `svgLargo`, non `svgMinimo`: dopo il fix di `PASSO_TERMINALE` (Blocco 5b) il disegno minimo
+    // (due soli nodi) puo' essere piu' STRETTO della tabella, e il test non discriminerebbe piu'
+    // nulla — serve un disegno che sia piu' largo per costruzione.
+    const svg = svgLargo()
     const foglio = Number(/<svg[^>]*width="([\d.]+)"/.exec(svg)![1])
     expect(intestazione(svg).larghezza).toBeLessThan(foglio - 80)
   })
@@ -140,8 +167,11 @@ describe('la fascia sotto il disegno', () => {
   // Confronto prima/dopo, non un valore assoluto: un test che si aspettasse una coordinata fissa
   // tornerebbe verde anche se la centratura sparisse e il numero coincidesse per caso.
   it('la tabella segue il disegno quando il disegno si sposta a destra', () => {
-    const fermo = intestazione(svgMinimo()).x
-    const spostato = intestazione(svgSpostatoADestra(400)).x
+    // `svgLargo`, per la stessa ragione del test qui sopra: su `svgMinimo` la tabella puo' finire
+    // appoggiata al margine sinistro (`Math.max(MARGINE, centro - larghezza/2)`, bloccoCentrato)
+    // in un caso e non nell'altro, e lo spostamento smette di essere ESATTAMENTE 400.
+    const fermo = intestazione(svgLargo()).x
+    const spostato = intestazione(svgLargoSpostatoADestra(400)).x
     expect(spostato - fermo).toBeCloseTo(400, 5)
   })
 
@@ -421,7 +451,10 @@ describe('renderSvg', () => {
     const bordoDestro = utenze.x + dimensioniDi(utenze).larghezza
 
     // Il fixture dev'essere quello che discrimina: il terminale deve sporgere oltre la tabella.
-    expect(bordoDestro).toBeGreaterThan(830)
+    // Soglia ricalibrata dopo il fix di `PASSO_TERMINALE` (Blocco 5b): con l'etichetta di default
+    // `bordoDestro` vale 680, con questa etichetta lunga 800 — 700 sta comodamente in mezzo, sotto
+    // il valore vero e sopra quello di default, quindi il test cade ancora se la crescita sparisse.
+    expect(bordoDestro).toBeGreaterThan(700)
     expect(larghezza).toBeGreaterThanOrEqual(bordoDestro)
   })
 
