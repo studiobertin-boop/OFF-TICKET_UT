@@ -13,6 +13,7 @@ import type { Tarature } from './libreria'
 import {
   DIMENSIONI_NODO,
   INTERLINEA_TESTO,
+  MARGINE_SCARICO_SERBATOIO,
   MARGINE_VALVOLA_SERBATOIO,
   SPESSORE_MURO,
   TESTO_LIBERO,
@@ -677,13 +678,14 @@ export function corpoNodo(
     // Il riquadro proprio del nodo (verticale o orizzontale, Task 4), non l'ingombro indicizzato
     // per tipo: quello resta sempre il verticale. La stessa geometria di `simboloSerbatoio`
     // (symbols/index.ts): il corpo riempie il riquadro in larghezza, con `MARGINE_VALVOLA_SERBATOIO`
-    // di spazio sopra per la valvola di sicurezza — una sola formula per i due orientamenti, non
-    // più un centraggio diverso e una misura fissa (84) indipendente dal riquadro dichiarato.
+    // di spazio sopra per la valvola di sicurezza e `MARGINE_SCARICO_SERBATOIO` sotto per quella
+    // di scarico (dal 19-08-2026) — una sola formula per i due orientamenti, non più un
+    // centraggio diverso e una misura fissa (84) indipendente dal riquadro dichiarato.
     return {
       x: nodo.x,
       y: nodo.y + MARGINE_VALVOLA_SERBATOIO,
       larghezza: dim.larghezza,
-      altezza: dim.altezza - MARGINE_VALVOLA_SERBATOIO,
+      altezza: dim.altezza - MARGINE_VALVOLA_SERBATOIO - MARGINE_SCARICO_SERBATOIO,
     }
   }
 
@@ -870,10 +872,26 @@ export function quotaCollettore(layout: SchemaLayout, libreria: Tarature = {}): 
   return Math.min(...riferimento)
 }
 
-/** Quota della corsia comune delle linee condense: appena sopra il pozzo di raccolta, così le linee vi scendono dentro dall'alto. */
+/**
+ * Quota della corsia comune delle linee condense: appena sopra il pozzo di raccolta, così le linee
+ * vi scendono dentro dall'alto.
+ *
+ * Col SEPARATORE fa eccezione, e non è un caso particolare capriccioso: lui riceve di FIANCO
+ * (ancora `sx`, vedi `buildSchemaModel`), quindi la corsia deve correre alla quota di
+ * quell'attacco, non sopra il suo corpo. Con la regola generale la corsia passava 40 unità sopra
+ * il rombo e l'ultimo tratto scendeva di 80 per rientrare nel vertice: il gomito verticale a
+ * ridosso del simbolo che il committente ha segnalato il 19-08-2026 («l'arrivo è sempre in
+ * verticale mentre deve essere in orizzontale»). Per la tanica, che riceve dall'alto, la regola
+ * resta quella di prima — è lei il caso in cui la discesa finale è il disegno giusto.
+ */
 export function quotaCorsiaCondense(layout: SchemaLayout, altezzaDisegno: number, libreria: Tarature = {}): number {
   const pozzo = pozzoCondense(layout.nodi, layout)
-  return pozzo ? corpoNodo(pozzo, libreria).y - 40 : altezzaDisegno - MARGINE / 2
+  if (!pozzo) return altezzaDisegno - MARGINE / 2
+  if (pozzo.tipo === 'separatore') {
+    const attacco = ancoraDi(pozzo, 'sx', libreria)
+    if (attacco) return pozzo.y + attacco.y
+  }
+  return corpoNodo(pozzo, libreria).y - 40
 }
 
 /**

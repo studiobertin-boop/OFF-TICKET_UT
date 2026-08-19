@@ -342,6 +342,14 @@ function SchemaEditorInterno({
     valore: string
     /** Solo per «apparecchiatura»: il codice in composizione. */
     codice?: string
+    /**
+     * Solo per «apparecchiatura», e solo quando il nodo porta una valvola di sicurezza (oggi i
+     * serbatoi aggiunti a mano): codice e descrizione della PRIMA valvola. Sono due dati suoi,
+     * distinti da quelli del recipiente — sul disegno la sigla sta sopra il simbolo della
+     * valvola, in tabella la valvola ha una riga propria — e vanno quindi corretti a parte.
+     */
+    valvolaCodice?: string
+    valvolaEtichetta?: string
   } | null>(null)
 
   // La libreria "vista" da tutto il resto dell'editor mentre il modo taratura è acceso: la
@@ -635,7 +643,15 @@ function SchemaEditorInterno({
           tipo: voce.tipo,
           etichetta: voce.etichetta,
           gruppo: 'LINEA_DISTRIBUZIONE' as const,
-          valvoleSicurezza: [],
+          // Un serbatoio nasce con la sua valvola di sicurezza, come ogni serbatoio di scheda:
+          // è un recipiente in pressione e per legge una ce l'ha sempre: disegnarlo senza
+          // (com'era fino al 19-08-2026, `valvoleSicurezza: []` per ogni tipo) produceva uno
+          // schema che dichiarava il falso, e l'unico rimedio era rinunciare al serbatoio
+          // manuale. Codice e descrizione si correggono col doppio clic, come quelli del nodo.
+          valvoleSicurezza:
+            voce.tipo === 'serbatoio'
+              ? [{ codice: `${id}.1`, etichetta: 'Valvola di sicurezza' }]
+              : [],
           // Un'apparecchiatura presa dalla palette è una scelta deliberata dell'utente, non
           // qualcosa che la riconciliazione con la scheda deve poter cancellare.
           origine: 'manuale' as const,
@@ -1175,7 +1191,14 @@ function SchemaEditorInterno({
       // riconciliazione — e non la giunzione: il TEE è un pallino che non porta scritte sul
       // disegno e che `righeLista` salta, quindi un codice suo non comparirebbe da nessuna parte.
       if (dati.origine !== 'manuale' || dati.tipo === 'giunzione') return
-      setScrittura({ bersaglio: 'apparecchiatura', id: nodo.id, valore: dati.etichetta, codice: codiceVisibile(dati) })
+      const valvola = dati.valvoleSicurezza[0]
+      setScrittura({
+        bersaglio: 'apparecchiatura',
+        id: nodo.id,
+        valore: dati.etichetta,
+        codice: codiceVisibile(dati),
+        ...(valvola ? { valvolaCodice: valvola.codice, valvolaEtichetta: valvola.etichetta } : {}),
+      })
     },
     [modoTaratura]
   )
@@ -1229,6 +1252,11 @@ function SchemaEditorInterno({
     // riportarla al passo intermedio in cui era vuota — cioè invisibile.
     if (bersaglio === 'apparecchiatura') {
       const scritto = (codice ?? '').trim()
+      // Le due caselle della valvola: si applicano solo se il nodo ne ha una, e una casella
+      // svuotata lascia il valore di prima invece di cancellarlo — una valvola senza sigla non
+      // avrebbe nulla da scrivere sul disegno né in tabella.
+      const valvolaCodice = scrittura.valvolaCodice?.trim()
+      const valvolaEtichetta = scrittura.valvolaEtichetta?.trim()
       applica((s) => ({
         ...s,
         nodes: s.nodes.map((n) => {
@@ -1250,6 +1278,11 @@ function SchemaEditorInterno({
                 // stringa vuota non la intercetta — il simbolo resterebbe senza codice e la
                 // tabella con la casella bianca.
                 codice: scritto && scritto !== n.id ? scritto : undefined,
+                valvoleSicurezza: dati.valvoleSicurezza.map((v, i) =>
+                  i === 0
+                    ? { codice: valvolaCodice || v.codice, etichetta: valvolaEtichetta || v.etichetta }
+                    : v
+                ),
               },
             } satisfies SchemaNodeData,
           }
@@ -1778,6 +1811,26 @@ function SchemaEditorInterno({
             value={scrittura?.valore ?? ''}
             onChange={(e) => setScrittura((s) => (s ? { ...s, valore: e.target.value } : s))}
           />
+          {scrittura?.bersaglio === 'apparecchiatura' && scrittura.valvolaCodice !== undefined && (
+            <>
+              <TextField
+                fullWidth
+                margin="dense"
+                label="Codice valvola di sicurezza"
+                helperText="La sigla scritta sopra la valvola nel disegno, per esempio «S1.1»."
+                value={scrittura.valvolaCodice}
+                onChange={(e) => setScrittura((s) => (s ? { ...s, valvolaCodice: e.target.value } : s))}
+              />
+              <TextField
+                fullWidth
+                margin="dense"
+                label="Descrizione valvola di sicurezza"
+                helperText="La riga che compare nella lista apparecchiature, per esempio «Valvola di sicurezza CEME Mod. 1/2”»."
+                value={scrittura.valvolaEtichetta ?? ''}
+                onChange={(e) => setScrittura((s) => (s ? { ...s, valvolaEtichetta: e.target.value } : s))}
+              />
+            </>
+          )}
         </DialogContent>
         <DialogActions>
           {scrittura?.bersaglio === 'testo' && scrittura.id !== null && (

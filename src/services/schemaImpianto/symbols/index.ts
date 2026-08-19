@@ -83,7 +83,15 @@ export function sfasamentoCondense(punti: Punto[]): number {
 }
 
 /**
- * Tratteggio della verticale interna del filtro (`simboloRombo`, segno `verticale-tratteggiata`).
+ * Tratteggio della verticale interna del filtro (`simboloRombo`, segno `verticale-tratteggiata`),
+ * disegnato a `stroke-linecap="butt"` e non `round` come il resto dei tratti: coi cappucci
+ * arrotondati ogni trattino sporge di mezzo spessore (1 unità) per capo, il vuoto di 2 del vecchio
+ * '8 2' si richiudeva del tutto e la verticale usciva CONTINUA — e per giunta sbiadita, perché a
+ * chiuderla erano due bordi antialiasati sovrapposti. È il difetto segnalato dal committente
+ * («quasi illeggibile») sul disegno consegnato. Con `butt` il vuoto è quello dichiarato, e '9 3'
+ * lo porta a 3 unità — rapporto 3:1, l'estremo basso della famiglia misurata sul CAD (sotto) —
+ * perché si legga come tratteggio anche alla scala di stampa.
+ *
  * Rapporto dash:gap fra 3:1 e 4:1, misurato sui quattro trattini che il blocco CAD `filtro`
  * disegna fra il vertice alto del rombo e il tratto orizzontale basso: 4,98 / 6,42 / 6,36 / 4,98pt
  * — i due centrali più lunghi dei due esterni — su gap di 1,62pt esatti, cioè da 3,07 a 3,96 volte
@@ -92,7 +100,7 @@ export function sfasamentoCondense(punti: Punto[]): number {
  * con un ritmo diverso — usare lo stesso tratteggio dei due li renderebbe indistinguibili se mai
  * comparissero nello stesso disegno.
  */
-export const TRATTEGGIO_FILTRO = '8 2'
+export const TRATTEGGIO_FILTRO = '9 3'
 /**
  * Esportato perché non lo usa solo l'SVG: l'editor rende le annotazioni libere in HTML sulla
  * tela (TestiLiberi.tsx) e deve usare lo STESSO carattere del documento, non una seconda
@@ -122,7 +130,27 @@ export const FONT = 'Arial, Helvetica, sans-serif'
  * cui le tubazioni si attaccano davvero, disegna la stessa geometria e deve restare d'accordo con
  * questa, o le tubazioni si staccherebbero dal simbolo che l'utente vede.
  */
-export const MARGINE_VALVOLA_SERBATOIO = 40
+export const MARGINE_VALVOLA_SERBATOIO = 50
+
+/**
+ * Spazio SOTTO il corpo dei serbatoi, riservato alla valvola di scarico. Il gemello inferiore di
+ * `MARGINE_VALVOLA_SERBATOIO`, e nasce dallo stesso motivo: fino al 19-08-2026 il riquadro finiva
+ * al fondo della capsula e la valvola veniva disegnata FUORI, con due conseguenze che il
+ * committente ha visto sul disegno consegnato — nell'editor spariva del tutto (`SchemaNodeSymbol`
+ * monta un `<svg>` grande quanto il riquadro, e ciò che sporge viene tagliato: si vedeva solo in
+ * anteprima e nel documento) e la linea condense, che nasce dall'ancora `basso-out` posata sul
+ * fondo del riquadro, partiva da SOPRA la valvola e la attraversava per intero invece di
+ * proseguirne lo scarico.
+ *
+ * 30 unità: la farfalla del serbatoio è alta 9 per semiasse (`valvolaScarico`), quindi 18 in
+ * tutto, più lo stelo che arriva all'ancora. Il CAD misura ~10,1pt di scarico sotto il corpo
+ * (vedi il commento sopra), cioè la stessa famiglia di quota della valvola di sicurezza sopra.
+ */
+export const MARGINE_SCARICO_SERBATOIO = 30
+
+/** Cassa della valvola di sicurezza, in unità SVG: la legge anche `simboloSerbatoio`, che ci
+ *  appoggia sopra la sigla e sotto il gambo. */
+export const CASSA_VALVOLA_SICUREZZA = { larghezza: 15, altezza: 20 }
 
 /**
  * Corpo dei serbatoi (la sola capsula, non il riquadro con valvola e scarico), misurato isolando
@@ -153,7 +181,7 @@ const CORPO_SERBATOIO_ORIZZONTALE = { larghezza: 310, altezza: 100 } // 2,82×11
  */
 const DIMENSIONI_SERBATOIO_ORIZZONTALE = {
   larghezza: CORPO_SERBATOIO_ORIZZONTALE.larghezza,
-  altezza: CORPO_SERBATOIO_ORIZZONTALE.altezza + MARGINE_VALVOLA_SERBATOIO,
+  altezza: CORPO_SERBATOIO_ORIZZONTALE.altezza + MARGINE_VALVOLA_SERBATOIO + MARGINE_SCARICO_SERBATOIO,
 }
 
 /** Ingombri per tipo, in unità SVG: le funzioni di disegno vi leggono `larghezza`/`altezza`. */
@@ -166,7 +194,7 @@ const DIMENSIONI: Record<SchemaNodoTipo, { larghezza: number; altezza: number }>
   compressore: { larghezza: 120, altezza: 120 },
   serbatoio: {
     larghezza: CORPO_SERBATOIO_VERTICALE.larghezza,
-    altezza: CORPO_SERBATOIO_VERTICALE.altezza + MARGINE_VALVOLA_SERBATOIO,
+    altezza: CORPO_SERBATOIO_VERTICALE.altezza + MARGINE_VALVOLA_SERBATOIO + MARGINE_SCARICO_SERBATOIO,
   },
   essiccatore: { larghezza: 110, altezza: 110 },
   filtro: { larghezza: 110, altezza: 110 },
@@ -255,18 +283,44 @@ function traccia(d: string): string {
 }
 
 /**
- * Valvola di sicurezza: quadratino con tratteggio orizzontale, posato sopra il recipiente
- * che protegge. `x`/`y` sono il centro del simbolo.
+ * Valvola di sicurezza: cassa rettangolare più alta che larga, con la camera di taratura chiusa
+ * da una linea orizzontale nel quarto superiore e la MOLLA a zigzag sotto di essa, appoggiata ai
+ * due fianchi. `x`/`y` sono il centro del simbolo.
+ *
+ * Fino al 19-08-2026 era un quadratino con tre righe orizzontali dentro — un segno che non
+ * corrisponde a nessun blocco del committente. Il disegno vero (schermata `S1.1` del suo CAD,
+ * 19-08-2026) misura 118×155px di cassa, rapporto 1:1,31, con la linea della camera al 27%
+ * dell'altezza e tre diagonali di molla che rimbalzano fra i fianchi: sono queste le proporzioni
+ * riprodotte qui, riscalate su una cassa larga 12 unità — la stessa larghezza di prima, così lo
+ * spazio riservato sopra il corpo (`MARGINE_VALVOLA_SERBATOIO`) continua a contenere simbolo e
+ * sigla senza tagliarli.
  */
 export function valvolaSicurezza(x: number, y: number): string {
-  const lato = 12
-  const mezzo = lato / 2
-  const righe = [-3, 0, 3]
-    .map((dy) => `M ${x - mezzo} ${y + dy} L ${x + mezzo} ${y + dy}`)
+  const { larghezza, altezza } = CASSA_VALVOLA_SICUREZZA
+  const sx = x - larghezza / 2
+  const dx = x + larghezza / 2
+  const alto = y - altezza / 2
+  const yCamera = alto + altezza * 0.27
+  // Tre diagonali che rimbalzano fra i fianchi, dalla linea della camera al fondo della cassa.
+  // Rientrate di un'unità per lato: coi cappucci arrotondati (mezzo spessore per capo) una molla
+  // che arrivasse ai fianchi sporgerebbe fuori dalla cassa, e le punte si leggono come baffi.
+  const mSx = sx + 1
+  const mDx = dx - 1
+  const passo = (y + altezza / 2 - yCamera) / 3
+  // Tre segmenti staccati e non una polilinea: negli angoli di rimbalzo, acutissimi, la giunzione
+  // di default (`miter`) tira una punta lunga che esce dai fianchi della cassa e si legge come un
+  // baffo. Staccati non c'è giunzione da tirare, e i capi si sovrappongono comunque.
+  const molla = [
+    [mSx, 0.4, mDx, 1.2],
+    [mDx, 1.2, mSx, 2],
+    [mSx, 2, mDx, 2.8],
+  ]
+    .map(([x1, t1, x2, t2]) => `M ${x1} ${yCamera + passo * t1} L ${x2} ${yCamera + passo * t2}`)
     .join(' ')
   return [
-    `<rect x="${x - mezzo}" y="${y - mezzo}" width="${lato}" height="${lato}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`,
-    traccia(righe),
+    `<rect x="${sx}" y="${alto}" width="${larghezza}" height="${altezza}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`,
+    traccia(`M ${sx} ${yCamera} L ${dx} ${yCamera}`),
+    traccia(molla),
   ].join('')
 }
 
@@ -415,7 +469,16 @@ export function frecciaDirezione(x: number, y: number, direzione: { x: number; y
  * disegnava: rapporto larghezza:altezza ≈ 1:2 su entrambe le misure (3,12:6,30 e 4,44:8,94),
  * contro l'8:9 (quasi 1:1) di prima — non solo due misure diverse, una forma diversa.
  */
-export function valvolaScarico(x: number, y: number, misura: 'serbatoio' | 'apparecchio'): string {
+export function valvolaScarico(
+  x: number,
+  y: number,
+  misura: 'serbatoio' | 'apparecchio',
+  // Lunghezza dello stelo sotto la farfalla. Il default è quello storico; chi disegna un simbolo
+  // in cui lo scarico deve arrivare esattamente all'ancora della linea condense passa la misura
+  // che lo porta fin lì, invece di lasciare un vuoto fra la punta dello stelo e l'attacco del
+  // tubo (`simboloRombo`).
+  lunghezzaStelo?: number
+): string {
   // Base sul serbatoio: l:h = 4,5:9 = 1:2, il rapporto misurato sul blocco CAD — ma il 9
   // dell'altezza è ereditato dal codice precedente per continuità, non una misura in sé (il
   // solo modo di leggere una dimensione assoluta dal CAD è calibrarla su un tratto già disegnato
@@ -426,11 +489,21 @@ export function valvolaScarico(x: number, y: number, misura: 'serbatoio' | 'appa
   const scala = misura === 'serbatoio' ? 1 : 0.7
   const l = 4.5 * scala
   const h = 9 * scala
-  const stelo = 8 * scala
+  const stelo = lunghezzaStelo ?? 8 * scala
+  // Comando manuale: braccio orizzontale che esce dalla strozzatura verso sinistra, chiuso da un
+  // trattino trasversale. C'è in tutti i blocchi del committente — sotto i rombi come sotto i
+  // serbatoi — e fino al 19-08-2026 mancava del tutto: senza, la farfalla si legge come un
+  // ritegno, non come una valvola manovrabile. Le due misure sono in unità della farfalla (1,2×
+  // la sua semilarghezza il braccio, 0,55× il semitrattino), lette sulle schermate del
+  // 19-08-2026, così scalano da sole con `misura`.
+  const braccio = l * 1.2
+  const trattino = l * 0.55
   return [
     traccia(
       `M ${x - l} ${y - h} L ${x + l} ${y - h} L ${x} ${y} Z M ${x - l} ${y + h} L ${x + l} ${y + h} L ${x} ${y} Z`
     ),
+    traccia(`M ${x - braccio} ${y} L ${x} ${y}`),
+    traccia(`M ${x - braccio} ${y - trattino} L ${x - braccio} ${y + trattino}`),
     traccia(`M ${x} ${y + h} L ${x} ${y + h + stelo}`),
   ].join('')
 }
@@ -578,7 +651,7 @@ export function simboloSerbatoio(nodo: SchemaNodo): string {
   const orizzontale = nodo.orientamento === 'ORIZZONTALE'
 
   const w = larghezza
-  const h = altezza - MARGINE_VALVOLA_SERBATOIO
+  const h = altezza - MARGINE_VALVOLA_SERBATOIO - MARGINE_SCARICO_SERBATOIO
   const x = 0
   const y = MARGINE_VALVOLA_SERBATOIO
   const raggio = Math.min(w, h) / 2
@@ -599,16 +672,26 @@ export function simboloSerbatoio(nodo: SchemaNodo): string {
     .map((v, i) => {
       const passo = 34
       const vx = xValvole + (i - (nodo.valvoleSicurezza.length - 1) / 2) * passo
-      const vy = y - 12
+      // Cassa e sigla si posano leggendo l'altezza vera della cassa, invece di ripetere qui i
+      // numeri di `valvolaSicurezza`: il gambo va dal corpo al suo fondo, e la sigla le sta sopra
+      // di mezzo carattere più il suo margine. Tutto dentro `MARGINE_VALVOLA_SERBATOIO`, che è
+      // dimensionato su questa catena (50 = 6 di gambo + 20 di cassa + la sigla).
+      const mezzaCassa = CASSA_VALVOLA_SICUREZZA.altezza / 2
+      const vy = y - 6 - mezzaCassa
       return [
-        traccia(`M ${vx} ${y} L ${vx} ${vy + 6}`),
+        traccia(`M ${vx} ${y} L ${vx} ${vy + mezzaCassa}`),
         valvolaSicurezza(vx, vy),
-        testo(vx, vy - 18, v.codice, 14),
+        testo(vx, vy - mezzaCassa - 12, v.codice, 14),
       ].join('')
     })
     .join('')
 
-  const scarico = valvolaScarico(xScarico, y + h + 10, 'serbatoio')
+  // Attaccata al fondo della capsula (il centro sta una semialtezza sotto) e con lo stelo che
+  // arriva al fondo del riquadro, dove sta l'ancora `basso-out` da cui nasce la linea condense:
+  // scarico e linea formano così un tratto continuo invece di sovrapporsi.
+  const hFarfalla = 9
+  const yFarfalla = y + h + hFarfalla
+  const scarico = valvolaScarico(xScarico, yFarfalla, 'serbatoio', altezza - (yFarfalla + hFarfalla))
   return corpo + etichettaCodice + valvole + scarico
 }
 
@@ -686,7 +769,9 @@ function simboloRombo(
   } else if (segno === 'verticale-tratteggiata') {
     // `traccia()` non prende un tratteggio: qui serve, quindi il `<path>` è scritto a mano come
     // fa già `simboloUtenze` per il proprio codolo tratteggiato.
-    const verticale = `<path d="M ${cx} ${cy - semiH} L ${cx} ${yBasso}" fill="none" stroke="#000" stroke-width="${TRATTO}" stroke-linecap="round" stroke-dasharray="${TRATTEGGIO_FILTRO}" />`
+    // `butt` e non `round`: coi cappucci arrotondati i vuoti si richiudono e la verticale esce
+    // continua — vedi il commento su `TRATTEGGIO_FILTRO`.
+    const verticale = `<path d="M ${cx} ${cy - semiH} L ${cx} ${yBasso}" fill="none" stroke="#000" stroke-width="${TRATTO}" stroke-linecap="butt" stroke-dasharray="${TRATTEGGIO_FILTRO}" />`
     interno = verticale + traccia(`M ${xSx} ${yBasso} L ${xDx} ${yBasso}`)
   } else {
     interno = `<rect x="${xSx}" y="${yAlto}" width="${xDx - xSx}" height="${yBasso - yAlto}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
@@ -731,7 +816,21 @@ function simboloRombo(
       traccia(`M ${zigzag}`)
   }
 
-  const scaricoSvg = scarico === 'apparecchio' ? valvolaScarico(cx, cy + semiH + 12, 'apparecchio') : ''
+  // Lo scarico si ATTACCA al vertice basso del rombo: il centro della farfalla sta una sua
+  // semialtezza sotto il vertice, così il lato superiore del triangolo alto ci cade esattamente
+  // sopra. Fino al 19-08-2026 il centro stava 12 unità sotto il vertice e restavano 5,7 unità di
+  // vuoto in mezzo — la valvola sembrava staccata dall'apparecchiatura (segnalato dal committente
+  // sul disegno consegnato; nei suoi blocchi CAD la farfalla tocca il vertice).
+  //
+  // Lo stelo arriva al FONDO del riquadro, dove sta l'ancora `basso-out` da cui parte la linea
+  // condense: la misura fissa di prima (5,6) lo fermava a 108,2 e lasciava un secondo vuoto, più
+  // piccolo ma sullo stesso asse.
+  const hFarfalla = 9 * 0.7
+  const yFarfalla = cy + semiH + hFarfalla
+  const scaricoSvg =
+    scarico === 'apparecchio'
+      ? valvolaScarico(cx, yFarfalla, 'apparecchio', altezza - (yFarfalla + hFarfalla))
+      : ''
   return rombo + attacchi + interno + etichettaCodice + accessorio + scaricoSvg
 }
 
@@ -991,7 +1090,12 @@ const ANCORE_ROMBO: SchemaAncora[] = [
   { id: 'sx', x: 0, y: 50, accetta: ['aria'] },
   { id: 'dx', x: 100, y: 50, accetta: ['aria'] },
   { id: 'alto-in', x: 50, y: 10, accetta: ['aria'] },
-  { id: 'basso-out', x: 50, y: 90, accetta: ['condensa'] },
+  // Sul fondo del riquadro (110), non sul vertice basso del rombo (90): dal 19-08-2026 fra il
+  // vertice e il fondo ci sta la valvola di scarico, attaccata al vertice, e una linea condense
+  // che partisse da 90 le nascerebbe SOPRA e la attraverserebbe. È anche la quota che il
+  // committente ha già tarato a mano sui due rombi nella tabella `schema_simboli` (17-08-2026):
+  // il registro dice ora la stessa cosa delle sue tarature.
+  { id: 'basso-out', x: 50, y: 110, accetta: ['condensa'] },
 ]
 
 /**
@@ -1038,26 +1142,64 @@ export const REGISTRO_SIMBOLI: Record<ChiaveSimbolo, DefinizioneSimbolo> = {
     // agganciano indifferentemente in alto o in basso); quella in basso condensa. `sx`/`dx`
     // restano gli id del Task 4 (li legge `buildSchemaModel.ts` per la mandata dal compressore
     // e per la catena di trattamento): sono la coppia alta, `sx-basso`/`dx-basso` la bassa.
+    // Le quote nascono dai margini invece di essere scritte a mano (erano 90/250/300): i due
+    // margini sono cambiati il 19-08-2026 e quattro numeri fissi si sarebbero sfasati in
+    // silenzio dal corpo che devono seguire.
     ancore: [
-      { id: 'sx', x: 0, y: 90, accetta: ['aria'] },
-      { id: 'dx', x: 100, y: 90, accetta: ['aria'] },
-      { id: 'sx-basso', x: 0, y: 250, accetta: ['aria'] },
-      { id: 'dx-basso', x: 100, y: 250, accetta: ['aria'] },
-      { id: 'basso-out', x: 50, y: 300, accetta: ['condensa'] },
+      { id: 'sx', x: 0, y: MARGINE_VALVOLA_SERBATOIO + 50, accetta: ['aria'] },
+      { id: 'dx', x: 100, y: MARGINE_VALVOLA_SERBATOIO + 50, accetta: ['aria'] },
+      {
+        id: 'sx-basso',
+        x: 0,
+        y: MARGINE_VALVOLA_SERBATOIO + CORPO_SERBATOIO_VERTICALE.altezza - 50,
+        accetta: ['aria'],
+      },
+      {
+        id: 'dx-basso',
+        x: 100,
+        y: MARGINE_VALVOLA_SERBATOIO + CORPO_SERBATOIO_VERTICALE.altezza - 50,
+        accetta: ['aria'],
+      },
+      // Sul fondo del RIQUADRO, cioè sotto la valvola di scarico e non più sul fondo della
+      // capsula: da qui nasce la linea condense, che prima partiva da sopra la valvola e la
+      // attraversava. Vedi `MARGINE_SCARICO_SERBATOIO`.
+      {
+        id: 'basso-out',
+        x: 50,
+        y: MARGINE_VALVOLA_SERBATOIO + CORPO_SERBATOIO_VERTICALE.altezza + MARGINE_SCARICO_SERBATOIO,
+        accetta: ['condensa'],
+      },
     ],
     disegna: simboloSerbatoio,
   },
   'serbatoio:ORIZZONTALE': {
     dimensioni: DIMENSIONI_SERBATOIO_ORIZZONTALE,
-    // Riquadro proprio (310×140, Task 4/8), non più quello del verticale: sx/dx sui due capi
+    // Riquadro proprio (310×170, Task 4/8), non più quello del verticale: sx/dx sui due capi
     // della capsula, a metà della sua altezza (40 + 100/2 = 90); alto-in/basso-out alle stesse
     // ascisse che `simboloSerbatoio` usa per valvola e scarico (`OFFSET_VALVOLA_ORIZZONTALE`,
     // 70 e il suo specchio 310-70=240), sul filo sopra e sotto il corpo.
+    // Come sul verticale, le quote vengono dai margini invece che da numeri fissi (erano 90/40/140).
     ancore: [
-      { id: 'sx', x: 0, y: 90, accetta: ['aria'] },
-      { id: 'dx', x: 310, y: 90, accetta: ['aria'] },
-      { id: 'alto-in', x: OFFSET_VALVOLA_ORIZZONTALE, y: 40, accetta: ['aria', 'valvola_sicurezza'] },
-      { id: 'basso-out', x: 310 - OFFSET_VALVOLA_ORIZZONTALE, y: 140, accetta: ['condensa'] },
+      { id: 'sx', x: 0, y: MARGINE_VALVOLA_SERBATOIO + CORPO_SERBATOIO_ORIZZONTALE.altezza / 2, accetta: ['aria'] },
+      {
+        id: 'dx',
+        x: 310,
+        y: MARGINE_VALVOLA_SERBATOIO + CORPO_SERBATOIO_ORIZZONTALE.altezza / 2,
+        accetta: ['aria'],
+      },
+      {
+        id: 'alto-in',
+        x: OFFSET_VALVOLA_ORIZZONTALE,
+        y: MARGINE_VALVOLA_SERBATOIO,
+        accetta: ['aria', 'valvola_sicurezza'],
+      },
+      // Fondo del riquadro, sotto la valvola di scarico: come sul verticale.
+      {
+        id: 'basso-out',
+        x: 310 - OFFSET_VALVOLA_ORIZZONTALE,
+        y: DIMENSIONI_SERBATOIO_ORIZZONTALE.altezza,
+        accetta: ['condensa'],
+      },
     ],
     disegna: simboloSerbatoio,
   },

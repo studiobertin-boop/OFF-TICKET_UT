@@ -168,8 +168,11 @@ describe('layoutSchema', () => {
   // verticale — la base finiva decine di unità più in alto di quella dei compressori, mentre il
   // commento sopra la funzione promette il contrario. L'allineamento 'basso' legge l'altezza
   // vera di OGNI nodo (`dimensioniDi`), non un'altezza di riga assunta uniforme: qui il
-  // serbatoio è orizzontale apposta, il caso che prima non tornava. (140/300, non più 137/298:
-  // Task 8, Blocco 3, l'arrotondamento che porta le ancore sulla griglia.)
+  // serbatoio è orizzontale apposta, il caso che prima non tornava. (180/340 dal 19-08-2026: 30
+  // unità di `MARGINE_SCARICO_SERBATOIO`, che il riquadro riserva ora alla valvola di scarico su
+  // entrambi gli orientamenti, e 10 in più di `MARGINE_VALVOLA_SERBATOIO`, salito a 50 per la
+  // cassa più grande della valvola di sicurezza; erano 140/300 dall'arrotondamento del Task 8,
+  // Blocco 3, e 137/298 prima ancora.)
   it('allinea la base anche di un serbatoio orizzontale, alta meno della metà del verticale', () => {
     const scheda = makeScheda({
       compressori: [makeCompressore({ codice: 'C1', ha_disoleatore: false })],
@@ -181,7 +184,7 @@ describe('layoutSchema', () => {
 
     const layout = layoutSchema(model)
     const s1 = nodo(layout, 'S1')
-    expect(dimensioniDi(s1).altezza).toBe(140)
+    expect(dimensioniDi(s1).altezza).toBe(180)
 
     const baseCompressore = nodo(layout, 'C1').y + DIMENSIONI_NODO.compressore.altezza
     const baseSerbatoio = s1.y + dimensioniDi(s1).altezza

@@ -702,11 +702,13 @@ describe('attacco alle ancore', () => {
     const s1 = layout.nodi.find((n) => n.id === 'S1')!
     const svg = renderSvg(layout)
 
-    // ancora 'basso-out' del serbatoio verticale: (50, 300) in coordinate locali — il corpo
-    // isolato dalla valvola e centrato sul riquadro 100×300 (Task 8, Blocco 3: 100×300, non più
-    // 103×298 del Task 4 — larghezza arrotondata a multiplo di 20 perché l'ancora cadesse sulla
+    // ancora 'basso-out' del serbatoio verticale: (50, 340) in coordinate locali, cioè il fondo
+    // del riquadro — sotto la valvola di scarico, che dal 19-08-2026 ha il suo spazio dentro
+    // l'ingombro (`MARGINE_SCARICO_SERBATOIO`). Era 300, il fondo della capsula: la linea
+    // nasceva sopra la valvola e la attraversava. Il corpo resta 100×260 sul riquadro 100×340
+    // (Task 8, Blocco 3: larghezza arrotondata a multiplo di 20 perché l'ancora cadesse sulla
     // griglia, vedi `CORPO_SERBATOIO_VERTICALE`).
-    const atteso = `M ${s1.x + 50} ${s1.y + 300}`
+    const atteso = `M ${s1.x + 50} ${s1.y + 340}`
     expect(svg).toContain(atteso)
   })
 })

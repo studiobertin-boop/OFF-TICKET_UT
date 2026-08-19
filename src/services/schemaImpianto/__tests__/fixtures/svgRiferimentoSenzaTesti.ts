@@ -170,50 +170,62 @@
  * un simbolo). Su questa fixture: `d.x`/`transform.x` -150 e -75 (il terminale e il suo pallino di
  * riferimento, tirati verso sinistra), `viewBox.x`/`width` -140 (il foglio si stringe), `x`/`x1`/
  * `x2` -70/-75 (tabella e nota, che si centrano sul disegno e lo seguono quando si stringe).
+ *
+ * Generato di nuovo il 19-08-2026, rifiniture dei blocchi chieste dal committente: il riquadro del
+ * serbatoio riserva ora spazio anche SOTTO il corpo per la valvola di scarico
+ * (`MARGINE_SCARICO_SERBATOIO`, 30) e ne riserva 10 in piu' sopra (`MARGINE_VALVOLA_SERBATOIO`
+ * 40 → 50, per la cassa piu' grande della valvola di sicurezza), la valvola di scarico si attacca
+ * al corpo e porta il braccio di manovra, la valvola di sicurezza diventa una cassa con molla.
+ *
+ * Verificato sul diff (confronto strutturato, 43 elementi da entrambi i lati): nessun elemento in
+ * piu' o in meno, nessuna scritta cambiata, markup diverso nei soli due elementi attesi — il
+ * simbolo del serbatoio e la riga di legenda «Valvola di scarico», che guadagna il braccio.
+ * Cambiano `height`/`viewBox` (+40, il foglio si allunga), le `y` e i `transform` di cio' che sta
+ * sotto il serbatoio. Nessuna ascissa.
  */
 export const RIGHE_SVG_RIFERIMENTO_SENZA_TESTI = [
-  `<svg xmlns="http://www.w3.org/2000/svg" width="730" height="802" viewBox="0 0 730 802">`,
-  `<rect width="730" height="802" fill="#fff" />`,
-  `<path d="M 100 290 Q 105 285 100 280 Q 95 275 100 270 Q 105 265 100 260 Q 95 255 100 250 Q 105 245 100 240 Q 100 235 100 230" fill="none" stroke="#000" stroke-width="2" />`,
-  `<path d="M 100 230 L 100 210 L 216 210 L 216 360 L 250 360" fill="none" stroke="#000" stroke-width="2" />`,
-  `<rect x="95.5" y="221" width="9" height="18" fill="#fff" stroke="none" />`,
-  `<path d="M 95.5 221 L 104.5 221 L 100 230 Z M 95.5 239 L 104.5 239 L 100 230 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" />`,
-  `<path d="M 560 360 L 580 360" fill="none" stroke="#000" stroke-width="2" />`,
-  `<rect x="561" y="355.5" width="18" height="9" fill="#fff" stroke="none" />`,
-  `<path d="M 561 355.5 L 561 364.5 L 570 360 Z M 579 355.5 L 579 364.5 L 570 360 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" />`,
-  `<g transform="translate(40 290)"><rect x="0" y="0" width="120" height="120" fill="none" stroke="#000" stroke-width="2" /><circle cx="60" cy="60" r="30" fill="none" stroke="#000" stroke-width="2" /><path d="M 46.5 33.3 L 86.1 45" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M 46.5 86.7 L 86.1 75" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><text x="10" y="20" font-family="Arial, Helvetica, sans-serif" font-size="24" text-anchor="start" dominant-baseline="central" fill="#000">C1</text></g>`,
-  `<g transform="translate(250 270)"><rect x="0" y="40" width="310" height="100" rx="50" ry="50" fill="none" stroke="#000" stroke-width="2" /><text x="192.2" y="90" font-family="Arial, Helvetica, sans-serif" font-size="24" text-anchor="middle" dominant-baseline="central" fill="#000">S1</text><path d="M 70 40 L 70 34" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><rect x="64" y="22" width="12" height="12" fill="none" stroke="#000" stroke-width="2" /><path d="M 64 25 L 76 25 M 64 28 L 76 28 M 64 31 L 76 31" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><text x="70" y="10" font-family="Arial, Helvetica, sans-serif" font-size="14" text-anchor="middle" dominant-baseline="central" fill="#000">S1.1</text><path d="M 235.5 141 L 244.5 141 L 240 150 Z M 235.5 159 L 244.5 159 L 240 150 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M 240 159 L 240 167" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /></g>`,
-  `<g transform="translate(480 190)"><path d="M 100 170 L 100 68.5" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="10 7" /><path d="M 94 69.5 L 100 56.5 L 106 69.5 Z" fill="#000" /><text xml:space="preserve" font-family="Arial, Helvetica, sans-serif" font-size="18" text-anchor="middle" dominant-baseline="central" fill="#000"><tspan x="100" y="19">Utenze</tspan><tspan x="100" y="41.5">aria</tspan></text></g>`,
-  `<rect x="40" y="490" width="650" height="34" fill="none" stroke="#000" stroke-width="2" />`,
-  `<text x="365" y="507" font-family="Arial, Helvetica, sans-serif" font-size="20" text-anchor="middle" dominant-baseline="central" fill="#000">LISTA APPARECCHIATURE</text>`,
-  `<rect x="40" y="524" width="650" height="34" fill="none" stroke="#000" stroke-width="1" />`,
-  `<line x1="170" y1="524" x2="170" y2="558" stroke="#000" stroke-width="1" />`,
-  `<text x="105" y="541" font-family="Arial, Helvetica, sans-serif" font-size="16" text-anchor="middle" dominant-baseline="central" fill="#000">C1</text>`,
-  `<text x="182" y="541" font-family="Arial, Helvetica, sans-serif" font-size="16" dominant-baseline="central" fill="#000">Compressore KAESER Mod. CSD 105 SFC</text>`,
-  `<rect x="40" y="558" width="650" height="34" fill="none" stroke="#000" stroke-width="1" />`,
-  `<line x1="170" y1="558" x2="170" y2="592" stroke="#000" stroke-width="1" />`,
-  `<text x="105" y="575" font-family="Arial, Helvetica, sans-serif" font-size="16" text-anchor="middle" dominant-baseline="central" fill="#000">S1</text>`,
-  `<text x="182" y="575" font-family="Arial, Helvetica, sans-serif" font-size="16" dominant-baseline="central" fill="#000">Serbatoio SICC TECH s.r.l. Mod. 2000-20011R2</text>`,
-  `<rect x="40" y="592" width="650" height="34" fill="none" stroke="#000" stroke-width="1" />`,
-  `<line x1="170" y1="592" x2="170" y2="626" stroke="#000" stroke-width="1" />`,
-  `<text x="105" y="609" font-family="Arial, Helvetica, sans-serif" font-size="16" text-anchor="middle" dominant-baseline="central" fill="#000">S1.1</text>`,
-  `<text x="182" y="609" font-family="Arial, Helvetica, sans-serif" font-size="16" dominant-baseline="central" fill="#000">Valvola di sicurezza PADOVAN VALERIO snc Mod. TA21</text>`,
-  `<rect x="40" y="626" width="650" height="34" fill="none" stroke="#000" stroke-width="1" />`,
-  `<line x1="170" y1="626" x2="170" y2="660" stroke="#000" stroke-width="1" />`,
-  `<g transform="translate(105 643)"><rect x="-9" y="-4.5" width="18" height="9" fill="#fff" stroke="none" /><path d="M -9 -4.5 L -9 4.5 L 0 0 Z M 9 -4.5 L 9 4.5 L 0 0 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /></g>`,
-  `<text x="182" y="643" font-family="Arial, Helvetica, sans-serif" font-size="16" dominant-baseline="central" fill="#000">Valvola di intercettazione</text>`,
-  `<rect x="40" y="660" width="650" height="34" fill="none" stroke="#000" stroke-width="1" />`,
-  `<line x1="170" y1="660" x2="170" y2="694" stroke="#000" stroke-width="1" />`,
-  `<g transform="translate(105 677)"><path d="M -4.5 -13 L 4.5 -13 L 0 -4 Z M -4.5 5 L 4.5 5 L 0 -4 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M 0 5 L 0 13" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /></g>`,
-  `<text x="182" y="677" font-family="Arial, Helvetica, sans-serif" font-size="16" dominant-baseline="central" fill="#000">Valvola di scarico</text>`,
-  `<rect x="40" y="694" width="650" height="34" fill="none" stroke="#000" stroke-width="1" />`,
-  `<line x1="170" y1="694" x2="170" y2="728" stroke="#000" stroke-width="1" />`,
-  `<g transform="translate(105 711)"><path d="M -30 0 L 30 0" fill="none" stroke="#000" stroke-width="2" /></g>`,
-  `<text x="182" y="711" font-family="Arial, Helvetica, sans-serif" font-size="16" dominant-baseline="central" fill="#000">Tubazione rigida</text>`,
-  `<rect x="40" y="728" width="650" height="34" fill="none" stroke="#000" stroke-width="1" />`,
-  `<line x1="170" y1="728" x2="170" y2="762" stroke="#000" stroke-width="1" />`,
-  `<g transform="translate(105 745)"><path d="M -30 0 Q -25 5 -20 0 Q -15 -5 -10 0 Q -5 5 0 0 Q 5 -5 10 0 Q 15 5 20 0 Q 25 0 30 0" fill="none" stroke="#000" stroke-width="2" /></g>`,
-  `<text x="182" y="745" font-family="Arial, Helvetica, sans-serif" font-size="16" dominant-baseline="central" fill="#000">Tubazione flessibile</text>`,
+  `<svg xmlns="http://www.w3.org/2000/svg" width="730" height="842" viewBox="0 0 730 842">`,
+  `<rect width="730" height="842" fill="#fff" />`,
+  `<path d="M 100 330 Q 105 325 100 320 Q 95 315 100 310 Q 105 305 100 300 Q 95 295 100 290 Q 105 285 100 280 Q 100 275 100 270" fill="none" stroke="#000" stroke-width="2" />`,
+  `<path d="M 100 270 L 100 250 L 216 250 L 216 370 L 250 370" fill="none" stroke="#000" stroke-width="2" />`,
+  `<rect x="95.5" y="261" width="9" height="18" fill="#fff" stroke="none" />`,
+  `<path d="M 95.5 261 L 104.5 261 L 100 270 Z M 95.5 279 L 104.5 279 L 100 270 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" />`,
+  `<path d="M 560 370 L 580 370" fill="none" stroke="#000" stroke-width="2" />`,
+  `<rect x="561" y="365.5" width="18" height="9" fill="#fff" stroke="none" />`,
+  `<path d="M 561 365.5 L 561 374.5 L 570 370 Z M 579 365.5 L 579 374.5 L 570 370 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" />`,
+  `<g transform="translate(40 330)"><rect x="0" y="0" width="120" height="120" fill="none" stroke="#000" stroke-width="2" /><circle cx="60" cy="60" r="30" fill="none" stroke="#000" stroke-width="2" /><path d="M 46.5 33.3 L 86.1 45" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M 46.5 86.7 L 86.1 75" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><text x="10" y="20" font-family="Arial, Helvetica, sans-serif" font-size="24" text-anchor="start" dominant-baseline="central" fill="#000">C1</text></g>`,
+  `<g transform="translate(250 270)"><rect x="0" y="50" width="310" height="100" rx="50" ry="50" fill="none" stroke="#000" stroke-width="2" /><text x="192.2" y="100" font-family="Arial, Helvetica, sans-serif" font-size="24" text-anchor="middle" dominant-baseline="central" fill="#000">S1</text><path d="M 70 50 L 70 44" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><rect x="62.5" y="24" width="15" height="20" fill="none" stroke="#000" stroke-width="2" /><path d="M 62.5 29.4 L 77.5 29.4" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M 63.5 31.346666666666664 L 76.5 35.24 M 76.5 35.24 L 63.5 39.13333333333333 M 63.5 39.13333333333333 L 76.5 43.026666666666664" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><text x="70" y="12" font-family="Arial, Helvetica, sans-serif" font-size="14" text-anchor="middle" dominant-baseline="central" fill="#000">S1.1</text><path d="M 235.5 150 L 244.5 150 L 240 159 Z M 235.5 168 L 244.5 168 L 240 159 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M 234.6 159 L 240 159" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M 234.6 156.525 L 234.6 161.475" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M 240 168 L 240 180" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /></g>`,
+  `<g transform="translate(480 200)"><path d="M 100 170 L 100 68.5" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="10 7" /><path d="M 94 69.5 L 100 56.5 L 106 69.5 Z" fill="#000" /><text xml:space="preserve" font-family="Arial, Helvetica, sans-serif" font-size="18" text-anchor="middle" dominant-baseline="central" fill="#000"><tspan x="100" y="19">Utenze</tspan><tspan x="100" y="41.5">aria</tspan></text></g>`,
+  `<rect x="40" y="530" width="650" height="34" fill="none" stroke="#000" stroke-width="2" />`,
+  `<text x="365" y="547" font-family="Arial, Helvetica, sans-serif" font-size="20" text-anchor="middle" dominant-baseline="central" fill="#000">LISTA APPARECCHIATURE</text>`,
+  `<rect x="40" y="564" width="650" height="34" fill="none" stroke="#000" stroke-width="1" />`,
+  `<line x1="170" y1="564" x2="170" y2="598" stroke="#000" stroke-width="1" />`,
+  `<text x="105" y="581" font-family="Arial, Helvetica, sans-serif" font-size="16" text-anchor="middle" dominant-baseline="central" fill="#000">C1</text>`,
+  `<text x="182" y="581" font-family="Arial, Helvetica, sans-serif" font-size="16" dominant-baseline="central" fill="#000">Compressore KAESER Mod. CSD 105 SFC</text>`,
+  `<rect x="40" y="598" width="650" height="34" fill="none" stroke="#000" stroke-width="1" />`,
+  `<line x1="170" y1="598" x2="170" y2="632" stroke="#000" stroke-width="1" />`,
+  `<text x="105" y="615" font-family="Arial, Helvetica, sans-serif" font-size="16" text-anchor="middle" dominant-baseline="central" fill="#000">S1</text>`,
+  `<text x="182" y="615" font-family="Arial, Helvetica, sans-serif" font-size="16" dominant-baseline="central" fill="#000">Serbatoio SICC TECH s.r.l. Mod. 2000-20011R2</text>`,
+  `<rect x="40" y="632" width="650" height="34" fill="none" stroke="#000" stroke-width="1" />`,
+  `<line x1="170" y1="632" x2="170" y2="666" stroke="#000" stroke-width="1" />`,
+  `<text x="105" y="649" font-family="Arial, Helvetica, sans-serif" font-size="16" text-anchor="middle" dominant-baseline="central" fill="#000">S1.1</text>`,
+  `<text x="182" y="649" font-family="Arial, Helvetica, sans-serif" font-size="16" dominant-baseline="central" fill="#000">Valvola di sicurezza PADOVAN VALERIO snc Mod. TA21</text>`,
+  `<rect x="40" y="666" width="650" height="34" fill="none" stroke="#000" stroke-width="1" />`,
+  `<line x1="170" y1="666" x2="170" y2="700" stroke="#000" stroke-width="1" />`,
+  `<g transform="translate(105 683)"><rect x="-9" y="-4.5" width="18" height="9" fill="#fff" stroke="none" /><path d="M -9 -4.5 L -9 4.5 L 0 0 Z M 9 -4.5 L 9 4.5 L 0 0 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /></g>`,
+  `<text x="182" y="683" font-family="Arial, Helvetica, sans-serif" font-size="16" dominant-baseline="central" fill="#000">Valvola di intercettazione</text>`,
+  `<rect x="40" y="700" width="650" height="34" fill="none" stroke="#000" stroke-width="1" />`,
+  `<line x1="170" y1="700" x2="170" y2="734" stroke="#000" stroke-width="1" />`,
+  `<g transform="translate(105 717)"><path d="M -4.5 -13 L 4.5 -13 L 0 -4 Z M -4.5 5 L 4.5 5 L 0 -4 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M -5.3999999999999995 -4 L 0 -4" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M -5.3999999999999995 -6.475 L -5.3999999999999995 -1.525" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M 0 5 L 0 13" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /></g>`,
+  `<text x="182" y="717" font-family="Arial, Helvetica, sans-serif" font-size="16" dominant-baseline="central" fill="#000">Valvola di scarico</text>`,
+  `<rect x="40" y="734" width="650" height="34" fill="none" stroke="#000" stroke-width="1" />`,
+  `<line x1="170" y1="734" x2="170" y2="768" stroke="#000" stroke-width="1" />`,
+  `<g transform="translate(105 751)"><path d="M -30 0 L 30 0" fill="none" stroke="#000" stroke-width="2" /></g>`,
+  `<text x="182" y="751" font-family="Arial, Helvetica, sans-serif" font-size="16" dominant-baseline="central" fill="#000">Tubazione rigida</text>`,
+  `<rect x="40" y="768" width="650" height="34" fill="none" stroke="#000" stroke-width="1" />`,
+  `<line x1="170" y1="768" x2="170" y2="802" stroke="#000" stroke-width="1" />`,
+  `<g transform="translate(105 785)"><path d="M -30 0 Q -25 5 -20 0 Q -15 -5 -10 0 Q -5 5 0 0 Q 5 -5 10 0 Q 15 5 20 0 Q 25 0 30 0" fill="none" stroke="#000" stroke-width="2" /></g>`,
+  `<text x="182" y="785" font-family="Arial, Helvetica, sans-serif" font-size="16" dominant-baseline="central" fill="#000">Tubazione flessibile</text>`,
   `</svg>`
 ]
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { chiaveSimbolo } from '../types'
 import type { SchemaNodo, SchemaNodoTipo } from '../types'
-import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloMuro, simboloUtenze, valvolaIntercettazione, riduttorePressione, valvolaScarico, testoMultiRiga, frecciaDirezione, campioneTubazione, TRATTEGGIO_CONDENSE, sfasamentoCondense, MARGINE_VALVOLA_SERBATOIO, simboloTrasformato, inviluppo, riquadroDi } from '../symbols'
+import { REGISTRO_SIMBOLI, definizioneDi, dimensioniDi, ancoraDi, ancoreDi, simboloDi, simboloGiunzione, simboloMuro, simboloUtenze, valvolaIntercettazione, riduttorePressione, valvolaScarico, testoMultiRiga, frecciaDirezione, campioneTubazione, TRATTEGGIO_CONDENSE, sfasamentoCondense, MARGINE_VALVOLA_SERBATOIO, MARGINE_SCARICO_SERBATOIO, simboloTrasformato, inviluppo, riquadroDi } from '../symbols'
 import type { Punto } from '../tratti'
 import { capoValido } from '../agganci'
 import { TARATURA_NEUTRA, type Tarature } from '../libreria'
@@ -134,6 +134,10 @@ describe('le proporzioni seguono i blocchi CAD', () => {
     // editor, non una misura CAD — il CAD non ha bisogno di riservare spazio per un'etichetta
     // che nel blocco vive fuori dal riquadro, sulla pagina).
     //
+    // Dal 19-08-2026 sotto il corpo c'è anche MARGINE_SCARICO_SERBATOIO, lo spazio della valvola
+    // di scarico, che prima cadeva fuori dal riquadro: si sottraggono entrambi i margini, o il
+    // residuo non sarebbe più il solo corpo.
+    //
     // `toBeCloseTo(larghezza/altezza, 1)` contro `larghezza`/`altezza` letti dallo stesso
     // registro sarebbe tautologico (fix round 1, revisione): il numero atteso e quello ottenuto
     // sarebbero la stessa costante scritta due volte, e nessuna mutazione della costante
@@ -152,7 +156,7 @@ describe('le proporzioni seguono i blocchi CAD', () => {
     expect(o).not.toEqual(v)
     expect(o.larghezza).toBeGreaterThan(o.altezza)
     const rapportoCAD = 2.82 / 0.88
-    const rapportoEditor = o.larghezza / (o.altezza - MARGINE_VALVOLA_SERBATOIO)
+    const rapportoEditor = o.larghezza / (o.altezza - MARGINE_VALVOLA_SERBATOIO - MARGINE_SCARICO_SERBATOIO)
     expect(Math.abs(rapportoEditor - rapportoCAD) / rapportoCAD).toBeLessThan(0.1)
   })
 

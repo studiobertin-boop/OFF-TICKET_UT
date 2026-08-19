@@ -486,14 +486,20 @@ export function rottaLinea(pDa: Punto, pA: Punto): Punto[] {
 /**
  * Linea condense: scende dallo scarico del nodo, corre sulla corsia comune e scende nel pozzo
  * di raccolta dall'alto — il pozzo sta sotto la corsia, come negli schemi reali.
+ *
+ * Quando l'attacco del pozzo è GIÀ sulla corsia — il caso del separatore, che riceve di fianco e
+ * a cui `quotaCorsiaCondense` (layout.ts) porta la corsia apposta — la discesa finale non esiste,
+ * e `dedup` la toglie invece di lasciare un tratto di lunghezza nulla in coda alla polilinea: un
+ * tratto simile è un tranello per gli ancoraggi, che contano vertici e tratti (`tDaAncoraggio`),
+ * la stessa ragione già scritta su `rottaLinea`.
  */
 export function rottaCondensa(pDa: Punto, pA: Punto, yCorsia: number): Punto[] {
-  return [
+  return dedup([
     { x: pDa.x, y: pDa.y },
     { x: pDa.x, y: yCorsia },
     { x: pA.x, y: yCorsia },
     { x: pA.x, y: pA.y },
-  ]
+  ])
 }
 
 /** Da che lato una tubazione deve imboccare i suoi due capi, quando quei capi lo impongono. */
