@@ -6,19 +6,39 @@
  * premendo «Rigenera da capo»: decisione del committente, perché il disegno può essere già stato
  * rifinito a mano e nessun gesto in questo pannello deve poter buttare via quel lavoro.
  *
- * Tre liste separate per famiglia, non una sola: la contiguità che un by-pass richiede ha senso
- * solo dentro la linea di trattamento, e una lista unica permetterebbe di trascinare un
- * compressore in mezzo ai filtri — un gesto che il disegno non sa rendere.
+ * Un'unica tabella, non tre elenchi separati: le intestazioni di colonna restano fisse mentre
+ * le tre famiglie (compressori/serbatoi/linea di trattamento) restano sotto-sezioni distinte —
+ * ciascuna col proprio `DndContext`, perché la contiguità che un by-pass richiede ha senso solo
+ * dentro la linea di trattamento, e mescolare le righe in un solo trascinamento permetterebbe di
+ * infilare un compressore in mezzo ai filtri, un gesto che il disegno non sa rendere. I testi
+ * esplicativi, prima sempre visibili sotto ogni titolo, sono finiti in tooltip: la tabella
+ * compatta si legge a colpo d'occhio, la spiegazione resta a un passaggio del mouse.
  *
  * Nessuna logica qui: ordine di default, contiguità e id dei gruppi vengono da
  * `services/schemaImpianto/preferenze.ts`, che è provabile senza DOM (il progetto non scrive test
  * di interfaccia). Questo file impagina e basta.
  */
-import { useMemo, useState } from 'react'
-import { Alert, Box, Checkbox, Chip, IconButton, Stack, Tooltip, Typography, Button } from '@mui/material'
+import { Fragment, useMemo, useState } from 'react'
+import {
+  Alert,
+  Box,
+  Checkbox,
+  Chip,
+  IconButton,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Tooltip,
+  Typography,
+  Button,
+} from '@mui/material'
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator'
 import CloseIcon from '@mui/icons-material/Close'
 import CallSplitIcon from '@mui/icons-material/CallSplit'
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import {
   DndContext,
   closestCenter,
@@ -53,7 +73,7 @@ export interface PannelloPreferenzeSchemaProps {
 }
 
 /** Quale gruppo by-pass tocca una riga, e se ne è la prima o l'ultima: serve solo a disegnare la
- *  parentesi a lato, che deve chiudersi in cima e in fondo al gruppo. */
+ *  banda a lato, che deve restare colorata dalla prima all'ultima riga del gruppo. */
 interface AppartenenzaBypass {
   id: string
   primo: boolean
@@ -63,48 +83,38 @@ interface RigaProps {
   nodo: SchemaNodo
   condensa: boolean
   onCondensa: (acceso: boolean) => void
-  trascinabile: boolean
+  conBypass: boolean
   selezione?: { scelto: boolean; onScelto: (scelto: boolean) => void }
   bypass?: AppartenenzaBypass
   onSciogliBypass?: () => void
 }
 
-function Riga({ nodo, condensa, onCondensa, trascinabile, selezione, bypass, onSciogliBypass }: RigaProps) {
+function Riga({ nodo, condensa, onCondensa, conBypass, selezione, bypass, onSciogliBypass }: RigaProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: nodo.id,
-    disabled: !trascinabile,
   })
 
   return (
-    <Box
+    <TableRow
       ref={setNodeRef}
       sx={{
         transform: CSS.Transform.toString(transform),
         transition,
         opacity: isDragging ? 0.4 : 1,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 1,
-        px: 1,
-        py: 0.5,
-        borderRadius: 1,
-        bgcolor: 'action.hover',
-        // La banda a sinistra è la parentesi del gruppo by-pass: c'è su tutte le righe del
-        // gruppo, così l'occhio ne vede l'estensione senza doverla dedurre dai chip.
-        borderLeft: bypass ? '3px solid' : '3px solid transparent',
-        borderLeftColor: bypass ? 'primary.main' : 'transparent',
+        bgcolor: isDragging ? 'action.hover' : undefined,
       }}
     >
-      {selezione && (
-        <Checkbox
-          size="small"
-          checked={selezione.scelto}
-          onChange={(e) => selezione.onScelto(e.target.checked)}
-          inputProps={{ 'aria-label': `Seleziona ${nodo.id}` }}
-        />
-      )}
-
-      {trascinabile ? (
+      <TableCell
+        padding="none"
+        sx={{
+          width: 34,
+          pl: 1,
+          // La banda a sinistra è l'indicatore del gruppo by-pass: c'è su tutte le righe del
+          // gruppo, così l'occhio ne vede l'estensione senza doverla dedurre dai chip.
+          borderLeft: bypass ? '3px solid' : '3px solid transparent',
+          borderLeftColor: bypass ? 'primary.main' : 'transparent',
+        }}
+      >
         <IconButton
           size="small"
           {...attributes}
@@ -114,41 +124,54 @@ function Riga({ nodo, condensa, onCondensa, trascinabile, selezione, bypass, onS
         >
           <DragIndicatorIcon fontSize="small" />
         </IconButton>
-      ) : (
-        <Box sx={{ width: 34 }} />
-      )}
+      </TableCell>
 
-      <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 48 }}>
-        {nodo.id}
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1 }} noWrap>
-        {nodo.etichetta}
-      </Typography>
+      <TableCell sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{nodo.id}</TableCell>
 
-      {bypass?.primo && onSciogliBypass && (
-        <Chip
-          size="small"
-          color="primary"
-          variant="outlined"
-          label={`by-pass ${bypass.id}`}
-          onDelete={onSciogliBypass}
-          deleteIcon={
-            <Tooltip title="Sciogli il by-pass">
-              <CloseIcon />
-            </Tooltip>
-          }
-        />
-      )}
+      <TableCell sx={{ color: 'text.secondary', maxWidth: 320 }}>
+        <Typography variant="body2" color="text.secondary" noWrap>
+          {nodo.etichetta}
+        </Typography>
+      </TableCell>
 
-      <Tooltip title="Collega alla linea di raccolta condense">
-        <Checkbox
-          size="small"
-          checked={condensa}
-          onChange={(e) => onCondensa(e.target.checked)}
-          inputProps={{ 'aria-label': `Condense di ${nodo.id}` }}
-        />
-      </Tooltip>
-    </Box>
+      <TableCell align="center">
+        {conBypass && selezione && (
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+            <Checkbox
+              size="small"
+              checked={selezione.scelto}
+              onChange={(e) => selezione.onScelto(e.target.checked)}
+              inputProps={{ 'aria-label': `Seleziona ${nodo.id}` }}
+            />
+            {bypass?.primo && onSciogliBypass && (
+              <Chip
+                size="small"
+                color="primary"
+                variant="outlined"
+                label={bypass.id}
+                onDelete={onSciogliBypass}
+                deleteIcon={
+                  <Tooltip title="Sciogli il by-pass">
+                    <CloseIcon />
+                  </Tooltip>
+                }
+              />
+            )}
+          </Box>
+        )}
+      </TableCell>
+
+      <TableCell align="center">
+        <Tooltip title="Collega alla linea di raccolta condense">
+          <Checkbox
+            size="small"
+            checked={condensa}
+            onChange={(e) => onCondensa(e.target.checked)}
+            inputProps={{ 'aria-label': `Condense di ${nodo.id}` }}
+          />
+        </Tooltip>
+      </TableCell>
+    </TableRow>
   )
 }
 
@@ -225,7 +248,7 @@ export default function PannelloPreferenzeSchema({
   const sciogli = (id: string) =>
     onChange({ ...preferenze, bypass: risolte.bypass.filter((g) => g.id !== id) })
 
-  const lista = (
+  const gruppo = (
     titolo: string,
     spiegazione: string,
     ordine: string[],
@@ -233,52 +256,54 @@ export default function PannelloPreferenzeSchema({
     conBypass = false
   ) =>
     ordine.length === 0 ? null : (
-      <Box>
-        <Typography variant="subtitle2" sx={{ mb: 0.25 }}>
-          {titolo}
-        </Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
-          {spiegazione}
-        </Typography>
+      <Fragment key={chiave}>
+        <TableRow>
+          <TableCell colSpan={5} sx={{ bgcolor: 'action.hover', py: 0.5, border: 0 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Typography variant="subtitle2">{titolo}</Typography>
+              <Tooltip title={spiegazione}>
+                <InfoOutlinedIcon fontSize="inherit" sx={{ color: 'text.secondary' }} />
+              </Tooltip>
+            </Box>
+          </TableCell>
+        </TableRow>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={riordina(chiave, ordine)}>
           <SortableContext items={ordine} strategy={verticalListSortingStrategy}>
-            <Stack spacing={0.5}>
-              {ordine.map((id) => {
-                const nodo = perId.get(id)
-                if (!nodo) return null
-                return (
-                  <Riga
-                    key={id}
-                    nodo={nodo}
-                    condensa={risolte.condense.has(id)}
-                    onCondensa={(acceso) => setCondensa(id, acceso)}
-                    trascinabile
-                    selezione={
-                      conBypass
-                        ? {
-                            scelto: selezionati.includes(id),
-                            onScelto: (scelto) =>
-                              setSelezionati((prima) =>
-                                scelto ? [...prima, id] : prima.filter((x) => x !== id)
-                              ),
-                          }
-                        : undefined
-                    }
-                    bypass={conBypass ? appartenenza.get(id) : undefined}
-                    onSciogliBypass={() => sciogli(appartenenza.get(id)?.id ?? '')}
-                  />
-                )
-              })}
-            </Stack>
+            {ordine.map((id) => {
+              const nodo = perId.get(id)
+              if (!nodo) return null
+              return (
+                <Riga
+                  key={id}
+                  nodo={nodo}
+                  condensa={risolte.condense.has(id)}
+                  onCondensa={(acceso) => setCondensa(id, acceso)}
+                  conBypass={conBypass}
+                  selezione={
+                    conBypass
+                      ? {
+                          scelto: selezionati.includes(id),
+                          onScelto: (scelto) =>
+                            setSelezionati((prima) =>
+                              scelto ? [...prima, id] : prima.filter((x) => x !== id)
+                            ),
+                        }
+                      : undefined
+                  }
+                  bypass={conBypass ? appartenenza.get(id) : undefined}
+                  onSciogliBypass={() => sciogli(appartenenza.get(id)?.id ?? '')}
+                />
+              )
+            })}
           </SortableContext>
         </DndContext>
-      </Box>
+      </Fragment>
     )
 
   return (
-    <Stack spacing={2}>
+    <Box>
       {risolte.bypassScartati.length > 0 && (
-        <Alert severity="warning">
+        <Alert severity="warning" sx={{ mb: 1.5 }}>
           {/* Il soggetto di «scavalcava» è il by-pass, non le apparecchiature: al singolare la
               concordanza cambia, e scriverne una sola per i due casi suona sbagliata in uno. */}
           {risolte.bypassScartati.length === 1
@@ -288,30 +313,47 @@ export default function PannelloPreferenzeSchema({
         </Alert>
       )}
 
-      {lista(
-        'Compressori',
-        'Ordine in sala, da sinistra a destra. La spunta a destra collega alla linea condense.',
-        risolte.ordineCompressori,
-        'ordineCompressori'
-      )}
-
-      {lista(
-        'Serbatoi',
-        'Il primo apre la linea di distribuzione.',
-        risolte.ordineSerbatoi,
-        'ordineSerbatoi'
-      )}
-
-      {lista(
-        'Linea di trattamento',
-        'Ordine da sinistra a destra. Spunta a sinistra più «Crea by-pass» per raggruppare apparecchiature attaccate sotto un solo by-pass.',
-        risolte.ordineStadi,
-        'ordineStadi',
-        true
-      )}
+      <TableContainer>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell padding="none" sx={{ width: 34 }} />
+              <TableCell>Codice</TableCell>
+              <TableCell>Descrizione</TableCell>
+              <TableCell align="center">
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                  By-pass
+                  <Tooltip title="Seleziona una o più apparecchiature attaccate fra loro, poi premi «Crea by-pass» sotto la tabella per raggrupparle.">
+                    <InfoOutlinedIcon fontSize="inherit" sx={{ color: 'text.secondary' }} />
+                  </Tooltip>
+                </Box>
+              </TableCell>
+              <TableCell align="center">
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                  Condense
+                  <Tooltip title="Collega alla linea di raccolta condense.">
+                    <InfoOutlinedIcon fontSize="inherit" sx={{ color: 'text.secondary' }} />
+                  </Tooltip>
+                </Box>
+              </TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {gruppo('Compressori', 'Ordine in sala, da sinistra a destra.', risolte.ordineCompressori, 'ordineCompressori')}
+            {gruppo('Serbatoi', 'Il primo apre la linea di distribuzione.', risolte.ordineSerbatoi, 'ordineSerbatoi')}
+            {gruppo(
+              'Linea di trattamento',
+              'Ordine da sinistra a destra.',
+              risolte.ordineStadi,
+              'ordineStadi',
+              true
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
 
       {risolte.ordineStadi.length > 0 && (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 1.5 }}>
           <Button
             size="small"
             variant="outlined"
@@ -332,6 +374,6 @@ export default function PannelloPreferenzeSchema({
           </Typography>
         </Box>
       )}
-    </Stack>
+    </Box>
   )
 }

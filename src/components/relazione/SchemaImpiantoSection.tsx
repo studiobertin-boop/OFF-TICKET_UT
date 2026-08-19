@@ -20,11 +20,18 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material'
-import { AutoFixHigh as GeneraIcon, Edit as EditIcon } from '@mui/icons-material'
+import {
+  AutoFixHigh as GeneraIcon,
+  Edit as EditIcon,
+  History as CronologiaIcon,
+  AddAPhoto as SalvaVersioneIcon,
+} from '@mui/icons-material'
 import toast from 'react-hot-toast'
 import { useAuth } from '@/hooks/useAuth'
 import type { SchedaDatiCompleta } from '@/types/technicalSheet'
 import type { SchemaImpianto, SchemaPreferenze } from '@/services/relazione/types'
+import { schemaImpiantoVersioniApi } from '@/services/api/schemaImpiantoVersioni'
+import CronologiaSchemaDialog from './CronologiaSchemaDialog'
 import {
   buildSchemaModel,
   notaTubazioni,
@@ -61,6 +68,7 @@ const CHIAVE_TARATURE_PERMANENTI = ['schemaImpianto', 'taraturePermanenti'] as c
 const TARATURE_VUOTE: Tarature = {}
 
 export interface SchemaImpiantoSectionProps {
+  requestId: string
   scheda: SchedaDatiCompleta
   collegamentiCompressoriSerbatoi: Record<string, string[]>
   /**
@@ -112,6 +120,7 @@ export interface SchemaImpiantoSectionProps {
 }
 
 export function SchemaImpiantoSection({
+  requestId,
   scheda,
   collegamentiCompressoriSerbatoi,
   schemaPreferenze,
@@ -159,6 +168,8 @@ export function SchemaImpiantoSection({
   const [anteprimaUrl, setAnteprimaUrl] = useState<string | null>(null)
   const [ingrandita, setIngrandita] = useState(false)
   const [sopra, setSopra] = useState(false)
+  const [cronologiaAperta, setCronologiaAperta] = useState(false)
+  const [salvandoVersione, setSalvandoVersione] = useState(false)
   // Esito della riconciliazione fra layout salvato e scheda, mostrato finché resta valido:
   // sparisce solo quando l'utente rigenera o ricarica un disegno, non a ogni render.
   const [esitoRiconciliazione, setEsitoRiconciliazione] = useState<{
@@ -443,6 +454,35 @@ export function SchemaImpiantoSection({
     [onLayoutChange, pubblica]
   )
 
+  /** Istantanea manuale dello schema attuale in cronologia — utile prima di «Rigenera da capo»,
+   *  che sovrascrive il disegno senza modo di tornare indietro. Non tocca layout né preferenze:
+   *  salva solo il PNG già pubblicato. */
+  const salvaVersione = useCallback(async () => {
+    if (!schema) return
+    setSalvandoVersione(true)
+    try {
+      await schemaImpiantoVersioniApi.salva(requestId, schema)
+      toast.success('Versione salvata in cronologia.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Salvataggio della versione non riuscito.')
+    } finally {
+      setSalvandoVersione(false)
+    }
+  }, [requestId, schema])
+
+  /** Rimette una versione storica come schema attivo: stessa sorte di un disegno AutoCAD
+   *  caricato, perché di una versione salvata resta solo il PNG, non la geometria che
+   *  l'editor saprebbe ritoccare. */
+  const ripristinaVersione = useCallback(
+    (versione: SchemaImpianto) => {
+      setLayout(null)
+      onLayoutChange(null)
+      setEsitoRiconciliazione(null)
+      pubblica(versione, 'caricato')
+    },
+    [onLayoutChange, pubblica]
+  )
+
   const sospeso = (e: DragEvent<HTMLElement>) => {
     e.preventDefault()
     if (disabled || inCorso) return
@@ -602,6 +642,30 @@ export function SchemaImpiantoSection({
                 {layout ? 'Rigenera da capo' : 'Genera schema'}
               </Button>
             )}
+            {schema && (
+              <Tooltip title="Utile prima di «Rigenera da capo», per poterla recuperare in seguito">
+                <span>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<SalvaVersioneIcon />}
+                    onClick={() => void salvaVersione()}
+                    disabled={disabled || inCorso || salvandoVersione}
+                  >
+                    Salva versione
+                  </Button>
+                </span>
+              </Tooltip>
+            )}
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<CronologiaIcon />}
+              onClick={() => setCronologiaAperta(true)}
+              disabled={disabled}
+            >
+              Cronologia
+            </Button>
             <Button component="label" size="small" variant="outlined" disabled={disabled || inCorso}>
               Carica disegno AutoCAD
               <input
@@ -725,6 +789,13 @@ export function SchemaImpiantoSection({
           )}
         </DialogContent>
       </Dialog>
+
+      <CronologiaSchemaDialog
+        open={cronologiaAperta}
+        onClose={() => setCronologiaAperta(false)}
+        requestId={requestId}
+        onRipristina={ripristinaVersione}
+      />
     </>
   )
 }

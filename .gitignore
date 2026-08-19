@@ -109,3 +109,6 @@ nul
 
 # Mockup temporanei del companion visivo di brainstorming
 .superpowers/
+
+# Output di test del tool Playwright MCP (screenshot, snapshot pagina)
+.playwright-mcp/

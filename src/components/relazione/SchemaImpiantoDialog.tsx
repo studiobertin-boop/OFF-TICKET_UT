@@ -35,6 +35,7 @@ import { ETICHETTA_TRONCATA, LARGHEZZA_SELECT } from './selectStyles'
 export interface SchemaImpiantoDialogProps {
   open: boolean
   onClose: () => void
+  requestId: string
   scheda: SchedaDatiCompleta
   /** Collegamenti compressori→serbatoi salvati che non corrispondono più a un codice di scheda. */
   droppedRefs: string[]
@@ -66,6 +67,7 @@ export interface SchemaImpiantoDialogProps {
 export default function SchemaImpiantoDialog({
   open,
   onClose,
+  requestId,
   scheda,
   droppedRefs,
   collegamenti,
@@ -145,6 +147,7 @@ export default function SchemaImpiantoDialog({
           </GruppoCampi>
 
           <SchemaImpiantoSection
+            requestId={requestId}
             scheda={scheda}
             collegamentiCompressoriSerbatoi={collegamenti}
             schemaPreferenze={preferenze}

@@ -782,6 +782,7 @@ export const TechnicalDetails = () => {
           <SchemaImpiantoDialog
             open={schemaDialogOpen}
             onClose={handleCloseSchemaDialog}
+            requestId={request.id}
             scheda={(formData ?? technicalData.equipment_data) as SchedaDatiCompleta}
             droppedRefs={schemaDroppedRefs}
             collegamenti={collegamenti}
