@@ -782,13 +782,18 @@ describe('catenaDagliArchi', () => {
     stile: 'standard',
   })
 
+  // Dal 20-08-2026 il serbatoio e' un elemento di linea come gli altri (Task 3): senza una mandata
+  // di compressore nel modello — nessuno di questi test la costruisce, sono grafi scritti a mano —
+  // `catenaDagliArchi` ripiega sul primo elemento di linea che nessun arco raggiunge. S1 e' sempre
+  // la sorgente degli archi d'aria qui sotto e mai il bersaglio di uno, quindi la testa e' lui: la
+  // catena attesa comincia con 'S1' dove prima cominciava a valle del serbatoio.
   it('segue gli archi, non il rango per tipo', () => {
     // Per rango sarebbe F1 (prefiltro), E1, F2. Gli archi dicono l'opposto, e vincono loro.
     const model: SchemaModel = {
       nodi: [{ ...stadio('F1'), prefiltro: true }, stadio('E1', 'essiccatore'), stadio('F2'), serbatoio],
       archi: [aria('S1', 'F2'), aria('F2', 'E1'), aria('E1', 'F1'), aria('F1', 'UTENZE')],
     }
-    expect(catenaDagliArchi(model, null).map((n) => n.id)).toEqual(['F2', 'E1', 'F1'])
+    expect(catenaDagliArchi(model, null).map((n) => n.id)).toEqual(['S1', 'F2', 'E1', 'F1'])
   })
 
   it('non gira in tondo su un grafo ciclico', () => {
@@ -796,16 +801,23 @@ describe('catenaDagliArchi', () => {
       nodi: [stadio('F1'), stadio('F2'), serbatoio],
       archi: [aria('S1', 'F1'), aria('F1', 'F2'), aria('F2', 'F1')],
     }
-    expect(catenaDagliArchi(model, null).map((n) => n.id)).toEqual(['F1', 'F2'])
+    expect(catenaDagliArchi(model, null).map((n) => n.id)).toEqual(['S1', 'F1', 'F2'])
   })
 
   it('appende in coda gli stadi che gli archi non raggiungono, nell’ordine di default', () => {
     // F3 e' scollegato: senza il ripiego sparirebbe dal disegno, che e' peggio di un ordine strano.
+    //
+    // Qui il ripiego sceglie F3 come testa e non S1, benche' S1 abbia un arco uscente e F3 no: la
+    // regola guarda solo «nessun arco lo raggiunge», nell'ordine dei nodi nel modello (F1, F3, S1),
+    // e non distingue un nodo del tutto isolato da uno che e' davvero la sorgente del disegno. E'
+    // lo stesso «il primo vince» gia' accettato per due uscite dallo stesso nodo: un caso limite che
+    // nella pratica non si presenta, perche' `buildSchemaModel` genera sempre la mandata quando c'e'
+    // un compressore, e il ripiego scatta solo quando i compressori sono stati staccati del tutto.
     const model: SchemaModel = {
       nodi: [stadio('F1'), stadio('F3'), serbatoio],
       archi: [aria('S1', 'F1')],
     }
-    expect(catenaDagliArchi(model, null).map((n) => n.id)).toEqual(['F1', 'F3'])
+    expect(catenaDagliArchi(model, null).map((n) => n.id)).toEqual(['F3', 'F1', 'S1'])
   })
 
   it('non segue il ponte di un by-pass, nemmeno quando è il primo arco che esce dal TEE', () => {
@@ -833,7 +845,7 @@ describe('catenaDagliArchi', () => {
         aria('BP1-OUT', 'UTENZE'),
       ],
     }
-    expect(catenaDagliArchi(model, null).map((n) => n.id)).toEqual(['BP1-IN', 'F1', 'F2', 'BP1-OUT'])
+    expect(catenaDagliArchi(model, null).map((n) => n.id)).toEqual(['S1', 'BP1-IN', 'F1', 'F2', 'BP1-OUT'])
   })
 
   it('non segue le linee condense, che non dicono nulla sull’ordine dell’aria', () => {
@@ -848,7 +860,7 @@ describe('catenaDagliArchi', () => {
         aria('F2', 'F1'),
       ],
     }
-    expect(catenaDagliArchi(model, stadio('T', 'tanica')).map((n) => n.id)).toEqual(['F2', 'F1'])
+    expect(catenaDagliArchi(model, stadio('T', 'tanica')).map((n) => n.id)).toEqual(['S1', 'F2', 'F1'])
   })
 
   it('e’ layoutSchema a usarla: il disegno dispone nell’ordine in cui gli archi collegano', () => {
@@ -874,7 +886,7 @@ describe('catenaDagliArchi', () => {
         { id: 'c1', da: { nodo: 'F1', ancora: 'basso-out' }, a: { nodo: 'SEP1', ancora: 'sx' }, stile: 'condensa' },
       ],
     }
-    expect(catenaDagliArchi(model, pozzo).map((n) => n.id)).toEqual(['F1'])
+    expect(catenaDagliArchi(model, pozzo).map((n) => n.id)).toEqual(['S1', 'F1'])
   })
 })
 
@@ -1437,5 +1449,73 @@ describe('il by-pass nel layout', () => {
     const monte = (g: string) => posizioneAncora(nodo(l, `${g}-IN`), 'sx').y
     expect(monte('BP2')).toBeGreaterThan(monte('BP1'))
     expect(monte('BP1')).toBe(monte('BP2') - PASSO_CORSIA_BYPASS)
+  })
+})
+
+describe('linea con ordine libero', () => {
+  const scheda = makeScheda({
+    compressori: [makeCompressore({ codice: 'C1' })],
+    serbatoi: [makeSerbatoio({ codice: 'S1', ubicazione: 'SALA_COMPRESSORI' })],
+    filtri: [makeFiltro({ codice: 'F1', tipo: 'PREFILTRO' })],
+    essiccatori: [makeEssiccatore({ codice: 'E1' })],
+    dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+  })
+
+  const modelConOrdine = (ordineLinea: string[]) =>
+    buildSchemaModel({
+      scheda,
+      collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+      preferenze: preferenzeRisolteDaScheda(scheda, { ordineLinea }),
+    })
+
+  it('la catena comprende i serbatoi e parte dalla testa della mandata', () => {
+    const model = modelConOrdine(['F1', 'S1', 'E1'])
+    expect(catenaDagliArchi(model, null).map((n) => n.id)).toEqual(['F1', 'S1', 'E1'])
+  })
+
+  it('dispone gli elementi nell’ordine scelto, da sinistra a destra', () => {
+    const layout = layoutSchema(modelConOrdine(['F1', 'S1', 'E1']))
+    const x = (id: string) => layout.nodi.find((n) => n.id === id)!.x
+    expect(x('F1')).toBeLessThan(x('S1'))
+    expect(x('S1')).toBeLessThan(x('E1'))
+  })
+
+  it('il serbatoio resta appoggiato alla quota di base anche in mezzo alla linea', () => {
+    // Disporlo «per ancore» come i rombi lo staccherebbe da terra: i due orientamenti hanno
+    // l'ancora `sx` alla stessa quota relativa ma riquadri di altezza diversa.
+    const dritta = layoutSchema(modelConOrdine(['S1', 'F1', 'E1']))
+    const intrecciata = layoutSchema(modelConOrdine(['F1', 'S1', 'E1']))
+    const base = (l: typeof dritta, id: string) => {
+      const n = l.nodi.find((m) => m.id === id)!
+      return n.y + dimensioniDi(n, {}).altezza
+    }
+    expect(base(intrecciata, 'S1')).toBe(base(dritta, 'S1'))
+  })
+
+  it('regge una linea senza serbatoi, col ripiego sulla quota di sempre', () => {
+    // Già possibile prima del 20-08-2026 (`quotaLineaProcesso` aveva il ripiego): la mandata
+    // arriva al primo stadio e nulla si rompe.
+    const senzaSerbatoi = makeScheda({
+      compressori: [makeCompressore({ codice: 'C1' })],
+      serbatoi: [],
+      filtri: [makeFiltro({ codice: 'F1', tipo: 'PREFILTRO' })],
+      essiccatori: [makeEssiccatore({ codice: 'E1' })],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const model = buildSchemaModel({ scheda: senzaSerbatoi, collegamentiCompressoriSerbatoi: { C1: [] } })
+    const layout = layoutSchema(model)
+    expect(layout.nodi.every((n) => Number.isFinite(n.x) && Number.isFinite(n.y))).toBe(true)
+  })
+
+  it('senza preferenze il disegno è identico a quello di prima', () => {
+    // Non-regressione al pixel: una pratica mai riordinata non deve muoversi di un'unità.
+    const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    const layout = layoutSchema(model)
+    const x = (id: string) => layout.nodi.find((n) => n.id === id)!.x
+    expect(x('S1')).toBeLessThan(x('F1'))
+    expect(x('F1')).toBeLessThan(x('E1'))
+    // L'ancora `sx` di F1 cade a STACCO_SERBATOI_LINEA dal bordo destro di S1, come sempre.
+    const s1 = layout.nodi.find((n) => n.id === 'S1')!
+    expect(x('F1')).toBe(s1.x + dimensioniDi(s1, {}).larghezza + STACCO_SERBATOI_LINEA)
   })
 })

@@ -6,7 +6,6 @@
  * aria (essiccatori/filtri) in riga verso destra, pozzo di raccolta condense in basso a
  * destra. Funzione pura: nessun DOM, testabile in Node.
  */
-import { ordinaCatenaTrattamento } from './buildSchemaModel'
 import { assegnaCorsie, capoDiValleDi, eCapoDiMonte } from './bypass'
 import { risolviPonti, risolviSegniAncorati } from './segniAncorati'
 import type { Tarature } from './libreria'
@@ -412,22 +411,27 @@ function corsieDeiCapiDiMonte(nodi: SchemaNodo[]): Map<string, number> {
   return new Map(capi.map((capo, i) => [capo.monte, corsie[i]]))
 }
 
-function disponiCatenaPerAncore(
+function disponiSequenza(
   nodi: SchemaNodo[],
   xIniziale: number,
   quotaLinea: number,
+  yBase: number,
   libreria: Tarature = {}
 ): { posizionati: SchemaNodoPosizionato[]; xFinale: number } {
-  // Fra due elementi vale `PASSO_GIUNZIONE` se uno dei due e' un TEE, `GIOCO_FRA_STADI` altrimenti:
-  // le ancore coincidenti della giunzione la lascerebbero altrimenti sopra la punta del vicino.
-  const gioco = (a: SchemaNodo, b: SchemaNodo) =>
-    a.tipo === 'giunzione' || b.tipo === 'giunzione' ? PASSO_GIUNZIONE : GIOCO_FRA_STADI
+  // Fra due elementi vale `PASSO_GIUNZIONE` se uno dei due e' un TEE, `PASSO_SERBATOI` fra due
+  // serbatoi, `STACCO_SERBATOI_LINEA` quando si passa da un serbatoio a uno stadio o viceversa
+  // (li' ci sta la valvola di riserva, convenzione 6), `GIOCO_FRA_STADI` fra due stadi. Sono le
+  // stesse misure di prima del 20-08-2026, quando le due righe erano separate: una pratica non
+  // riordinata non deve muoversi di un'unita'.
+  const gioco = (a: SchemaNodo, b: SchemaNodo) => {
+    if (a.tipo === 'giunzione' || b.tipo === 'giunzione') return PASSO_GIUNZIONE
+    if (a.tipo === 'serbatoio' && b.tipo === 'serbatoio') return PASSO_SERBATOI
+    if (a.tipo === 'serbatoio' || b.tipo === 'serbatoio') return STACCO_SERBATOI_LINEA
+    return GIOCO_FRA_STADI
+  }
 
   // La quota del capo di MONTE di un by-pass non e' quella della linea: sta una corsia piu' in
-  // alto, cioe' esattamente dove la linea sarebbe stata se non fosse scesa per fargli posto —
-  // sulla quota dell'uscita del serbatoio (`quotaLineaProcesso`). E' la scelta del committente sul
-  // suo disegno (18-08-2026), ed e' ASIMMETRICA: il capo di VALLE resta sulla linea, perche' li'
-  // il flusso si ricongiunge e prosegue verso le utenze a quella quota.
+  // alto, cioe' esattamente dove la linea sarebbe stata se non fosse scesa per fargli posto.
   const corsie = corsieDeiCapiDiMonte(nodi)
   const quotaDi = (nodo: SchemaNodo) => {
     const corsia = corsie.get(nodo.id)
@@ -439,7 +443,12 @@ function disponiCatenaPerAncore(
     const dim = dimensioniDi(nodo, libreria)
     const sx = ancoraDi(nodo, 'sx', libreria)
     const dx = ancoraDi(nodo, 'dx', libreria)
-    const collocato = posiziona(nodo, xAncora - (sx?.x ?? 0), quotaDi(nodo) - (sx?.y ?? dim.altezza / 2))
+    // I serbatoi restano appoggiati alla quota di base, come quando avevano una riga propria:
+    // disporli per ancora come i rombi li staccherebbe da terra, perche' verticale e orizzontale
+    // hanno l'ancora `sx` alla stessa quota relativa ma riquadri di altezza diversa. Gli altri si
+    // allineano per ancora sulla linea (convenzioni 3 e 4).
+    const y = nodo.tipo === 'serbatoio' ? yBase - dim.altezza : quotaDi(nodo) - (sx?.y ?? dim.altezza / 2)
+    const collocato = posiziona(nodo, xAncora - (sx?.x ?? 0), y)
     const prossimo = nodi[i + 1]
     xAncora = collocato.x + (dx?.x ?? dim.larghezza) + (prossimo ? gioco(nodo, prossimo) : 0)
     return collocato
@@ -447,39 +456,42 @@ function disponiCatenaPerAncore(
   // `xFinale` resta la regola di sempre — bordo destro dell'ultimo riquadro piu' il passo — e non
   // l'ascissa dell'ultima ancora: la usano il terminale utenze e la corsia condense, e stringerla
   // qui sposterebbe anche loro. La compattezza in larghezza e' il Blocco 4.
+  //
+  // Il passo e' `PASSO_ORIZZONTALE`, tranne quando l'ultimo elemento e' un serbatoio: allora resta
+  // `STACCO_SERBATOI_LINEA`, la stessa valvola di riserva di `gioco` qui sopra — non sparisce solo
+  // perche' non lo segue piu' uno stadio. Prima del 20-08-2026 questo caso era il ripiego di
+  // `disponiCatenaPerAncore` su una catena vuota (`xFinale = xIniziale`, che portava dentro lo
+  // stesso stacco preso da `rigaSerbatoi.xFinale + STACCO_SERBATOI_LINEA`): una pratica con un solo
+  // serbatoio e senza stadi — o piu' serbatoi e senza stadi — usava gia' questo stacco, non
+  // `PASSO_ORIZZONTALE`. Senza questo caso la corsia condense di quella pratica si sposterebbe di
+  // 10 unita', in barba al vincolo di pixel-identita' sulle pratiche non riordinate.
   const ultimo = posizionati[posizionati.length - 1]
-  const xFinale = ultimo
-    ? ultimo.x + dimensioniDi(ultimo, libreria).larghezza + PASSO_ORIZZONTALE
-    : xIniziale
+  const staccoFinale = ultimo?.tipo === 'serbatoio' ? STACCO_SERBATOI_LINEA : PASSO_ORIZZONTALE
+  const xFinale = ultimo ? ultimo.x + dimensioniDi(ultimo, libreria).larghezza + staccoFinale : xIniziale
   return { posizionati, xFinale }
 }
 
 /**
- * Quota su cui corre la linea di processo: quella dell'ancora `dx` del serbatoio di testa
- * (convenzione 4). Fino al 18-08-2026 la catena era centrata sulla mezzeria dei serbatoi, 55 unita'
- * piu' in basso, e la linea nasceva con un gomito che nei disegni di riferimento non c'e' — che
- * l'operatore raddrizzava a mano su ogni pratica.
+ * La quota su cui corre la linea di processo: quella dell'uscita del PRIMO SERBATOIO della
+ * sequenza, non la sua mezzeria. Dal 20-08-2026 riceve il nodo non ancora posizionato e la quota
+ * di base, invece della riga già disposta: coi serbatoi dentro la sequenza la quota serve prima
+ * di poterli collocare, e ricavarla dalla riga disposta sarebbe circolare.
  *
- * Senza serbatoi si ripiega sulla quota di prima: un impianto di soli stadi non ha un'uscita a cui
- * allinearsi, e sollevare la linea al bordo del foglio sarebbe peggio che lasciarla dov'era.
- *
- * **Con almeno un by-pass la linea SCENDE di una corsia.** Il ponte nasce sopra la linea di
- * processo: lasciandola all'uscita del serbatoio, il cavalcavia correrebbe alla stessa quota del
- * bocchello e i due tratti si sovrapporrebbero. Si guarda la CATENA e non le preferenze — il
- * layout non le riceve, e la giunzione nella catena e' il fatto che conta: un gruppo caduto in
- * `linearizzaConBypass` non ha lasciato TEE, e la linea giustamente non scende.
+ * Il risultato è identico a prima — `yBase - altezza` è esattamente la `y` che l'allineamento
+ * basso dava al serbatoio di testa — quindi una pratica non riordinata non si muove.
  */
 export function quotaLineaProcesso(
-  serbatoi: SchemaNodoPosizionato[],
+  primoSerbatoio: SchemaNodo | undefined,
+  yBase: number,
   ripiego: number,
   libreria: Tarature = {},
   catena: SchemaNodo[] = []
 ): number {
   const scesa = catena.some((n) => n.tipo === 'giunzione') ? PASSO_CORSIA_BYPASS : 0
-  const testa = serbatoi[0]
-  if (!testa) return ripiego + scesa
-  const dx = ancoraDi(testa, 'dx', libreria)
-  return (dx ? testa.y + dx.y : ripiego) + scesa
+  if (!primoSerbatoio) return ripiego + scesa
+  const dx = ancoraDi(primoSerbatoio, 'dx', libreria)
+  if (!dx) return ripiego + scesa
+  return yBase - dimensioniDi(primoSerbatoio, libreria).altezza + dx.y + scesa
 }
 
 /**
@@ -490,7 +502,7 @@ export function quotaLineaProcesso(
  * le linee incrociate. Resta l'ordine di DEFAULT dentro `buildSchemaModel`, che e' il posto dove
  * un ordine va deciso; qui si legge quello deciso.
  *
- * Si parte dal serbatoio di testa e si seguono gli archi d'aria. Il `visto` non e' una cautela di
+ * Si parte dalla TESTA della linea e si seguono gli archi d'aria. Il `visto` non e' una cautela di
  * stile: un layout riaperto e ricollegato a mano nell'editor puo' contenere un ciclo, e senza si
  * girerebbe in tondo per sempre.
  *
@@ -500,29 +512,48 @@ export function quotaLineaProcesso(
  */
 export function catenaDagliArchi(model: SchemaModel, pozzo: SchemaNodo | null): SchemaNodo[] {
   const perId = new Map(model.nodi.map((n) => [n.id, n]))
+  // Dal 20-08-2026 il serbatoio e' un elemento di linea come gli altri: puo' stare in mezzo alla
+  // catena, con uno stadio prima e uno dopo.
   const inLinea = (n: SchemaNodo): boolean =>
     n.id !== pozzo?.id &&
-    (n.tipo === 'essiccatore' || n.tipo === 'filtro' || n.tipo === 'separatore' || n.tipo === 'giunzione')
+    (n.tipo === 'serbatoio' ||
+      n.tipo === 'essiccatore' ||
+      n.tipo === 'filtro' ||
+      n.tipo === 'separatore' ||
+      n.tipo === 'giunzione')
 
   const successore = new Map<string, string>()
+  // La testa della linea: il bersaglio di una mandata di compressore. Si legge dagli ARCHI e non
+  // dalle preferenze perche' questa funzione lavora anche su un layout gia' ritoccato a mano
+  // nell'editor, dove le preferenze non arrivano — e perche' «il primo serbatoio», il criterio di
+  // prima, non vale piu': la linea puo' cominciare con un filtro.
+  let testa: string | undefined
   for (const arco of model.archi) {
     // Solo l'aria: le condense corrono su una rete propria e non dicono nulla sull'ordine della
     // linea. Il primo vince — con due uscite dallo stesso nodo il disegno e' comunque ambiguo, e
     // sceglierne una in silenzio e' meglio che fermarsi.
     if (arco.stile === 'condensa') continue
+    if (arco.stile === 'flessibile' && perId.get(arco.da.nodo)?.tipo === 'compressore') {
+      testa ??= arco.a.nodo
+      continue
+    }
     // E nemmeno il ponte di un by-pass, che e' aria ma non e' la linea: da una giunzione di
-    // by-pass escono DUE archi, e seguendo il ponte la catena salterebbe di netto tutti gli stadi
-    // scavalcati — che finirebbero fra gli orfani, appesi in coda nell'ordine di default, cioe'
-    // col disegno a linee incrociate che questa funzione e' nata per chiudere. Il ponte non e'
-    // ambiguo come due uscite qualunque: si sa gia' che non e' lui la strada dell'aria di linea.
+    // by-pass escono DUE archi, e seguendo il ponte la catena salterebbe di netto tutti gli
+    // elementi scavalcati.
     if (arco.forma === 'ponte') continue
     if (!successore.has(arco.da.nodo)) successore.set(arco.da.nodo, arco.a.nodo)
   }
 
-  const serbatoioDiTesta = model.nodi.find((n) => n.tipo === 'serbatoio')
+  // Ripiego senza mandate (un layout a cui l'operatore ha staccato i compressori): il primo
+  // elemento di linea che nessun arco d'aria raggiunge, cioè la testa per esclusione.
+  const bersagli = new Set([...successore.values()])
+  testa ??= model.nodi.find((n) => inLinea(n) && !bersagli.has(n.id))?.id
+
   const catena: SchemaNodo[] = []
   const visto = new Set<string>()
-  let corrente = serbatoioDiTesta ? successore.get(serbatoioDiTesta.id) : undefined
+  // A differenza di prima il nodo di partenza ENTRA nella catena: ora può essere un elemento di
+  // linea a tutti gli effetti, non piu' il serbatoio che le stava a monte.
+  let corrente = testa
   while (corrente && !visto.has(corrente)) {
     visto.add(corrente)
     const nodo = perId.get(corrente)
@@ -531,31 +562,29 @@ export function catenaDagliArchi(model: SchemaModel, pozzo: SchemaNodo | null): 
   }
 
   const presi = new Set(catena.map((n) => n.id))
-  const orfani = ordinaCatenaTrattamento(model.nodi, pozzo).filter((n) => !presi.has(n.id))
+  const orfani = model.nodi.filter((n) => inLinea(n) && n.tipo !== 'giunzione' && !presi.has(n.id))
   return [...catena, ...orfani]
 }
 
 export function layoutSchema(model: SchemaModel, libreria: Tarature = {}): SchemaLayout {
   const compressori = model.nodi.filter((n) => n.tipo === 'compressore')
-  const serbatoi = model.nodi.filter((n) => n.tipo === 'serbatoio')
   // Il pozzo di raccolta condense sta nella corsia bassa: è la tanica, oppure il separatore
-  // quando è lui a raccogliere (in quel caso resta fuori dalla catena di trattamento).
+  // quando è lui a raccogliere (in quel caso resta fuori dalla sequenza della linea).
   const pozzo = pozzoCondense(model.nodi, model)
   const raccolta = pozzo ? [pozzo] : []
-  const catena = catenaDagliArchi(model, pozzo)
+  // Una sola sequenza dal 20-08-2026: serbatoi e stadi insieme, nell'ordine che gli archi
+  // dichiarano. Prima erano due righe distinte, e il serbatoio stava per forza a monte di tutto.
+  const sequenza = catenaDagliArchi(model, pozzo)
 
   const altezzaCompressore = DIMENSIONI_NODO.compressore.altezza
   const altezzaSerbatoio = DIMENSIONI_NODO.serbatoio.altezza
 
-  // I compressori stanno in basso a sinistra; i serbatoi sono allineati in modo che la base di
-  // OGNUNO (non solo del tipo, letta con `dimensioniDi`: fix round 1 del Task 4) resti sulla
-  // stessa quota della base dei compressori — `yBase`, allineamento 'basso' su `disponiInRiga`.
+  // I compressori stanno in basso a sinistra; i serbatoi appoggiano la base sulla stessa quota
+  // della loro (`yBase`).
   const yBase = MARGINE_SUPERIORE + altezzaSerbatoio
   const yCentroCompressori = yBase - altezzaCompressore / 2
   const yCentroSerbatoi = yBase - altezzaSerbatoio / 2
 
-  // Ogni stacco porta il nome di cio' che separa (Blocco 4, convenzione 8): `xFinale` e' il bordo
-  // destro della riga, e lo spazio verso la famiglia seguente lo mette qui il chiamante.
   const rigaCompressori = disponiInRiga(
     compressori,
     MARGINE,
@@ -564,26 +593,21 @@ export function layoutSchema(model: SchemaModel, libreria: Tarature = {}): Schem
     libreria,
     PASSO_COMPRESSORI
   )
-  const rigaSerbatoi = disponiInRiga(
-    serbatoi,
+
+  // La quota della linea si legge dal primo serbatoio della SEQUENZA (non piu' dalla riga dei
+  // serbatoi, che non esiste piu'), prima di disporre: vedi `quotaLineaProcesso`.
+  const primoSerbatoio = sequenza.find((n) => n.tipo === 'serbatoio')
+  const quotaLinea = quotaLineaProcesso(primoSerbatoio, yBase, yCentroSerbatoi, libreria, sequenza)
+  const rigaLinea = disponiSequenza(
+    sequenza,
     rigaCompressori.xFinale + STACCO_COMPRESSORI_SERBATOI,
-    yBase,
-    'basso',
-    libreria,
-    PASSO_SERBATOI
-  )
-  // La catena di trattamento sta a valle dei serbatoi, sulla quota della loro USCITA — non piu'
-  // sulla loro mezzeria (`yCentroSerbatoi`, che resta il ripiego quando serbatoi non ce ne sono).
-  const quotaLinea = quotaLineaProcesso(rigaSerbatoi.posizionati, yCentroSerbatoi, libreria, catena)
-  const rigaCatena = disponiCatenaPerAncore(
-    catena,
-    rigaSerbatoi.xFinale + STACCO_SERBATOI_LINEA,
     quotaLinea,
+    yBase,
     libreria
   )
 
   const yCondense = yBase + CORSIA_CONDENSE
-  const rigaRaccolta = disponiInRiga(raccolta, Math.max(rigaCatena.xFinale, MARGINE), yCondense, 'centro', libreria)
+  const rigaRaccolta = disponiInRiga(raccolta, Math.max(rigaLinea.xFinale, MARGINE), yCondense, 'centro', libreria)
 
   // Il terminale utenze non sta in nessuna riga: si appoggia a destra di tutto ciò che lo
   // precede, con l'ancora (in fondo al codolo) proprio sulla fascia orizzontale dove corrono le
@@ -593,7 +617,7 @@ export function layoutSchema(model: SchemaModel, libreria: Tarature = {}): Schem
   // posiziona quindi da lì, non da `DIMENSIONI_NODO.utenze.altezza`, o con un'etichetta lunga
   // l'ancora scenderebbe sotto la fascia e la tubazione arriverebbe con un gomito.
   //
-  // L'ascissa NON è `rigaCatena.xFinale`: quella porta dentro `PASSO_ORIZZONTALE`, un margine fra
+  // L'ascissa NON è `rigaLinea.xFinale`: quella porta dentro `PASSO_ORIZZONTALE`, un margine fra
   // FAMIGLIE che non descrive il terminale — il terminale è la STESSA linea che continua, non una
   // famiglia nuova. Si cerca invece l'arco che arriva a lui (ce n'è al più uno: è lo stesso la cui
   // esistenza ha fatto nascere il nodo, in `buildSchemaModel`) e si parte dalla SUA ancora — così
@@ -601,8 +625,7 @@ export function layoutSchema(model: SchemaModel, libreria: Tarature = {}): Schem
   const utenze = model.nodi.filter((n) => n.tipo === 'utenze')
   const nodiPrimaDelTerminale = [
     ...rigaCompressori.posizionati,
-    ...rigaSerbatoi.posizionati,
-    ...rigaCatena.posizionati,
+    ...rigaLinea.posizionati,
     ...rigaRaccolta.posizionati,
   ]
   const posizionatiUtenze = utenze.map((n) => {
@@ -616,14 +639,13 @@ export function layoutSchema(model: SchemaModel, libreria: Tarature = {}): Schem
     const bordoSinistro =
       partenza && ancoraPartenza
         ? partenza.x + ancoraPartenza.x + PASSO_TERMINALE - larghezza / 2
-        : rigaCatena.xFinale
+        : rigaLinea.xFinale
     return posiziona(n, bordoSinistro, quotaLinea - dimensioniDi(n, libreria).altezza)
   })
 
   const nodi = [
     ...rigaCompressori.posizionati,
-    ...rigaSerbatoi.posizionati,
-    ...rigaCatena.posizionati,
+    ...rigaLinea.posizionati,
     ...rigaRaccolta.posizionati,
     ...posizionatiUtenze,
   ]
