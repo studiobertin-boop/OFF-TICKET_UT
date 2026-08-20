@@ -31,6 +31,7 @@ import { filterCIVAEquipment } from '@/utils/civaFiltering'
 import { checkCIVACompleteness } from '@/utils/civaValidation'
 import { risolviIndirizzoImpianto } from '@/utils/indirizzoImpianto'
 import { CIVAApparecchioColumn } from '@/components/civa/CIVAApparecchioColumn'
+import { CIVAEquipmentBrowser } from '@/components/civa/CIVAEquipmentBrowser'
 import { CIVADataIncompleteAlert } from '@/components/civa/CIVADataIncompleteAlert'
 
 export const CIVASummary = () => {
@@ -44,6 +45,7 @@ export const CIVASummary = () => {
   // Load all CIVA data
   const {
     request,
+    technicalData,
     equipmentData,
     customer,
     installer,
@@ -61,6 +63,19 @@ export const CIVASummary = () => {
     }
     return filterCIVAEquipment(equipmentData, manufacturers)
   }, [equipmentData, manufacturers])
+
+  // Apparecchiature sottoposte a verifica spessimetrica (requests.additional_info.spessimetrica),
+  // usate per il campo "Verifica di integrità" della scheda CIVA.
+  const spessimetricaCodes = useMemo(() => {
+    const codici = (technicalData?.additional_info as { spessimetrica?: string[] } | undefined)?.spessimetrica
+    return new Set(codici ?? [])
+  }, [technicalData])
+
+  // Elenco unico, nell'ordine già determinato da filterCIVAEquipment (dichiarazioni poi verifiche)
+  const tuttiApparecchi = useMemo(
+    () => [...civaData.dichiarazioni, ...civaData.verifiche],
+    [civaData]
+  )
 
   // Check completeness
   const completenessCheck = useMemo(() => {
@@ -258,132 +273,59 @@ export const CIVASummary = () => {
         <Divider sx={{ my: 1 }} />
       </Box>
 
-      {/* Layout: Affianca DICHIARAZIONI e VERIFICHE se poche apparecchiature */}
-      {totalApparecchi <= 6 ? (
-        // Layout affiancato (max 6 apparecchiature totali)
-        <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-          {/* Section: DICHIARAZIONI */}
-          {civaData.dichiarazioni.length > 0 && (
-            <Paper sx={{ p: 2, flex: 1, minWidth: 300 }}>
-              <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
-                DICHIARAZIONI DI MESSA IN SERVIZIO ({civaData.dichiarazioni.length})
-              </Typography>
+      {/* Vista interattiva: un'apparecchiatura alla volta, da affiancare al form CIVA */}
+      <Box className="no-print">
+        <CIVAEquipmentBrowser
+          apparecchi={tuttiApparecchi}
+          customer={customer!}
+          installer={installer!}
+          indirizzoImpianto={indirizzoImpianto}
+          spessimetricaCodes={spessimetricaCodes}
+        />
+      </Box>
 
-              <Box
-                sx={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 2
-                }}
-              >
-                {civaData.dichiarazioni.map(apparecchio => (
-                  <CIVAApparecchioColumn
-                    key={apparecchio.codice}
-                    apparecchio={apparecchio}
-                    customer={customer!}
-                    installer={installer!}
-                    indirizzoImpianto={indirizzoImpianto}
-                  />
-                ))}
-              </Box>
-            </Paper>
-          )}
+      {/* Vista di stampa: tutte le apparecchiature, raggruppate per tipo pratica */}
+      <Box className="print-only" sx={{ display: 'none', '@media print': { display: 'block' } }}>
+        {civaData.dichiarazioni.length > 0 && (
+          <Paper sx={{ p: 2, mb: 3 }}>
+            <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
+              DICHIARAZIONI DI MESSA IN SERVIZIO ({civaData.dichiarazioni.length})
+            </Typography>
+            <Box className="civa-columns-container" sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              {civaData.dichiarazioni.map(apparecchio => (
+                <CIVAApparecchioColumn
+                  key={apparecchio.codice}
+                  apparecchio={apparecchio}
+                  customer={customer!}
+                  installer={installer!}
+                  indirizzoImpianto={indirizzoImpianto}
+                  verificaIntegrita={spessimetricaCodes.has(apparecchio.codice)}
+                />
+              ))}
+            </Box>
+          </Paper>
+        )}
 
-          {/* Section: VERIFICHE */}
-          {civaData.verifiche.length > 0 && (
-            <Paper sx={{ p: 2, flex: 1, minWidth: 300 }}>
-              <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
-                VERIFICHE DI MESSA IN SERVIZIO ({civaData.verifiche.length})
-              </Typography>
-
-              <Box
-                sx={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 2
-                }}
-              >
-                {civaData.verifiche.map(apparecchio => (
-                  <CIVAApparecchioColumn
-                    key={apparecchio.codice}
-                    apparecchio={apparecchio}
-                    customer={customer!}
-                    installer={installer!}
-                    indirizzoImpianto={indirizzoImpianto}
-                  />
-                ))}
-              </Box>
-            </Paper>
-          )}
-        </Box>
-      ) : (
-        // Layout verticale (più di 6 apparecchiature)
-        <>
-          {/* Section: DICHIARAZIONI */}
-          {civaData.dichiarazioni.length > 0 && (
-            <Paper sx={{ p: 2, mb: 3 }}>
-              <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
-                DICHIARAZIONI DI MESSA IN SERVIZIO ({civaData.dichiarazioni.length})
-              </Typography>
-
-              <Box
-                sx={{
-                  display: 'flex',
-                  gap: 2,
-                  overflowX: 'auto',
-                  pb: 2,
-                  '@media print': {
-                    flexWrap: 'wrap',
-                    overflowX: 'visible'
-                  }
-                }}
-              >
-                {civaData.dichiarazioni.map(apparecchio => (
-                  <CIVAApparecchioColumn
-                    key={apparecchio.codice}
-                    apparecchio={apparecchio}
-                    customer={customer!}
-                    installer={installer!}
-                    indirizzoImpianto={indirizzoImpianto}
-                  />
-                ))}
-              </Box>
-            </Paper>
-          )}
-
-          {/* Section: VERIFICHE */}
-          {civaData.verifiche.length > 0 && (
-            <Paper sx={{ p: 2, mb: 3 }}>
-              <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
-                VERIFICHE DI MESSA IN SERVIZIO ({civaData.verifiche.length})
-              </Typography>
-
-              <Box
-                sx={{
-                  display: 'flex',
-                  gap: 2,
-                  overflowX: 'auto',
-                  pb: 2,
-                  '@media print': {
-                    flexWrap: 'wrap',
-                    overflowX: 'visible'
-                  }
-                }}
-              >
-                {civaData.verifiche.map(apparecchio => (
-                  <CIVAApparecchioColumn
-                    key={apparecchio.codice}
-                    apparecchio={apparecchio}
-                    customer={customer!}
-                    installer={installer!}
-                    indirizzoImpianto={indirizzoImpianto}
-                  />
-                ))}
-              </Box>
-            </Paper>
-          )}
-        </>
-      )}
+        {civaData.verifiche.length > 0 && (
+          <Paper sx={{ p: 2, mb: 3 }}>
+            <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
+              VERIFICHE DI MESSA IN SERVIZIO ({civaData.verifiche.length})
+            </Typography>
+            <Box className="civa-columns-container" sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              {civaData.verifiche.map(apparecchio => (
+                <CIVAApparecchioColumn
+                  key={apparecchio.codice}
+                  apparecchio={apparecchio}
+                  customer={customer!}
+                  installer={installer!}
+                  indirizzoImpianto={indirizzoImpianto}
+                  verificaIntegrita={spessimetricaCodes.has(apparecchio.codice)}
+                />
+              ))}
+            </Box>
+          </Paper>
+        )}
+      </Box>
     </Layout>
   )
 }

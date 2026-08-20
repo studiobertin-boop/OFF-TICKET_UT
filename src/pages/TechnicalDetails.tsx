@@ -20,6 +20,7 @@ import { relazioneDocumentiApi } from '@/services/api/relazioneDocumenti'
 import { dichiarazioniDocumentiApi } from '@/services/api/dichiarazioniDocumenti'
 import { fascicoloDocumentiApi } from '@/services/api/fascicoloDocumenti'
 import { calcolaEsitiPerCodice, codiciConAdempimento } from '@/utils/dm329Classification'
+import { countApparecchiCIVA, computeXFattura } from '@/utils/xFattura'
 import { supabase } from '@/services/supabase'
 import { TechnicalSheetForm, type TechnicalSheetFormRef } from '@/components/technicalSheet/TechnicalSheetForm'
 import { OCRReviewDialog } from '@/components/technicalSheet/OCRReviewDialog'
@@ -323,6 +324,27 @@ export const TechnicalDetails = () => {
     }
   }, [id, technicalData, schedaCodes, collegamenti, preferenzeSchema, schemaLayoutDaPersistere])
 
+  /**
+   * Rivaloriza X Fattura (custom_fields.x_fattura) da sé al salvataggio della scheda dati,
+   * una fattura ogni 3 apparecchiature soggette a dichiarazione/verifica CIVA — a meno che
+   * il valore non sia già stato corretto a mano (custom_fields.x_fattura_manual), che il
+   * calcolo automatico da qui in poi non tocca più.
+   */
+  const syncXFatturaAutomatico = useCallback(async (data: SchedaDatiCompleta) => {
+    if (!id || !request || request.custom_fields?.x_fattura_manual) return
+
+    const computed = computeXFattura(countApparecchiCIVA(data))
+    const current = (request.custom_fields?.x_fattura as number) ?? 1
+    if (computed === current) return
+
+    try {
+      await requestsApi.updateCustomField(id, 'x_fattura', computed)
+      segnalaListeDaAggiornare()
+    } catch (err) {
+      console.error('[x_fattura] aggiornamento automatico non riuscito:', err)
+    }
+  }, [id, request, segnalaListeDaAggiornare])
+
   // Autosave function (senza alert/snackbar)
   const handleAutoSave = useCallback(async (data: SchedaDatiCompleta) => {
     if (!id) return
@@ -333,12 +355,13 @@ export const TechnicalDetails = () => {
       setFormData(data)
       setLastSaved(new Date())
       segnalaListeDaAggiornare()
+      await syncXFatturaAutomatico(data)
     } catch (err) {
       console.error('Error auto-saving:', err)
     } finally {
       setAutoSaving(false)
     }
-  }, [id, segnalaListeDaAggiornare])
+  }, [id, segnalaListeDaAggiornare, syncXFatturaAutomatico])
 
   // Submit nativo del form (Invio in un campo): stesso salvataggio dell'autosave, con feedback.
   const handleFormSubmit = async (data: SchedaDatiCompleta) => {
@@ -352,6 +375,7 @@ export const TechnicalDetails = () => {
       setLastSaved(new Date())
       setShowSaveSuccess(true)
       segnalaListeDaAggiornare()
+      await syncXFatturaAutomatico(data)
     } catch (err) {
       console.error('Error saving draft:', err)
       alert('Errore nel salvataggio della bozza')

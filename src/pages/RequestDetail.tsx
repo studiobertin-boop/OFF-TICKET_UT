@@ -30,6 +30,8 @@ import { useCustomer, useCustomers } from '@/hooks/useCustomers'
 import { useAuth } from '@/hooks/useAuth'
 import { useFeatureFlag } from '@/hooks/useFeatureFlag'
 import { requestsApi } from '@/services/api/requests'
+import { technicalDataApi } from '@/services/api/technicalData'
+import { countApparecchiCIVA, computeXFattura } from '@/utils/xFattura'
 import { customersApi } from '@/services/api/customers'
 import { attachmentsApi } from '@/services/api/attachments'
 import { requestMessagesApi } from '@/services/api/requestMessages'
@@ -60,7 +62,7 @@ import { SchedaDatiStatoGroup } from '@/components/requests/SchedaDatiStatoGroup
 import { CAMPO_STATO_SCHEDA, compilazioneDiPratica, type StatoScheda } from '@/utils/schedaStato'
 import { useRequestTypes } from '@/hooks/useRequestTypes'
 import { hasIncompleteCustomerData } from '@/utils/customerValidation'
-import { type StatoFattura, type Customer } from '@/types'
+import { type StatoFattura, type Customer, type SchedaDatiCompleta } from '@/types'
 import { risolviIndirizzoImpianto } from '@/utils/indirizzoImpianto'
 
 const TAB_DETTAGLIO = ['dettagli', 'storico', 'messaggi', 'allegati'] as const
@@ -250,7 +252,7 @@ export const RequestDetail = () => {
     return Object.entries(request.custom_fields)
       .filter(([key]) => {
         if (key === 'note') return false                                               // ha una sezione dedicata
-        if (key === 'x_fattura') return false                                          // colonna proprietà, solo admin
+        if (key === 'x_fattura' || key === 'x_fattura_manual') return false            // colonna proprietà, solo admin
         if (isDM329 && ['no_civa', 'off_cac', 'stato_fattura'].includes(key)) return false // colonna proprietà
         if (campiCliente.includes(key)) return false                                   // sezione Cliente
         if (campiTecnici.includes(key)) return false                                   // interni
@@ -336,19 +338,35 @@ export const RequestDetail = () => {
     }
   }
 
-  const handleChangeXFattura = async (delta: 1 | -1) => {
-    if (!id || !request) return
-    const current = (request.custom_fields?.x_fattura as number) ?? 1
-    const next = Math.min(10, Math.max(1, current + delta))
-    if (next === current) return
-
+  /** Correzione manuale: da qui in poi il calcolo automatico (al salvataggio scheda dati) non tocca più il valore. */
+  const handleConfirmXFattura = async (value: number) => {
+    if (!id) return
     try {
       setSavingXFattura(true)
-      await requestsApi.updateCustomField(id, 'x_fattura', next)
+      await requestsApi.updateCustomFields(id, { x_fattura: value, x_fattura_manual: true })
       await refetch()
     } catch (err) {
       console.error('Error updating x_fattura:', err)
       alert('Errore nel salvataggio di X Fattura')
+    } finally {
+      setSavingXFattura(false)
+    }
+  }
+
+  /** Rilegge la scheda dati e torna al valore calcolato dal numero di apparecchiature CIVA. */
+  const handleResetXFattura = async () => {
+    if (!id) return
+    try {
+      setSavingXFattura(true)
+      const technicalData = await technicalDataApi.getByRequestId(id)
+      const computed = computeXFattura(
+        countApparecchiCIVA(technicalData?.equipment_data as SchedaDatiCompleta | undefined)
+      )
+      await requestsApi.updateCustomFields(id, { x_fattura: computed, x_fattura_manual: false })
+      await refetch()
+    } catch (err) {
+      console.error('Error resetting x_fattura:', err)
+      alert('Errore nel ripristino di X Fattura')
     } finally {
       setSavingXFattura(false)
     }
@@ -850,8 +868,10 @@ export const RequestDetail = () => {
               onCompleteCustomer={() => setShowCompleteCustomerDialog(true)}
               isAdmin={user?.role === 'admin'}
               xFattura={(request.custom_fields?.x_fattura as number) ?? 1}
+              xFatturaManual={!!request.custom_fields?.x_fattura_manual}
               savingXFattura={savingXFattura}
-              onChangeXFattura={handleChangeXFattura}
+              onConfirmXFattura={handleConfirmXFattura}
+              onResetXFattura={handleResetXFattura}
             />
 
             <AssignmentSection

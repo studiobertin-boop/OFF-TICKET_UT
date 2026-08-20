@@ -1,17 +1,24 @@
+import { useState } from 'react'
 import {
   Alert,
   Box,
   Button,
+  ButtonBase,
   Card,
   CardContent,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   FormControl,
   IconButton,
   InputLabel,
   MenuItem,
   Select,
+  TextField,
   Typography,
 } from '@mui/material'
-import { Close as CloseIcon, Edit as EditIcon, Save as SaveIcon, Add as AddIcon, Remove as RemoveIcon } from '@mui/icons-material'
+import { Close as CloseIcon, Edit as EditIcon, Save as SaveIcon } from '@mui/icons-material'
 import { FieldValue, SectionLabel } from '@/components/common'
 import { isDM329Family } from '@/utils/workflow'
 import {
@@ -48,11 +55,17 @@ export interface RequestPropertiesRailProps {
   showIncompleteCustomer: boolean
   onCompleteCustomer: () => void
 
-  /** "X Fattura": visibile e modificabile solo da admin, sia su DM329 sia su richieste generali. */
+  /**
+   * "X Fattura": visibile e modificabile solo da admin, sia su DM329 sia su richieste generali.
+   * Si valorizza da sé al salvataggio della scheda dati (una fattura ogni 3 apparecchiature CIVA);
+   * `xFatturaManual` distingue un valore corretto a mano, che il calcolo automatico non tocca più.
+   */
   isAdmin: boolean
   xFattura: number
+  xFatturaManual: boolean
   savingXFattura: boolean
-  onChangeXFattura: (delta: 1 | -1) => void
+  onConfirmXFattura: (value: number) => Promise<void>
+  onResetXFattura: () => Promise<void>
 }
 
 /**
@@ -86,13 +99,39 @@ export const RequestPropertiesRail = ({
   onCompleteCustomer,
   isAdmin,
   xFattura,
+  xFatturaManual,
   savingXFattura,
-  onChangeXFattura,
+  onConfirmXFattura,
+  onResetXFattura,
 }: RequestPropertiesRailProps) => {
   // Solo i tre campi fissi DM329 si modificano da qui: le richieste ordinarie
   // hanno campi dinamici da fields_schema, troppo larghi per una colonna stretta,
   // e restano nel pannello Dettagli.
   const modificabileQui = isDM329 && canEditDetails
+
+  // Finestra di conferma per la modifica manuale di X Fattura: niente + / - per evitare
+  // click accidentali, il valore si cambia solo cliccandoci sopra e confermando qui.
+  const [xFatturaDialogOpen, setXFatturaDialogOpen] = useState(false)
+  const [xFatturaInput, setXFatturaInput] = useState('')
+
+  const openXFatturaDialog = () => {
+    setXFatturaInput(String(xFattura))
+    setXFatturaDialogOpen(true)
+  }
+
+  const xFatturaInputValue = Number(xFatturaInput)
+  const xFatturaInputValid = Number.isInteger(xFatturaInputValue) && xFatturaInputValue >= 1
+
+  const handleConfirmXFattura = async () => {
+    if (!xFatturaInputValid) return
+    await onConfirmXFattura(xFatturaInputValue)
+    setXFatturaDialogOpen(false)
+  }
+
+  const handleResetXFattura = async () => {
+    await onResetXFattura()
+    setXFatturaDialogOpen(false)
+  }
 
   return (
     <Card>
@@ -200,27 +239,54 @@ export const RequestPropertiesRail = ({
             <Typography variant="caption" color="text.secondary" display="block" sx={{ lineHeight: 1.4 }}>
               X Fattura
             </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <IconButton
-                size="small"
-                onClick={() => onChangeXFattura(-1)}
-                disabled={savingXFattura || xFattura <= 1}
-                title="Diminuisci"
+            <ButtonBase
+              onClick={openXFatturaDialog}
+              disabled={savingXFattura}
+              title={xFatturaManual ? 'Valore modificato manualmente — clic per cambiare' : 'Clic per modificare'}
+              sx={{ borderRadius: 1, px: 0.5 }}
+            >
+              <Typography
+                variant="body2"
+                sx={{ fontWeight: xFatturaManual ? 700 : 400, color: xFatturaManual ? 'warning.main' : 'text.primary' }}
               >
-                <RemoveIcon fontSize="small" />
-              </IconButton>
-              <Typography variant="body2" sx={{ minWidth: '1.5em', textAlign: 'center' }}>
                 {xFattura}
               </Typography>
-              <IconButton
-                size="small"
-                onClick={() => onChangeXFattura(1)}
-                disabled={savingXFattura || xFattura >= 10}
-                title="Aumenta"
-              >
-                <AddIcon fontSize="small" />
-              </IconButton>
-            </Box>
+            </ButtonBase>
+
+            <Dialog open={xFatturaDialogOpen} onClose={() => setXFatturaDialogOpen(false)} maxWidth="xs" fullWidth>
+              <DialogTitle>Modifica X Fattura</DialogTitle>
+              <DialogContent>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Si calcola da sé al salvataggio della scheda dati (una fattura ogni 3
+                  apparecchiature soggette a CIVA). Un valore corretto qui non verrà più
+                  sovrascritto dal calcolo automatico, a meno di un ripristino.
+                </Typography>
+                <TextField
+                  autoFocus
+                  fullWidth
+                  type="number"
+                  label="Valore"
+                  value={xFatturaInput}
+                  onChange={(e) => setXFatturaInput(e.target.value)}
+                  slotProps={{ htmlInput: { min: 1, step: 1 } }}
+                  error={xFatturaInput !== '' && !xFatturaInputValid}
+                  helperText={xFatturaInput !== '' && !xFatturaInputValid ? 'Deve essere un numero intero maggiore o uguale a 1' : ' '}
+                />
+              </DialogContent>
+              <DialogActions>
+                {xFatturaManual && (
+                  <Button onClick={handleResetXFattura} disabled={savingXFattura} sx={{ mr: 'auto' }}>
+                    Ripristina al valore calcolato
+                  </Button>
+                )}
+                <Button onClick={() => setXFatturaDialogOpen(false)} disabled={savingXFattura}>
+                  Annulla
+                </Button>
+                <Button onClick={handleConfirmXFattura} variant="contained" disabled={savingXFattura || !xFatturaInputValid}>
+                  Conferma
+                </Button>
+              </DialogActions>
+            </Dialog>
           </Box>
         )}
 

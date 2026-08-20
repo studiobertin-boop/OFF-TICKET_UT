@@ -536,6 +536,52 @@ export const requestsApi = {
     return data
   },
 
+  // Update several custom fields at once (stesso merge di updateCustomField, un solo round-trip)
+  updateCustomFields: async (
+    id: string,
+    fields: Record<string, any>
+  ): Promise<Request> => {
+    const sessionValid = await ensureValidSession()
+    if (!sessionValid) {
+      throw new Error('Sessione non valida. Per favore, effettua nuovamente il login.')
+    }
+
+    const { data: current, error: fetchError } = await supabase
+      .from('requests')
+      .select('custom_fields')
+      .eq('id', id)
+      .single()
+
+    if (fetchError) throw fetchError
+
+    const updatedFields = {
+      ...current.custom_fields,
+      ...fields
+    }
+
+    const { data, error } = await supabase
+      .from('requests')
+      .update({ custom_fields: updatedFields })
+      .eq('id', id)
+      .select(`
+        *,
+        request_type:request_types(*),
+        assigned_user:users!requests_assigned_to_fkey(id, email, full_name, role),
+        creator:users!requests_created_by_fkey(id, email, full_name, role),
+        customer:customers(*)
+      `)
+      .single()
+
+    if (error) {
+      if (error.code === '42501') {
+        throw new Error('Permessi insufficienti per modificare questo campo.')
+      }
+      throw error
+    }
+
+    return data
+  },
+
   // Bulk update stato_fattura for multiple requests
   bulkUpdateStatoFattura: async (
     ids: string[],
