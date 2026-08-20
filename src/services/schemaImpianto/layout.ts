@@ -465,10 +465,11 @@ function corsieDeiCapiDiMonte(
       ? Math.max(...scavalcati.map((n) => altezzaSopraLinea(n, quotaLinea, yBase, libreria) + MARGINE_CORSIA_BYPASS))
       : PASSO_CORSIA_BYPASS
     const livello = livelli[i]
-    altezzaLivello.set(
-      livello,
-      Math.max(altezzaLivello.get(livello) ?? PASSO_CORSIA_BYPASS, PASSO_CORSIA_BYPASS, richiesta)
-    )
+    // Il pavimento PASSO_CORSIA_BYPASS lo garantisce gia' il `?? PASSO_CORSIA_BYPASS` qui sotto:
+    // il valore gia' in mappa (se c'e') e' stato scritto da questa stessa riga in un giro
+    // precedente, quindi e' gia' >= PASSO_CORSIA_BYPASS. Un terzo argomento con la stessa costante
+    // sarebbe ridondante.
+    altezzaLivello.set(livello, Math.max(altezzaLivello.get(livello) ?? PASSO_CORSIA_BYPASS, richiesta))
   })
 
   // Offset cumulato: il livello k sta sopra il livello k-1 di almeno l'altezza propria del livello

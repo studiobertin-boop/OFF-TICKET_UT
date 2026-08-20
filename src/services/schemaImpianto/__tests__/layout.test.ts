@@ -1261,6 +1261,25 @@ describe('il by-pass nel layout', () => {
     )
   })
 
+  it('il gap fra il serbatoio e il TEE di monte adiacente è STACCO_SERBATOI_LINEA, non PASSO_GIUNZIONE', () => {
+    // Pin del ruling del coordinatore (Collaudo Task 5, fix round 2): l'ordine dei rami in
+    // `gioco()` decide QUESTO numero. Prima del ruling il ramo della giunzione veniva controllato
+    // per primo, e un serbatoio seguito immediatamente da un TEE prendeva sempre `PASSO_GIUNZIONE`
+    // (20) invece di `STACCO_SERBATOI_LINEA` (70) — lo scarto di 50 unità che ha spostato BADOER
+    // INFISSI, una pratica già consegnata. Nessun test lo fissava: quello sul TEE di monte qui
+    // sopra misura la distanza verso F1 (il prossimo stadio), non quella verso S1 (il serbatoio
+    // che lo precede) — la stessa fixture (`disegno()` di default, bypass su F1/E1/F2) ha S1
+    // immediatamente prima di BP1-IN, ed è proprio il caso in questione.
+    //
+    // L'atteso viene dalla COSTANTE importata, non da un letterale: se `STACCO_SERBATOI_LINEA`
+    // cambierà un giorno per una ragione vera (una nuova misura sul riferimento), questo test la
+    // seguirà invece di continuare a pretendere il vecchio numero.
+    const l = disegno()
+    expect(posizioneAncora(nodo(l, 'BP1-IN'), 'sx').x).toBe(
+      posizioneAncora(nodo(l, 'S1'), 'dx').x + STACCO_SERBATOI_LINEA
+    )
+  })
+
   it('e il TEE di valle un PASSO_GIUNZIONE dopo la punta dell’ultimo, sulla linea', () => {
     const l = disegno()
     expect(posizioneAncora(nodo(l, 'BP1-OUT'), 'sx').x).toBe(
@@ -1480,6 +1499,125 @@ describe('la corsia del ponte sopra un serbatoio scavalcato', () => {
     // Il TEE di monte sta sulla corsia del ponte: deve restare SOPRA la cima del serbatoio, o il
     // ponte gli passa dentro — attraverso la valvola di sicurezza che sta sul cielo del corpo.
     expect(tee.y).toBeLessThan(s1.y)
+  })
+})
+
+describe('by-pass annidati sopra un serbatoio — difetto aperto, non corretto in questo task', () => {
+  // Collaudo Task 5, fix round 2 (revisione del coordinatore): il brief chiedeva esplicitamente di
+  // controllare il caso annidato, e nessun test lo esercitava. Eccolo — ma **non è una prova che
+  // il comportamento sia giusto**: pinna quello che il codice fa OGGI, perché la revisione ha
+  // giudicato lo scarto NON modesto e ha chiesto di fermarsi e riportare i numeri invece di
+  // correggerli qui (vedi il rapporto).
+  //
+  // Il meccanismo del difetto: `corsieDeiCapiDiMonte` calcola l'altezza di un livello dal massimo
+  // ingombro degli elementi nel suo intervallo — ma l'intervallo del gruppo ESTERNO include anche
+  // gli elementi del gruppo INTERNO (il serbatoio scavalcato compare in ENTRAMBI gli intervalli).
+  // L'altezza richiesta per scavalcare il serbatoio viene quindi contata due volte: una per il
+  // livello interno, una per il livello esterno che la ricalcola da capo sullo stesso serbatoio —
+  // e i livelli si IMPILANO (l'offset del livello esterno è la SOMMA dei due), quindi il ponte
+  // esterno sale di ~2× l'altezza che servirebbe a scavalcare solo il serbatoio, non della piccola
+  // aggiunta che servirebbe a scavalcare il ponte interno più il resto del suo stesso intervallo.
+  it('il ponte esterno sale più del necessario — pinna i numeri, non li accetta come corretti', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ codice: 'C1' })],
+      serbatoi: [makeSerbatoio({ codice: 'S1', ubicazione: 'SALA_COMPRESSORI' })],
+      filtri: [makeFiltro({ codice: 'F1', tipo: 'PREFILTRO' }), makeFiltro({ codice: 'F2', tipo: 'LINEA' })],
+      essiccatori: [makeEssiccatore({ codice: 'E1' })],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const model = buildSchemaModel({
+      scheda,
+      collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+      preferenze: preferenzeRisolteDaScheda(scheda, {
+        ordineLinea: ['F1', 'S1', 'E1', 'F2'],
+        bypass: [
+          { id: 'bp1', stadi: ['F1', 'S1', 'E1', 'F2'] }, // esterno: scavalca tutto, incluso S1
+          { id: 'bp2', stadi: ['S1'] }, // interno: scavalca solo il serbatoio
+        ],
+      }),
+    })
+    const layout = layoutSchema(model)
+    const esterno = layout.nodi.find((n) => n.id === 'BP1-IN')!
+    const interno = layout.nodi.find((n) => n.id === 'BP2-IN')!
+    const s1 = layout.nodi.find((n) => n.id === 'S1')!
+
+    // Osservato (Collaudo Task 5, fix round 2): il livello interno da solo basterebbe a scavalcare
+    // S1 (`interno.y = 80`, sopra la cima del serbatoio a `s1.y = 110`, come nel test sopra). Il
+    // livello esterno, impilato sopra, ricalcola l'ALTEZZA INTERA di S1 una seconda volta invece di
+    // aggiungere solo ciò che gli serve in più — e finisce a `esterno.y = -130`: **sopra il bordo
+    // superiore della pagina** (`renderSvg` disegna un viewBox che comincia a `y=0` e non ha alcun
+    // margine negativo, vedi `dimensioniLayout` — un nodo a y negativa non è "in alto nel
+    // disegno", è FUORI dal disegno, tagliato via in ogni consumo del documento). Non è un
+    // incrocio di tubi: è un pezzo di disegno che sparisce.
+    expect(interno.y).toBe(80)
+    expect(esterno.y).toBe(-130)
+    expect(esterno.y).toBeLessThan(0) // la firma del difetto: fuori dal viewBox
+    expect(s1.y).toBe(110)
+  })
+})
+
+describe('la corsia del ponte con una taratura di pratica', () => {
+  // Collaudo Task 5, fix round 2 (revisione del coordinatore): `altezzaSopraLinea` legge l'ancora
+  // `sx` con `ancoraDi(nodo, 'sx', libreria)`, quindi è già consapevole della libreria — ma nessun
+  // test lo dimostrava. Il rischio che il revisore ha segnalato: una taratura di PRATICA (non di
+  // riferimento) può scalare un simbolo o sostituirne le ancore, e un rombo tarato più alto delle
+  // 90 unità della vecchia costante fissa cambierebbe la corsia di un by-pass **anche senza alcun
+  // serbatoio in scena** — un caso che lo Step 1 (serbatoio scavalcato) non copre.
+  //
+  // **Questo è il comportamento voluto, non un rischio da contenere**: se un simbolo tarato è
+  // davvero più alto, il ponte deve salire per scavalcarlo — esattamente la stessa correzione già
+  // fatta per il serbatoio (Step 1). Un ponte che restasse alla quota vecchia perché la costante
+  // ignora la taratura attraverserebbe il simbolo tarato, lo stesso difetto trovato lì. Un disegno
+  // già consegnato con un simbolo tarato più alto della vecchia costante fissa aveva GIÀ il ponte
+  // dentro il simbolo, anche prima di questo fix — semplicemente nessuno l'aveva notato perché il
+  // caso non era mai stato generato apposta per guardarlo.
+  it('un filtro tarato più alto della costante fissa fa salire la corsia del ponte che lo scavalca', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ codice: 'C1' })],
+      serbatoi: [makeSerbatoio({ codice: 'S1', ubicazione: 'SALA_COMPRESSORI' })],
+      filtri: [makeFiltro({ codice: 'F1', tipo: 'PREFILTRO' })],
+      essiccatori: [makeEssiccatore({ codice: 'E1' })],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    // Un rombo tarato tre volte più alto del registro (330 invece di 110), con le ancore
+    // ricalcolate di conseguenza — la forma che una taratura di pratica salva davvero
+    // (`TaraturaSimbolo.ancore`, libreria.ts: "già sui multipli di PASSO_GRIGLIA").
+    const libreria: Tarature = {
+      filtro: {
+        dx: 0,
+        dy: 0,
+        sx: 1,
+        sy: 3,
+        ancore: [
+          { id: 'sx', x: 0, y: 150, accetta: ['aria'] },
+          { id: 'dx', x: 100, y: 150, accetta: ['aria'] },
+          { id: 'alto-in', x: 50, y: 10, accetta: ['aria'] },
+          { id: 'basso-out', x: 50, y: 330, accetta: ['condensa'] },
+        ],
+      },
+    }
+    const preferenze = preferenzeRisolteDaScheda(scheda, {
+      ordineLinea: ['S1', 'F1', 'E1'],
+      bypass: [{ id: 'bp1', stadi: ['F1'] }],
+    })
+    // Il modello si costruisce SENZA libreria: la topologia (chi è il TEE, chi scavalca chi) non
+    // dipende dalla taratura, solo la geometria che `layoutSchema` calcola da lì in poi — passare
+    // la stessa `libreria` a due chiamate di `layoutSchema` sullo stesso modello isola l'effetto
+    // della taratura da qualunque altra differenza.
+    const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] }, preferenze })
+    const senzaTaratura = layoutSchema(model)
+    const conTaratura = layoutSchema(model, libreria)
+
+    const teeSenza = senzaTaratura.nodi.find((n) => n.id === 'BP1-IN')!
+    const teeCon = conTaratura.nodi.find((n) => n.id === 'BP1-IN')!
+    const f1Con = conTaratura.nodi.find((n) => n.id === 'F1')!
+
+    // Senza la libreria in `layoutSchema` il rombo torna quello del registro (110): la corsia resta
+    // quella minima, PASSO_CORSIA_BYPASS. Con la libreria il rombo tarato è alto 330: la corsia deve
+    // salire di conseguenza, e il TEE deve restare sopra la sua cima — la stessa verifica dello
+    // Step 1, ma sul rombo invece che sul serbatoio.
+    expect(teeCon.y).toBeLessThan(teeSenza.y)
+    expect(teeCon.y).toBeLessThan(f1Con.y)
   })
 })
 
