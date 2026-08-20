@@ -45,9 +45,20 @@ export interface SchemaPreferenzeBypass {
 export interface SchemaPreferenze {
   /** Ordine dei compressori in sala, da sinistra a destra. Default: ordine di scheda. */
   ordineCompressori?: string[]
-  /** Ordine degli stadi di trattamento. Chi non è nominato segue in coda, nell'ordine di default. */
+  /**
+   * Ordine della linea: serbatoi e stadi di trattamento insieme, da sinistra a destra. Dal
+   * 20-08-2026 è UN elenco solo, perché filtri ed essiccatori possono precedere il primo
+   * serbatoio e alternarsi ai serbatoi lungo la linea — cosa che due elenchi separati non
+   * sapevano esprimere. Chi non è nominato segue in coda, nell'ordine di default.
+   */
+  ordineLinea?: string[]
+  /**
+   * @deprecated Sostituiti da `ordineLinea` il 20-08-2026. Si LEGGONO ancora — è da qui che
+   * `risolviPreferenze` ricostruisce la sequenza delle pratiche salvate prima — ma non si
+   * scrivono più. Toglierli farebbe perdere l'ordine a ogni pratica già consegnata.
+   */
   ordineStadi?: string[]
-  /** Ordine dei serbatoi. Default: per `ubicazione` di scheda. */
+  /** @deprecated Vedi `ordineStadi`. */
   ordineSerbatoi?: string[]
   /**
    * Chi scarica condensa, per codice. Chiave assente = regola per tipo di `scaricaCondensa`

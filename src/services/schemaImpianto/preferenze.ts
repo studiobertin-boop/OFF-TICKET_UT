@@ -20,19 +20,35 @@ import type { SchemaNodo } from './types'
 /** Le apparecchiature di scheda che entrano nello schema, divise per come si dispongono. */
 export interface FamiglieSchema {
   compressori: SchemaNodo[]
-  serbatoi: SchemaNodo[]
-  stadi: SchemaNodo[]
+  /**
+   * Serbatoi e stadi di trattamento in un elenco solo, dal 20-08-2026: negli impianti reali un
+   * filtro o un essiccatore può stare PRIMA del primo serbatoio, e con più serbatoi la linea può
+   * alternarli. Due elenchi separati non sapevano dirlo, e il pannello non lasciava spostare una
+   * riga da uno all'altro.
+   */
+  linea: SchemaNodo[]
 }
 
 export interface PreferenzeRisolte {
   /** Codici dei compressori, da sinistra a destra in sala. */
   ordineCompressori: string[]
-  /** Codici degli stadi di trattamento, nell'ordine in cui vanno disegnati da sinistra a destra. */
-  ordineStadi: string[]
+  /**
+   * La sequenza della linea — serbatoi e stadi insieme — nell'ordine in cui va disegnata da
+   * sinistra a destra. È l'ordine che il generatore segue: `buildSchemaModel` collega gli
+   * elementi due a due in quest'ordine, e `layoutSchema` li dispone nella stessa fila.
+   */
+  ordineLinea: string[]
+  /**
+   * I due sotto-elenchi di `ordineLinea` filtrati per tipo. **Non sono un ordine scelto**: si
+   * derivano dalla sequenza, e servono a una cosa sola — tenere `improntaPreferenze` nello stesso
+   * formato di prima del 20-08-2026, così le pratiche già consegnate non si vedono comparire
+   * l'avviso «Rigenera da capo» solo perché il campo ha cambiato forma.
+   */
   ordineSerbatoi: string[]
+  ordineStadi: string[]
   /** Chi scarica condensa. Un `Set` e non una mappa: il default è già stato applicato. */
   condense: Set<string>
-  /** Gruppi ancora validi, coi membri riordinati secondo `ordineStadi`. */
+  /** Gruppi ancora validi, coi membri riordinati secondo `ordineLinea`. */
   bypass: { id: string; stadi: string[] }[]
   /** Id dei gruppi caduti perché non più contigui: da dire all'operatore, non da riparare. */
   bypassScartati: string[]
@@ -109,7 +125,10 @@ export function famiglieDaScheda(scheda: SchedaDatiCompleta): FamiglieSchema {
     ...(scheda.separatori ?? []).map((sep) => nodoLeggero(sep.codice, 'separatore', 'Separatore', sep.marca)),
   ]
 
-  return { compressori, serbatoi, stadi: ordinaCatenaTrattamento(stadiGrezzi, null) }
+  // L'ordine di DEFAULT resta quello di sempre — serbatoi in testa, poi la catena di trattamento
+  // per rango di tipo — così una pratica che non apre il pannello genera come prima. La libertà
+  // è una possibilità offerta, non un cambiamento imposto.
+  return { compressori, linea: [...serbatoi, ...ordinaCatenaTrattamento(stadiGrezzi, null)] }
 }
 
 const elenco = (valore: unknown): string[] =>
@@ -168,14 +187,23 @@ export function risolviPreferenze(
 ): PreferenzeRisolte {
   const p = (preferenze ?? {}) as SchemaPreferenze
   const ordineCompressori = ordinaPerElenco(famiglie.compressori, p.ordineCompressori).map((n) => n.id)
-  const ordineStadi = ordinaPerElenco(famiglie.stadi, p.ordineStadi).map((n) => n.id)
-  const ordineSerbatoi = ordinaPerElenco(famiglie.serbatoi, p.ordineSerbatoi).map((n) => n.id)
+
+  // `ordineLinea` quando c'è; altrimenti si ricostruisce dai due campi di prima del 20-08-2026,
+  // nell'ordine serbatoi-poi-stadi che è esattamente la sequenza che quelle pratiche hanno. Una
+  // pratica salvata prima si riapre così com'era, senza che nessuno debba riordinarla a mano.
+  const salvato = elenco(p.ordineLinea).length > 0
+    ? p.ordineLinea
+    : [...elenco(p.ordineSerbatoi), ...elenco(p.ordineStadi)]
+  const nodiLinea = ordinaPerElenco(famiglie.linea, salvato)
+  const ordineLinea = nodiLinea.map((n) => n.id)
+  const ordineSerbatoi = nodiLinea.filter((n) => n.tipo === 'serbatoio').map((n) => n.id)
+  const ordineStadi = nodiLinea.filter((n) => n.tipo !== 'serbatoio').map((n) => n.id)
 
   // Chiave assente = regola per tipo: è ciò che rende indolore il passaggio da «selezione per
   // tipo» a «flag per apparecchiatura» su una pratica salvata prima che il pannello esistesse.
   const scelte = p.condense && typeof p.condense === 'object' ? p.condense : {}
   const condense = new Set<string>()
-  for (const nodo of [...famiglie.compressori, ...famiglie.serbatoi, ...famiglie.stadi]) {
+  for (const nodo of [...famiglie.compressori, ...famiglie.linea]) {
     const scelta = scelte[nodo.id]
     if (typeof scelta === 'boolean' ? scelta : scaricaCondensa(nodo)) condense.add(nodo.id)
   }
@@ -186,16 +214,16 @@ export function risolviPreferenze(
     if (!gruppo || typeof gruppo.id !== 'string') continue
     // Riordinati secondo l'ordine risolto, non secondo com'erano salvati: l'operatore può aver
     // riordinato le righe dopo aver creato il gruppo, e il disegno segue l'ordine, non la memoria.
-    const membri = ordineStadi.filter((id) => elenco(gruppo.stadi).includes(id))
+    const membri = ordineLinea.filter((id) => elenco(gruppo.stadi).includes(id))
     if (membri.length === 0) continue
-    if (!contigui(membri, ordineStadi)) {
+    if (!contigui(membri, ordineLinea)) {
       bypassScartati.push(gruppo.id)
       continue
     }
     bypass.push({ id: gruppo.id, stadi: membri })
   }
 
-  return { ordineCompressori, ordineStadi, ordineSerbatoi, condense, bypass, bypassScartati }
+  return { ordineCompressori, ordineLinea, ordineSerbatoi, ordineStadi, condense, bypass, bypassScartati }
 }
 
 /**
@@ -205,12 +233,24 @@ export function risolviPreferenze(
  * stessa impronta, o l'avviso comparirebbe da solo.
  */
 export function improntaPreferenze(risolte: PreferenzeRisolte): string {
+  // Le chiavi `stadi`/`serbatoi` restano quelle di prima del 20-08-2026, e restano in
+  // quest'ORDINE: `JSON.stringify` scrive le chiavi come le trova, e una pratica non riordinata
+  // deve produrre la stessa identica stringa di allora — o l'avviso «Rigenera da capo»
+  // comparirebbe su ogni pratica già consegnata solo per il cambio di formato.
+  //
+  // `linea` si aggiunge in coda SOLO quando la sequenza intreccia serbatoi e stadi, cioè quando i
+  // due sotto-elenchi filtrati per tipo non bastano più a descriverla: senza, spostare un filtro
+  // davanti a un serbatoio non cambierebbe nessuna delle due liste, e l'avviso non comparirebbe
+  // mai proprio sul riordino che questo blocco è nato per permettere.
+  const canonica = [...risolte.ordineSerbatoi, ...risolte.ordineStadi]
+  const intrecciata = risolte.ordineLinea.join(' ') !== canonica.join(' ')
   return JSON.stringify({
     compressori: risolte.ordineCompressori,
     stadi: risolte.ordineStadi,
     serbatoi: risolte.ordineSerbatoi,
     condense: [...risolte.condense].sort(),
     bypass: risolte.bypass.map((g) => ({ id: g.id, stadi: g.stadi })),
+    ...(intrecciata ? { linea: risolte.ordineLinea } : {}),
   })
 }
 

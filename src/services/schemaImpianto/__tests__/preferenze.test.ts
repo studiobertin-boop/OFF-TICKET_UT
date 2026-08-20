@@ -32,9 +32,16 @@ const nodo = (id: string, tipo: SchemaNodo['tipo'] = 'filtro'): SchemaNodo => ({
 })
 
 const stadi = [nodo('F1'), nodo('E1', 'essiccatore'), nodo('F2'), nodo('F3')]
-const serbatoi = [nodo('S1', 'serbatoio'), nodo('S2', 'serbatoio')]
 const compressori = [nodo('C1', 'compressore'), nodo('C2', 'compressore')]
-const famiglie = { compressori, serbatoi, stadi }
+const linea = [
+  nodo('S1', 'serbatoio'),
+  nodo('S2', 'serbatoio'),
+  nodo('F1'),
+  nodo('E1', 'essiccatore'),
+  nodo('F2'),
+  nodo('F3'),
+]
+const famiglie = { compressori, linea }
 
 describe('famiglieDaScheda', () => {
   const scheda = {
@@ -54,11 +61,11 @@ describe('famiglieDaScheda', () => {
 
   it('mette i serbatoi di sala prima di quelli in linea, senza mescolare il resto', () => {
     // S3 non dichiara l'ubicazione: vale sala compressori, come in `buildSerbatoioNodi`.
-    expect(famiglieDaScheda(scheda).serbatoi.map((n) => n.id)).toEqual(['S2', 'S3', 'S1'])
+    expect(famiglieDaScheda(scheda).linea.slice(0, 3).map((n) => n.id)).toEqual(['S2', 'S3', 'S1'])
   })
 
   it('ordina gli stadi come il generatore: prefiltri, essiccatori, filtri di linea, separatori', () => {
-    expect(famiglieDaScheda(scheda).stadi.map((n) => n.id)).toEqual(['F2', 'E1', 'F1', 'SEP1'])
+    expect(famiglieDaScheda(scheda).linea.slice(3).map((n) => n.id)).toEqual(['F2', 'E1', 'F1', 'SEP1'])
   })
 
   it('tiene i compressori nell’ordine di scheda e ne riporta la marca', () => {
@@ -71,8 +78,7 @@ describe('famiglieDaScheda', () => {
   it('regge una scheda vuota', () => {
     const vuota = famiglieDaScheda({} as SchedaDatiCompleta)
     expect(vuota.compressori).toEqual([])
-    expect(vuota.serbatoi).toEqual([])
-    expect(vuota.stadi).toEqual([])
+    expect(vuota.linea).toEqual([])
   })
 })
 
@@ -137,8 +143,7 @@ describe('risolviPreferenze', () => {
   it('senza preferenze usa i default', () => {
     const r = risolviPreferenze(undefined, famiglie)
     expect(r.ordineCompressori).toEqual(['C1', 'C2'])
-    expect(r.ordineStadi).toEqual(['F1', 'E1', 'F2', 'F3'])
-    expect(r.ordineSerbatoi).toEqual(['S1', 'S2'])
+    expect(r.ordineLinea).toEqual(['S1', 'S2', 'F1', 'E1', 'F2', 'F3'])
     // Niente C1/C2: sono compressori senza disoleatore, e la condensa esce da li' (`scaricaCondensa`).
     expect([...r.condense].sort()).toEqual(['E1', 'F1', 'F2', 'F3', 'S1', 'S2'])
     expect(r.bypass).toEqual([])
@@ -184,9 +189,9 @@ describe('risolviPreferenze', () => {
   })
 
   it('scarta un gruppo che ha perso la contiguità e lo riporta', () => {
-    // Riordinando gli stadi, E1 e F2 non sono più attaccati.
+    // Riordinando la linea, E1 e F2 non sono più attaccati.
     const r = risolviPreferenze(
-      { ordineStadi: ['E1', 'F1', 'F2', 'F3'], bypass: [{ id: 'bp1', stadi: ['E1', 'F2'] }] },
+      { ordineLinea: ['E1', 'F1', 'F2', 'F3'], bypass: [{ id: 'bp1', stadi: ['E1', 'F2'] }] },
       famiglie
     )
     expect(r.bypass).toEqual([])
@@ -205,6 +210,62 @@ describe('risolviPreferenze', () => {
   })
 })
 
+describe('ordineLinea', () => {
+  it('senza preferenze mette i serbatoi in testa e gli stadi di seguito', () => {
+    const r = risolviPreferenze(undefined, famiglie)
+    expect(r.ordineLinea).toEqual(['S1', 'S2', 'F1', 'E1', 'F2', 'F3'])
+  })
+
+  it('accetta uno stadio prima del primo serbatoio', () => {
+    const r = risolviPreferenze({ ordineLinea: ['F1', 'S1', 'E1', 'S2'] }, famiglie)
+    expect(r.ordineLinea).toEqual(['F1', 'S1', 'E1', 'S2', 'F2', 'F3'])
+  })
+
+  it('ricostruisce la sequenza dai due campi vecchi quando ordineLinea manca', () => {
+    // Ogni pratica salvata prima del 20-08-2026: deve riaprirsi con lo stesso ordine di allora,
+    // cioè serbatoi e poi stadi, ciascuno nel proprio ordine salvato.
+    const r = risolviPreferenze({ ordineSerbatoi: ['S2', 'S1'], ordineStadi: ['F2', 'F1'] }, famiglie)
+    expect(r.ordineLinea).toEqual(['S2', 'S1', 'F2', 'F1', 'E1', 'F3'])
+  })
+
+  it('ordineLinea vince sui due campi vecchi quando ci sono entrambi', () => {
+    const r = risolviPreferenze(
+      { ordineLinea: ['F1', 'S1'], ordineSerbatoi: ['S2', 'S1'], ordineStadi: ['F3'] },
+      famiglie
+    )
+    expect(r.ordineLinea.slice(0, 2)).toEqual(['F1', 'S1'])
+  })
+
+  it('espone serbatoi e stadi derivati per tipo dalla sequenza', () => {
+    const r = risolviPreferenze({ ordineLinea: ['F1', 'S2', 'E1', 'S1'] }, famiglie)
+    expect(r.ordineSerbatoi).toEqual(['S2', 'S1'])
+    expect(r.ordineStadi).toEqual(['F1', 'E1', 'F2', 'F3'])
+  })
+
+  it('valuta la contiguità dei by-pass sulla sequenza unificata', () => {
+    // S1 sta in mezzo: E1 e F1 non sono più attaccati, il gruppo cade.
+    const r = risolviPreferenze(
+      { ordineLinea: ['E1', 'S1', 'F1'], bypass: [{ id: 'bp1', stadi: ['E1', 'F1'] }] },
+      famiglie
+    )
+    expect(r.bypass).toEqual([])
+    expect(r.bypassScartati).toEqual(['bp1'])
+  })
+
+  it('tiene un by-pass che scavalca un serbatoio, se è contiguo', () => {
+    const r = risolviPreferenze(
+      { ordineLinea: ['F1', 'S1', 'E1'], bypass: [{ id: 'bp1', stadi: ['S1', 'E1'] }] },
+      famiglie
+    )
+    expect(r.bypass).toEqual([{ id: 'bp1', stadi: ['S1', 'E1'] }])
+  })
+
+  it('tiene un by-pass su una sola apparecchiatura', () => {
+    const r = risolviPreferenze({ bypass: [{ id: 'bp1', stadi: ['E1'] }] }, famiglie)
+    expect(r.bypass).toEqual([{ id: 'bp1', stadi: ['E1'] }])
+  })
+})
+
 describe('improntaPreferenze', () => {
   it('non cambia quando l’ordine di due chiavi cambia', () => {
     const a = risolviPreferenze({ condense: { F1: true, F2: false } }, famiglie)
@@ -216,6 +277,32 @@ describe('improntaPreferenze', () => {
     const a = risolviPreferenze(undefined, famiglie)
     const b = risolviPreferenze({ ordineStadi: ['F2'] }, famiglie)
     expect(improntaPreferenze(a)).not.toBe(improntaPreferenze(b))
+  })
+})
+
+describe('impronta e pratiche migrate', () => {
+  it('una pratica migrata non produce un avviso spurio', () => {
+    // L'impronta salvata è quella scritta col formato vecchio; la sequenza ricostruita dai due
+    // campi è la stessa di allora, quindi l'impronta deve combaciare e l'avviso «Rigenera da
+    // capo» non deve comparire su una pratica che nessuno ha toccato.
+    const salvate = { ordineSerbatoi: ['S1', 'S2'], ordineStadi: ['F1', 'E1', 'F2', 'F3'] }
+    const risolte = risolviPreferenze(salvate, famiglie)
+    const improntaVecchia = JSON.stringify({
+      compressori: ['C1', 'C2'],
+      stadi: ['F1', 'E1', 'F2', 'F3'],
+      serbatoi: ['S1', 'S2'],
+      condense: [...risolte.condense].sort(),
+      bypass: [],
+    })
+    expect(preferenzeDaRiapplicare(improntaVecchia, risolte)).toBe(false)
+  })
+
+  it('un intreccio fra serbatoi e stadi cambia l’impronta', () => {
+    // Filtrando per tipo, ['F1','S1'] e ['S1','F1'] darebbero gli stessi due sotto-elenchi:
+    // senza la chiave `linea` l'avviso non comparirebbe mai su un riordino di questo tipo.
+    const dritta = risolviPreferenze({ ordineLinea: ['S1', 'S2', 'F1', 'E1', 'F2', 'F3'] }, famiglie)
+    const intrecciata = risolviPreferenze({ ordineLinea: ['F1', 'S1', 'S2', 'E1', 'F2', 'F3'] }, famiglie)
+    expect(improntaPreferenze(dritta)).not.toBe(improntaPreferenze(intrecciata))
   })
 })
 
@@ -266,7 +353,6 @@ describe('la regola di default delle condense è una sola', () => {
 })
 
 describe('preferenzeDaRiapplicare', () => {
-  const famiglie = { compressori, serbatoi, stadi }
   const risolte = risolviPreferenze({}, famiglie)
 
   it('e falso quando l impronta salvata e quella di adesso combaciano', () => {
