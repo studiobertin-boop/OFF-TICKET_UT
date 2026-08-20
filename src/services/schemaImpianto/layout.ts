@@ -384,20 +384,69 @@ function disponiInRiga(
  * chiesto.
  */
 /**
- * Le corsie dei ponti, per id del capo di MONTE. Dal Blocco 5 il ponte corre alla quota del suo
- * capo di monte, quindi la corsia non e' piu' una proprieta' del ponte ma della QUOTA a cui qui si
- * posa quel capo: questo e' l'unico posto che la puo' decidere.
+ * Margine minimo fra la corsa del ponte e la cima piu' alta che scavalca, per gli scavalcati la
+ * cui altezza non e' gia' dentro `PASSO_CORSIA_BYPASS` (che per il solo rombo — 110 di altezza,
+ * l'unico caso misurato sul riferimento — vale gia' da se'). Due passi di griglia, la stessa
+ * unita' minima usata altrove nel file per «vicino ma non attaccato» (`GIOCO_FRA_STADI`,
+ * `PASSO_GIUNZIONE`, `SCARTO_VALVOLA`): non c'e' un riferimento del committente per un by-pass
+ * sopra un serbatoio, quindi non c'e' una misura da leggere — questa e' la scelta piu' difendibile
+ * in sua assenza (Collaudo Task 5).
+ */
+const MARGINE_CORSIA_BYPASS = 20
+
+/**
+ * Quanto la cima di uno scavalcato sporge sopra la linea di processo — cioe' quanto la corsia del
+ * ponte che gli passa sopra deve almeno essere alta per non attraversarlo.
+ *
+ * Per un rombo o una giunzione la risposta e' l'ancora `sx`: e' la stessa ancora su cui
+ * `disponiSequenza` li dispone (convenzione 3/4), quindi la sua ordinata locale e' esattamente
+ * quanto la cima del riquadro sta sopra il punto a cui il tubo si aggancia.
+ *
+ * Un serbatoio non si dispone cosi': resta appoggiato a `yBase - altezza` qualunque cosa faccia la
+ * linea (vedi `disponiSequenza` piu' sotto), quindi la sua cima va misurata contro `quotaLinea`
+ * direttamente — l'ancora non lo governa e leggerla darebbe la distanza sbagliata.
+ *
+ * **Il difetto che questa funzione chiude** (Collaudo Task 5, trovato non da un test ma dal disegno
+ * generato apposta per guardarlo): finche' gli unici scavalcati erano rombi, `PASSO_CORSIA_BYPASS`
+ * fisso (90, misurato sul riferimento) bastava. Un serbatoio verticale e' alto 300 e porta la
+ * valvola di sicurezza sopra il corpo: a corsia fissa il ponte gli passava dritto nel mezzo.
+ */
+function altezzaSopraLinea(nodo: SchemaNodo, quotaLinea: number, yBase: number, libreria: Tarature): number {
+  if (nodo.tipo === 'serbatoio') {
+    return quotaLinea - (yBase - dimensioniDi(nodo, libreria).altezza)
+  }
+  const sx = ancoraDi(nodo, 'sx', libreria)
+  return sx?.y ?? dimensioniDi(nodo, libreria).altezza / 2
+}
+
+/**
+ * Le corsie dei ponti, per id del capo di MONTE — non piu' un indice ma l'OFFSET assoluto sopra
+ * `quotaLinea` a cui quel capo si posa. Dal Blocco 5 il ponte corre alla quota del suo capo di
+ * monte, quindi la corsia non e' una proprieta' del ponte ma della QUOTA a cui qui si posa quel
+ * capo: questo e' l'unico posto che la puo' decidere.
  *
  * Gli intervalli sono posizioni nella SEQUENZA e non ascisse: qui la sequenza e' quella che si sta
  * disponendo, e le due danno lo stesso ordine. `assegnaCorsie` e' la stessa funzione che usa
- * `linearizzaConBypass` (bypass.ts) — assegna dal ponte piu' corto al piu' lungo, cosi' con due
- * gruppi annidati e' l'interno a correre in basso — e usarne un'altra farebbe divergere due
- * risposte che devono coincidere.
+ * `linearizzaConBypass` (bypass.ts) per assegnare il LIVELLO — assegna dal ponte piu' corto al piu'
+ * lungo, cosi' con due gruppi annidati e' l'interno a correre in basso — e usarne un'altra farebbe
+ * divergere due risposte che devono coincidere. **L'altezza di ogni livello**, invece, non e' piu'
+ * `PASSO_CORSIA_BYPASS` fisso: e' il massimo fra quella costante e cio' che serve a scavalcare
+ * davvero il piu' alto degli elementi che i gruppi su quel livello contengono
+ * (`altezzaSopraLinea`). Un livello puo' avere piu' gruppi disgiunti: l'altezza resta unica per
+ * livello, o due ponti disgiunti non correrebbero piu' alla stessa quota (vedi il test «due by-pass
+ * disgiunti corrono sulla stessa corsia»). I livelli si IMPILANO — quello annidato sta sopra quello
+ * che lo contiene di almeno la sua altezza — cosi' un gruppo esterno scavalca anche il ponte del
+ * gruppo interno, non solo i suoi elementi.
  *
  * Un capo di monte senza il suo capo di valle nella sequenza non e' un caso da riparare qui: resta
  * senza corsia e si posa sulla linea, come qualunque altra giunzione.
  */
-function corsieDeiCapiDiMonte(nodi: SchemaNodo[]): Map<string, number> {
+function corsieDeiCapiDiMonte(
+  nodi: SchemaNodo[],
+  quotaLinea: number,
+  yBase: number,
+  libreria: Tarature
+): Map<string, number> {
   const posizione = new Map(nodi.map((n, i) => [n.id, i]))
   const capi = nodi
     .filter((nodo) => eCapoDiMonte(nodo.id))
@@ -407,8 +456,31 @@ function corsieDeiCapiDiMonte(nodi: SchemaNodo[]): Map<string, number> {
       fine: posizione.get(capoDiValleDi(nodo.id)),
     }))
     .filter((capo): capo is { monte: string; inizio: number; fine: number } => capo.fine !== undefined)
-  const corsie = assegnaCorsie(capi)
-  return new Map(capi.map((capo, i) => [capo.monte, corsie[i]]))
+  const livelli = assegnaCorsie(capi)
+
+  const altezzaLivello = new Map<number, number>()
+  capi.forEach((capo, i) => {
+    const scavalcati = nodi.slice(capo.inizio + 1, capo.fine)
+    const richiesta = scavalcati.length
+      ? Math.max(...scavalcati.map((n) => altezzaSopraLinea(n, quotaLinea, yBase, libreria) + MARGINE_CORSIA_BYPASS))
+      : PASSO_CORSIA_BYPASS
+    const livello = livelli[i]
+    altezzaLivello.set(
+      livello,
+      Math.max(altezzaLivello.get(livello) ?? PASSO_CORSIA_BYPASS, PASSO_CORSIA_BYPASS, richiesta)
+    )
+  })
+
+  // Offset cumulato: il livello k sta sopra il livello k-1 di almeno l'altezza propria del livello
+  // k, non del livello 0 — cosi' un gruppo annidato scavalca anche il ponte che contiene.
+  const offsetLivello = new Map<number, number>()
+  let cumulato = 0
+  for (const livello of [...new Set(livelli)].sort((a, b) => a - b)) {
+    cumulato += altezzaLivello.get(livello) ?? PASSO_CORSIA_BYPASS
+    offsetLivello.set(livello, cumulato)
+  }
+
+  return new Map(capi.map((capo, i) => [capo.monte, offsetLivello.get(livelli[i]) ?? PASSO_CORSIA_BYPASS]))
 }
 
 function disponiSequenza(
@@ -430,12 +502,13 @@ function disponiSequenza(
     return GIOCO_FRA_STADI
   }
 
-  // La quota del capo di MONTE di un by-pass non e' quella della linea: sta una corsia piu' in
-  // alto, cioe' esattamente dove la linea sarebbe stata se non fosse scesa per fargli posto.
-  const corsie = corsieDeiCapiDiMonte(nodi)
+  // La quota del capo di MONTE di un by-pass non e' quella della linea: sta piu' in alto di quanto
+  // serve a scavalcare cio' che il suo ponte contiene (`corsieDeiCapiDiMonte`), non piu' di una
+  // corsia fissa.
+  const corsie = corsieDeiCapiDiMonte(nodi, quotaLinea, yBase, libreria)
   const quotaDi = (nodo: SchemaNodo) => {
-    const corsia = corsie.get(nodo.id)
-    return corsia === undefined ? quotaLinea : quotaLinea - PASSO_CORSIA_BYPASS * (corsia + 1)
+    const offset = corsie.get(nodo.id)
+    return offset === undefined ? quotaLinea : quotaLinea - offset
   }
 
   let xAncora = xIniziale

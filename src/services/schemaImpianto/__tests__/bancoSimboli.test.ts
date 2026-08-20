@@ -9,7 +9,15 @@ import { describe, it, expect } from 'vitest'
 import { layoutSchema } from '../layout'
 import { renderSvg } from '../renderSvg'
 import { buildSchemaModel } from '../buildSchemaModel'
-import { makeScheda, makeCompressore, makeSerbatoio } from '@/services/relazione/__tests__/fixtures'
+import { preferenzeRisolteDaScheda } from '../preferenze'
+import {
+  makeScheda,
+  makeCompressore,
+  makeSerbatoio,
+  makeFiltro,
+  makeEssiccatore,
+  makeDatiImpianto,
+} from '@/services/relazione/__tests__/fixtures'
 
 // `buildSchemaModel` non prende la scheda da sola: vuole { scheda, collegamentiCompressoriSerbatoi },
 // lo stesso oggetto che ogni test di renderSvg.test.ts costruisce a mano. Il brief del Task 2
@@ -85,5 +93,39 @@ describe('banco del Blocco 3', () => {
     expect(essiccatoreDi(verticale.layout).x).not.toBe(essiccatoreDi(orizzontale.layout).x)
     expect(verticale.layout.nodi).not.toEqual(orizzontale.layout.nodi)
     expect(verticale.svg).not.toBe(orizzontale.svg)
+  })
+
+  // Il blocco toccato in questa sessione ("ordine libero della linea", Task 1-5) non ha un caso
+  // qui sopra: i tre test del Blocco 3 costruiscono il modello SENZA `preferenze`, quindi non
+  // passano mai da `ordineLinea` ne' da `linearizzaConBypass` — la riprova e' che nessun commit di
+  // questa sessione ha toccato questo file prima d'ora (`git log` sul file si ferma al Blocco 3). Un
+  // banco verde che non esercita mai il codice appena scritto misura zero e sembra un successo (vedi
+  // il commento in testa al file): questo caso lo ancora davvero al blocco corrente, riordinando la
+  // linea con `ordineLinea` come fa il pannello «Linea» del Task 4.
+  it('DISCRIMINA: un ordineLinea che porta lo stadio in testa sposta la catena e produce SVG diversi', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ codice: 'C1' })],
+      serbatoi: [makeSerbatoio({ codice: 'S1' })],
+      filtri: [makeFiltro({ codice: 'F1', tipo: 'PREFILTRO' })],
+      essiccatori: [makeEssiccatore({ codice: 'E1' })],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'tanica' }),
+    })
+    const costruisciConOrdine = (ordineLinea: string[]) => {
+      const layout = layoutSchema(
+        buildSchemaModel({
+          scheda,
+          collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+          preferenze: preferenzeRisolteDaScheda(scheda, { ordineLinea }),
+        })
+      )
+      return { layout, svg: renderSvg(layout) }
+    }
+    const serbatoioInTesta = costruisciConOrdine(['S1', 'F1', 'E1'])
+    // Il caso che ha originato il lavoro (Step 4 del piano): il filtro davanti al serbatoio, cosi'
+    // l'aria lo attraversa PRIMA di entrarci.
+    const filtroInTesta = costruisciConOrdine(['F1', 'S1', 'E1'])
+
+    expect(serbatoioInTesta.layout.nodi).not.toEqual(filtroInTesta.layout.nodi)
+    expect(serbatoioInTesta.svg).not.toBe(filtroInTesta.svg)
   })
 })

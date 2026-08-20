@@ -1450,6 +1450,119 @@ describe('il by-pass nel layout', () => {
   })
 })
 
+describe('la corsia del ponte sopra un serbatoio scavalcato', () => {
+  // Collaudo Task 5 (piano `2026-08-20-ordine-libero-linea-schema`), step 1. `PASSO_CORSIA_BYPASS`
+  // e' stato misurato su un riferimento dove gli scavalcati erano rombi alti 110: un serbatoio
+  // verticale e' alto 300 e porta la valvola di sicurezza SOPRA il corpo (`MARGINE_VALVOLA_SERBATOIO`,
+  // symbols/index.ts) — a corsia fissa il ponte gli passava dritto nel mezzo, attraverso quella
+  // valvola. Il fatto che `S1` sia dentro `ordineLinea` invece che a monte di tutto e' cio' che il
+  // Blocco 5 (Task 1-4) ha reso possibile: prima i serbatoi stavano sempre fuori dalla sequenza
+  // scavalcabile, e questo caso non poteva capitare.
+  it('il ponte di un by-pass non attraversa il serbatoio che scavalca', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ codice: 'C1' })],
+      serbatoi: [makeSerbatoio({ codice: 'S1', ubicazione: 'SALA_COMPRESSORI' })],
+      filtri: [makeFiltro({ codice: 'F1', tipo: 'PREFILTRO' })],
+      essiccatori: [makeEssiccatore({ codice: 'E1' })],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const model = buildSchemaModel({
+      scheda,
+      collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+      preferenze: preferenzeRisolteDaScheda(scheda, {
+        ordineLinea: ['F1', 'S1', 'E1'],
+        bypass: [{ id: 'bp1', stadi: ['S1'] }],
+      }),
+    })
+    const layout = layoutSchema(model)
+    const tee = layout.nodi.find((n) => n.id === 'BP1-IN')!
+    const s1 = layout.nodi.find((n) => n.id === 'S1')!
+    // Il TEE di monte sta sulla corsia del ponte: deve restare SOPRA la cima del serbatoio, o il
+    // ponte gli passa dentro — attraverso la valvola di sicurezza che sta sul cielo del corpo.
+    expect(tee.y).toBeLessThan(s1.y)
+  })
+})
+
+describe('il by-pass che scavalca la testa della linea', () => {
+  // Debito lasciato dalla revisione del Task 2 (piano `2026-08-20-ordine-libero-linea-schema`):
+  // qui `sequenza[0]` e' esso stesso un TEE — il gruppo di by-pass copre il PRIMO elemento della
+  // linea — e la mandata del compressore atterra su una giunzione invece che su un'apparecchiatura.
+  // Prima del Blocco 5 non poteva capitare: il primo elemento scavalcabile era sempre uno stadio di
+  // trattamento, mai la testa della catena. Il revisore aveva tracciato il codice e concluso che
+  // degrada correttamente — per riuso del ramo `dalCapoDiMonte` in `buildArchi`
+  // (`buildSchemaModel.ts`, l'arco dal TEE scende dal `basso` verso il primo scavalcato, la stessa
+  // regola di un TEE in mezzo alla catena) e perche' le quattro ancore della giunzione COINCIDONO
+  // nel suo centro (`ancoraMandata` ripiega su `sx`, che per una giunzione e' lo stesso punto di
+  // `basso` e `dx` — bypass.ts, symbols/index.ts) — ma era inferenza, non un disegno guardato
+  // davvero. Questo test lo genera e verifica che non emergano tubi incrociati.
+  it('la mandata del compressore atterra sul TEE, non sul serbatoio che scavalca', () => {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ codice: 'C1' })],
+      serbatoi: [makeSerbatoio({ codice: 'S1', ubicazione: 'SALA_COMPRESSORI' })],
+      filtri: [makeFiltro({ codice: 'F1', tipo: 'PREFILTRO' })],
+      essiccatori: [makeEssiccatore({ codice: 'E1' })],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const modelInput = {
+      scheda,
+      collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+      preferenze: preferenzeRisolteDaScheda(scheda, {
+        ordineLinea: ['S1', 'F1', 'E1'],
+        bypass: [{ id: 'bp1', stadi: ['S1'] }],
+      }),
+    }
+    const model = buildSchemaModel(modelInput)
+
+    // Sanity: questo e' davvero il caso «testa scavalcata» — il primo elemento della sequenza e'
+    // il TEE di monte, non S1.
+    const mandata = model.archi.find((a) => a.da.nodo === 'C1')!
+    expect(mandata.a.nodo).toBe('BP1-IN')
+    // Nessuna ancora `sx-basso` su una giunzione (solo il serbatoio ce l'ha): il ripiego di
+    // `ancoraMandata` deve portarla su `sx`, non lasciarla `undefined` o farla cadere sul centro
+    // per un'ancora inesistente.
+    expect(mandata.a.ancora).toBe('sx')
+
+    const layout = layoutSchema(model)
+    const tee = nodo(layout, 'BP1-IN')
+    const s1 = nodo(layout, 'S1')
+    const c1 = nodo(layout, 'C1')
+
+    // Le quattro ancore della giunzione coincidono: il punto in cui la mandata atterra e' lo
+    // stesso da cui parte il montante verso S1 e lo stesso da cui parte il ponte verso BP1-OUT —
+    // e' cosi' che un TEE si disegna, non un difetto.
+    const puntoTee = posizioneAncora(tee, 'sx')
+    expect(posizioneAncora(tee, 'basso')).toEqual(puntoTee)
+    expect(posizioneAncora(tee, 'dx')).toEqual(puntoTee)
+
+    // Il TEE sta a monte di S1 (a sinistra, senza sovrapporsi al suo riquadro): la mandata non
+    // attraversa il corpo del serbatoio per raggiungerlo.
+    expect(tee.x + dimensioniDi(tee, {}).larghezza).toBeLessThanOrEqual(s1.x)
+
+    // La mandata sale dal compressore fino al TEE: nessun tratto che scenda di nuovo verso il
+    // basso a meta' strada, che sarebbe la firma di un incrocio.
+    const puntiMandata = instrada(
+      mandata.stile,
+      posizioneAncora(c1, mandata.da.ancora),
+      puntoTee,
+      mandata.punti,
+      quoteInstradamento(layout),
+      { da: latoImposto(c1, mandata.da.ancora), a: latoImposto(tee, mandata.a.ancora) }
+    )
+    for (let i = 0; i < puntiMandata.length - 1; i++) {
+      expect(puntiMandata[i + 1].y).toBeLessThanOrEqual(puntiMandata[i].y)
+    }
+
+    // Il montante che scende dal TEE verso S1 (il ramo `dalCapoDiMonte` riusato in testa alla
+    // linea, la stessa regola di un TEE in mezzo alla catena). Qui il TEE NON e' alla quota
+    // dell'uscita di un serbatoio a monte — non ce n'e' uno, S1 e' proprio cio' che scavalca — sta
+    // invece sopra la sua cima (la corsia calcolata sull'ingombro reale, vedi il test sul ponte qui
+    // sopra): il montante scende davvero, un gradino vero e non un tratto piatto.
+    const montante = layout.archi.find((a) => a.da.nodo === 'BP1-IN' && a.a.nodo === 'S1')!
+    expect(montante.da.ancora).toBe('basso')
+    expect(puntoTee.y).toBeLessThan(posizioneAncora(s1, 'sx').y)
+  })
+})
+
 describe('linea con ordine libero', () => {
   const scheda = makeScheda({
     compressori: [makeCompressore({ codice: 'C1' })],
