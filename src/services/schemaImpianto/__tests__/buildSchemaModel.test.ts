@@ -20,6 +20,7 @@ import {
 import { capoValido } from '../agganci'
 import { preferenzeRisolteDaScheda } from '../preferenze'
 import { pozzoCondense } from '../layout'
+import type { SchemaModel } from '../types'
 
 describe('buildSchemaModel', () => {
   // Caso di riferimento: DOCUMENTAZIONE/relazione/schema.png — un compressore, un serbatoio
@@ -137,11 +138,10 @@ describe('buildSchemaModel', () => {
     ).toEqual(['S1->E1', 'E1->F1', 'F1->UTENZE'])
   })
 
-  // Stesso rischio del terminale utenze (vedi 'terminale verso le utenze' sotto): con un solo
-  // serbatoio candidato qualunque regola di scelta (primo, ultimo, ...) darebbe lo stesso
-  // risultato e non discriminerebbe un'inversione dell'ordine. Due serbatoi, e si verifica che
-  // la catena parta da quello che alimenta davvero la linea (S1), non dal secondo (S2).
-  it('la catena di trattamento parte dal serbatoio che alimenta la linea, non da un secondo serbatoio qualsiasi', () => {
+  // Dal 20-08-2026 più serbatoi entrano in catena invece di restare accumulatori paralleli
+  // (decisione 4 della spec): con due serbatoi la mandata arriva al primo (quello che «alimenta
+  // la linea»), e il secondo si inserisce in serie fra il primo e la catena di trattamento.
+  it('con più serbatoi la mandata arriva al primo e la catena li mette in serie', () => {
     const scheda = makeScheda({
       serbatoi: [makeSerbatoio({ codice: 'S1' }), makeSerbatoio({ codice: 'S2' })],
       essiccatori: [makeEssiccatore()],
@@ -152,8 +152,9 @@ describe('buildSchemaModel', () => {
 
     const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1', 'S2'] } })
 
+    expect(model.archi.find((a) => a.stile === 'flessibile')?.a.nodo).toBe('S1')
     expect(model.archi.find((a) => a.stile === 'standard' && a.a.nodo === 'E1')?.da).toEqual({
-      nodo: 'S1',
+      nodo: 'S2',
       ancora: 'dx',
     })
   })
@@ -467,11 +468,10 @@ describe('terminale verso le utenze', () => {
     expect(arco.stile).toBe('standard')
   })
 
-  it('senza catena di trattamento parte dal serbatoio che alimenta la linea', () => {
-    // Due serbatoi, non uno solo: con un solo candidato qualunque regola di scelta (primo,
-    // ultimo, o altro) restituirebbe lo stesso risultato e il test non discriminerebbe fra
-    // "il serbatoio da cui la linea parte" (serbatoiChiave[0], quello giusto) e "l'ultimo
-    // serbatoio" (la vecchia formulazione sbagliata della spec, corretta in questo task).
+  it('senza catena di trattamento, con più serbatoi in serie, le utenze partono dall’ultimo', () => {
+    // Dal 20-08-2026 i serbatoi entrano in catena (decisione 4): la mandata arriva al primo
+    // (S1), e le utenze si attaccano all'ultimo della serie (S2) — non più a S1 come quando i
+    // serbatoi restavano accumulatori paralleli.
     const scheda = makeScheda({
       compressori: [makeCompressore({ ha_disoleatore: false })],
       disoleatori: [],
@@ -483,7 +483,8 @@ describe('terminale verso le utenze', () => {
     })
     const modello = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1', 'S2'] } })
 
-    expect(modello.archi.find((a) => a.a.nodo === 'UTENZE')!.da).toEqual({ nodo: 'S1', ancora: 'dx' })
+    expect(modello.archi.find((a) => a.stile === 'flessibile')?.a.nodo).toBe('S1')
+    expect(modello.archi.find((a) => a.a.nodo === 'UTENZE')!.da).toEqual({ nodo: 'S2', ancora: 'dx' })
   })
 
   it('non nasce affatto se non c’è né catena né serbatoio', () => {
@@ -642,7 +643,11 @@ describe('le convenzioni grafiche dello studio', () => {
     // L'ordine dell'array e' l'ordine del disegno: `layoutSchema` filtra per tipo e dispone in
     // fila nell'ordine in cui li trova.
     expect(m.nodi.filter((n) => n.tipo === 'serbatoio').map((n) => n.id)).toEqual(['S2', 'S1'])
-    expect(m.archi.find((a) => a.a.nodo === ID_UTENZE)!.da.nodo).toBe('S2')
+    // Dal 20-08-2026 i due serbatoi entrano in serie (decisione 4): la mandata arriva a quello di
+    // testa (S2), anche se `collegamentiCompressoriSerbatoi` nomina S1 — quel dato resta per il
+    // calcolo delle valvole, non per la geometria — e le utenze si attaccano all'ultimo (S1).
+    expect(m.archi.find((a) => a.stile === 'flessibile')?.a.nodo).toBe('S2')
+    expect(m.archi.find((a) => a.a.nodo === ID_UTENZE)!.da.nodo).toBe('S1')
   })
 })
 
@@ -821,5 +826,71 @@ describe('il by-pass nel modello', () => {
     const standard = m.archi.filter((a) => a.stile === 'standard')
     expect(standard.filter((a) => a.forma === 'ponte')).toHaveLength(1)
     expect(standard.length).toBeGreaterThan(1)
+  })
+})
+
+describe('ordine libero della linea', () => {
+  const scheda = makeScheda({
+    compressori: [makeCompressore({ codice: 'C1' })],
+    serbatoi: [makeSerbatoio({ codice: 'S1', ubicazione: 'SALA_COMPRESSORI' })],
+    filtri: [makeFiltro({ codice: 'F1', tipo: 'PREFILTRO' })],
+    essiccatori: [makeEssiccatore({ codice: 'E1' })],
+    dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+  })
+
+  /** Gli archi d'aria come coppie «da → a», per leggere la catena a colpo d'occhio. */
+  const aria = (model: SchemaModel) =>
+    model.archi.filter((a) => a.stile !== 'condensa').map((a) => `${a.da.nodo}>${a.a.nodo}`)
+
+  it('con un filtro in testa, la mandata del compressore arriva al filtro', () => {
+    const model = buildSchemaModel({
+      scheda,
+      collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+      preferenze: preferenzeRisolteDaScheda(scheda, { ordineLinea: ['F1', 'S1', 'E1'] }),
+    })
+    const mandata = model.archi.find((a) => a.stile === 'flessibile')
+    expect(mandata?.da.nodo).toBe('C1')
+    expect(mandata?.a.nodo).toBe('F1')
+  })
+
+  it('collega la sequenza in serie fino alle utenze', () => {
+    const model = buildSchemaModel({
+      scheda,
+      collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+      preferenze: preferenzeRisolteDaScheda(scheda, { ordineLinea: ['F1', 'S1', 'E1'] }),
+    })
+    expect(aria(model)).toEqual(['C1>F1', 'F1>S1', 'S1>E1', 'E1>UTENZE'])
+  })
+
+  it('senza preferenze resta la sequenza di sempre: serbatoio, poi gli stadi', () => {
+    // Non-regressione: una pratica che non ha mai aperto il pannello genera come prima.
+    const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    expect(aria(model)).toEqual(['C1>S1', 'S1>F1', 'F1>E1', 'E1>UTENZE'])
+  })
+
+  it('la mandata si aggancia all’ancora sx del rombo quando la testa è uno stadio', () => {
+    // `sx-basso` non esiste sul rombo: chiederlo comunque farebbe ripiegare `posizioneAncora`
+    // sul centro del simbolo, cioè un tubo attaccato in mezzo alla sagoma.
+    const model = buildSchemaModel({
+      scheda,
+      collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+      preferenze: preferenzeRisolteDaScheda(scheda, { ordineLinea: ['F1', 'S1', 'E1'] }),
+    })
+    expect(model.archi.find((a) => a.stile === 'flessibile')?.a.ancora).toBe('sx')
+  })
+
+  it('un by-pass che scavalca un serbatoio produce i suoi due TEE e il ponte', () => {
+    const model = buildSchemaModel({
+      scheda,
+      collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+      preferenze: preferenzeRisolteDaScheda(scheda, {
+        ordineLinea: ['F1', 'S1', 'E1'],
+        bypass: [{ id: 'bp1', stadi: ['S1'] }],
+      }),
+    })
+    expect(model.nodi.map((n) => n.id)).toEqual(expect.arrayContaining(['BP1-IN', 'BP1-OUT']))
+    const ponte = model.archi.find((a) => a.forma === 'ponte')
+    expect(ponte?.da.nodo).toBe('BP1-IN')
+    expect(ponte?.a.nodo).toBe('BP1-OUT')
   })
 })

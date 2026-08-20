@@ -297,18 +297,19 @@ function nodoUtenze(): SchemaNodo {
 }
 
 /**
- * L'ancora del serbatoio a cui arriva la mandata del compressore: quella BASSA, come nei disegni
+ * L'ancora a cui arriva la mandata del compressore. Sul serbatoio è quella BASSA, come nei disegni
  * di riferimento — la dorsale scende con un gradino e si aggancia al fianco in basso, non a 160
- * unita' piu' in alto (convenzione 2).
+ * unita' piu' in alto (convenzione 2). Su uno stadio di trattamento — dal 20-08-2026 la testa
+ * della linea può essere un filtro o un essiccatore — quell'ancora non esiste, e si usa `sx`.
  *
  * Si legge l'ESISTENZA dell'ancora, mai la sua geometria: `sx-basso` non c'e' sul serbatoio
- * ORIZZONTALE (symbols/index.ts), e una taratura permanente puo' toglierlo anche al verticale.
- * Chiederlo comunque farebbe ripiegare `posizioneAncora` sul centro del corpo del serbatoio — un
- * tubo attaccato in mezzo alla pancia: sbagliato ma plausibile, il peggior tipo di errore.
+ * ORIZZONTALE (symbols/index.ts), non c'e' sul rombo, e una taratura permanente puo' toglierlo
+ * anche al verticale. Chiederlo comunque farebbe ripiegare `posizioneAncora` sul centro del corpo
+ * — un tubo attaccato in mezzo alla pancia: sbagliato ma plausibile, il peggior tipo di errore.
  */
-function ancoraMandata(serbatoio: SchemaNodo | undefined, libreria: Tarature): string {
-  if (!serbatoio) return 'sx'
-  return ancoraDi(serbatoio, 'sx-basso', libreria) ? 'sx-basso' : 'sx'
+function ancoraMandata(testa: SchemaNodo | undefined, libreria: Tarature): string {
+  if (!testa) return 'sx'
+  return ancoraDi(testa, 'sx-basso', libreria) ? 'sx-basso' : 'sx'
 }
 
 /**
@@ -367,87 +368,83 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
   /** Valvola di riserva, a meta' del primo tratto (convenzione 6). */
   const valvolaDiRiserva = (): SchemaSegnoTubo[] => [valvolaAMeta(0)]
 
-  const perId = new Map(nodi.map((n) => [n.id, n]))
-
-  for (const [compressoreId, serbatoiIds] of Object.entries(input.collegamentiCompressoriSerbatoi)) {
-    for (const serbatoioId of serbatoiIds) {
-      archi.push({
-        id: prossimoId('flex'),
-        da: { nodo: compressoreId, ancora: 'alto-out' },
-        a: { nodo: serbatoioId, ancora: ancoraMandata(perId.get(serbatoioId), libreria) },
-        stile: 'flessibile',
-        // Il montante sale flessibile fino alla valvola, e da li' in su e' rigido (convenzione 1):
-        // il vertice 1 della rotta flessibile e' il punto in cui il montante incontra la dorsale,
-        // e lo scarto e' quanto la valvola sta sotto di essa.
-        segni: [valvolaAlVertice(1, 'standard')],
-      })
-    }
-  }
-
-  // L'ordine scelto dall'operatore vince su quello di default; senza preferenze resta
-  // `ordinaCatenaTrattamento`, il generatore di sempre.
-  const catenaDiDefault = ordinaCatenaTrattamento(nodi, raccoltaCondense)
+  // L'ordine scelto dall'operatore vince su quello di default; senza preferenze resta serbatoi in
+  // testa e poi `ordinaCatenaTrattamento`, il generatore di sempre.
+  const serbatoiDiScheda = nodi.filter((n) => n.tipo === 'serbatoio' && n.id !== raccoltaCondense?.id)
+  const lineaDiDefault = [...serbatoiDiScheda, ...ordinaCatenaTrattamento(nodi, raccoltaCondense)]
   const catenaLinea = input.preferenze
-    ? input.preferenze.ordineStadi
-        .map((id) => catenaDiDefault.find((n) => n.id === id))
+    ? input.preferenze.ordineLinea
+        .map((id) => lineaDiDefault.find((n) => n.id === id))
         .filter((n): n is SchemaNodo => Boolean(n))
-    : catenaDiDefault
+    : lineaDiDefault
 
   // Le giunzioni dei by-pass entrano nella sequenza della linea: da qui in giu' si ragiona sulla
-  // SEQUENZA (stadi e TEE insieme), non piu' sulla catena dei soli stadi. Un gruppo non contiguo,
-  // vuoto o su stadi che la catena non ha cade qui senza rumore (vedi `bypass.ts`).
+  // SEQUENZA (elementi e TEE insieme), non piu' sulla catena dei soli stadi. Un gruppo non
+  // contiguo, vuoto o su elementi che la linea non ha cade qui senza rumore (vedi `bypass.ts`).
   const { sequenza, ponti } = linearizzaConBypass(catenaLinea, input.preferenze?.bypass ?? [])
 
   // Convenzione 6: la valvola di riserva e' quella con cui l'operatore isola la sezione. Con un
-  // by-pass che scavalca il primo (o l'ultimo) stadio quella valvola c'e' gia' sul ponte, e
-  // metterne una seconda a un passo di distanza e' cio' che nei riferimenti non si vede. La
-  // domanda si pone sulla SEQUENZA — «il capo della linea e' un TEE?» — e non sull'elenco degli
-  // stadi scavalcati: e' la stessa regola, detta dove e' vera anche quando il gruppo e' caduto.
+  // by-pass che scavalca il primo (o l'ultimo) elemento quella valvola c'e' gia' sul ponte, e
+  // metterne una seconda a un passo di distanza e' cio' che nei riferimenti non si vede.
   const capoDiTee = (nodo: SchemaNodo | undefined) => nodo?.tipo === 'giunzione'
 
-  const serbatoiChiave = nodi.filter((n) => n.tipo === 'serbatoio').map((n) => n.id)
-  if (sequenza.length > 0 && serbatoiChiave.length > 0) {
+  // **La testa della linea, non il primo serbatoio**: dal 20-08-2026 la mandata del compressore
+  // arriva a cio' che sta per primo nella sequenza, qualunque sia il suo tipo. Un filtro si mette
+  // davanti proprio perche' l'aria ci passi PRIMA di entrare nel serbatoio, e disegnare la mandata
+  // sul serbatoio la farebbe scavalcare il filtro che l'operatore ha appena messo in testa.
+  //
+  // `collegamentiCompressoriSerbatoi` non cambia significato: resta «quale compressore alimenta
+  // quale serbatoio», ed e' da li' che `engine/valvole.ts` ricava la portata delle valvole di
+  // sicurezza. Qui se ne legge solo QUANTE mandate disegnare e da quale compressore partono.
+  const testa = sequenza[0]
+  for (const [compressoreId, serbatoiIds] of Object.entries(input.collegamentiCompressoriSerbatoi)) {
+    if (serbatoiIds.length === 0 || !testa) continue
+    archi.push({
+      id: prossimoId('flex'),
+      da: { nodo: compressoreId, ancora: 'alto-out' },
+      a: { nodo: testa.id, ancora: ancoraMandata(testa, libreria) },
+      stile: 'flessibile',
+      // Il montante sale flessibile fino alla valvola, e da li' in su e' rigido (convenzione 1):
+      // il vertice 1 della rotta flessibile e' il punto in cui il montante incontra la dorsale,
+      // e lo scarto e' quanto la valvola sta sotto di essa.
+      segni: [valvolaAlVertice(1, 'standard')],
+    })
+  }
+
+  // Gli elementi della sequenza si collegano a due a due, senza piu' distinguere il tipo: un
+  // serbatoio in mezzo alla linea riceve e manda sulle stesse ancore `sx`/`dx` di uno stadio.
+  for (let i = 0; i < sequenza.length - 1; i++) {
+    // Dal capo di MONTE di un by-pass la linea esce dal BASSO: quel TEE sta alla quota
+    // dell'uscita del serbatoio (Blocco 5) e il tubo scende sulla sua ascissa fino alla punta
+    // dell'elemento scavalcato. E' il LATO imposto a dare la forma.
+    const dalCapoDiMonte = eCapoDiMonte(sequenza[i].id)
+    // Convenzione 6: la valvola di riserva è quella con cui l'operatore isola la sezione, e con
+    // un by-pass quella valvola sta già sul ponte. La domanda è quindi sul capo di ARRIVO — «questo
+    // tratto sfocia in un TEE?» — non su quello di partenza: prima del 20-08-2026 l'arco era
+    // «serbatoio → sequenza[0]» e i due capi coincidevano per accidente della struttura (il
+    // serbatoio stava fuori dalla sequenza, e sequenza[0] era proprio l'arrivo). Ora che il
+    // serbatoio è dentro la sequenza, sequenza[0] è la testa e non è più l'arrivo del tratto i.
+    const primoTratto = i === 0 && !capoDiTee(sequenza[i + 1])
     archi.push({
       id: prossimoId('std'),
-      da: { nodo: serbatoiChiave[0], ancora: 'dx' },
-      a: { nodo: sequenza[0].id, ancora: 'sx' },
+      da: { nodo: sequenza[i].id, ancora: dalCapoDiMonte ? 'basso' : 'dx' },
+      a: { nodo: sequenza[i + 1].id, ancora: 'sx' },
       stile: 'standard',
-      ...(capoDiTee(sequenza[0]) ? {} : { segni: valvolaDiRiserva() }),
+      ...(dalCapoDiMonte
+        ? { segni: [valvolaAlVertice(0, 'flessibile', 1)] }
+        : primoTratto
+          ? { segni: valvolaDiRiserva() }
+          : {}),
     })
-    for (let i = 0; i < sequenza.length - 1; i++) {
-      // Dal capo di MONTE di un by-pass la linea esce dal BASSO: quel TEE sta alla quota
-      // dell'uscita del serbatoio (Blocco 5) e il tubo scende sulla sua ascissa fino alla punta
-      // dello stadio scavalcato. E' il LATO imposto a dare la forma: con `dx` la rotta correrebbe
-      // orizzontale sopra lo stadio e scenderebbe sulla sua punta, che nel riferimento non c'e'.
-      const dalCapoDiMonte = eCapoDiMonte(sequenza[i].id)
-      // Nessun segno fra due stadi consecutivi: le valvole d'ufficio a meta' tratto spariscono
-      // (convenzione 6). L'arco pero' si emette SEMPRE, anche quando i due stadi sono adiacenti e
-      // il tratto e' degenere: e' il tessuto che ripara il disegno appena l'operatore li separa.
-      //
-      // L'unico che porta un segno e' il montante che scende dal capo di monte, e degenere non e'
-      // mai: fra i suoi due capi c'e' sempre una corsia intera. La valvola e' il MIRROR della
-      // convenzione 1 — rigido dal TEE fino a due passi sotto, flessibile da li' in giu', come la
-      // mandata del compressore ma col tubo che scende invece di salire. Vertice 0 con scarto
-      // positivo: `tDaAncoraggio` (tratti.ts) lo gestisce, il tratto su cui muoversi e'
-      // `lunghezze[0]`, che esiste.
-      archi.push({
-        id: prossimoId('std'),
-        da: { nodo: sequenza[i].id, ancora: dalCapoDiMonte ? 'basso' : 'dx' },
-        a: { nodo: sequenza[i + 1].id, ancora: 'sx' },
-        stile: 'standard',
-        ...(dalCapoDiMonte ? { segni: [valvolaAlVertice(0, 'flessibile', 1)] } : {}),
-      })
-    }
   }
 
   // Tubazione finale verso le utenze. Il nodo esiste solo se ha da chi partire, quindi qui si
   // decide anche se `buildSchemaModel` deve aggiungerlo (vedi `sorgente`, sotto).
-  const ultimo = sequenza.length > 0 ? sequenza[sequenza.length - 1] : undefined
-  const sorgente = ultimo ? ultimo.id : serbatoiChiave[0]
-  if (sorgente) {
+  const ultimo = sequenza[sequenza.length - 1]
+  if (ultimo) {
     archi.push({
       id: prossimoId('ut'),
-      da: { nodo: sorgente, ancora: 'dx' },
+      da: { nodo: ultimo.id, ancora: 'dx' },
       a: { nodo: ID_UTENZE, ancora: 'in' },
       stile: 'standard',
       ...(capoDiTee(ultimo) ? {} : { segni: valvolaDiRiserva() }),
@@ -532,10 +529,14 @@ export function buildSchemaModel(input: BuildSchemaModelInput): SchemaModel {
       input.preferenze?.ordineCompressori,
       (scheda.compressori ?? []).map((c) => buildCompressoreNodo(c, scheda, valvoleImpianto))
     ),
-    ...perElenco(input.preferenze?.ordineSerbatoi, buildSerbatoioNodi(scheda, valvoleImpianto)),
-    ...(scheda.essiccatori ?? []).map((e) => buildEssiccatoreNodo(e, scheda)),
-    ...(scheda.filtri ?? []).map((f) => buildFiltroNodo(f, scheda)),
-    ...(scheda.separatori ?? []).map(buildSeparatoreNodo),
+    // Un elenco solo per tutta la linea, dal 20-08-2026: `perElenco` con `ordineLinea` mette i
+    // serbatoi e gli stadi nell'ordine scelto dall'operatore, intrecciati come li ha voluti.
+    ...perElenco(input.preferenze?.ordineLinea, [
+      ...buildSerbatoioNodi(scheda, valvoleImpianto),
+      ...(scheda.essiccatori ?? []).map((e) => buildEssiccatoreNodo(e, scheda)),
+      ...(scheda.filtri ?? []).map((f) => buildFiltroNodo(f, scheda)),
+      ...(scheda.separatori ?? []).map(buildSeparatoreNodo),
+    ]),
   ]
 
   const raccoltaCondense = buildNodoRaccoltaCondense(scheda)
