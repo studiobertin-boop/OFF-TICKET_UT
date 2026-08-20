@@ -495,10 +495,25 @@ function disponiSequenza(
   // (li' ci sta la valvola di riserva, convenzione 6), `GIOCO_FRA_STADI` fra due stadi. Sono le
   // stesse misure di prima del 20-08-2026, quando le due righe erano separate: una pratica non
   // riordinata non deve muoversi di un'unita'.
+  //
+  // **L'ORDINE dei rami e' portante, non casuale** (Collaudo Task 5, ruling del coordinatore): il
+  // serbatoio va controllato PRIMA della giunzione. `PASSO_GIUNZIONE` (20) e' un pavimento — sotto
+  // quella distanza il pallino della giunzione entra nel simbolo accanto, perche' le sue quattro
+  // ancore coincidono nel suo centro (bypass.ts) — non un'estetica, e `STACCO_SERBATOI_LINEA` (70)
+  // lo rispetta abbondantemente: non c'e' conflitto fra le due regole quando entrambe si
+  // applicano. Ma se il ramo della giunzione viene per primo, un serbatoio seguito immediatamente
+  // da un TEE (un by-pass che comincia sul primo elemento dopo il serbatoio) prende SEMPRE il
+  // pavimento invece dello stacco piu' largo — anche se lo stacco largo lo rispetterebbe comunque
+  // — restringendo a 20 unita' un tratto che nel vecchio codice a due righe (dove quella
+  // transizione era il confine FISSO fra `rigaSerbatoi` e `rigaCatena`, indipendente dal tipo del
+  // primo elemento della catena) ne misurava 70. E' esattamente il caso che ha spostato di 50
+  // unita' una pratica gia' consegnata (BADOER INFISSI) quando i due rami erano nell'ordine
+  // sbagliato: il vincolo "le pratiche con un solo serbatoio si disegnano identiche al pixel" vale
+  // anche per questa transizione, e decide a favore dello stacco piu' largo.
   const gioco = (a: SchemaNodo, b: SchemaNodo) => {
-    if (a.tipo === 'giunzione' || b.tipo === 'giunzione') return PASSO_GIUNZIONE
     if (a.tipo === 'serbatoio' && b.tipo === 'serbatoio') return PASSO_SERBATOI
     if (a.tipo === 'serbatoio' || b.tipo === 'serbatoio') return STACCO_SERBATOI_LINEA
+    if (a.tipo === 'giunzione' || b.tipo === 'giunzione') return PASSO_GIUNZIONE
     return GIOCO_FRA_STADI
   }
 
