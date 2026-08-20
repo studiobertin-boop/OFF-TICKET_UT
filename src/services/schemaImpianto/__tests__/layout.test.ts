@@ -1269,7 +1269,7 @@ describe('il by-pass nel layout', () => {
   })
 
   it('senza giunzioni le distanze della catena non cambiano', () => {
-    // Non-regressione della convenzione 3: la riscrittura di `disponiCatenaPerAncore` dev'essere
+    // Non-regressione della convenzione 3: la riscrittura di `disponiSequenza` dev'essere
     // invisibile quando by-pass non ce ne sono.
     const l = disegno([])
     const stadi = l.nodi
@@ -1515,5 +1515,33 @@ describe('linea con ordine libero', () => {
     // L'ancora `sx` di F1 cade a STACCO_SERBATOI_LINEA dal bordo destro di S1, come sempre.
     const s1 = layout.nodi.find((n) => n.id === 'S1')!
     expect(x('F1')).toBe(s1.x + dimensioniDi(s1, {}).larghezza + STACCO_SERBATOI_LINEA)
+  })
+})
+
+describe('lo stacco finale della sequenza', () => {
+  // Pin puro della correzione del 20-08-2026 (senza questo test la copriva solo lo snapshot SVG
+  // pinnato di renderSvg.test.ts, un controllo d'integrazione che una rigenerazione della fixture
+  // potrebbe far sparire senza che nessuno se ne accorga). Quando la sequenza finisce su un
+  // serbatoio — qui perché non ci sono stadi a valle — lo stacco verso ciò che segue deve restare
+  // `STACCO_SERBATOI_LINEA`, non il `PASSO_ORIZZONTALE` generico fra famiglie: prima del
+  // 20-08-2026, quando serbatoi e catena erano due righe separate, una catena vuota ripiegava
+  // proprio su `rigaSerbatoi.xFinale + STACCO_SERBATOI_LINEA`. Senza questo caso in
+  // `disponiSequenza`, una pratica con un solo serbatoio e senza stadi si sposterebbe di 10 unità.
+  it('resta STACCO_SERBATOI_LINEA quando l’ultimo elemento è un serbatoio, non PASSO_ORIZZONTALE', () => {
+    const soloServatoio = makeScheda({
+      compressori: [makeCompressore({ codice: 'C1' })],
+      serbatoi: [makeSerbatoio({ codice: 'S1' })],
+      essiccatori: [],
+      scambiatori: [],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'tanica' }),
+    })
+    const layout = layoutSchema(
+      buildSchemaModel({ scheda: soloServatoio, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    )
+    const s1 = layout.nodi.find((n) => n.id === 'S1')!
+    const tanica = layout.nodi.find((n) => n.tipo === 'tanica')!
+
+    expect(tanica.x).toBe(s1.x + dimensioniDi(s1, {}).larghezza + STACCO_SERBATOI_LINEA)
   })
 })

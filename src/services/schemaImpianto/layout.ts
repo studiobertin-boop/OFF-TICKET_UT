@@ -479,6 +479,12 @@ function disponiSequenza(
  *
  * Il risultato è identico a prima — `yBase - altezza` è esattamente la `y` che l'allineamento
  * basso dava al serbatoio di testa — quindi una pratica non riordinata non si muove.
+ *
+ * **Con almeno un by-pass la linea SCENDE di una corsia** (`scesa`): il ponte nasce sopra la linea
+ * di processo, e lasciandola dov'era il cavalcavia correrebbe alla stessa quota del bocchello,
+ * sovrapponendosi. Si guarda la CATENA e non le preferenze — il layout non le riceve, ed è la
+ * giunzione rimasta nella catena il fatto che conta: un gruppo caduto in `linearizzaConBypass` non
+ * lascia TEE, e la linea giustamente non scende.
  */
 export function quotaLineaProcesso(
   primoSerbatoio: SchemaNodo | undefined,
@@ -508,7 +514,10 @@ export function quotaLineaProcesso(
  *
  * Gli stadi che gli archi non raggiungono si appendono in coda nell'ordine di default: uno stadio
  * scollegato (l'operatore ha cancellato una tubazione) e' meglio disegnarlo in fondo che non
- * disegnarlo affatto.
+ * disegnarlo affatto. Dal 20-08-2026 quell'ordine e' quello di `model.nodi`, non piu' quello di
+ * `ordinaCatenaTrattamento` (rango per tipo): il generatore lo ha gia' deciso — di default o da
+ * `ordineLinea` — ed e' proprio il rango per tipo che questa funzione esiste per evitare, quindi
+ * ricalcolarlo qui per gli orfani riaprirebbe la stessa incoerenza sul solo caso scollegato.
  */
 export function catenaDagliArchi(model: SchemaModel, pozzo: SchemaNodo | null): SchemaNodo[] {
   const perId = new Map(model.nodi.map((n) => [n.id, n]))
@@ -567,6 +576,9 @@ export function catenaDagliArchi(model: SchemaModel, pozzo: SchemaNodo | null): 
   }
 
   const presi = new Set(catena.map((n) => n.id))
+  // Ordine di default degli orfani: quello di `model.nodi`, gia' deciso dal generatore — non piu'
+  // `ordinaCatenaTrattamento(model.nodi, pozzo)`, che e' il rango per tipo che questa funzione
+  // esiste per evitare (vedi la docstring).
   const orfani = model.nodi.filter((n) => inLinea(n) && n.tipo !== 'giunzione' && !presi.has(n.id))
   return [...catena, ...orfani]
 }
