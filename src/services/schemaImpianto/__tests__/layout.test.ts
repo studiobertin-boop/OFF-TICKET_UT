@@ -1502,22 +1502,54 @@ describe('la corsia del ponte sopra un serbatoio scavalcato', () => {
   })
 })
 
-describe('by-pass annidati sopra un serbatoio — difetto aperto, non corretto in questo task', () => {
-  // Collaudo Task 5, fix round 2 (revisione del coordinatore): il brief chiedeva esplicitamente di
-  // controllare il caso annidato, e nessun test lo esercitava. Eccolo — ma **non è una prova che
-  // il comportamento sia giusto**: pinna quello che il codice fa OGGI, perché la revisione ha
-  // giudicato lo scarto NON modesto e ha chiesto di fermarsi e riportare i numeri invece di
-  // correggerli qui (vedi il rapporto).
+describe('by-pass annidati sopra un serbatoio', () => {
+  // Collaudo Task 5. Round 2: il brief chiedeva esplicitamente di controllare il caso annidato,
+  // nessun test lo esercitava, e il primo numero trovato (`esterno.y = -130`) era fuori dal
+  // `viewBox` — un pezzo di disegno che spariva dal documento consegnato. Round 3 (questo): la
+  // testata di `bypass.ts` promette che dall'annidamento "deve uscire un disegno leggibile invece
+  // che un ponte appeso sopra a quello che lo contiene" — un ponte tagliato via dal foglio rompe
+  // quella promessa, quindi corretto invece di solo segnalato.
   //
-  // Il meccanismo del difetto: `corsieDeiCapiDiMonte` calcola l'altezza di un livello dal massimo
-  // ingombro degli elementi nel suo intervallo — ma l'intervallo del gruppo ESTERNO include anche
-  // gli elementi del gruppo INTERNO (il serbatoio scavalcato compare in ENTRAMBI gli intervalli).
-  // L'altezza richiesta per scavalcare il serbatoio viene quindi contata due volte: una per il
-  // livello interno, una per il livello esterno che la ricalcola da capo sullo stesso serbatoio —
-  // e i livelli si IMPILANO (l'offset del livello esterno è la SOMMA dei due), quindi il ponte
-  // esterno sale di ~2× l'altezza che servirebbe a scavalcare solo il serbatoio, non della piccola
-  // aggiunta che servirebbe a scavalcare il ponte interno più il resto del suo stesso intervallo.
-  it('il ponte esterno sale più del necessario — pinna i numeri, non li accetta come corretti', () => {
+  // Il meccanismo del difetto (round 2): `corsieDeiCapiDiMonte` sommava l'altezza ASSOLUTA di ogni
+  // livello — quanta ne serve a scavalcare il suo scavalcato più alto DA TERRA — invece
+  // dell'altezza PROPRIA: quanto manca oltre l'offset che i livelli più interni hanno già
+  // accumulato. Il serbatoio compare nell'intervallo di ENTRAMBI i gruppi (è scavalcato dal
+  // gruppo interno, e l'intervallo del gruppo esterno lo contiene), quindi la sua altezza veniva
+  // contata due volte e i livelli, impilandosi per somma, spingevano il ponte esterno a 2× quanto
+  // serve — ben oltre il bordo della pagina.
+  //
+  // La correzione (round 3, ruling del coordinatore): l'altezza propria di un livello è
+  // `max(PASSO_CORSIA_BYPASS, richiesta - offsetCumulativoDeiLivelliSotto)` — un livello esterno
+  // deve solo passare sopra IL PONTE del livello interno che già scavalca il serbatoio, non di
+  // nuovo sopra il serbatoio stesso.
+  it('il livello 0 (nessun annidamento) non si muove: la formula ricade su quella di prima', () => {
+    // Verifica esplicita, non data per scontato: con `offsetCumulativo = 0` la sottrazione non
+    // fa nulla, quindi il caso comune (un solo livello) deve restare bit-identico. Riusa lo stesso
+    // scenario del test dello Step 1.
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ codice: 'C1' })],
+      serbatoi: [makeSerbatoio({ codice: 'S1', ubicazione: 'SALA_COMPRESSORI' })],
+      filtri: [makeFiltro({ codice: 'F1', tipo: 'PREFILTRO' })],
+      essiccatori: [makeEssiccatore({ codice: 'E1' })],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const model = buildSchemaModel({
+      scheda,
+      collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+      preferenze: preferenzeRisolteDaScheda(scheda, {
+        ordineLinea: ['F1', 'S1', 'E1'],
+        bypass: [{ id: 'bp1', stadi: ['S1'] }],
+      }),
+    })
+    const layout = layoutSchema(model)
+    const tee = layout.nodi.find((n) => n.id === 'BP1-IN')!
+    const s1 = layout.nodi.find((n) => n.id === 'S1')!
+    // Lo stesso valore del test dello Step 1, prima e dopo il round 3: 80.
+    expect(tee.y).toBe(80)
+    expect(tee.y).toBeLessThan(s1.y)
+  })
+
+  it('il livello annidato passa sopra il ponte interno, non di nuovo sopra il serbatoio', () => {
     const scheda = makeScheda({
       compressori: [makeCompressore({ codice: 'C1' })],
       serbatoi: [makeSerbatoio({ codice: 'S1', ubicazione: 'SALA_COMPRESSORI' })],
@@ -1541,18 +1573,33 @@ describe('by-pass annidati sopra un serbatoio — difetto aperto, non corretto i
     const interno = layout.nodi.find((n) => n.id === 'BP2-IN')!
     const s1 = layout.nodi.find((n) => n.id === 'S1')!
 
-    // Osservato (Collaudo Task 5, fix round 2): il livello interno da solo basterebbe a scavalcare
-    // S1 (`interno.y = 80`, sopra la cima del serbatoio a `s1.y = 110`, come nel test sopra). Il
-    // livello esterno, impilato sopra, ricalcola l'ALTEZZA INTERA di S1 una seconda volta invece di
-    // aggiungere solo ciò che gli serve in più — e finisce a `esterno.y = -130`: **sopra il bordo
-    // superiore della pagina** (`renderSvg` disegna un viewBox che comincia a `y=0` e non ha alcun
-    // margine negativo, vedi `dimensioniLayout` — un nodo a y negativa non è "in alto nel
-    // disegno", è FUORI dal disegno, tagliato via in ogni consumo del documento). Non è un
-    // incrocio di tubi: è un pezzo di disegno che sparisce.
+    // Numeri veri, dopo il round 3 (eseguiti, non calcolati a mano). Il livello interno non si
+    // muove: `interno.y = 80`, invariato dal round 2, sopra la cima di S1 (`s1.y = 110`).
     expect(interno.y).toBe(80)
-    expect(esterno.y).toBe(-130)
-    expect(esterno.y).toBeLessThan(0) // la firma del difetto: fuori dal viewBox
     expect(s1.y).toBe(110)
+
+    // Il livello esterno passa da `y = -130` (round 2, il difetto) a `y = -10`: la sottrazione
+    // funziona, l'offset non somma più due volte l'altezza di S1. Non è ancora zero: `-10` è la
+    // metà superiore del riquadro 20×20 della giunzione (il pallino del TEE, centrato sulla sua
+    // ancora), non de «il ponte» — il PONTE VERO E PROPRIO è il tubo che parte dall'ancora, non
+    // il riquadro decorativo del simbolo.
+    expect(esterno.y).toBe(-10)
+
+    // **L'asserzione che conta**, quella richiesta esplicitamente: l'ancora da cui parte il ponte
+    // — il tubo che deve comparire nel documento — sta esattamente sul bordo della pagina, non
+    // sopra. `posizioneAncora` è la stessa funzione che `renderSvg` usa per tracciare la
+    // polilinea: se questa è `>= 0`, il ponte (il tratto disegnato) è sulla tela.
+    const puntoPonte = posizioneAncora(esterno, 'sx')
+    expect(puntoPonte.y).toBe(0)
+    expect(puntoPonte.y).toBeGreaterThanOrEqual(0)
+
+    // Il residuo di 10 unità resta sul solo RIQUADRO del simbolo (metà del pallino, non il tubo):
+    // in questo scenario `quotaLinea` (300) coincide per coincidenza numerica con l'offset
+    // cumulato del livello esterno (300), che porta l'ancora esattamente a `y=0` — il pavimento
+    // `PASSO_CORSIA_BYPASS` fra i due livelli è quanto basta a separarli, non a garantire margine
+    // sopra il bordo della pagina, che dipende da `quotaLinea`/`yBase`, indipendenti dalla
+    // profondità dell'annidamento. Segnalato nel rapporto: non è il difetto originale (il ponte
+    // c'è, è sulla tela), ma un margine strettissimo che vale la pena avere presente.
   })
 })
 

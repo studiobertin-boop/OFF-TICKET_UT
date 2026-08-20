@@ -430,13 +430,24 @@ function altezzaSopraLinea(nodo: SchemaNodo, quotaLinea: number, yBase: number, 
  * `linearizzaConBypass` (bypass.ts) per assegnare il LIVELLO — assegna dal ponte piu' corto al piu'
  * lungo, cosi' con due gruppi annidati e' l'interno a correre in basso — e usarne un'altra farebbe
  * divergere due risposte che devono coincidere. **L'altezza di ogni livello**, invece, non e' piu'
- * `PASSO_CORSIA_BYPASS` fisso: e' il massimo fra quella costante e cio' che serve a scavalcare
- * davvero il piu' alto degli elementi che i gruppi su quel livello contengono
- * (`altezzaSopraLinea`). Un livello puo' avere piu' gruppi disgiunti: l'altezza resta unica per
- * livello, o due ponti disgiunti non correrebbero piu' alla stessa quota (vedi il test «due by-pass
- * disgiunti corrono sulla stessa corsia»). I livelli si IMPILANO — quello annidato sta sopra quello
- * che lo contiene di almeno la sua altezza — cosi' un gruppo esterno scavalca anche il ponte del
- * gruppo interno, non solo i suoi elementi.
+ * `PASSO_CORSIA_BYPASS` fisso: e' quanto serve a scavalcare davvero il piu' alto degli elementi che
+ * i gruppi su quel livello contengono (`altezzaSopraLinea`) — ma MENO l'offset che i livelli piu'
+ * interni hanno gia' accumulato, con `PASSO_CORSIA_BYPASS` come pavimento. Un livello puo' avere
+ * piu' gruppi disgiunti: la richiesta resta unica per livello, o due ponti disgiunti non
+ * correrebbero piu' alla stessa quota (vedi il test «due by-pass disgiunti corrono sulla stessa
+ * corsia»).
+ *
+ * **Perche' si sottrae l'offset gia' accumulato** (Collaudo Task 5, fix round 3): un livello
+ * annidato non scavalca il suo scavalcato-piu'-alto DA TERRA — lo scavalca il livello piu' interno
+ * che gia' lo contiene, e il livello esterno deve solo passare sopra IL PONTE di quel livello
+ * interno, non di nuovo sopra il serbatoio (o il rombo) che ci sta sotto. Sommare l'altezza
+ * ASSOLUTA di ogni livello (il difetto trovato nel round 2) conta due volte lo stesso scavalcato —
+ * una per il livello che lo contiene per primo, una per ogni livello che lo contiene di nuovo — e
+ * con un serbatoio scavalcato spinge il ponte esterno fuori dal foglio (`y` negativa: il `viewBox`
+ * di `renderSvg` comincia sempre a zero, un nodo piu' in alto non e' "in cima al disegno", e'
+ * fuori). Al livello 0 l'offset accumulato dai livelli sotto e' zero, quindi la formula ricade
+ * esattamente su quella di prima (`max(PASSO_CORSIA_BYPASS, richiesta)`): il caso non annidato,
+ * il piu' comune, non si muove.
  *
  * Un capo di monte senza il suo capo di valle nella sequenza non e' un caso da riparare qui: resta
  * senza corsia e si posa sulla linea, come qualunque altra giunzione.
@@ -458,26 +469,34 @@ function corsieDeiCapiDiMonte(
     .filter((capo): capo is { monte: string; inizio: number; fine: number } => capo.fine !== undefined)
   const livelli = assegnaCorsie(capi)
 
-  const altezzaLivello = new Map<number, number>()
-  capi.forEach((capo, i) => {
+  // Quanto ogni CAPO, da solo, dovrebbe stare sopra `quotaLinea` per scavalcare il piu' alto dei
+  // suoi elementi — la richiesta ASSOLUTA, non ancora l'altezza propria del livello: quella tiene
+  // conto di cosa i livelli piu' interni hanno gia' scavalcato, e si calcola dopo.
+  const richiestaCapo = capi.map((capo) => {
     const scavalcati = nodi.slice(capo.inizio + 1, capo.fine)
-    const richiesta = scavalcati.length
+    return scavalcati.length
       ? Math.max(...scavalcati.map((n) => altezzaSopraLinea(n, quotaLinea, yBase, libreria) + MARGINE_CORSIA_BYPASS))
       : PASSO_CORSIA_BYPASS
-    const livello = livelli[i]
-    // Il pavimento PASSO_CORSIA_BYPASS lo garantisce gia' il `?? PASSO_CORSIA_BYPASS` qui sotto:
-    // il valore gia' in mappa (se c'e') e' stato scritto da questa stessa riga in un giro
-    // precedente, quindi e' gia' >= PASSO_CORSIA_BYPASS. Un terzo argomento con la stessa costante
-    // sarebbe ridondante.
-    altezzaLivello.set(livello, Math.max(altezzaLivello.get(livello) ?? PASSO_CORSIA_BYPASS, richiesta))
   })
 
-  // Offset cumulato: il livello k sta sopra il livello k-1 di almeno l'altezza propria del livello
-  // k, non del livello 0 — cosi' un gruppo annidato scavalca anche il ponte che contiene.
+  // La richiesta di un LIVELLO (non ancora la sua altezza propria) e' il massimo fra i suoi capi.
+  const richiestaLivello = new Map<number, number>()
+  livelli.forEach((livello, i) => {
+    richiestaLivello.set(livello, Math.max(richiestaLivello.get(livello) ?? 0, richiestaCapo[i]))
+  })
+
+  // Offset cumulato, calcolato in ordine crescente di livello apposta: l'altezza PROPRIA del
+  // livello k e' quanto manca alla sua richiesta assoluta OLTRE l'offset che i livelli 0..k-1
+  // hanno gia' accumulato (mai sotto il pavimento `PASSO_CORSIA_BYPASS`, la distanza minima
+  // perche' due ponti annidati si distinguano) — non l'altezza assoluta, che la conterebbe due
+  // volte. L'offset del livello k e' quello di k-1 piu' questa altezza propria: e' cosi' che un
+  // gruppo annidato scavalca anche il ponte che contiene, non di nuovo lo scavalcato sotto di lui.
   const offsetLivello = new Map<number, number>()
   let cumulato = 0
   for (const livello of [...new Set(livelli)].sort((a, b) => a - b)) {
-    cumulato += altezzaLivello.get(livello) ?? PASSO_CORSIA_BYPASS
+    const richiesta = richiestaLivello.get(livello) ?? PASSO_CORSIA_BYPASS
+    const altezzaPropria = Math.max(PASSO_CORSIA_BYPASS, richiesta - cumulato)
+    cumulato += altezzaPropria
     offsetLivello.set(livello, cumulato)
   }
 
