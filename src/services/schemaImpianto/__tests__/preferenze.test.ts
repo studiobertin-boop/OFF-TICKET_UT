@@ -228,6 +228,16 @@ describe('ordineLinea', () => {
     expect(r.ordineLinea).toEqual(['S2', 'S1', 'F2', 'F1', 'E1', 'F3'])
   })
 
+  // Caso di pratica reale più comune: il vecchio pannello scriveva `ordineStadi` da solo appena
+  // si trascinava uno stadio, senza toccare `ordineSerbatoi`. Concatenare gli elenchi grezzi
+  // (`[...ordineSerbatoi, ...ordineStadi]`) nominerebbe solo gli stadi, e il serbatoio — mai
+  // nominato — finirebbe in coda alla linea invece che in testa: un difetto trovato in revisione,
+  // non coperto da nessun test finché non è stato trovato.
+  it('con solo ordineStadi salvato, senza ordineSerbatoi, il serbatoio resta in testa', () => {
+    const r = risolviPreferenze({ ordineStadi: ['F2', 'F1'] }, famiglie)
+    expect(r.ordineLinea).toEqual(['S1', 'S2', 'F2', 'F1', 'E1', 'F3'])
+  })
+
   it('ordineLinea vince sui due campi vecchi quando ci sono entrambi', () => {
     const r = risolviPreferenze(
       { ordineLinea: ['F1', 'S1'], ordineSerbatoi: ['S2', 'S1'], ordineStadi: ['F3'] },

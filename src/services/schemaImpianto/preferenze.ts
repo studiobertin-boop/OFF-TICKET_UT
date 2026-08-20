@@ -188,12 +188,23 @@ export function risolviPreferenze(
   const p = (preferenze ?? {}) as SchemaPreferenze
   const ordineCompressori = ordinaPerElenco(famiglie.compressori, p.ordineCompressori).map((n) => n.id)
 
-  // `ordineLinea` quando c'è; altrimenti si ricostruisce dai due campi di prima del 20-08-2026,
-  // nell'ordine serbatoi-poi-stadi che è esattamente la sequenza che quelle pratiche hanno. Una
-  // pratica salvata prima si riapre così com'era, senza che nessuno debba riordinarla a mano.
+  // `ordineLinea` quando c'è; altrimenti si ricostruisce dai due campi di prima del 20-08-2026 —
+  // ma elenco per FAMIGLIA, non concatenando i due elenchi grezzi. Il caso normale è una pratica
+  // che ha salvato solo `ordineStadi` (il vecchio pannello scriveva quel campo da solo appena si
+  // trascinava uno stadio, senza toccare `ordineSerbatoi`): concatenare `[...ordineSerbatoi,
+  // ...ordineStadi]` nominerebbe solo gli stadi, e `ordinaPerElenco` spingerebbe in coda tutto
+  // ciò che non è nominato — il serbatoio finirebbe in fondo alla linea invece che in testa.
+  // Applicando l'elenco salvato alla propria famiglia, chi non è nominato resta al posto di
+  // default DENTRO la sua famiglia — serbatoi sempre in testa, come faceva il codice prima del
+  // 20-08-2026 — e le due famiglie si concatenano solo alla fine, già ciascuna ordinata.
+  const serbatoiFam = famiglie.linea.filter((n) => n.tipo === 'serbatoio')
+  const stadiFam = famiglie.linea.filter((n) => n.tipo !== 'serbatoio')
   const salvato = elenco(p.ordineLinea).length > 0
     ? p.ordineLinea
-    : [...elenco(p.ordineSerbatoi), ...elenco(p.ordineStadi)]
+    : [
+        ...ordinaPerElenco(serbatoiFam, p.ordineSerbatoi).map((n) => n.id),
+        ...ordinaPerElenco(stadiFam, p.ordineStadi).map((n) => n.id),
+      ]
   const nodiLinea = ordinaPerElenco(famiglie.linea, salvato)
   const ordineLinea = nodiLinea.map((n) => n.id)
   const ordineSerbatoi = nodiLinea.filter((n) => n.tipo === 'serbatoio').map((n) => n.id)
