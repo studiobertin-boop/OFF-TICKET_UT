@@ -6,11 +6,11 @@
  * premendo «Rigenera da capo»: decisione del committente, perché il disegno può essere già stato
  * rifinito a mano e nessun gesto in questo pannello deve poter buttare via quel lavoro.
  *
- * Un'unica tabella, non tre elenchi separati: le intestazioni di colonna restano fisse mentre
- * le tre famiglie (compressori/serbatoi/linea di trattamento) restano sotto-sezioni distinte —
- * ciascuna col proprio `DndContext`, perché la contiguità che un by-pass richiede ha senso solo
- * dentro la linea di trattamento, e mescolare le righe in un solo trascinamento permetterebbe di
- * infilare un compressore in mezzo ai filtri, un gesto che il disegno non sa rendere. I testi
+ * Un'unica tabella, non elenchi separati: le intestazioni di colonna restano fisse. Due
+ * sotto-sezioni, non più tre: dal 20-08-2026 serbatoi e apparecchiature di trattamento stanno
+ * nella stessa «Linea», con un solo `DndContext`, perché un filtro o un essiccatore può dover
+ * precedere il primo serbatoio. I compressori restano una sezione a sé col proprio contesto:
+ * infilarne uno fra i filtri sarebbe un gesto che il disegno non sa rendere. I testi
  * esplicativi, prima sempre visibili sotto ogni titolo, sono finiti in tooltip: la tabella
  * compatta si legge a colpo d'occhio, la spiegazione resta a un passaggio del mouse.
  *
@@ -196,7 +196,7 @@ export default function PannelloPreferenzeSchema({
 
   const perId = useMemo(() => {
     const mappa = new Map<string, SchemaNodo>()
-    for (const n of [...famiglie.compressori, ...famiglie.serbatoi, ...famiglie.stadi]) mappa.set(n.id, n)
+    for (const n of [...famiglie.compressori, ...famiglie.linea]) mappa.set(n.id, n)
     return mappa
   }, [famiglie])
 
@@ -206,7 +206,7 @@ export default function PannelloPreferenzeSchema({
     onChange({ ...preferenze, condense: { ...(preferenze.condense ?? {}), [id]: acceso } })
 
   const riordina =
-    (chiave: 'ordineCompressori' | 'ordineSerbatoi' | 'ordineStadi', ordineCorrente: string[]) =>
+    (chiave: 'ordineCompressori' | 'ordineLinea', ordineCorrente: string[]) =>
     ({ active, over }: DragEndEvent) => {
       if (!over || active.id === over.id) return
       const da = ordineCorrente.indexOf(String(active.id))
@@ -225,7 +225,7 @@ export default function PannelloPreferenzeSchema({
     return mappa
   }, [risolte.bypass])
 
-  const selezioneContigua = contigui(selezionati, risolte.ordineStadi)
+  const selezioneContigua = contigui(selezionati, risolte.ordineLinea)
   const selezioneLibera = selezionati.every((id) => !appartenenza.has(id))
 
   const creaBypass = () => {
@@ -238,7 +238,7 @@ export default function PannelloPreferenzeSchema({
           // Nell'ordine del disegno, non in quello in cui l'operatore ha spuntato le caselle:
           // `risolviPreferenze` li rimetterebbe comunque in fila leggendoli, ma quel che finisce
           // in banca dati dev'essere leggibile da sé, non un elenco da riordinare per capirlo.
-          stadi: risolte.ordineStadi.filter((id) => selezionati.includes(id)),
+          stadi: risolte.ordineLinea.filter((id) => selezionati.includes(id)),
         },
       ],
     })
@@ -252,7 +252,7 @@ export default function PannelloPreferenzeSchema({
     titolo: string,
     spiegazione: string,
     ordine: string[],
-    chiave: 'ordineCompressori' | 'ordineSerbatoi' | 'ordineStadi',
+    chiave: 'ordineCompressori' | 'ordineLinea',
     conBypass = false
   ) =>
     ordine.length === 0 ? null : (
@@ -340,19 +340,21 @@ export default function PannelloPreferenzeSchema({
           </TableHead>
           <TableBody>
             {gruppo('Compressori', 'Ordine in sala, da sinistra a destra.', risolte.ordineCompressori, 'ordineCompressori')}
-            {gruppo('Serbatoi', 'Il primo apre la linea di distribuzione.', risolte.ordineSerbatoi, 'ordineSerbatoi')}
+            {/* Serbatoi e stadi in una sezione sola, con un `DndContext` solo: è ciò che permette
+                di trascinare un filtro davanti al primo serbatoio. I compressori restano a parte —
+                mescolarne uno fra i filtri resta un gesto che il disegno non sa rendere. */}
             {gruppo(
-              'Linea di trattamento',
-              'Ordine da sinistra a destra.',
-              risolte.ordineStadi,
-              'ordineStadi',
+              'Linea',
+              'Serbatoi e apparecchiature di trattamento, da sinistra a destra. Il primo elemento riceve la mandata dei compressori.',
+              risolte.ordineLinea,
+              'ordineLinea',
               true
             )}
           </TableBody>
         </Table>
       </TableContainer>
 
-      {risolte.ordineStadi.length > 0 && (
+      {risolte.ordineLinea.length > 0 && (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 1.5 }}>
           <Button
             size="small"
