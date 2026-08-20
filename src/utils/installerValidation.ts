@@ -42,6 +42,7 @@ export const createInstallerSchema = z.object({
   cap: capSchema,
   comune: z.string().min(1, 'Il comune è obbligatorio'),
   provincia: provinciaSchema,
+  telefono: z.string().optional().or(z.literal('')),
 })
 
 /**

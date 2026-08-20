@@ -85,6 +85,7 @@ export default function InstallersManagement() {
       cap: '',
       comune: '',
       provincia: '',
+      telefono: '',
     },
   })
 

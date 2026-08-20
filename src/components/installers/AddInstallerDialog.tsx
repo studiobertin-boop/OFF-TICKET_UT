@@ -65,6 +65,7 @@ export const AddInstallerDialog = ({
       cap: '',
       comune: '',
       provincia: '',
+      telefono: '',
     },
   })
 

@@ -180,6 +180,31 @@ export const InstallerFormFields = ({
               )}
             />
           </Grid>
+
+          {/* Sezione Contatti */}
+          <Grid item xs={12}>
+            <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 1, mb: 1 }}>
+              Contatti
+            </Typography>
+          </Grid>
+
+          {/* Telefono */}
+          <Grid item xs={12} sm={6}>
+            <Controller
+              name="telefono"
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  label="Telefono"
+                  fullWidth
+                  error={!!errors.telefono}
+                  helperText={errors.telefono?.message as string}
+                  placeholder="es. 0422.959607"
+                />
+              )}
+            />
+          </Grid>
         </>
       )}
     </Grid>
