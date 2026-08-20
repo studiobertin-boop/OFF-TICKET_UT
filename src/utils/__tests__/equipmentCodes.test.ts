@@ -492,6 +492,15 @@ describe('pruneAdditionalInfo — schemaPreferenze', () => {
     expect(dropped).toContain('ordine schema S7')
   })
 
+  test('toglie da ordineLinea i codici spariti e lo dice', () => {
+    const { info, dropped } = pruneAdditionalInfo(
+      { schemaPreferenze: { ordineLinea: ['S1', 'F1', 'F9', 'E1'] } },
+      codici
+    )
+    expect(info.schemaPreferenze?.ordineLinea).toEqual(['S1', 'F1', 'E1'])
+    expect(dropped).toContain('ordine schema F9')
+  })
+
   test('toglie dalle condense i codici spariti', () => {
     const { info, dropped } = pruneAdditionalInfo(
       { schemaPreferenze: { condense: { S1: true, S9: false } } },

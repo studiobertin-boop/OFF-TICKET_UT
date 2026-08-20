@@ -298,7 +298,7 @@ export function pruneAdditionalInfo(
     return false
   })
 
-  // Le preferenze dello schema citano codici di scheda in quattro posti. Si potano tutti, ma non
+  // Le preferenze dello schema citano codici di scheda in cinque posti. Si potano tutti, ma non
   // si "aggiusta" mai un gruppo by-pass: la contiguità la ricontrolla `risolviPreferenze`, che ha
   // sott'occhio l'ordine effettivo — qui l'informazione non c'è. Il campo resta `undefined`
   // quando non c'era, così una scheda che non ha mai aperto il pannello resta indistinguibile.
@@ -336,6 +336,9 @@ export function pruneAdditionalInfo(
       ...schemaPreferenze,
       ...(schemaPreferenze.ordineCompressori
         ? { ordineCompressori: vivi(schemaPreferenze.ordineCompressori, 'ordine schema') }
+        : {}),
+      ...(schemaPreferenze.ordineLinea
+        ? { ordineLinea: vivi(schemaPreferenze.ordineLinea, 'ordine schema') }
         : {}),
       ...(schemaPreferenze.ordineStadi
         ? { ordineStadi: vivi(schemaPreferenze.ordineStadi, 'ordine schema') }
