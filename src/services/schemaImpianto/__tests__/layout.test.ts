@@ -807,17 +807,15 @@ describe('catenaDagliArchi', () => {
   it('appende in coda gli stadi che gli archi non raggiungono, nell’ordine di default', () => {
     // F3 e' scollegato: senza il ripiego sparirebbe dal disegno, che e' peggio di un ordine strano.
     //
-    // Qui il ripiego sceglie F3 come testa e non S1, benche' S1 abbia un arco uscente e F3 no: la
-    // regola guarda solo «nessun arco lo raggiunge», nell'ordine dei nodi nel modello (F1, F3, S1),
-    // e non distingue un nodo del tutto isolato da uno che e' davvero la sorgente del disegno. E'
-    // lo stesso «il primo vince» gia' accettato per due uscite dallo stesso nodo: un caso limite che
-    // nella pratica non si presenta, perche' `buildSchemaModel` genera sempre la mandata quando c'e'
-    // un compressore, e il ripiego scatta solo quando i compressori sono stati staccati del tutto.
+    // F3 e S1 sono entrambi candidati alla testa per esclusione (nessun arco li raggiunge), ma il
+    // ripiego preferisce S1: e' lui ad avere un successore (l'arco verso F1), cioe' e' davvero la
+    // sorgente di una catena. F3 non ha ne' un arco entrante ne' uno uscente — e' un orfano, non la
+    // testa della linea — e finisce infatti in coda, nell'ordine di default.
     const model: SchemaModel = {
       nodi: [stadio('F1'), stadio('F3'), serbatoio],
       archi: [aria('S1', 'F1')],
     }
-    expect(catenaDagliArchi(model, null).map((n) => n.id)).toEqual(['F3', 'F1', 'S1'])
+    expect(catenaDagliArchi(model, null).map((n) => n.id)).toEqual(['S1', 'F1', 'F3'])
   })
 
   it('non segue il ponte di un by-pass, nemmeno quando è il primo arco che esce dal TEE', () => {

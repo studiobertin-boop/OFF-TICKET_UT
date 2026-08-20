@@ -544,10 +544,15 @@ export function catenaDagliArchi(model: SchemaModel, pozzo: SchemaNodo | null): 
     if (!successore.has(arco.da.nodo)) successore.set(arco.da.nodo, arco.a.nodo)
   }
 
-  // Ripiego senza mandate (un layout a cui l'operatore ha staccato i compressori): il primo
-  // elemento di linea che nessun arco d'aria raggiunge, cioè la testa per esclusione.
+  // Ripiego senza mandate (un layout a cui l'operatore ha staccato i compressori): fra gli
+  // elementi di linea che nessun arco raggiunge (i candidati alla testa per esclusione), si
+  // preferisce quello che ha davvero un successore — cioè che e' la sorgente di una catena — e si
+  // ricade sul primo per ordine d'array solo se nessuno ne ha uno. Un nodo isolato (senza archi ne'
+  // in entrata ne' in uscita) che capita prima nell'array non e' la testa della linea: e' un
+  // orfano, e prenderlo per testa farebbe scivolare fra gli orfani tutto il resto della catena.
   const bersagli = new Set([...successore.values()])
-  testa ??= model.nodi.find((n) => inLinea(n) && !bersagli.has(n.id))?.id
+  const candidati = model.nodi.filter((n) => inLinea(n) && !bersagli.has(n.id))
+  testa ??= (candidati.find((n) => successore.has(n.id)) ?? candidati[0])?.id
 
   const catena: SchemaNodo[] = []
   const visto = new Set<string>()
