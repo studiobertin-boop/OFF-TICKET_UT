@@ -75,7 +75,7 @@ function nodoLeggero(
 }
 
 /**
- * Le tre famiglie che il pannello mostra, **nell'ordine di default del generatore**.
+ * Le due famiglie che il pannello mostra, **nell'ordine di default del generatore**.
  *
  * Sta qui e non nel componente perché il generatore dovrà partire dagli stessi elenchi: due
  * ordinamenti scritti in due posti divergerebbero al primo ritocco, e il pannello mostrerebbe una
@@ -83,13 +83,14 @@ function nodoLeggero(
  *
  * - **Compressori**: ordine di scheda. Non si riordinano fra loro nel disegno (stanno in fila in
  *   sala), ma servono in elenco per il flag delle condense.
- * - **Serbatoi**: `ubicazione` in testa a `SALA_COMPRESSORI` (che è anche il valore assunto quando
- *   il campo manca, come in `buildSerbatoioNodi`), poi il resto. `sort` è stabile: dentro ciascun
- *   gruppo l'ordine di scheda resta.
- * - **Stadi**: `ordinaCatenaTrattamento`, la stessa funzione che ordina la catena nel modello —
- *   riusata e non riscritta. Riceve i nodi nello stesso ordine in cui `buildSchemaModel` li mette
- *   nell'array (essiccatori, filtri, separatori), perché quella funzione somma l'indice di arrivo
- *   al rango e con un ordine diverso darebbe un altro risultato.
+ * - **Linea**: serbatoi e apparecchiature di trattamento in un elenco solo, dal 20-08-2026. I
+ *   serbatoi vengono prima — ordinati per `ubicazione` in testa a `SALA_COMPRESSORI` (che è anche
+ *   il valore assunto quando il campo manca, come in `buildSerbatoioNodi`), poi il resto, `sort`
+ *   stabile — seguiti da `ordinaCatenaTrattamento`, la stessa funzione che ordina la catena nel
+ *   modello, riusata e non riscritta. Riceve i nodi nello stesso ordine in cui `buildSchemaModel`
+ *   li mette nell'array (essiccatori, filtri, separatori), perché quella funzione somma l'indice
+ *   di arrivo al rango e con un ordine diverso darebbe un altro risultato. È solo il punto di
+ *   partenza: l'operatore può poi intrecciare le due famiglie a piacere (`ordineLinea`).
  */
 export function famiglieDaScheda(scheda: SchedaDatiCompleta): FamiglieSchema {
   const compressori = (scheda.compressori ?? []).map((c) => {

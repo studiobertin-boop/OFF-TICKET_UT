@@ -60,7 +60,7 @@ import type { SchemaArco, SchemaLatoAncora, SchemaLayout } from './types'
  * divergessero.
  *
  * Le corsie non si calcolano più qui: dal Blocco 5 la quota del ponte è quella del suo capo di
- * monte, che il layout ha già posato sulla corsia giusta (`corsieDeiCapiDiMonte`, layout.ts). Su
+ * monte, che il layout ha già posato sulla corsia giusta (`offsetDeiCapiDiMonte`, layout.ts). Su
  * un layout riaperto vale lo stesso, e per la stessa ragione per cui prima le si ricalcolava: la
  * quota che conta è quella che il nodo ha ADESSO, spostato a mano o no.
  */

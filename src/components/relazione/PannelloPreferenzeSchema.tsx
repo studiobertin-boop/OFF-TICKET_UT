@@ -340,9 +340,10 @@ export default function PannelloPreferenzeSchema({
           </TableHead>
           <TableBody>
             {gruppo('Compressori', 'Ordine in sala, da sinistra a destra.', risolte.ordineCompressori, 'ordineCompressori')}
-            {/* Serbatoi e stadi in una sezione sola, con un `DndContext` solo: è ciò che permette
-                di trascinare un filtro davanti al primo serbatoio. I compressori restano a parte —
-                mescolarne uno fra i filtri resta un gesto che il disegno non sa rendere. */}
+            {/* Serbatoi e apparecchiature di trattamento in una sezione sola, con un `DndContext`
+                solo: è ciò che permette di trascinare un filtro davanti al primo serbatoio. I
+                compressori restano a parte — mescolarne uno fra i filtri resta un gesto che il
+                disegno non sa rendere. */}
             {gruppo(
               'Linea',
               'Serbatoi e apparecchiature di trattamento, da sinistra a destra. Il primo elemento riceve la mandata dei compressori.',

@@ -119,11 +119,11 @@ function buildEssiccatoreNodo(e: Essiccatore, scheda: SchedaDatiCompleta): Schem
     id: e.codice,
     tipo: 'essiccatore',
     etichetta: etichetta('Essiccatore frigorifero', e.marca, e.modello),
-    // Sta sempre a valle del serbatoio nella catena di trattamento (ordinaCatenaTrattamento,
-    // sotto), ma quello è l'ordine delle tubazioni, non la stanza in cui sta fisicamente: solo
-    // il serbatoio può essere ubicato fuori sala compressori (campo `ubicazione` in scheda).
-    // L'essiccatore ci resta sempre, altrimenti il muro separerebbe sala compressori e linea di
-    // distribuzione anche quando non c'è nessuna apparecchiatura vera fuori dalla sala.
+    // Sta sempre in SALA_COMPRESSORI, a prescindere da dove la linea lo mette (dal 20-08-2026 un
+    // essiccatore può precedere il serbatoio): solo il serbatoio può essere ubicato fuori sala
+    // compressori (campo `ubicazione` in scheda). L'essiccatore ci resta sempre, altrimenti il
+    // muro separerebbe sala compressori e linea di distribuzione anche quando non c'è nessuna
+    // apparecchiatura vera fuori dalla sala.
     gruppo: 'SALA_COMPRESSORI',
     valvoleSicurezza: [],
     accessorio: scamb
@@ -243,13 +243,15 @@ export function scaricaCondensa(nodo: SchemaNodo): boolean {
 }
 
 /**
- * Ordine della catena di trattamento a valle del serbatoio, come negli schemi reali:
- * prefiltri → essiccatori → filtri di linea. Il pozzo di raccolta condense ne resta fuori
+ * Ordine di DEFAULT della catena di trattamento, come negli schemi reali: prefiltri →
+ * essiccatori → filtri di linea. Non è più un vincolo sul disegno — dal 20-08-2026 l'operatore
+ * può riordinare liberamente la sequenza (`ordineLinea`, preferenze.ts) — solo la proposta che
+ * il generatore fa quando non ha scelto niente. Il pozzo di raccolta condense ne resta fuori
  * anche quando è un separatore: raccoglie condensa, non tratta l'aria di linea (vedi SEP
  * in 555_RELAZIONE_TECNICA).
  *
- * Esportata perché il layout deve disporre i nodi nello stesso ordine in cui il grafo li
- * collega: due ordinamenti diversi produrrebbero un disegno con le linee incrociate.
+ * Esportata perché la usa anche `famiglieDaScheda` (preferenze.ts), per mostrare il pannello
+ * nello stesso ordine di default con cui il generatore disegnerebbe senza scelte dell'operatore.
  */
 export function ordinaCatenaTrattamento(
   nodi: SchemaNodo[],
@@ -260,8 +262,9 @@ export function ordinaCatenaTrattamento(
     if (nodo.tipo === 'essiccatore') return 100
     return 300
   }
-  // Solo gli stadi di trattamento: un serbatoio ubicato in linea resta un serbatoio e ha già
-  // la sua riga nel layout — includerlo qui lo disegnerebbe due volte.
+  // Solo gli stadi di trattamento: `lineaDiDefault` (più sotto, in `buildArchi`) antepone già
+  // i serbatoi a quello che questa funzione ordina — includerli anche qui li disegnerebbe due
+  // volte, una dal prepend e una dentro la catena.
   const stadi: SchemaNodo['tipo'][] = ['essiccatore', 'filtro', 'separatore']
   return nodi
     .filter((n) => stadi.includes(n.tipo) && n.id !== raccoltaCondense?.id)
@@ -370,7 +373,11 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
 
   // L'ordine scelto dall'operatore vince su quello di default; senza preferenze resta serbatoi in
   // testa e poi `ordinaCatenaTrattamento`, il generatore di sempre.
-  const serbatoiDiScheda = nodi.filter((n) => n.tipo === 'serbatoio' && n.id !== raccoltaCondense?.id)
+  // A differenza del filtro dentro `ordinaCatenaTrattamento`, qui non serve escludere per id il
+  // pozzo di raccolta condense: `buildNodoRaccoltaCondense` non restituisce mai un `tipo:
+  // 'serbatoio'` (solo 'tanica' o 'separatore'), quindi nessun nodo che passa questo filtro può
+  // essere lui.
+  const serbatoiDiScheda = nodi.filter((n) => n.tipo === 'serbatoio')
   const lineaDiDefault = [...serbatoiDiScheda, ...ordinaCatenaTrattamento(nodi, raccoltaCondense)]
   const catenaLinea = input.preferenze
     ? input.preferenze.ordineLinea
@@ -386,6 +393,11 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
   // Convenzione 6: la valvola di riserva e' quella con cui l'operatore isola la sezione. Con un
   // by-pass che scavalca il primo (o l'ultimo) elemento quella valvola c'e' gia' sul ponte, e
   // metterne una seconda a un passo di distanza e' cio' che nei riferimenti non si vede.
+  //
+  // Si chiede alla SEQUENZA (il tipo del nodo) e non all'elenco dei gruppi delle preferenze: e'
+  // la stessa regola, detta dove e' vera anche quando il gruppo e' caduto — `linearizzaConBypass`
+  // non lascia il TEE nella sequenza se il gruppo non e' disegnabile (non contiguo, vuoto), quindi
+  // guardare il nodo invece della lista risponde giusto anche in quel caso.
   const capoDiTee = (nodo: SchemaNodo | undefined) => nodo?.tipo === 'giunzione'
 
   // **La testa della linea, non il primo serbatoio**: dal 20-08-2026 la mandata del compressore
@@ -395,7 +407,8 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
   //
   // `collegamentiCompressoriSerbatoi` non cambia significato: resta «quale compressore alimenta
   // quale serbatoio», ed e' da li' che `engine/valvole.ts` ricava la portata delle valvole di
-  // sicurezza. Qui se ne legge solo QUANTE mandate disegnare e da quale compressore partono.
+  // sicurezza. Qui se ne legge solo SE disegnare una mandata e da quale compressore parte: un
+  // compressore dichiarato contro due serbatoi disegna un solo arco, non due.
   const testa = sequenza[0]
   for (const [compressoreId, serbatoiIds] of Object.entries(input.collegamentiCompressoriSerbatoi)) {
     if (serbatoiIds.length === 0 || !testa) continue

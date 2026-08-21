@@ -31,11 +31,12 @@ import {
   layoutSchema,
   pozzoCondense,
   quoteInstradamento,
+  quotaLineaProcesso,
 } from '../layout'
 import { posizioneAncora, renderSvg } from '../renderSvg'
 import { preferenzeRisolteDaScheda } from '../preferenze'
 import { instrada, puntoSuTratto } from '../tratti'
-import { dimensioniDi, latoImposto, SPESSORE_MURO } from '../symbols'
+import { ancoraDi, dimensioniDi, latoImposto, SPESSORE_MURO } from '../symbols'
 import type { Tarature } from '../libreria'
 import type { SchemaArco, SchemaLayout, SchemaModel, SchemaNodo, SchemaNodoPosizionato } from '../types'
 
@@ -886,6 +887,56 @@ describe('catenaDagliArchi', () => {
     }
     expect(catenaDagliArchi(model, pozzo).map((n) => n.id)).toEqual(['S1', 'F1'])
   })
+
+  it('la mandata del compressore vince sul ripiego, quando le due regole sarebbero in disaccordo', () => {
+    // Nessun test fin qui mette le due regole in disaccordo: qui la mandata del compressore punta
+    // a F2, mentre F1 — un elemento di linea distinto — non è il bersaglio di nessun arco e sarebbe
+    // il candidato del ripiego (il primo per esclusione, vedi il test qui sopra) se la mandata non
+    // ci fosse. Deve vincere la mandata: è quello che accorgerebbe di un domani in cui qualcuno
+    // riordina la precedenza fra le due regole.
+    const compressore = stadio('C1', 'compressore')
+    const model: SchemaModel = {
+      nodi: [stadio('F1'), stadio('F2'), compressore],
+      archi: [{ ...aria('C1', 'F2'), stile: 'flessibile' }],
+    }
+    expect(catenaDagliArchi(model, null).map((n) => n.id)).toEqual(['F2', 'F1'])
+  })
+})
+
+describe('quotaLineaProcesso', () => {
+  // Test diretto: dopo il 20-08-2026 la funzione riceve il nodo non ancora posizionato invece
+  // della riga già disposta (vedi la sua docstring), e da allora nessun test la chiamava più per
+  // conto proprio — solo indirettamente attraverso `layoutSchema`. Fissa qui l'equivalenza
+  // `yBase - altezza + dx.y` su cui riposa l'identità al pixel del disegno.
+  it('con un primo serbatoio è yBase meno la sua altezza più l’ordinata della sua ancora dx', () => {
+    const serbatoio = serbatoioA('S1', 0, 0)
+    const dx = ancoraDi(serbatoio, 'dx')
+    if (!dx) throw new Error('il serbatoio di test non dichiara l’ancora dx')
+    const yBase = 500
+    const attesa = yBase - dimensioniDi(serbatoio).altezza + dx.y
+    expect(quotaLineaProcesso(serbatoio, yBase, 999)).toBe(attesa)
+  })
+
+  it('senza un primo serbatoio ricade sul ripiego', () => {
+    expect(quotaLineaProcesso(undefined, 500, 123)).toBe(123)
+  })
+
+  it('con una giunzione di by-pass nella catena la linea scende di una corsia', () => {
+    const serbatoio = serbatoioA('S1', 0, 0)
+    const dx = ancoraDi(serbatoio, 'dx')
+    if (!dx) throw new Error('il serbatoio di test non dichiara l’ancora dx')
+    const yBase = 500
+    const giunzione: SchemaNodo = {
+      id: 'BP1-IN',
+      tipo: 'giunzione',
+      etichetta: 'BP1-IN',
+      gruppo: 'LINEA_DISTRIBUZIONE',
+      valvoleSicurezza: [],
+      origine: 'scheda',
+    }
+    const attesa = yBase - dimensioniDi(serbatoio).altezza + dx.y + PASSO_CORSIA_BYPASS
+    expect(quotaLineaProcesso(serbatoio, yBase, 999, {}, [serbatoio, giunzione])).toBe(attesa)
+  })
 })
 
 describe('pozzoCondense quando le condense sono tutte spente', () => {
@@ -1510,7 +1561,7 @@ describe('by-pass annidati sopra un serbatoio', () => {
   // che un ponte appeso sopra a quello che lo contiene" — un ponte tagliato via dal foglio rompe
   // quella promessa, quindi corretto invece di solo segnalato.
   //
-  // Il meccanismo del difetto (round 2): `corsieDeiCapiDiMonte` sommava l'altezza ASSOLUTA di ogni
+  // Il meccanismo del difetto (round 2): `offsetDeiCapiDiMonte` sommava l'altezza ASSOLUTA di ogni
   // livello — quanta ne serve a scavalcare il suo scavalcato più alto DA TERRA — invece
   // dell'altezza PROPRIA: quanto manca oltre l'offset che i livelli più interni hanno già
   // accumulato. Il serbatoio compare nell'intervallo di ENTRAMBI i gruppi (è scavalcato dal

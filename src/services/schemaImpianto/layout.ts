@@ -2,9 +2,9 @@
  * Disposizione automatica dei nodi, in coordinate SVG (origine in alto a sinistra).
  *
  * La geometria ricalca gli schemi reali (`DOCUMENTAZIONE/relazione/*_RELAZIONE_TECNICA_*.pdf`):
- * compressori in riga in basso a sinistra, serbatoi sopra e a destra, catena di trattamento
- * aria (essiccatori/filtri) in riga verso destra, pozzo di raccolta condense in basso a
- * destra. Funzione pura: nessun DOM, testabile in Node.
+ * compressori in riga in basso a sinistra, poi un'unica sequenza verso destra — serbatoi e stadi
+ * di trattamento (essiccatori/filtri) intrecciati nell'ordine che gli archi dichiarano — e il
+ * pozzo di raccolta condense in basso a destra. Funzione pura: nessun DOM, testabile in Node.
  */
 import { assegnaCorsie, capoDiValleDi, eCapoDiMonte } from './bypass'
 import { risolviPonti, risolviSegniAncorati } from './segniAncorati'
@@ -368,22 +368,6 @@ function disponiInRiga(
 }
 
 /**
- * La catena di trattamento disposta per ANCORE e non per riquadri: l'ancora `sx` di ogni stadio
- * cade sulla quota della linea, e l'avanzamento e' la distanza fra l'ancora `dx` di uno e la `sx`
- * del successivo. Sono le convenzioni 3 e 4 insieme — la stessa regola detta sull'asse x e
- * sull'asse y.
- *
- * Il ripiego sul riquadro (`dim.altezza / 2`, `dim.larghezza`) vale per un simbolo che non
- * dichiara quelle ancore: mai per i tre rombi, che le hanno tutte, ma una taratura permanente puo'
- * sostituire l'elenco delle ancore (`ancoreDi`) e nulla le impone di tenerle.
- *
- * L'accumulatore e' l'ascissa della PROSSIMA ANCORA `sx`, non il bordo sinistro del prossimo
- * riquadro. Sui simboli della catena le due formule coincidono — hanno tutti `sx` a `x: 0` — ma
- * non sulla giunzione di un by-pass, le cui quattro ancore stanno nel CENTRO del riquadro: contando
- * per bordi, il gioco davanti al TEE e quello dietro sarebbero diversi senza che nessuno l'abbia
- * chiesto.
- */
-/**
  * Margine minimo fra la corsa del ponte e la cima piu' alta che scavalca, per gli scavalcati la
  * cui altezza non e' gia' dentro `PASSO_CORSIA_BYPASS` (che per il solo rombo — 110 di altezza,
  * l'unico caso misurato sul riferimento — vale gia' da se'). Due passi di griglia, la stessa
@@ -420,10 +404,9 @@ function altezzaSopraLinea(nodo: SchemaNodo, quotaLinea: number, yBase: number, 
 }
 
 /**
- * Le corsie dei ponti, per id del capo di MONTE — non piu' un indice ma l'OFFSET assoluto sopra
- * `quotaLinea` a cui quel capo si posa. Dal Blocco 5 il ponte corre alla quota del suo capo di
- * monte, quindi la corsia non e' una proprieta' del ponte ma della QUOTA a cui qui si posa quel
- * capo: questo e' l'unico posto che la puo' decidere.
+ * L'offset, per id del capo di MONTE, sopra `quotaLinea` a cui quel capo si posa. Dal Blocco 5 il
+ * ponte corre alla quota del suo capo di monte, quindi la corsia non e' una proprieta' del ponte
+ * ma della QUOTA a cui qui si posa quel capo: questo e' l'unico posto che la puo' decidere.
  *
  * Gli intervalli sono posizioni nella SEQUENZA e non ascisse: qui la sequenza e' quella che si sta
  * disponendo, e le due danno lo stesso ordine. `assegnaCorsie` e' la stessa funzione che usa
@@ -452,7 +435,7 @@ function altezzaSopraLinea(nodo: SchemaNodo, quotaLinea: number, yBase: number, 
  * Un capo di monte senza il suo capo di valle nella sequenza non e' un caso da riparare qui: resta
  * senza corsia e si posa sulla linea, come qualunque altra giunzione.
  */
-function corsieDeiCapiDiMonte(
+function offsetDeiCapiDiMonte(
   nodi: SchemaNodo[],
   quotaLinea: number,
   yBase: number,
@@ -503,6 +486,25 @@ function corsieDeiCapiDiMonte(
   return new Map(capi.map((capo, i) => [capo.monte, offsetLivello.get(livelli[i]) ?? PASSO_CORSIA_BYPASS]))
 }
 
+/**
+ * Dispone la sequenza — stadi e serbatoi insieme — per ANCORE e non per riquadri: l'ancora `sx`
+ * di ogni stadio cade sulla quota della linea, e l'avanzamento e' la distanza fra l'ancora `dx`
+ * di uno e la `sx` del successivo. Sono le convenzioni 3 e 4 insieme — la stessa regola detta
+ * sull'asse x e sull'asse y.
+ *
+ * Il ripiego sul riquadro (`dim.altezza / 2`, `dim.larghezza`) vale per un simbolo che non
+ * dichiara quelle ancore: mai per i tre rombi, che le hanno tutte, ma una taratura permanente puo'
+ * sostituire l'elenco delle ancore (`ancoreDi`) e nulla le impone di tenerle.
+ *
+ * L'accumulatore e' l'ascissa della PROSSIMA ANCORA `sx`, non il bordo sinistro del prossimo
+ * riquadro. Sui simboli della catena le due formule coincidono — hanno tutti `sx` a `x: 0` — ma
+ * non sulla giunzione di un by-pass, le cui quattro ancore stanno nel CENTRO del riquadro: contando
+ * per bordi, il gioco davanti al TEE e quello dietro sarebbero diversi senza che nessuno l'abbia
+ * chiesto.
+ *
+ * Il serbatoio fa eccezione e non si dispone per ancora: resta appoggiato a `yBase - altezza`, la
+ * quota di base condivisa con la sala compressori, qualunque cosa faccia la linea intorno a lui.
+ */
 function disponiSequenza(
   nodi: SchemaNodo[],
   xIniziale: number,
@@ -538,11 +540,11 @@ function disponiSequenza(
   }
 
   // La quota del capo di MONTE di un by-pass non e' quella della linea: sta piu' in alto di quanto
-  // serve a scavalcare cio' che il suo ponte contiene (`corsieDeiCapiDiMonte`), non piu' di una
+  // serve a scavalcare cio' che il suo ponte contiene (`offsetDeiCapiDiMonte`), non piu' di una
   // corsia fissa.
-  const corsie = corsieDeiCapiDiMonte(nodi, quotaLinea, yBase, libreria)
+  const offsetDiCorsia = offsetDeiCapiDiMonte(nodi, quotaLinea, yBase, libreria)
   const quotaDi = (nodo: SchemaNodo) => {
-    const offset = corsie.get(nodo.id)
+    const offset = offsetDiCorsia.get(nodo.id)
     return offset === undefined ? quotaLinea : quotaLinea - offset
   }
 
@@ -641,8 +643,9 @@ export function catenaDagliArchi(model: SchemaModel, pozzo: SchemaNodo | null): 
 
   const successore = new Map<string, string>()
   // La testa della linea: il bersaglio di una mandata di compressore. Si legge dagli ARCHI e non
-  // dalle preferenze perche' questa funzione lavora anche su un layout gia' ritoccato a mano
-  // nell'editor, dove le preferenze non arrivano — e perche' «il primo serbatoio», il criterio di
+  // dalle preferenze perche' e' cosi' che `layoutSchema` resta indipendente da `preferenze.ts`:
+  // e' la stessa ragione per cui il ripiego qui sotto, quando mancano le mandate, resta anch'esso
+  // sui soli archi invece di guardare altrove. E perche' «il primo serbatoio», il criterio di
   // prima, non vale piu': la linea puo' cominciare con un filtro.
   let testa: string | undefined
   for (const arco of model.archi) {
