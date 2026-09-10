@@ -59,9 +59,25 @@
       "Read(//c/Users/FRANCE~1/AppData/Local/Temp/claude/c--Users-FrancescoBertin-Desktop-CLAUDE-CODE-OFF-TICKET-UT/31875c9c-5999-432a-8e2c-26248645a25b/scratchpad/schemi_esempio/**)",
       "Bash(sort -k6,7)",
       "Bash(python3 -c ' *)",
-      "Bash(sort -t_ -k1)"
+      "Bash(sort -t_ -k1)",
+      "Bash(echo \"Esecuzione: Aggiunta colonna telefono...\")",
+      "Bash(echo \"\")",
+      "Bash(echo \"Esecuzione: Aggiornamento numero di telefono...\")",
+      "Bash(git -C \"C:\\\\Users\\\\FrancescoBertin\\\\Desktop\\\\CLAUDE CODE\\\\OFF-TICKET_UT\" add supabase/migrations/20260820000000_installers_telefono.sql)",
+      "Bash(git -C 'C:\\\\Users\\\\FrancescoBertin\\\\Desktop\\\\CLAUDE CODE\\\\OFF-TICKET_UT' commit -m 'feat\\(installers\\): aggiungi campo telefono a installatori *)",
+      "Bash(git -C \"C:\\\\Users\\\\FrancescoBertin\\\\Desktop\\\\CLAUDE CODE\\\\OFF-TICKET_UT\" add -A)",
+      "Bash(git -C 'C:\\\\Users\\\\FrancescoBertin\\\\Desktop\\\\CLAUDE CODE\\\\OFF-TICKET_UT' commit -m 'feat\\(installers\\): aggiungi campo telefono al form *)",
+      "Bash(mkdir -p /tmp_extract_civa)",
+      "Bash(git -C \"C:\\\\Users\\\\FrancescoBertin\\\\Desktop\\\\CLAUDE CODE\\\\OFF-TICKET_UT\" log --oneline -5)",
+      "Bash(git -C \"C:\\\\Users\\\\FrancescoBertin\\\\Desktop\\\\CLAUDE CODE\\\\OFF-TICKET_UT\" push origin main)",
+      "Bash(mkdir -p \"/c/Users/FRANCE~1/AppData/Local/Temp/claude/c--Users-FrancescoBertin-Desktop-CLAUDE-CODE-OFF-TICKET-UT/02710862-5999-4b05-8ab1-20096defbaa0/scratchpad/civa-mockup\")",
+      "Bash(git -C \"C:\\\\Users\\\\FrancescoBertin\\\\Desktop\\\\CLAUDE CODE\\\\OFF-TICKET_UT\" reset --soft HEAD~1)",
+      "Bash(git -C \"C:\\\\Users\\\\FrancescoBertin\\\\Desktop\\\\CLAUDE CODE\\\\OFF-TICKET_UT\" reset .claude/settings.local.json)"
     ],
     "deny": [],
-    "ask": []
+    "ask": [],
+    "additionalDirectories": [
+      "C:\\Users\\FRANCE~1\\AppData\\Local\\Temp\\claude\\c--Users-FrancescoBertin-Desktop-CLAUDE-CODE-OFF-TICKET-UT\\02710862-5999-4b05-8ab1-20096defbaa0\\scratchpad"
+    ]
   }
 }
