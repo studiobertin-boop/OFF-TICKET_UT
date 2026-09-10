@@ -4,7 +4,7 @@ import { resolve } from 'path'
 import PizZip from 'pizzip'
 import { renderRelazioneDocx } from '../renderRelazione'
 import { buildRelazioneModel } from '../buildRelazioneModel'
-import { dimensioniGruppi } from '../engine/esiti'
+import { righeTabellaEsiti } from '../engine/esiti'
 import {
   makeScheda,
   makeCustomer,
@@ -86,9 +86,7 @@ describe('integrazione template ↔ engine', () => {
       pratica: makePratica(),
     })
 
-    const xml = new PizZip(renderRelazioneDocx(template, model))
-      .file('word/document.xml')!
-      .asText()
+    const xml = new PizZip(renderRelazioneDocx(template, model)).file('word/document.xml')!.asText()
 
     attendiXmlValido(xml)
     expect(model.protezioni.altre.length).toBeGreaterThan(0)
@@ -115,9 +113,7 @@ describe('integrazione template ↔ engine', () => {
       pratica: makePratica(),
     })
 
-    const xml = new PizZip(renderRelazioneDocx(template, model))
-      .file('word/document.xml')!
-      .asText()
+    const xml = new PizZip(renderRelazioneDocx(template, model)).file('word/document.xml')!.asText()
 
     // Un blocco che sparisce lascia dietro di sé un XML rotto con la stessa facilità con
     // cui uno che resta lascia un tag: va verificato, non solo cercato.
@@ -147,16 +143,16 @@ describe('integrazione template ↔ engine', () => {
     // La tabella sta nel piè di pagina della copertina, non nel corpo: cercarla in
     // document.xml darebbe un falso negativo qualunque cosa faccia il template.
     const zip = new PizZip(renderRelazioneDocx(template, model))
-    const footers = Object.keys(zip.files).filter((n) => /^word\/footer\d*\.xml$/.test(n))
+    const footers = Object.keys(zip.files).filter(n => /^word\/footer\d*\.xml$/.test(n))
     expect(footers.length).toBeGreaterThan(0)
-    const testo = footers.map((n) => zip.file(n)!.asText()).join('')
+    const testo = footers.map(n => zip.file(n)!.asText()).join('')
 
     expect(testo).toContain('10/08/2026')
     expect(testo).toContain('>3<')
     expect(testo).not.toContain('{premessa')
   })
 
-  test('le colonne di gruppo risultano fuse nella tabella degli esiti', () => {
+  test('la tabella degli esiti elenca le sole apparecchiature soggette', () => {
     const template = readFileSync(TEMPLATE_PATH)
     const model = buildRelazioneModel({
       scheda: makeScheda(),
@@ -165,24 +161,74 @@ describe('integrazione template ↔ engine', () => {
       pratica: makePratica(),
     })
 
-    const xml = new PizZip(renderRelazioneDocx(template, model))
-      .file('word/document.xml')!
-      .asText()
-
-    // La fusione inietta vMerge nelle proprietà di cella: se l'iniezione sbaglia punto,
-    // l'XML si rompe e il documento non si apre più. Va verificato, non solo cercato.
+    const xml = new PizZip(renderRelazioneDocx(template, model)).file('word/document.xml')!.asText()
     attendiXmlValido(xml)
 
-    // La fusione è una post-elaborazione dell'XML renderizzato: se il template cambia
-    // struttura (colonne rinominate o riordinate) `applicaFusioneColonne` non trova più
-    // gli appigli e restituisce l'XML invariato. Questo test è ciò che lo rende evidente.
-    const gruppiMultiRiga = dimensioniGruppi(model.esiti).filter((n) => n > 1).length
-    expect(gruppiMultiRiga).toBeGreaterThan(0)
-    expect(xml.match(/<w:vMerge w:val="restart"\/>/g) ?? []).toHaveLength(gruppiMultiRiga * 2)
+    const righe = righeDellaTabellaEsiti(xml)
+    const attese = righeTabellaEsiti(model.esiti)
+    expect(attese.length).toBeGreaterThan(0)
+    // Intestazione + una riga per apparecchiatura soggetta: se il filtro non arrivasse al
+    // template la tabella tornerebbe a contenere compressori, valvole, filtri.
+    expect(righe).toHaveLength(attese.length + 1)
 
-    // Il documento deve restare un OOXML valido dopo la manipolazione.
-    expect(() => new DOMParser().parseFromString(xml, 'application/xml')).not.toThrow()
-    const doc = new DOMParser().parseFromString(xml, 'application/xml')
-    expect(doc.getElementsByTagName('parsererror')).toHaveLength(0)
+    const prima = righe[1]
+    expect(prima[0]).toBe(attese[0].pos)
+    // La verifica di integrità è affermata o negata, mai lasciata al lettore.
+    expect(righe.slice(1).map(r => r[r.length - 1])).toEqual(
+      attese.map(r => (r.verificaIntegrita ? 'SI' : 'NO'))
+    )
+    // Lo stato INAIL sta sulla riga del recipiente: era consolidato sul capogruppo, che
+    // in tabella non c'è più.
+    expect(righe.slice(1).map(r => r[8])).not.toContain('')
+  })
+
+  test('il capoverso di chiusura giustifica le apparecchiature che la tabella non elenca', () => {
+    const template = readFileSync(TEMPLATE_PATH)
+    const model = buildRelazioneModel({
+      scheda: makeScheda(),
+      additionalInfo: makeAdditionalInfo(),
+      customer: makeCustomer(),
+      pratica: makePratica(),
+    })
+
+    const xml = new PizZip(renderRelazioneDocx(template, model)).file('word/document.xml')!.asText()
+    const testo = testoDi(xml)
+
+    expect(testo).toContain('I compressori sono esclusi dal campo di applicazione')
+    expect(testo).toContain('D.lgs. 93/2000')
+    // Le due soglie dell'art. 2 lettera i): senza la seconda, un recipiente fra 25 e 50
+    // litri sparirebbe dalla tabella senza che il documento dica perché.
+    expect(testo).toContain('25 litri')
+    expect(testo).toContain('50 litri')
   })
 })
+
+/** Il testo di tutti i `w:t`, concatenato: serve a cercare una frase nel documento reso. */
+function testoDi(xml: string): string {
+  const doc = new DOMParser().parseFromString(xml, 'application/xml')
+  return Array.from(doc.getElementsByTagName('w:t'))
+    .map(n => n.textContent ?? '')
+    .join('')
+}
+
+/**
+ * Le righe della tabella di §5.2, ciascuna come elenco dei testi delle sue celle.
+ * La tabella si riconosce dall'intestazione, come fa il resto del giro: la posizione fra
+ * le tabelle del documento cambierebbe al primo capitolo aggiunto.
+ */
+function righeDellaTabellaEsiti(xml: string): string[][] {
+  const doc = new DOMParser().parseFromString(xml, 'application/xml')
+  const testoCella = (c: Element) =>
+    Array.from(c.getElementsByTagName('w:t'))
+      .map(n => n.textContent ?? '')
+      .join('')
+      .trim()
+
+  for (const tbl of Array.from(doc.getElementsByTagName('w:tbl'))) {
+    const righe = Array.from(tbl.getElementsByTagName('w:tr')).map(tr =>
+      Array.from(tr.getElementsByTagName('w:tc')).map(testoCella)
+    )
+    if (righe[0]?.some(c => c.replace(/\s+/g, '').startsWith('AdempimentoDM'))) return righe
+  }
+  throw new Error('tabella di §5.2 non trovata: intestazione «Adempimento DM 329/2004» assente')
+}

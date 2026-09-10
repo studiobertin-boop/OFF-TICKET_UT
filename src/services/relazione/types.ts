@@ -262,13 +262,6 @@ export interface ValvoleModel {
 
 export interface EsitoRow {
   pos: string
-  /**
-   * Posizione del capogruppo: le righe che condividono questo valore formano un gruppo
-   * (compressore + disoleatore + valvole, serbatoio + valvole, essiccatore + scambiatore,
-   * filtro + recipiente). Stato INAIL e verifica di integrità sono proprietà del gruppo,
-   * non della singola riga, e le celle vengono fuse verticalmente in fase di render.
-   */
-  gruppo: string
   apparecchiatura: string
   costruttore: string
   modello: string
@@ -296,6 +289,12 @@ export interface EsitoRow {
   statoInail: string
   verificaIntegrita: boolean
 }
+
+/**
+ * §5.2 — la tabella stampa le sole righe soggette ad adempimento (`righeTabellaEsiti`),
+ * dove ognuna è il recipiente stesso: stato INAIL e verifica di integrità sono suoi, e
+ * non più proprietà di un gruppo da fondere verticalmente in fase di render.
+ */
 
 // ============================================================================
 // Sezione: §2.2 condizioni di installazione
@@ -461,7 +460,11 @@ export interface RelazioneModel {
   /** §3 — fluidi di processo */
   fluidi: FluidiModel
   caratteristiche: CaratteristicheRow[]
-  /** §5.2 — tabella degli esiti DM329 */
+  /**
+   * §5.2 — esiti DM329 di **tutte** le apparecchiature, escluse comprese: le leggono anche
+   * §5.3, §7.2 e il preflight. Le righe che la tabella stampa sono quelle di
+   * `righeTabellaEsiti`.
+   */
   esiti: EsitoRow[]
   /** §5.3 — sistemi di protezione e controllo (due tabelle) */
   protezioni: ProtezioniModel

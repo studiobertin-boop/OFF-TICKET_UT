@@ -94,20 +94,19 @@ non per le apparecchiature connesse di §6.
   `{pos}` `{apparecchiatura}` `{costruttore}` `{modello}` `{volume}` `{ps}` `{psPerV}`
   `{categoria}` `{adempimento}` `{statoInail}` `{verificaIntegritaMark}`
 
-  Il riferimento normativo per riga **non** è più stampato: lo porta la tabella dei criteri
+  Il loop **non** scorre `model.esiti` per intero: rende le sole apparecchiature soggette a
+  pratica INAIL (`righeTabellaEsiti`, applicata in `buildTemplateData`). Compressori,
+  valvole, essiccatori e filtri esclusi non compaiono più in tabella — le loro esclusioni
+  le dichiara il capoverso **statico** che chiude §5.2 («I compressori sono esclusi dal
+  campo di applicazione…»), che nomina l'art. 1 comma 3 lettera l) del D.lgs. 93/2000 e le
+  due soglie dell'art. 2 lettera i) del D.M. 329/2004 (25 l, e 50 l sotto i 12 bar).
+
+  Ne segue che ogni riga è il recipiente stesso: `{statoInail}` e `{verificaIntegritaMark}`
+  sono suoi, e **non ci sono più celle fuse verticalmente**. Il modulo `fusioneCelle.ts` e
+  la post-elaborazione dell'XML renderizzato sono stati rimossi con la tabella completa.
+
+  Il riferimento normativo per riga **non** è stampato: lo porta la tabella dei criteri
   di §5.1. `EsitoRow.riferimento` resta nel modello, disponibile se la colonna tornasse.
-
-  ⚠️ **Le colonne «Stato INAIL» e «Verifica Integrità» vengono fuse verticalmente per
-  gruppo** di apparecchiature (capogruppo + dipendenti + valvole) da `fusioneCelle.ts`,
-  come post-elaborazione dell'XML renderizzato: `vMerge` sta in `w:tcPr` e il loop di
-  docxtemplater duplica le proprietà di cella identiche, quindi non è esprimibile con un
-  tag. La tabella si individua dall'intestazione **«Adempimento DM 329/2004»** e le colonne
-  dalle intestazioni **«Stato INAIL»** e **«Verifica Integrità»**, confrontate ignorando
-  gli spazi — così un'intestazione mandata a capo in Word continua a corrispondere.
-
-  Rinominare quelle tre intestazioni disattiva la fusione (per scelta: un documento senza
-  celle unite resta corretto, uno con XML rotto no). Il test la presidia: si è verificato
-  che fallisca davvero cambiando l'ancoraggio.
 - 5.3 protezioni: due tabelle, `{#protezioni.serbatoi}` e `{#protezioni.altre}`, con
   `{pos}` `{scaricoCondensa}` `{finituraInterna}` `{ancoraggio}` `{manometro}`
   e valvole annidate su paragrafi propri: `{#valvole}` / `{pos} · n.f. {nFabbrica}` / `{/valvole}`
@@ -160,6 +159,6 @@ converte in testo, così il template non contiene condizioni.
 
 | Modello | Tag | Valori |
 |---|---|---|
-| `esiti[].verificaIntegrita` | `{verificaIntegritaMark}` | `✓` · vuoto |
+| `esiti[].verificaIntegrita` | `{verificaIntegritaMark}` | `SI` · `NO` (in tabella ci sono le sole soggette: la verifica o è stata fatta o no) |
 | `valvole.portata[].adeguato` | `{adeguatoMark}` | `✓` · `n.a.` (nessun compressore collegato) · `n.d.` (dati mancanti) · vuoto (verifica non superata) |
 | `valvole.pressione[].adeguato` | `{adeguatoMark}` | `✓` · `n.d.` · vuoto |

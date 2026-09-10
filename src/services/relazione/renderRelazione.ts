@@ -9,14 +9,13 @@ import PizZip from 'pizzip'
 import Docxtemplater from 'docxtemplater'
 import ImageModule from 'docxtemplater-image-module-free'
 import type { RelazioneModel, SchemaImpianto } from './types'
-import { applicaFusioneColonne } from './fusioneCelle'
-import { dimensioniGruppi } from './engine/esiti'
-import { comportaAdempimento } from '@/utils/dm329Classification'
+import { righeTabellaEsiti } from './engine/esiti'
 
 const CHECK = '✓'
 const NON_APPLICABILE = 'n.a.'
 const NON_DETERMINABILE = 'n.d.'
-/** Verifica dovuta e non eseguita. */
+/** Verifica di integrità eseguita / dovuta e non eseguita: §5.2 le dichiara a parole. */
+const AFFERMATIVO = 'SI'
 const NEGATIVO = 'NO'
 /** Dato che non si applica a quella apparecchiatura: non è una dimenticanza. */
 const NON_PERTINENTE = '–'
@@ -81,37 +80,25 @@ function nestedParser(tag: string) {
  * aggiunge i "mark" (✓/'') per le colonne booleane e incapsula le liste di stringhe.
  */
 export function buildTemplateData(model: RelazioneModel): Record<string, unknown> {
-  // L'obbligo è del gruppo, non della riga: il capogruppo è spesso un compressore o un
-  // essiccatore, esclusi in quanto tali, mentre il recipiente che portano è soggetto. La
-  // cella è fusa sul gruppo, quindi mostrerebbe il verdetto del capogruppo — sbagliato.
-  const gruppiSoggetti = new Set(
-    model.esiti.filter((r) => comportaAdempimento(r.esito)).map((r) => r.gruppo)
-  )
-
   return {
     ...model,
-    esiti: model.esiti.map((r) => {
-      const soggetta = gruppiSoggetti.has(r.gruppo)
-      return {
-        ...r,
-        // Nessuna cella vuota in questa tabella: il vuoto si legge come dimenticanza.
-        // «–» dice «non pertinente», e va anche sulle righe delle apparecchiature escluse.
-        volume: r.volume || NON_PERTINENTE,
-        ps: r.ps || NON_PERTINENTE,
-        psPerV: r.psPerV || NON_PERTINENTE,
-        categoria: r.categoria || NON_PERTINENTE,
-        statoInail: r.statoInail || NON_PERTINENTE,
-        // Tre esiti: verifica eseguita, dovuta e non eseguita, non dovuta perché
-        // l'apparecchiatura è fuori dal campo di applicazione.
-        verificaIntegritaMark: r.verificaIntegrita
-          ? CHECK
-          : soggetta
-            ? NEGATIVO
-            : NON_PERTINENTE,
-      }
-    }),
+    // La tabella elenca le sole apparecchiature soggette a pratica INAIL: le escluse le
+    // giustifica in blocco il capoverso che chiude §5.2. Il modello resta completo perché
+    // §5.3, §7.2 e il preflight leggono anche quelle.
+    esiti: righeTabellaEsiti(model.esiti).map(r => ({
+      ...r,
+      // Nessuna cella vuota in questa tabella: il vuoto si legge come dimenticanza.
+      volume: r.volume || NON_PERTINENTE,
+      ps: r.ps || NON_PERTINENTE,
+      psPerV: r.psPerV || NON_PERTINENTE,
+      categoria: r.categoria || NON_PERTINENTE,
+      statoInail: r.statoInail || NON_PERTINENTE,
+      // Due soli esiti, ora che in tabella ci sono le sole soggette: la verifica di
+      // integrità o è stata fatta o no. Il «–» qui non avrebbe più un significato.
+      verificaIntegritaMark: r.verificaIntegrita ? AFFERMATIVO : NEGATIVO,
+    })),
     valvole: {
-      portata: model.valvole.portata.map((r) => ({
+      portata: model.valvole.portata.map(r => ({
         ...r,
         // Tre esiti distinti, non due: "n.a." = confronto non definito (nessun
         // compressore collegato), "n.d." = dati mancanti, cella vuota = confronto
@@ -125,18 +112,18 @@ export function buildTemplateData(model: RelazioneModel): Record<string, unknown
               ? CHECK
               : '',
       })),
-      pressione: model.valvole.pressione.map((r) => ({
+      pressione: model.valvole.pressione.map(r => ({
         ...r,
         adeguatoMark: !r.datiCompleti ? NON_DETERMINABILE : r.adeguato ? CHECK : '',
       })),
     },
     // liste di stringhe → oggetti, così il template può fare {#lista}{voce}{/lista}
-    allegati: model.allegati.map((voce) => ({ voce })),
+    allegati: model.allegati.map(voce => ({ voce })),
     // Sentinella per il modulo immagini; stringa vuota = nessuno schema = paragrafo vuoto.
     schemaImpianto: model.schemaImpianto ? SCHEMA_TAG : '',
     descrizioneGenerale: {
       ...model.descrizioneGenerale,
-      sezioni: model.descrizioneGenerale.sezioni.map((voce) => ({ voce })),
+      sezioni: model.descrizioneGenerale.sezioni.map(voce => ({ voce })),
     },
   }
 }
@@ -171,21 +158,5 @@ export function renderRelazioneDocx(
   })
   doc.render(buildTemplateData(model))
 
-  // Stato INAIL e verifica di integrità valgono per l'intero gruppo di apparecchiature:
-  // le celle si fondono verticalmente. Va fatto dopo il render perché `vMerge` sta nelle
-  // proprietà della cella, che il loop di docxtemplater duplica identiche.
-  const out = doc.getZip()
-  const documento = out.file('word/document.xml')
-  if (documento) {
-    out.file(
-      'word/document.xml',
-      applicaFusioneColonne(documento.asText(), {
-        ancoraTabella: 'Adempimento DM 329/2004',
-        intestazioniColonne: ['Stato INAIL', 'Verifica Integrità'],
-        dimensioniGruppi: dimensioniGruppi(model.esiti),
-      })
-    )
-  }
-
-  return out.generate({ type: 'uint8array' })
+  return doc.getZip().generate({ type: 'uint8array' })
 }

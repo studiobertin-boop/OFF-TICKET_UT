@@ -62,24 +62,21 @@ describe('renderRelazioneDocx', () => {
       `<w:p><w:r><w:t>{#esiti}{pos}={verificaIntegritaMark};{/esiti}</w:t></w:r></w:p>`
     const template = makeTemplateDocx(body)
     const model = buildRelazioneModel({
-      scheda: makeScheda({
-        compressori: [makeCompressore({ codice: 'C1', ha_disoleatore: false })],
-        disoleatori: [],
-        serbatoi: [],
-        essiccatori: [],
-        scambiatori: [],
-        filtri: [],
-      }),
-      additionalInfo: makeAdditionalInfo(),
+      scheda: makeScheda(),
+      additionalInfo: makeAdditionalInfo({ spessimetrica: ['S1'] }),
       customer: makeCustomer(),
       pratica: makePratica(),
     })
 
     const xml = outputXml(renderRelazioneDocx(template, model))
+    // §4 caratterizza tutte le apparecchiature, comprese le escluse.
     expect(xml).toContain('[C1]')
-    // Compressore senza recipiente: la verifica di integrità non è pertinente, e la cella
-    // lo dice invece di restare vuota.
-    expect(xml).toContain('C1=–;')
+    // §5.2 elenca le sole soggette, e sulla verifica di integrità risponde sì o no: il
+    // compressore C1 e la sua valvola C1.2 non compaiono affatto.
+    expect(xml).toContain('S1=SI;')
+    expect(xml).toContain('C1.1=NO;')
+    expect(xml).not.toContain('C1=')
+    expect(xml).not.toContain('C1.2=')
   })
 
   test('le sezioni inverse scelgono una sola variante della frase sui fluidi', () => {

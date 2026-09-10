@@ -7,8 +7,8 @@ generare le relazioni.
 Il template è un `.docx` pieno di segnaposto: al posto della ragione sociale c'è
 `{premessa.ragioneSociale}`, e ogni tabella ha **una riga sola** avvolta in un loop, che
 viene ripetuta alla generazione. Formattare un file così è scomodo, perché non si vede il
-documento vero ma il suo scheletro: la tabella degli esiti ha 2 righe nel template e 21 nel
-documento generato.
+documento vero ma il suo scheletro: la tabella di §4 ha 2 righe nel template e una ventina
+nel documento generato.
 
 Perciò non si formatta il template. Si formatta un documento **reso**, e uno script fa il
 percorso inverso.
@@ -155,7 +155,10 @@ violare:
    scritti nella stessa riga del contenuto ripetono il testo senza andare a capo. Fa
    eccezione il loop di riga delle tabelle, dove `{#lista}` sta nella prima cella e
    `{/lista}` nell'ultima della riga modello.
-2. **Nessun `vMerge` nella riga modello** delle tabelle: le fusioni le calcola il render.
+2. **Nessun `vMerge` nella riga modello** delle tabelle. Da settembre 2026 nessuna tabella
+   ha più celle fuse — §5.2 elenca le sole apparecchiature soggette, una riga ciascuna — e
+   un `vMerge` sopravvissuto nella riga modello si propagherebbe a tutte le righe generate.
+   Lo script lo toglie da sé; a mano va evitato.
 3. Il tag immagine `{%schemaImpianto}` deve stare da solo nel suo paragrafo.
 
 ## Dove trovare l'elenco dei tag

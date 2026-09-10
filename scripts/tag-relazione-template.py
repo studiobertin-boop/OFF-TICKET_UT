@@ -628,7 +628,10 @@ def converti(sorgente, destinazione):
         "esiti",
         ["{pos}", "{apparecchiatura}", ["{costruttore}", "{modello}"], "{volume}", "{ps}",
          "{psPerV}", "{categoria}", "{adempimento}", "{statoInail}", "{verificaIntegritaMark}"],
-        ["C1", "Compressore", None, None, None, None, None, "Escluso", "Nuova richiesta", None],
+        # La tabella elenca le sole apparecchiature soggette a pratica INAIL: la prima riga
+        # non è più il compressore C1, che è escluso e non compare affatto.
+        ["C1.1", "Serbatoio disoleatore", None, None, None, None, None,
+         "Dichiarazione di messa in servizio", "Nuova richiesta", "NO"],
     )
 
     # --- §5.3 Protezioni ---------------------------------------------------

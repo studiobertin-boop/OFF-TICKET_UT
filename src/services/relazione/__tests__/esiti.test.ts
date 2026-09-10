@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { buildEsiti } from '../engine/esiti'
+import { buildEsiti, righeTabellaEsiti } from '../engine/esiti'
+import { comportaAdempimento } from '@/utils/dm329Classification'
 import { descrizioneSerbatoio } from '../helpers'
 import {
   makeScheda,
@@ -8,7 +9,6 @@ import {
   makeDisoleatore,
   makeSerbatoio,
   makeEssiccatore,
-  makeScambiatore,
   makeFiltro,
   makeRecipienteFiltro,
   makeSeparatore,
@@ -19,8 +19,8 @@ const info = makeAdditionalInfo()
 
 /** Trova la riga di una posizione; fallisce in modo leggibile se assente. */
 function riga(rows: ReturnType<typeof buildEsiti>, pos: string) {
-  const r = rows.find((x) => x.pos === pos)
-  if (!r) throw new Error(`Riga ${pos} assente. Presenti: ${rows.map((x) => x.pos).join(', ')}`)
+  const r = rows.find(x => x.pos === pos)
+  if (!r) throw new Error(`Riga ${pos} assente. Presenti: ${rows.map(x => x.pos).join(', ')}`)
   return r
 }
 
@@ -99,9 +99,7 @@ describe('buildEsiti — serbatoi', () => {
   it('riporta la matricola dei recipienti già immatricolati', () => {
     // Relazione 583A: «già immatricolato da INAIL con n.m. 2020/7/50847/TV»
     const scheda = makeScheda({
-      serbatoi: [
-        makeSerbatoio({ gia_denunciato: true, matricola_inail: '2020/7/50847/TV' }),
-      ],
+      serbatoi: [makeSerbatoio({ gia_denunciato: true, matricola_inail: '2020/7/50847/TV' })],
     })
     expect(riga(buildEsiti(scheda, info), 'S1').statoInail).toBe(
       'Già immatricolato n.m. 2020/7/50847/TV'
@@ -129,21 +127,39 @@ describe('buildEsiti — serbatoi', () => {
   })
 })
 
+describe('righeTabellaEsiti', () => {
+  it('stampa le sole apparecchiature soggette a pratica INAIL', () => {
+    const righe = righeTabellaEsiti(buildEsiti(makeScheda(), info))
+
+    // Solo recipienti: niente compressori, valvole, essiccatori o filtri, che la tabella
+    // riempivano senza dire nulla — le loro esclusioni le dichiara il capoverso di chiusura.
+    expect(righe.map(r => r.pos)).toEqual(['C1.1', 'S1', 'E1.1'])
+    expect(righe.every(r => comportaAdempimento(r.esito))).toBe(true)
+  })
+
+  it('lascia fuori il recipiente non classificabile invece di darlo per soggetto', () => {
+    // Senza volume l'esito è null: affermare che è soggetto sarebbe inventarlo. Che manchi
+    // il dato lo dice il preflight, non una riga di tabella senza numeri.
+    const scheda = makeScheda({ serbatoi: [makeSerbatoio({ volume: undefined })] })
+    expect(righeTabellaEsiti(buildEsiti(scheda, info)).map(r => r.pos)).toEqual(['C1.1', 'E1.1'])
+  })
+})
+
 describe('descrizioneSerbatoio', () => {
   it('usa aria verticale come default', () => {
     expect(descrizioneSerbatoio(makeSerbatoio())).toBe('Serbatoio aria verticale')
   })
 
   it('riflette orientamento e fluido dichiarati', () => {
-    expect(
-      descrizioneSerbatoio(makeSerbatoio({ orientamento: 'ORIZZONTALE' }))
-    ).toBe('Serbatoio aria orizzontale')
+    expect(descrizioneSerbatoio(makeSerbatoio({ orientamento: 'ORIZZONTALE' }))).toBe(
+      'Serbatoio aria orizzontale'
+    )
     expect(descrizioneSerbatoio(makeSerbatoio({ fluido: 'AZOTO' }))).toBe(
       'Serbatoio azoto verticale'
     )
-    expect(
-      descrizioneSerbatoio(makeSerbatoio({ fluido: 'ALTRO', fluido_altro: 'Argon' }))
-    ).toBe('Serbatoio argon verticale')
+    expect(descrizioneSerbatoio(makeSerbatoio({ fluido: 'ALTRO', fluido_altro: 'Argon' }))).toBe(
+      'Serbatoio argon verticale'
+    )
   })
 })
 
@@ -198,7 +214,7 @@ describe('buildEsiti — dati incompleti', () => {
 describe('buildEsiti — risoluzione del costruttore', () => {
   it('applica resolveCostruttore alle marche', () => {
     const rows = buildEsiti(makeScheda(), info, {
-      resolveCostruttore: (m) => (m === 'KAESER' ? 'KAESER KOMPRESSOREN SE' : (m ?? '')),
+      resolveCostruttore: m => (m === 'KAESER' ? 'KAESER KOMPRESSOREN SE' : (m ?? '')),
     })
     expect(riga(rows, 'C1').costruttore).toBe('KAESER KOMPRESSOREN SE')
   })

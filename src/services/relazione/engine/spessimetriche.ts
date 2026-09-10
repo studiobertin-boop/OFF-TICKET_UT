@@ -6,13 +6,12 @@
  * qui il documento dice di chi si tratta, e senza nessuno da nominare il capoverso non
  * viene stampato affatto.
  *
- * Le posizioni sono quelle dichiarate nel form, ristrette a quelle che compaiono in §5.2:
- * è lì che il lettore le ritrova, con la spunta nella colonna «Verifica Integrità». La
- * spunta è consolidata sul capogruppo e la cella è fusa sull'intero gruppo, quindi copre
- * anche il recipiente che la verifica l'ha effettivamente subìta — ed è quello che si
- * nomina qui, non il compressore che lo porta.
+ * Le posizioni sono quelle dichiarate nel form, ristrette a quelle che la tabella di §5.2
+ * stampa davvero: è lì che il lettore le ritrova, con il «SI» nella colonna «Verifica
+ * Integrità».
  */
 import type { AdditionalInfo, EsitoRow, SpessimetricheModel } from '../types'
+import { righeTabellaEsiti } from './esiti'
 import { joinConLaE } from '../helpers'
 
 export function buildSpessimetriche(
@@ -21,11 +20,13 @@ export function buildSpessimetriche(
 ): SpessimetricheModel {
   const dichiarate = new Set(additionalInfo.spessimetrica ?? [])
 
-  // Si filtra sugli esiti invece di riportare la selezione così com'è: una posizione che
-  // in §5.2 non c'è non ha spunta da nessuna parte, e il rimando alla tabella sarebbe
-  // falso. L'ordine è quello della tabella — due elenchi delle stesse apparecchiature
-  // in ordine diverso si leggono come due elenchi diversi.
-  const posizioni = esiti.filter((e) => dichiarate.has(e.pos)).map((e) => e.pos)
+  // Si filtra sulle righe stampate invece di riportare la selezione così com'è: una
+  // posizione che in §5.2 non c'è non ha «SI» da nessuna parte, e il rimando alla tabella
+  // sarebbe falso. L'ordine è quello della tabella — due elenchi delle stesse
+  // apparecchiature in ordine diverso si leggono come due elenchi diversi.
+  const posizioni = righeTabellaEsiti(esiti)
+    .filter(e => dichiarate.has(e.pos))
+    .map(e => e.pos)
 
   if (posizioni.length === 0) return { presenti: false, clausola: '' }
 

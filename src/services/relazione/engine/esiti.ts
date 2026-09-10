@@ -7,14 +7,15 @@
  * esplicitavano nel testo: volume, PS, PS×V, categoria, adempimento, riferimento
  * normativo, stato INAIL, verifica di integrità.
  *
+ * `buildEsiti` classifica **tutte** le apparecchiature della scheda, comprese quelle
+ * escluse: è da qui che derivano §5.3, §7.2 e i controlli del preflight, che sugli esclusi
+ * hanno qualcosa da dire. La tabella stampata, invece, elenca le sole apparecchiature
+ * soggette a pratica INAIL — le altre le giustifica in blocco il capoverso che chiude
+ * §5.2 — e la si ricava con `righeTabellaEsiti`.
+ *
  * Le decisioni giuridiche vengono da `utils/dm329Classification`: qui si formatta soltanto.
  */
-import type {
-  SchedaDatiCompleta,
-  Serbatoio,
-  ValvolaSicurezza,
-  CategoriaPED,
-} from '@/types/technicalSheet'
+import type { SchedaDatiCompleta, ValvolaSicurezza, CategoriaPED } from '@/types/technicalSheet'
 import type { AdditionalInfo, EngineOptions, EsitoRow } from '../types'
 import type { EsitoDM329 } from '@/utils/dm329Classification'
 import { classificaRecipiente, comportaAdempimento } from '@/utils/dm329Classification'
@@ -110,26 +111,6 @@ export function buildEsiti(
   const spessimetrica = new Set(additionalInfo.spessimetrica ?? [])
   const gruppi: EsitoRow[][] = []
 
-  /**
-   * Stato INAIL e verifica di integrità sono proprietà del gruppo, non della singola
-   * riga: a INAIL si immatricola il recipiente, e il capogruppo con le sue valvole fanno
-   * parte della stessa pratica. I valori si consolidano sulla prima riga — una cella
-   * vuota accanto a un capogruppo si leggerebbe come "nessun adempimento" — e in fase di
-   * render le celle vengono fuse verticalmente sull'intero gruppo.
-   */
-  const finalizzaGruppo = (righe: EsitoRow[]): EsitoRow[] => {
-    if (righe.length === 0) return righe
-    const chiave = righe[0].pos
-    const stato = righe.map((r) => r.statoInail).find(Boolean) ?? ''
-    const verifica = righe.some((r) => r.verificaIntegrita)
-    return righe.map((r, i) => ({
-      ...r,
-      gruppo: chiave,
-      statoInail: i === 0 ? stato : '',
-      verificaIntegrita: i === 0 ? verifica : false,
-    }))
-  }
-
   /** Riga di un recipiente in pressione: classifica e formatta i numeri. */
   const rigaRecipiente = (args: {
     pos: string
@@ -154,7 +135,6 @@ export function buildEsiti(
       esito,
       row: {
         pos: args.pos,
-        gruppo: '',
         apparecchiatura: args.apparecchiatura,
         costruttore: resolve(args.marca),
         modello: etichettaModello(args.modello),
@@ -180,7 +160,6 @@ export function buildEsiti(
     const { adempimento, riferimento } = etichette(esito)
     return {
       pos,
-      gruppo: '',
       apparecchiatura: 'Valvola di sicurezza',
       costruttore: resolve(v.marca),
       modello: etichettaModello(v.modello),
@@ -210,7 +189,6 @@ export function buildEsiti(
     const { adempimento, riferimento } = etichette(args.esito)
     return {
       pos: args.pos,
-      gruppo: '',
       apparecchiatura: args.apparecchiatura,
       costruttore: resolve(args.marca),
       modello: etichettaModello(args.modello),
@@ -236,7 +214,7 @@ export function buildEsiti(
 
   // --- Compressori (+ disoleatore + valvole) --------------------------------
   for (const c of scheda.compressori ?? []) {
-    const diso = (scheda.disoleatori ?? []).find((d) => d.compressore_associato === c.codice)
+    const diso = (scheda.disoleatori ?? []).find(d => d.compressore_associato === c.codice)
     const g: EsitoRow[] = []
 
     // Il compressore è sempre escluso; cambia il motivo. Senza disoleatore è privo di
@@ -271,7 +249,7 @@ export function buildEsiti(
         g.push(rigaValvola(pos, valvole[i], esito))
       })
     }
-    gruppi.push(finalizzaGruppo(g))
+    gruppi.push(g)
   }
 
   // --- Serbatoi (+ valvole) -------------------------------------------------
@@ -293,25 +271,23 @@ export function buildEsiti(
     codiciValvoleSerbatoio(s.codice, valvole.length).forEach((pos, i) => {
       g.push(rigaValvola(pos, valvole[i], esito))
     })
-    gruppi.push(finalizzaGruppo(g))
+    gruppi.push(g)
   }
 
   // --- Essiccatori (+ scambiatore) ------------------------------------------
   for (const e of scheda.essiccatori ?? []) {
-    const scamb = (scheda.scambiatori ?? []).find((sc) => sc.essiccatore_associato === e.codice)
+    const scamb = (scheda.scambiatori ?? []).find(sc => sc.essiccatore_associato === e.codice)
 
     if (!scamb) {
-      gruppi.push(
-        finalizzaGruppo([
-          rigaNonRecipiente({
-            pos: e.codice,
-            apparecchiatura: 'Essiccatore frigorifero',
-            marca: e.marca,
-            modello: e.modello,
-            esito: 'ESCLUSO_NO_RECIPIENTE',
-          }),
-        ])
-      )
+      gruppi.push([
+        rigaNonRecipiente({
+          pos: e.codice,
+          apparecchiatura: 'Essiccatore frigorifero',
+          marca: e.marca,
+          modello: e.modello,
+          esito: 'ESCLUSO_NO_RECIPIENTE',
+        }),
+      ])
       continue
     }
 
@@ -327,36 +303,32 @@ export function buildEsiti(
       matricolaInail: scamb.matricola_inail,
     })
     // L'essiccatore non è un recipiente: eredita l'esito dello scambiatore che contiene.
-    gruppi.push(
-      finalizzaGruppo([
-        rigaNonRecipiente({
-          pos: e.codice,
-          apparecchiatura: 'Essiccatore frigorifero',
-          marca: e.marca,
-          modello: e.modello,
-          esito,
-        }),
-        row,
-      ])
-    )
+    gruppi.push([
+      rigaNonRecipiente({
+        pos: e.codice,
+        apparecchiatura: 'Essiccatore frigorifero',
+        marca: e.marca,
+        modello: e.modello,
+        esito,
+      }),
+      row,
+    ])
   }
 
   // --- Filtri (+ recipiente) ------------------------------------------------
   for (const f of scheda.filtri ?? []) {
-    const rec = (scheda.recipienti_filtro ?? []).find((r) => r.filtro_associato === f.codice)
+    const rec = (scheda.recipienti_filtro ?? []).find(r => r.filtro_associato === f.codice)
 
     if (!rec) {
-      gruppi.push(
-        finalizzaGruppo([
-          rigaNonRecipiente({
-            pos: f.codice,
-            apparecchiatura: 'Filtro',
-            marca: f.marca,
-            modello: f.modello,
-            esito: 'ESCLUSO_NO_RECIPIENTE',
-          }),
-        ])
-      )
+      gruppi.push([
+        rigaNonRecipiente({
+          pos: f.codice,
+          apparecchiatura: 'Filtro',
+          marca: f.marca,
+          modello: f.modello,
+          esito: 'ESCLUSO_NO_RECIPIENTE',
+        }),
+      ])
       continue
     }
 
@@ -371,63 +343,54 @@ export function buildEsiti(
       giaDenunciato: rec.gia_denunciato,
       matricolaInail: rec.matricola_inail,
     })
-    gruppi.push(
-      finalizzaGruppo([
-        rigaNonRecipiente({
-          pos: f.codice,
-          apparecchiatura: 'Filtro',
-          marca: f.marca,
-          modello: f.modello,
-          esito,
-        }),
-        row,
-      ])
-    )
+    gruppi.push([
+      rigaNonRecipiente({
+        pos: f.codice,
+        apparecchiatura: 'Filtro',
+        marca: f.marca,
+        modello: f.modello,
+        esito,
+      }),
+      row,
+    ])
   }
 
   // --- Separatori -----------------------------------------------------------
   // Non sono attrezzature a pressione: nessun esito da dichiarare.
   for (const sep of scheda.separatori ?? []) {
-    gruppi.push(
-      finalizzaGruppo([
-        {
-          pos: sep.codice,
-          gruppo: '',
-          apparecchiatura: 'Separatore acqua-olio',
-          costruttore: resolve(sep.marca),
-          modello: etichettaModello(sep.modello),
-          esito: null,
-          recipiente: false,
-          volume: '',
-          ps: '',
-          psPerV: '',
-          categoria: '',
-          adempimento: 'Non applicabile',
-          riferimento: '',
-          statoInail: '',
-          verificaIntegrita: false,
-        },
-      ])
-    )
+    gruppi.push([
+      {
+        pos: sep.codice,
+        apparecchiatura: 'Separatore acqua-olio',
+        costruttore: resolve(sep.marca),
+        modello: etichettaModello(sep.modello),
+        esito: null,
+        recipiente: false,
+        volume: '',
+        ps: '',
+        psPerV: '',
+        categoria: '',
+        adempimento: 'Non applicabile',
+        riferimento: '',
+        statoInail: '',
+        verificaIntegrita: false,
+      },
+    ])
   }
 
   return gruppi.flat()
 }
 
 /**
- * Dimensione di ciascun gruppo, nell'ordine in cui le righe compaiono in tabella.
- * È l'informazione che serve alla fusione verticale delle celle in fase di render.
+ * Le righe che la tabella di §5.2 stampa: le sole apparecchiature soggette a pratica
+ * INAIL. Le escluse restano nel modello — §5.3, §7.2 e il preflight le leggono — ma in
+ * tabella diluivano il dato: fra ventuno righe, le sei che comportano un adempimento si
+ * dovevano cercare. Le esclusioni le dichiara in blocco il capoverso che chiude §5.2.
+ *
+ * Il filtro è per adempimento e non per tipo di apparecchiatura: un recipiente con dati
+ * insufficienti (`esito: null`) non è classificabile, quindi non si può affermare che sia
+ * soggetto, e resta fuori. È il preflight a non lasciarlo passare in silenzio.
  */
-export function dimensioniGruppi(esiti: EsitoRow[]): number[] {
-  const out: number[] = []
-  let precedente: string | null = null
-  for (const r of esiti) {
-    if (r.gruppo !== precedente) {
-      out.push(1)
-      precedente = r.gruppo
-    } else {
-      out[out.length - 1] += 1
-    }
-  }
-  return out
+export function righeTabellaEsiti(esiti: EsitoRow[]): EsitoRow[] {
+  return esiti.filter(r => comportaAdempimento(r.esito))
 }
