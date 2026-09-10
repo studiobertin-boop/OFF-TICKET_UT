@@ -206,4 +206,22 @@ describe('buildCaratteristiche — PS e TS sul filtro', () => {
     expect(f.pressione).toBe('')
     expect(f.temperatura).toBe('')
   })
+
+  test('lascia vuote le celle di anno e n. fabbrica quando il dato manca', () => {
+    // Dal DB l'anno ignoto arriva come `null`, non come `undefined`: i filtri delle schede
+    // in produzione lo hanno così, e in tabella si leggeva la parola «null».
+    const rows = buildCaratteristiche(
+      makeScheda({
+        compressori: [],
+        disoleatori: [],
+        serbatoi: [],
+        essiccatori: [],
+        scambiatori: [],
+        filtri: [makeFiltro({ codice: 'F1', anno: null, n_fabbrica: null })],
+      })
+    )
+    const f = rows.find((r) => r.pos === 'F1')!
+    expect(f.anno).toBe('')
+    expect(f.nFabbrica).toBe('')
+  })
 })

@@ -43,7 +43,9 @@ export function buildCaratteristiche(
     descrizione,
     costruttore: resolve(marca),
     modello: etichettaModello(modello),
-    anno: anno !== undefined ? String(anno) : '',
+    // `!= null` e non `!== undefined`: dal DB l'anno ignoto arriva come `null`, e
+    // `String(null)` stampava «null» nella cella al posto del vuoto.
+    anno: anno != null ? String(anno) : '',
     nFabbrica: nFabbrica ?? '',
   })
 
@@ -67,10 +69,17 @@ export function buildCaratteristiche(
       temperatura: '',
       categoria: '',
     })
-    const diso = (scheda.disoleatori ?? []).find((d) => d.compressore_associato === c.codice)
+    const diso = (scheda.disoleatori ?? []).find(d => d.compressore_associato === c.codice)
     if (diso) {
       rows.push({
-        ...base(diso.codice, 'Serbatoio disoleatore', diso.marca, diso.modello, diso.anno, diso.n_fabbrica),
+        ...base(
+          diso.codice,
+          'Serbatoio disoleatore',
+          diso.marca,
+          diso.modello,
+          diso.anno,
+          diso.n_fabbrica
+        ),
         capacita: formatNumberIT(diso.volume),
         pressione: formatNumberIT(diso.ps_pressione_max),
         temperatura: formatTemperatura(TEMP_MIN_RECIPIENTE, diso.ts, diso.ts_temperatura),
@@ -107,10 +116,17 @@ export function buildCaratteristiche(
       temperatura: '',
       categoria: '',
     })
-    const scamb = (scheda.scambiatori ?? []).find((sc) => sc.essiccatore_associato === e.codice)
+    const scamb = (scheda.scambiatori ?? []).find(sc => sc.essiccatore_associato === e.codice)
     if (scamb) {
       rows.push({
-        ...base(scamb.codice, 'Scambiatore di calore', scamb.marca, scamb.modello, scamb.anno, scamb.n_fabbrica),
+        ...base(
+          scamb.codice,
+          'Scambiatore di calore',
+          scamb.marca,
+          scamb.modello,
+          scamb.anno,
+          scamb.n_fabbrica
+        ),
         capacita: formatNumberIT(scamb.volume),
         pressione: formatNumberIT(scamb.ps_pressione_max),
         temperatura: formatTemperatura(TEMP_MIN_SCAMBIATORE, scamb.ts, scamb.ts_temperatura),
@@ -128,7 +144,7 @@ export function buildCaratteristiche(
       temperatura: formatTemperatura(TEMP_MIN_RECIPIENTE, f.ts, f.ts_temperatura),
       categoria: '',
     })
-    const rec = (scheda.recipienti_filtro ?? []).find((r) => r.filtro_associato === f.codice)
+    const rec = (scheda.recipienti_filtro ?? []).find(r => r.filtro_associato === f.codice)
     if (rec) {
       rows.push({
         ...base(rec.codice, 'Recipiente filtro', rec.marca, rec.modello, rec.anno, rec.n_fabbrica),
