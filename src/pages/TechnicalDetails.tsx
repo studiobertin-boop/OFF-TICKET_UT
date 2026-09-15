@@ -20,6 +20,7 @@ import { relazioneDocumentiApi } from '@/services/api/relazioneDocumenti'
 import { dichiarazioniDocumentiApi } from '@/services/api/dichiarazioniDocumenti'
 import { fascicoloDocumentiApi } from '@/services/api/fascicoloDocumenti'
 import { calcolaEsitiPerCodice, codiciConAdempimento } from '@/utils/dm329Classification'
+import { codiceDelFascicolo } from '@/services/fascicolo/fascicoloDiRiferimento'
 import { countApparecchiCIVA, computeXFattura } from '@/utils/xFattura'
 import { supabase } from '@/services/supabase'
 import { TechnicalSheetForm, type TechnicalSheetFormRef } from '@/components/technicalSheet/TechnicalSheetForm'
@@ -580,9 +581,14 @@ export const TechnicalDetails = () => {
       // Un file per codice: il browser mette in coda i download consecutivi, non serve uno zip
       // lato client per un pugno di file — la scelta è deliberatamente la più semplice che
       // funzioni (vedi documento di design, sezione «Fuori scope»).
-      const codici = codiciConAdempimento(calcolaEsitiPerCodice(formRef.current?.getFormData() ?? {}))
+      const scheda = formRef.current?.getFormData() ?? {}
+      const codici = codiciConAdempimento(calcolaEsitiPerCodice(scheda))
+      // Il fascicolo di una collegata può stare sotto la principale (E1.1 generato su E1): si
+      // cerca dove sta, con la stessa regola che colora i chip in barra.
+      const conFascicolo = await fascicoloDocumentiApi.codiciConFascicolo(id!)
       for (const codice of codici) {
-        const documenti = await fascicoloDocumentiApi.elenca(id!, codice)
+        const sede = codiceDelFascicolo(codice, conFascicolo, scheda)
+        const documenti = sede ? await fascicoloDocumentiApi.elenca(id!, sede) : []
         const fascicolo = documenti.find((d) => d.tipo === 'fascicolo')
         if (!fascicolo) {
           console.warn('[handleScaricaCompleta] Nessun fascicolo trovato per il codice', codice)

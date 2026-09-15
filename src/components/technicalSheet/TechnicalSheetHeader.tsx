@@ -14,6 +14,7 @@ import { AzioneIcona, ChipAzione } from '@/components/common'
 import { eCompleta, percentuale, type Completezza } from '@/utils/schedaCompleteness'
 import { calcolaEsitiPerCodice, codiciConAdempimento } from '@/utils/dm329Classification'
 import { fascicoloDocumentiApi } from '@/services/api/fascicoloDocumenti'
+import { codiceDelFascicolo } from '@/services/fascicolo/fascicoloDiRiferimento'
 import { useAperturaApparecchiatura } from './AperturaApparecchiatura'
 import type { SchedaDatiCompleta } from '@/types/technicalSheet'
 
@@ -140,7 +141,18 @@ export const TechnicalSheetHeader = ({
     queryFn: () => fascicoloDocumentiApi.codiciConFascicolo(requestId),
     enabled: !!requestId,
   })
-  const fascicoliMancanti = codiciRichiesti.filter((c) => !codiciConFascicoloPronto?.has(c))
+  // Il fascicolo di una collegata può essere stato generato sulla principale (C1.1 su C1, E1.1
+  // su E1): vale lo stesso, purché la principale non abbia altre collegate — vedi
+  // `codiceDelFascicolo`. `null` dice che il fascicolo non c'è.
+  const fascicoloDi = (codice: string): string | null =>
+    codiciConFascicoloPronto
+      ? codiceDelFascicolo(codice, codiciConFascicoloPronto, {
+          disoleatori: perAdempimento[1] ?? [],
+          scambiatori: perAdempimento[2] ?? [],
+          recipienti_filtro: perAdempimento[3] ?? [],
+        })
+      : null
+  const fascicoliMancanti = codiciRichiesti.filter((c) => fascicoloDi(c) === null)
   // «F» raccoglie i file da portare via, quindi conta se il file esiste — non se lo schema è
   // pronto in questa sessione: legarlo a `relazionePronta` faceva dire «Mancano: relazione» con
   // la relazione già generata e salvata.
@@ -238,14 +250,17 @@ export const TechnicalSheetHeader = ({
               <Divider orientation="vertical" flexItem sx={{ my: 0.5 }} />
 
               {codiciRichiesti.map((codice) => {
-                const pronto = codiciConFascicoloPronto?.has(codice) ?? false
+                const sede = fascicoloDi(codice)
+                const pronto = sede !== null
                 return (
                   <ChipAzione
                     key={codice}
                     sigla={codice}
                     testo={pronto ? `Fascicolo di ${codice} — pronto` : `Fascicolo di ${codice}`}
                     fatto={pronto}
-                    onClick={() => apertura?.apri(codice)}
+                    // Si apre la riga dove il fascicolo sta davvero: generato su E1, è lì che si
+                    // riscarica o si rigenera.
+                    onClick={() => apertura?.apri(sede ?? codice)}
                   />
                 )
               })}
