@@ -190,8 +190,17 @@ export interface CaratteristicheRow {
   descrizione: string
   costruttore: string
   modello: string
-  /** Capacità [l] / Aria producibile [l/min] / Portata scaricata [l/min] secondo il tipo */
+  /**
+   * Capacità [l] dei soli recipienti in pressione. Vuota per tutto il resto: fino ad allora
+   * la colonna era una sola e cambiava unità di misura riga per riga, così che due numeri
+   * incolonnati non erano confrontabili.
+   */
   capacita: string
+  /**
+   * Portata [l/min]: aria producibile del compressore, trattata dall'essiccatore, scaricata
+   * dalla valvola. Vuota per i recipienti, che una portata non ce l'hanno.
+   */
+  portata: string
   /** Pressione massima [bar] o Pressione di taratura [bar] secondo il tipo */
   pressione: string
   /** Temperatura come range "min ÷ +TS" ('' se non applicabile) */

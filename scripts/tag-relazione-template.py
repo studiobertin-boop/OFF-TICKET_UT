@@ -617,9 +617,10 @@ def converti(sorgente, destinazione):
             "§4 caratterizzazione",
         ),
         "caratteristiche",
-        ["{pos}", "{descrizione}", ["{costruttore}", "{modello}"], "{capacita}",
+        ["{pos}", "{descrizione}", ["{costruttore}", "{modello}"], "{capacita}", "{portata}",
          "{pressione}", "{temperatura}", "{categoria}", "{anno}", "{nFabbrica}"],
-        ["C1", "Compressore", None, "8000", None, None, None, "2025", None],
+        # Capacità e portata sono due colonne: il compressore ha la seconda e non la prima.
+        ["C1", "Compressore", None, "", "8000", None, None, None, "2025", None],
     )
 
     # --- §5.2 Esiti --------------------------------------------------------

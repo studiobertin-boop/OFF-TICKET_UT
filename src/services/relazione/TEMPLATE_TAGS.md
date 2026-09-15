@@ -79,8 +79,14 @@ dichiarato rende il file illeggibile a Word) e che le fusioni di §5.2 siano pre
 
 ## §4 Caratterizzazione
 `{#caratteristiche}` … `{/caratteristiche}` con
-`{pos}` `{descrizione}` `{costruttore}` `{modello}` `{capacita}` `{pressione}`
+`{pos}` `{descrizione}` `{costruttore}` `{modello}` `{capacita}` `{portata}` `{pressione}`
 `{temperatura}` `{categoria}` `{anno}` `{nFabbrica}`
+
+`{capacita}` (litri) e `{portata}` (litri al minuto) sono **due colonne distinte** da
+settembre 2026. Ogni riga ne riempie una sola — i recipienti la capacità, compressori,
+essiccatori e valvole la portata — e chi non ha né l'una né l'altra (filtri, separatori)
+le lascia vuote entrambe. Erano una colonna sola, che cambiava unità di misura riga per
+riga: due numeri incolonnati non erano confrontabili.
 
 `{modello}` arriva già etichettato («Modello: CSD 90 SFC»): nella cella il costruttore sta
 sulla prima riga e il modello sulla seconda, e senza etichetta le due si leggerebbero come

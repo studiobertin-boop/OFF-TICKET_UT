@@ -17,6 +17,39 @@ import { attendiXmlValido } from './xmlBenFormato'
 const TEMPLATE_PATH = resolve(process.cwd(), 'public/templates/relazione-dm329.docx')
 
 describe('integrazione template ↔ engine', () => {
+  test('§4: capacità e portata sono due colonne, e il compressore riempie solo la seconda', () => {
+    const model = buildRelazioneModel({
+      scheda: makeScheda({
+        compressori: [makeCompressore({ codice: 'C1', ha_disoleatore: false })],
+        disoleatori: [],
+      }),
+      additionalInfo: makeAdditionalInfo(),
+      customer: makeCustomer(),
+      pratica: makePratica(),
+    })
+    const xml = new PizZip(renderRelazioneDocx(readFileSync(TEMPLATE_PATH), model))
+      .file('word/document.xml')!
+      .asText()
+
+    const inizio = xml.lastIndexOf('<w:tbl>', xml.indexOf('Pos.</w:t>'))
+    const tabella = xml.slice(inizio, xml.indexOf('</w:tbl>', inizio))
+    const righe = (tabella.match(/<w:tr[ >][\s\S]*?<\/w:tr>/g) ?? []).map((tr) =>
+      (tr.match(/<w:tc>[\s\S]*?<\/w:tc>/g) ?? []).map((tc) =>
+        (tc.match(/<w:t(?: [^>]*)?>([^<]*)<\/w:t>/g) ?? [])
+          .map((t) => t.replace(/<[^>]+>/g, ''))
+          .join('')
+      )
+    )
+
+    expect(righe[0][3]).toBe('Capacità [l]')
+    expect(righe[0][4]).toBe('Portata [l/min]')
+    const c1 = righe.find((r) => r[0] === 'C1')!
+    expect(c1).toHaveLength(10)
+    expect(c1[3]).toBe('')
+    expect(c1[4]).toBe(model.caratteristiche.find((r) => r.pos === 'C1')!.portata)
+    expect(c1[4]).not.toBe('')
+  })
+
   test('il template generato renderizza senza errori e sostituisce i tag', () => {
     expect(
       existsSync(TEMPLATE_PATH),

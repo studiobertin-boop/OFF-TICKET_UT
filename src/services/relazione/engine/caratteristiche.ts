@@ -1,10 +1,13 @@
 /**
  * Engine — tabella "caratteristiche apparecchiature".
  *
- * La colonna centrale cambia significato per tipo di apparecchio:
- * - compressore: aria producibile (FAD)
- * - valvola: portata scaricata; pressione = pressione di taratura
- * - recipienti (disoleatore/serbatoio/scambiatore/recipiente filtro): volume; pressione = PS
+ * Capacità e portata sono due colonne, non una: sono grandezze diverse — litri e litri al
+ * minuto — e una colonna sola le incolonnava cambiando unità di misura riga per riga.
+ * - compressore: portata = aria producibile (FAD)
+ * - essiccatore: portata = aria trattata
+ * - valvola: portata = aria scaricata; pressione = pressione di taratura
+ * - recipienti (disoleatore/serbatoio/scambiatore/recipiente filtro): capacità = volume;
+ *   pressione = PS
  * La temperatura viene dal campo `ts` della scheda dati, precompilato dal catalogo e
  * modificabile dal tecnico; vedi formatTemperatura per la resa.
  */
@@ -52,7 +55,8 @@ export function buildCaratteristiche(
 
   const valvolaRow = (pos: string, v: ValvolaSicurezza): CaratteristicheRow => ({
     ...base(pos, 'Valvola di sicurezza', v.marca, v.modello, v.anno, v.n_fabbrica),
-    capacita: formatNumberIT(v.volume_aria_scaricato),
+    capacita: '',
+    portata: formatNumberIT(v.volume_aria_scaricato),
     pressione: formatNumberIT(v.pressione_taratura),
     temperatura: formatTemperatura(TEMP_MIN_VALVOLA, v.ts, v.ts_temperatura),
     // Una valvola di sicurezza è un accessorio di sicurezza: categoria IV per definizione.
@@ -65,7 +69,8 @@ export function buildCaratteristiche(
   for (const c of scheda.compressori ?? []) {
     rows.push({
       ...base(c.codice, 'Compressore', c.marca, c.modello, c.anno, c.n_fabbrica),
-      capacita: formatNumberIT(c.volume_aria_prodotto),
+      capacita: '',
+      portata: formatNumberIT(c.volume_aria_prodotto),
       pressione: formatNumberIT(c.pressione_max),
       temperatura: '',
       categoria: '',
@@ -82,6 +87,7 @@ export function buildCaratteristiche(
           diso.n_fabbrica
         ),
         capacita: formatNumberIT(diso.volume),
+        portata: '',
         pressione: formatNumberIT(diso.ps_pressione_max),
         temperatura: formatTemperatura(TEMP_MIN_RECIPIENTE, diso.ts, diso.ts_temperatura),
         categoria: diso.categoria_ped ?? '',
@@ -98,6 +104,7 @@ export function buildCaratteristiche(
     rows.push({
       ...base(s.codice, descrizioneSerbatoio(s), s.marca, s.modello, s.anno, s.n_fabbrica),
       capacita: formatNumberIT(s.volume),
+      portata: '',
       pressione: formatNumberIT(s.ps_pressione_max),
       temperatura: formatTemperatura(TEMP_MIN_RECIPIENTE, s.ts, s.ts_temperatura),
       categoria: s.categoria_ped ?? '',
@@ -112,7 +119,8 @@ export function buildCaratteristiche(
   for (const e of scheda.essiccatori ?? []) {
     rows.push({
       ...base(e.codice, 'Essiccatore frigorifero', e.marca, e.modello, e.anno, e.n_fabbrica),
-      capacita: formatNumberIT(e.volume_aria_trattata),
+      capacita: '',
+      portata: formatNumberIT(e.volume_aria_trattata),
       pressione: formatNumberIT(e.ps_pressione_max),
       temperatura: '',
       categoria: '',
@@ -132,6 +140,7 @@ export function buildCaratteristiche(
           scamb.n_fabbrica
         ),
         capacita: formatNumberIT(scamb.volume),
+        portata: '',
         pressione: formatNumberIT(scamb.ps_pressione_max),
         temperatura: formatTemperatura(TEMP_MIN_SCAMBIATORE, scamb.ts, scamb.ts_temperatura),
         categoria: scamb.categoria_ped ?? '',
@@ -144,6 +153,7 @@ export function buildCaratteristiche(
     rows.push({
       ...base(f.codice, 'Filtro', f.marca, f.modello, f.anno, f.n_fabbrica),
       capacita: '',
+      portata: '',
       pressione: formatNumberIT(f.ps_pressione_max),
       temperatura: formatTemperatura(TEMP_MIN_RECIPIENTE, f.ts, f.ts_temperatura),
       categoria: '',
@@ -153,6 +163,7 @@ export function buildCaratteristiche(
       rows.push({
         ...base(rec.codice, 'Recipiente filtro', rec.marca, rec.modello, rec.anno, rec.n_fabbrica),
         capacita: formatNumberIT(rec.volume),
+        portata: '',
         pressione: formatNumberIT(rec.ps_pressione_max),
         temperatura: formatTemperatura(TEMP_MIN_RECIPIENTE, rec.ts, rec.ts_temperatura),
         categoria: '',
@@ -165,6 +176,7 @@ export function buildCaratteristiche(
     rows.push({
       ...base(sep.codice, 'Separatore', sep.marca, sep.modello, sep.anno, sep.n_fabbrica),
       capacita: '',
+      portata: '',
       pressione: '',
       temperatura: '',
       categoria: '',

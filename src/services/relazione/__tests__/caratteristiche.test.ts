@@ -37,10 +37,13 @@ const soloCompressore = () =>
   })
 
 describe('buildCaratteristiche', () => {
-  test('compressore: colonna capacità = aria producibile (FAD), pressione = pressione massima, temperatura vuota', () => {
+  test('compressore: portata = aria producibile (FAD), pressione = pressione massima, temperatura vuota', () => {
     const rows = buildCaratteristiche(soloCompressore())
     const c1 = rows.find((r) => r.pos === 'C1')!
-    expect(c1.capacita).toBe('8350')
+    // Un compressore non ha capacità: quella colonna è dei recipienti, e mescolarvi
+    // litri al minuto rendeva i due numeri non confrontabili.
+    expect(c1.capacita).toBe('')
+    expect(c1.portata).toBe('8350')
     expect(c1.pressione).toBe('12')
     expect(c1.temperatura).toBe('')
   })
@@ -49,14 +52,16 @@ describe('buildCaratteristiche', () => {
     const rows = buildCaratteristiche(soloCompressore())
     const d = rows.find((r) => r.pos === 'C1.1')!
     expect(d.capacita).toBe('75')
+    expect(d.portata).toBe('')
     expect(d.temperatura).toBe('-10÷+120')
     expect(d.categoria).toBe('III')
   })
 
-  test('valvola: capacità = portata scaricata, pressione = pressione di taratura', () => {
+  test('valvola: portata = aria scaricata, pressione = pressione di taratura', () => {
     const rows = buildCaratteristiche(soloCompressore())
     const v = rows.find((r) => r.pos === 'C1.2')!
-    expect(v.capacita).toBe('10518')
+    expect(v.capacita).toBe('')
+    expect(v.portata).toBe('10518')
     expect(v.pressione).toBe('14')
     expect(v.temperatura).toBe('-10÷+200')
   })
@@ -206,7 +211,9 @@ describe('buildCaratteristiche — PS e TS sul filtro', () => {
     const f = rows.find((r) => r.pos === 'F1')!
     expect(f.pressione).toBe('11')
     expect(f.temperatura).toBe('-10÷+150')
+    // Un filtro non ha né capacità né portata da dichiarare: due celle vuote, non una.
     expect(f.capacita).toBe('')
+    expect(f.portata).toBe('')
     expect(f.categoria).toBe('')
   })
 
