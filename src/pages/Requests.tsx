@@ -37,7 +37,7 @@ import { useRequestTypes } from '@/hooks/useRequestTypes'
 import { useAuth } from '@/hooks/useAuth'
 import { usePersistedState } from '@/hooks/usePersistedState'
 import { getStatusColor, getStatusLabel, isDM329Family } from '@/utils/workflow'
-import { StatusChip } from '@/components/common'
+import { ConteggioFiltrati, StatusChip } from '@/components/common'
 import type { DM329Status, StatoFattura } from '@/types'
 import { requestsApi } from '@/services/api/requests'
 import { RequestsTableView } from '@/components/requests/RequestsTableView'
@@ -537,6 +537,7 @@ export const Requests = () => {
             {hasDM329ActiveFilters && (
               <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  <ConteggioFiltrati filtrate={filteredDM329Requests.length} totali={displayRequests.length} />
                   {dm329ClienteFilter.length > 0 && (
                     <Chip label={`Clienti: ${dm329ClienteFilter.length}`} size="small" onDelete={() => setDm329ClienteFilter([])} />
                   )}

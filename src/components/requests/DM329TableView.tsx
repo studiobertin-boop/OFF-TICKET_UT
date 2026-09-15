@@ -38,7 +38,7 @@ import {
 } from '@mui/icons-material'
 import { Request, DM329Status, StatoFattura, STATO_FATTURA_OPTIONS, STATO_FATTURA_LABELS } from '@/types'
 import { getStatusColor, getStatusLabel, ALL_DM329_STATUSES, DM329_STATUS_LABELS } from '@/utils/workflow'
-import { StatusChip } from '@/components/common'
+import { ConteggioFiltrati, StatusChip } from '@/components/common'
 import { getStatusChipColors } from '@/theme/statusColors'
 import { useThemeMode } from '@/theme'
 import { usePersistedState } from '@/hooks/usePersistedState'
@@ -654,6 +654,7 @@ export const DM329TableView = ({
       {hasActiveFilters && (
         <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <ConteggioFiltrati filtrate={filteredAndSortedRequests.length} totali={requests.length} />
             {clienteFilter.length > 0 && <Chip label={`Clienti: ${clienteFilter.length}`} size="small" onDelete={() => setClienteFilter([])} />}
             {statoFilter.length > 0 && <Chip label={`Stati: ${statoFilter.length}`} size="small" onDelete={() => setStatoFilter([])} />}
             {tipoPraticaFilter && <Chip label={`Tipo: ${tipoPraticaFilter === 'DM329-Integrazioni' ? 'Integrazioni' : tipoPraticaFilter}`} size="small" onDelete={() => setTipoPraticaFilter('')} />}

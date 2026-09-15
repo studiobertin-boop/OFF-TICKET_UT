@@ -28,7 +28,7 @@ import {
 } from '@mui/icons-material'
 import { Request, RequestStatus, StatoFattura, STATO_FATTURA_OPTIONS, STATO_FATTURA_LABELS } from '@/types'
 import { getStatusColor, getStatusLabel, ALL_STANDARD_STATUSES, STANDARD_STATUS_LABELS } from '@/utils/workflow'
-import { StatusChip } from '@/components/common'
+import { ConteggioFiltrati, StatusChip } from '@/components/common'
 import { getStatusChipColors } from '@/theme/statusColors'
 import { useThemeMode } from '@/theme'
 import { usePersistedState } from '@/hooks/usePersistedState'
@@ -450,6 +450,7 @@ export const RequestsTableView = ({
       {hasActiveFilters && (
         <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+            <ConteggioFiltrati filtrate={filteredAndSortedRequests.length} totali={requests.length} />
             {tipoFilter.length > 0 && (
               <Chip label={`Tipi: ${tipoFilter.length}`} size="small" onDelete={() => setTipoFilter([])} />
             )}
