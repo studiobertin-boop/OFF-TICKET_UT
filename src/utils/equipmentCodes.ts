@@ -63,6 +63,24 @@ export function childCode(parentCode: string, sub = 1): string {
   return `${parentCode}.${sub}`
 }
 
+/** Quanti figli un padre può avere nell'array dipendente dato (vedi `CHILD_ARRAYS`). */
+export function figliMax(array: string): number {
+  return CHILD_ARRAYS.find((c) => c.array === array)?.figliMax ?? 1
+}
+
+/**
+ * Primo codice figlio libero del padre: `E1` → `E1.1`, e con E1.1 già presente `E1.2`.
+ * Ritorna null se il padre ha già tutti i figli che può avere.
+ */
+export function nextFreeChildCode(parentCode: string, existing: unknown[], max: number): string | null {
+  const taken = new Set(existing.map((c) => (typeof c === 'string' ? c.trim() : c)))
+  for (let sub = 1; sub <= max; sub++) {
+    const code = childCode(parentCode, sub)
+    if (!taken.has(code)) return code
+  }
+  return null
+}
+
 /**
  * Codice dell'apparecchiatura che un nome file indirizza per posizione: `serbatoi` + indice 0 ⇒ `S1`,
  * `disoleatori` + indice 0 ⇒ `C1.1` (gli array dipendenti portano il suffisso del figlio).
@@ -84,11 +102,13 @@ export function codeForArrayIndex(array: string, index: number): string | null {
  * valido — mancante, di prefisso sbagliato, fuori dal massimo del tipo, o duplicato di uno già
  * visto — il numero libero più basso.
  *
- * Array dipendenti: riallinea `codice` a `${riferimento}.1`. Il riferimento al padre deve avere
- * il prefisso e il numero entro i limiti specifici dell'array dipendente (es. disoleatori richiede
- * prefisso 'C' e num 1..5); se il riferimento non è valido il codice non è derivabile e il record
- * resta intatto. Anche quando il riferimento è valido, se il codice derivato è già occupato da un
- * altro figlio dello stesso padre, il record precedente conserva il codice e il nuovo resta intatto.
+ * Array dipendenti: il codice è `${riferimento}.n`, con n da 1 a `figliMax` (uno per disoleatori
+ * e recipienti filtro, due per gli scambiatori: E1.1, E1.2). Chi ha già un codice valido per il
+ * proprio padre lo conserva; agli altri va il primo sotto-numero libero. Il riferimento al padre
+ * deve avere il prefisso e il numero entro i limiti specifici dell'array dipendente (es.
+ * disoleatori richiede prefisso 'C' e num 1..5); se il riferimento non è valido il codice non è
+ * derivabile e il record resta intatto. Resta intatto anche il figlio di un padre che ha già
+ * tutti i figli che può avere: i record precedenti conservano il codice.
  *
  * Idempotente: applicata al proprio risultato ritorna `changed: false`.
  */
@@ -132,33 +152,40 @@ export function normalizeSchedaCodes<T extends Record<string, any>>(
     }
   }
 
-  for (const { array, ref } of CHILD_ARRAYS) {
+  for (const { array, ref, figliMax: maxFigli } of CHILD_ARRAYS) {
     const items = scheda?.[array]
     if (!Array.isArray(items) || items.length === 0) continue
 
     const { prefix, max } = EQUIPMENT_LIMITS[array]
-    /** Codice che il figlio dovrebbe avere, o null se il riferimento non è utilizzabile. */
-    const expectedOf = (item: any): string | null => {
+    /** Codice del padre, o null se il riferimento non è utilizzabile. */
+    const parentOf = (item: any): string | null => {
       const parent = parseCode(item?.[ref])
       if (!parent || parent.sub !== undefined) return null
       if (parent.prefix !== prefix || parent.num < 1 || parent.num > max) return null
-      return childCode(item[ref])
+      return item[ref]
+    }
+    /** Il codice è già uno di quelli che il padre può dare: `${padre}.1` … `${padre}.${maxFigli}`. */
+    const codiceValido = (item: { codice?: unknown } | undefined, parentCode: string): boolean => {
+      const p = parseCode(item?.codice)
+      if (!p || p.sub === undefined || p.sub < 1 || p.sub > maxFigli) return false
+      return item.codice === childCode(parentCode, p.sub)
     }
     const claimed = new Set<string>()
-    // 1° passaggio: chi ha già il codice corretto lo mantiene e se lo riserva.
+    // 1° passaggio: chi ha già un codice corretto lo mantiene e se lo riserva.
     items.forEach((item: any) => {
-      const expected = expectedOf(item)
-      if (expected && item?.codice === expected) claimed.add(expected)
+      const parentCode = parentOf(item)
+      if (parentCode && codiceValido(item, parentCode)) claimed.add(item.codice)
     })
-    // 2° passaggio: assegna a chi ne è privo, senza creare duplicati.
+    // 2° passaggio: a chi ne è privo il primo sotto-numero libero, senza creare duplicati.
     let touched = false
     const next = items.map((item: any) => {
-      const expected = expectedOf(item)
-      if (!expected || item?.codice === expected) return item
-      if (claimed.has(expected)) return item // il codice appartiene già a un altro figlio
-      claimed.add(expected)
+      const parentCode = parentOf(item)
+      if (!parentCode || codiceValido(item, parentCode)) return item
+      const code = nextFreeChildCode(parentCode, [...claimed], maxFigli)
+      if (!code) return item // il padre ha già tutti i figli che può avere
+      claimed.add(code)
       touched = true
-      return { ...item, codice: expected }
+      return { ...item, codice: code }
     })
 
     if (touched) {

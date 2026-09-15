@@ -7,7 +7,7 @@
  */
 import { corpoNodo, dimensioniLayout, estensioneOrizzontale, quoteInstradamento } from './layout'
 import type { Tarature } from './libreria'
-import { codiceVisibile } from './codici'
+import { accessoriDi, codiceVisibile } from './codici'
 import {
   ancoraDi,
   campioneTubazione,
@@ -223,9 +223,9 @@ export function righeLista(layout: SchemaLayout): RigaTabella[] {
     // tabella occuperebbe una riga che non dice nulla. La legenda spiegherà i simboli, non lui.
     if (nodo.tipo === 'utenze' || nodo.tipo === 'giunzione') continue
     righe.push({ sinistra: { codice: codiceVisibile(nodo) }, descrizione: nodo.etichetta })
-    if (nodo.accessorio) {
-      righe.push({ sinistra: { codice: nodo.accessorio.codice }, descrizione: nodo.accessorio.etichetta })
-      for (const v of nodo.accessorio.valvoleSicurezza) {
+    for (const accessorio of accessoriDi(nodo)) {
+      righe.push({ sinistra: { codice: accessorio.codice }, descrizione: accessorio.etichetta })
+      for (const v of accessorio.valvoleSicurezza) {
         righe.push({ sinistra: { codice: v.codice }, descrizione: v.etichetta })
       }
     }

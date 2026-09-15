@@ -5,6 +5,7 @@ import {
   makeDisoleatore,
   makeEssiccatore,
   makeFiltro,
+  makeScambiatore,
   makeScheda,
   makeSeparatore,
   makeSerbatoio,
@@ -23,6 +24,26 @@ import { pozzoCondense } from '../layout'
 import type { SchemaModel } from '../types'
 
 describe('buildSchemaModel', () => {
+  it("con due scambiatori, E1.1 resta l'accessorio e E1.2 va fra gli aggiuntivi", () => {
+    const scheda = makeScheda({
+      essiccatori: [makeEssiccatore()],
+      scambiatori: [
+        makeScambiatore({ codice: 'E1.2', essiccatore_associato: 'E1' }),
+        makeScambiatore({ codice: 'E1.1', essiccatore_associato: 'E1' }),
+      ],
+    })
+    const e1 = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: {} }).nodi.find((n) => n.id === 'E1')!
+    expect(e1.accessorio?.codice).toBe('E1.1')
+    expect(e1.accessoriAggiuntivi?.map((a) => a.codice)).toEqual(['E1.2'])
+  })
+
+  it('con uno scambiatore solo il nodo non porta accessori aggiuntivi', () => {
+    const scheda = makeScheda({ essiccatori: [makeEssiccatore()], scambiatori: [makeScambiatore()] })
+    const e1 = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: {} }).nodi.find((n) => n.id === 'E1')!
+    expect(e1.accessorio?.codice).toBe('E1.1')
+    expect(e1).not.toHaveProperty('accessoriAggiuntivi')
+  })
+
   // Caso di riferimento: DOCUMENTAZIONE/relazione/schema.png — un compressore, un serbatoio
   // orizzontale, collegamento flessibile fra i due.
   it('replica lo schema minimo compressore → serbatoio', () => {

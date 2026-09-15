@@ -31,11 +31,18 @@ export function parseCode(code: unknown): ParsedCode | null {
 /** Array principali della scheda: prefisso e massimo vengono da EQUIPMENT_LIMITS (lato client). */
 export const PARENT_ARRAYS = ['serbatoi', 'compressori', 'essiccatori', 'filtri', 'separatori'] as const
 
-/** Array dipendenti: il codice si deriva dal padre tramite il campo di riferimento. */
+/**
+ * Array dipendenti: il codice si deriva dal padre tramite il campo di riferimento.
+ *
+ * `figliMax` è quanti figli di quel tipo un padre può avere, e quindi fin dove arriva il
+ * sotto-numero. Due per gli scambiatori, perché esistono essiccatori con due scambiatori di
+ * calore (E1.1 ed E1.2); uno solo per gli altri — e per il disoleatore non può essere
+ * altrimenti, perché C1.2, C1.3… sono le sue valvole di sicurezza (`valvoleImpianto.ts`).
+ */
 export const CHILD_ARRAYS = [
-  { array: 'disoleatori', ref: 'compressore_associato' },
-  { array: 'scambiatori', ref: 'essiccatore_associato' },
-  { array: 'recipienti_filtro', ref: 'filtro_associato' },
+  { array: 'disoleatori', ref: 'compressore_associato', figliMax: 1 },
+  { array: 'scambiatori', ref: 'essiccatore_associato', figliMax: 2 },
+  { array: 'recipienti_filtro', ref: 'filtro_associato', figliMax: 1 },
 ] as const
 
 /** Tutti i codici validi presenti nella scheda, per validare i riferimenti. */

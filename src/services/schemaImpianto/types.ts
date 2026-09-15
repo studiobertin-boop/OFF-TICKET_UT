@@ -8,8 +8,8 @@
  *
  * - Disoleatore, scambiatore e recipiente filtro non sono nodi a sé: sono disegnati come
  *   parte del simbolo del nodo genitore (compressore/essiccatore/filtro), con la propria
- *   etichetta e le proprie valvole di sicurezza — un solo "accessorio dipendente" per nodo,
- *   perché la scheda dati non ne prevede più di uno per apparecchiatura.
+ *   etichetta e le proprie valvole di sicurezza — un "accessorio dipendente" per nodo, due
+ *   soltanto per l'essiccatore con due scambiatori (E1.1 ed E1.2, vedi `accessoriAggiuntivi`).
  * - La valvola di scarico è una decorazione fissa del simbolo, non un dato: non ha un codice
  *   proprio e non entra nel modello. La disegnano **serbatoio, essiccatore e filtro**; il
  *   separatore no — scarica da un codolo nudo, così nel blocco di riferimento — e il
@@ -72,6 +72,12 @@ export interface SchemaNodo {
   gruppo: SchemaGruppo
   valvoleSicurezza: SchemaValvolaSicurezza[]
   accessorio?: SchemaAccessorioDipendente
+  /**
+   * Accessori oltre al primo: oggi solo il secondo scambiatore di un essiccatore (E1.2, con
+   * E1.1 in `accessorio`). Un campo a parte e non `accessorio` trasformato in elenco, perché i
+   * layout salvati portano già `accessorio` in quella forma. Leggerli insieme con `accessoriDi`.
+   */
+  accessoriAggiuntivi?: SchemaAccessorioDipendente[]
   /**
    * Da dove viene il nodo. La riconciliazione col contenuto della scheda tocca solo quelli
    * di origine 'scheda': un nodo aggiunto a mano dalla palette è una scelta deliberata.

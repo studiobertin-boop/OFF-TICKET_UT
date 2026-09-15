@@ -494,8 +494,8 @@ function generateEquipmentCodeFromParsed(item: BatchOCRItem): string {
   }
 
   if (item.parsedParentIndex !== undefined) {
-    // Nested equipment (es: "C1.1" per disoleatore)
-    const parentPrefix = prefixMap['Compressori']
+    // Nested equipment (es: "C1.1" per disoleatore, "E1.2" per il secondo scambiatore di E1)
+    const parentPrefix = item.parsedType === 'Scambiatori' ? prefixMap['Essiccatori'] : prefixMap['Compressori']
     return `${parentPrefix}${item.parsedParentIndex + 1}.${item.parsedIndex + 1}`
   }
 

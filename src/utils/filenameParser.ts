@@ -22,7 +22,7 @@ export interface ParsedFilename {
  * - C1, C2 → Compressori
  * - C1.1, C2.1 → Disoleatori (del compressore N)
  * - E1, E2 → Essiccatori
- * - E1.1, E2.1 → Scambiatori (dell'essiccatore N)
+ * - E1.1, E1.2, E2.1 → Scambiatori (dell'essiccatore N; fino a due per essiccatore)
  * - F1, F2 → Filtri
  * - SEP1, SEP2 → Separatori
  */

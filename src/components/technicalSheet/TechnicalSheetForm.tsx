@@ -35,7 +35,7 @@ import type { SchedaDatiCompleta } from '@/types'
 import type { BatchOCRResult, BatchOCRItem } from '@/types/ocr'
 import type { EquipmentCatalogItem, EquipmentCatalogType } from '@/types'
 import { EQUIPMENT_LIMITS } from '@/types'
-import { codeForArrayIndex, normalizeSchedaCodes } from '@/utils/equipmentCodes'
+import { childCode, codeForArrayIndex, figliMax, normalizeSchedaCodes } from '@/utils/equipmentCodes'
 
 interface TechnicalSheetFormProps {
   defaultValues?: Partial<SchedaDatiCompleta>
@@ -593,7 +593,16 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
           skipped.push(`${item.filename}: ${parentCode} non è presente nella scheda`)
           return
         }
-        targetCode = `${parentCode}.1`
+        // Il sotto-numero del file sceglie il figlio solo dove un padre ne può avere più d'uno:
+        // "E1.2.jpg" è il secondo scambiatore di E1. Per disoleatori e recipienti resta `.1`,
+        // com'è sempre stato.
+        const maxFigli = figliMax(fieldName)
+        const sub = maxFigli > 1 ? item.parsedIndex + 1 : 1
+        if (sub < 1 || sub > maxFigli) {
+          skipped.push(`${item.filename}: ${parentCode} può avere al massimo ${maxFigli} apparecchiature collegate`)
+          return
+        }
+        targetCode = childCode(parentCode, sub)
         newEquipment.codice = targetCode
         newEquipment[refField] = parentCode
       } else if (limits) {
@@ -607,8 +616,12 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
       // Il record si individua dall'identità (riferimento al padre per i dipendenti, codice per i
       // principali), mai dalla posizione: scrivere per indice sovrascriverebbe l'apparecchiatura
       // sbagliata appena i codici non coincidono più con le posizioni (es. S2 eliminato).
+      // Dove il padre ha più figli (gli scambiatori) il riferimento non basta: "E1.2.jpg"
+      // sovrascriverebbe E1.1. Lì conta anche il codice.
       const existing = refField
-        ? newArray.findIndex((r: any) => r?.[refField] === newEquipment[refField])
+        ? newArray.findIndex((r: any) =>
+            r?.[refField] === newEquipment[refField] &&
+            (figliMax(fieldName) === 1 || r?.codice === targetCode))
         : targetCode !== undefined
           ? newArray.findIndex((r: any) => r?.codice === targetCode)
           : -1

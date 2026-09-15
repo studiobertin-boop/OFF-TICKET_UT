@@ -1,8 +1,23 @@
 import { describe, test, expect } from 'vitest'
 import {
   parseCode, compareCodes, nextFreeCode, childCode, codeForArrayIndex, collectCodes,
-  normalizeSchedaCodes, pruneAdditionalInfo, pruneSchedaRefs,
+  normalizeSchedaCodes, pruneAdditionalInfo, pruneSchedaRefs, nextFreeChildCode, figliMax,
 } from '@/utils/equipmentCodes'
+
+describe('nextFreeChildCode', () => {
+  test('dà il primo sotto-numero libero, fino al massimo', () => {
+    expect(nextFreeChildCode('E1', [], 2)).toBe('E1.1')
+    expect(nextFreeChildCode('E1', ['E1.1'], 2)).toBe('E1.2')
+    expect(nextFreeChildCode('E1', ['E1.2'], 2)).toBe('E1.1')
+    expect(nextFreeChildCode('E1', ['E1.1', 'E1.2'], 2)).toBeNull()
+  })
+
+  test('due scambiatori per essiccatore, un solo disoleatore e un solo recipiente', () => {
+    expect(figliMax('scambiatori')).toBe(2)
+    expect(figliMax('disoleatori')).toBe(1)
+    expect(figliMax('recipienti_filtro')).toBe(1)
+  })
+})
 
 describe('parseCode', () => {
   test('riconosce i codici principali', () => {
@@ -234,6 +249,46 @@ describe('normalizeSchedaCodes', () => {
     expect(changed).toBe(false)
     expect(scheda.disoleatori[0].codice).toBeUndefined()
     expect(scheda.disoleatori[1].codice).toBe('C1.1')
+  })
+
+  test('un essiccatore ha fino a due scambiatori: E1.1 ed E1.2', () => {
+    const { scheda, changed } = normalizeSchedaCodes({
+      essiccatori: [{ codice: 'E1' }],
+      scambiatori: [
+        { essiccatore_associato: 'E1' },
+        { essiccatore_associato: 'E1' },
+        { essiccatore_associato: 'E1', marca: 'terzo' },
+      ],
+    })
+    expect(changed).toBe(true)
+    expect(scheda.scambiatori.map((s: any) => s.codice)).toEqual(['E1.1', 'E1.2', undefined])
+  })
+
+  test('lo scambiatore E1.2 conserva il codice anche senza E1.1', () => {
+    const { scheda, changed } = normalizeSchedaCodes({
+      essiccatori: [{ codice: 'E1' }],
+      scambiatori: [{ codice: 'E1.2', essiccatore_associato: 'E1' }, { essiccatore_associato: 'E1' }],
+    })
+    expect(changed).toBe(true)
+    expect(scheda.scambiatori.map((s: any) => s.codice)).toEqual(['E1.2', 'E1.1'])
+  })
+
+  test('il secondo codice non vale per disoleatori e recipienti: C1.2 è una valvola', () => {
+    const { scheda } = normalizeSchedaCodes({
+      compressori: [{ codice: 'C1' }],
+      disoleatori: [{ codice: 'C1.2', compressore_associato: 'C1' }],
+      recipienti_filtro: [{ codice: 'F1.2', filtro_associato: 'F1' }],
+    })
+    expect(scheda.disoleatori[0].codice).toBe('C1.1')
+    expect(scheda.recipienti_filtro[0].codice).toBe('F1.1')
+  })
+
+  test('uno scambiatore col codice di un altro essiccatore prende quello del proprio', () => {
+    const { scheda } = normalizeSchedaCodes({
+      essiccatori: [{ codice: 'E1' }, { codice: 'E2' }],
+      scambiatori: [{ codice: 'E1.2', essiccatore_associato: 'E2' }],
+    })
+    expect(scheda.scambiatori[0].codice).toBe('E2.1')
   })
 
   test('idempotenza con due figli sullo stesso padre', () => {

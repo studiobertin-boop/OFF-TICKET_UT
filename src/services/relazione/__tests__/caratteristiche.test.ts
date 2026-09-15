@@ -78,6 +78,25 @@ describe('buildCaratteristiche', () => {
     expect(s.temperatura).toBe('-20÷+120')
   })
 
+  test('essiccatore con due scambiatori: una riga ciascuno, in ordine di codice', () => {
+    const rows = buildCaratteristiche(
+      makeScheda({
+        compressori: [],
+        disoleatori: [],
+        serbatoi: [],
+        essiccatori: [makeEssiccatore({ codice: 'E1', ha_scambiatore: true })],
+        // E1.2 prima di E1.1 nell'array: la tabella li mette comunque in ordine di codice.
+        scambiatori: [
+          makeScambiatore({ codice: 'E1.2', essiccatore_associato: 'E1', volume: 30 }),
+          makeScambiatore({ codice: 'E1.1', essiccatore_associato: 'E1', volume: 40 }),
+        ],
+        filtri: [],
+      })
+    )
+    expect(rows.map((r) => r.pos)).toEqual(['E1', 'E1.1', 'E1.2'])
+    expect(rows.find((r) => r.pos === 'E1.2')!.capacita).toBe('30')
+  })
+
   test('mantiene l\'ordine canonico compressori → serbatoi → essiccatori', () => {
     const rows = buildCaratteristiche(
       makeScheda({

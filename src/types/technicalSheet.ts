@@ -203,11 +203,11 @@ export interface Essiccatore {
 }
 
 // ============================================================================
-// SEZIONE 7: SCAMBIATORI (E1.1-E4.1) - DIPENDENTI DA ESSICCATORI
+// SEZIONE 7: SCAMBIATORI (E1.1-E4.2) - DIPENDENTI DA ESSICCATORI
 // ============================================================================
 
 export interface Scambiatore {
-  codice: string // E1.1, E2.1, E3.1, E4.1
+  codice: string // E1.1, E1.2, … E4.2 — fino a due per essiccatore
   essiccatore_associato: string // E1, E2, E3, E4
   marca?: string // Suggerimento DB + OCR
   modello?: string // Suggerimento DB + OCR
@@ -319,7 +319,7 @@ export interface SchedaDatiCompleta {
   compressori: Compressore[] // max 5
   disoleatori: Disoleatore[] // max 5 (dipendenti da compressori)
   essiccatori: Essiccatore[] // max 4
-  scambiatori: Scambiatore[] // max 4 (dipendenti da essiccatori)
+  scambiatori: Scambiatore[] // max 2 per essiccatore (dipendenti da essiccatori)
   filtri: Filtro[] // max 8
   recipienti_filtro: RecipienteFiltro[] // max 8 (dipendenti da filtri)
   separatori: Separatore[] // max 3
@@ -335,7 +335,9 @@ export const EQUIPMENT_LIMITS = {
   compressori: { min: 1, max: 5, prefix: 'C' },
   disoleatori: { min: 0, max: 5, prefix: 'C', suffix: '.1' }, // Dipendenti
   essiccatori: { min: 1, max: 4, prefix: 'E' },
-  scambiatori: { min: 0, max: 4, prefix: 'E', suffix: '.1' }, // Dipendenti
+  // Dipendenti. Per gli array dipendenti `max` limita il numero del PADRE (E1..E4), non quanti
+  // figli ha: quello lo dice `figliMax` in `CHILD_ARRAYS` (due scambiatori per essiccatore).
+  scambiatori: { min: 0, max: 4, prefix: 'E', suffix: '.1' },
   filtri: { min: 1, max: 8, prefix: 'F' },
   recipienti_filtro: { min: 0, max: 8, prefix: 'F', suffix: '.1' }, // Dipendenti da filtri
   separatori: { min: 1, max: 3, prefix: 'SEP' },

@@ -18,6 +18,7 @@ import {
   formatNumberIT,
   formatTemperatura,
 } from '../helpers'
+import { compareCodes } from '@/utils/equipmentCodes'
 
 // Minimi convenzionali di temperatura per tipo apparecchio
 const TEMP_MIN_RECIPIENTE = -10
@@ -116,8 +117,11 @@ export function buildCaratteristiche(
       temperatura: '',
       categoria: '',
     })
-    const scamb = (scheda.scambiatori ?? []).find(sc => sc.essiccatore_associato === e.codice)
-    if (scamb) {
+    // Fino a due scambiatori per essiccatore (E1.1, E1.2), in ordine di codice.
+    const scambiatori = (scheda.scambiatori ?? [])
+      .filter(sc => sc.essiccatore_associato === e.codice)
+      .sort((a, b) => compareCodes(a.codice, b.codice))
+    for (const scamb of scambiatori) {
       rows.push({
         ...base(
           scamb.codice,

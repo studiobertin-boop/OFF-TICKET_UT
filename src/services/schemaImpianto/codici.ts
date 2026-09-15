@@ -7,7 +7,7 @@
  * `react-refresh` sul lint, che qui gira a zero warning. `codiceLibero` sta ancora in
  * SchemaEditor.tsx per ragioni storiche ed è l'eccezione, non il modello.
  */
-import type { SchemaNodo } from './types'
+import type { SchemaAccessorioDipendente, SchemaNodo } from './types'
 
 /**
  * Quanti caratteri può avere un codice scritto a mano. Il codice è disegnato DENTRO il simbolo a
@@ -27,6 +27,13 @@ export const LUNGHEZZA_MASSIMA_CODICE = 6
  */
 export function codiceVisibile(nodo: Pick<SchemaNodo, 'id' | 'codice'>): string {
   return nodo.codice ?? nodo.id
+}
+
+/** Tutti gli accessori dipendenti del nodo, il primo e gli aggiuntivi, nell'ordine dei codici. */
+export function accessoriDi(
+  nodo: Pick<SchemaNodo, 'accessorio' | 'accessoriAggiuntivi'>
+): SchemaAccessorioDipendente[] {
+  return nodo.accessorio ? [nodo.accessorio, ...(nodo.accessoriAggiuntivi ?? [])] : []
 }
 
 /**
@@ -51,9 +58,9 @@ export function codiciOccupati(nodi: SchemaNodo[], escluso?: string): Set<string
     // Accessori e valvole restano occupati anche sul nodo in modifica: un'apparecchiatura non può
     // chiamarsi come la propria valvola di sicurezza.
     for (const v of nodo.valvoleSicurezza) occupati.add(v.codice)
-    if (nodo.accessorio) {
-      occupati.add(nodo.accessorio.codice)
-      for (const v of nodo.accessorio.valvoleSicurezza) occupati.add(v.codice)
+    for (const accessorio of accessoriDi(nodo)) {
+      occupati.add(accessorio.codice)
+      for (const v of accessorio.valvoleSicurezza) occupati.add(v.codice)
     }
   }
   return occupati

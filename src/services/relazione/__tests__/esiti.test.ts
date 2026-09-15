@@ -9,6 +9,7 @@ import {
   makeDisoleatore,
   makeSerbatoio,
   makeEssiccatore,
+  makeScambiatore,
   makeFiltro,
   makeRecipienteFiltro,
   makeSeparatore,
@@ -178,6 +179,34 @@ describe('buildEsiti — essiccatori e filtri', () => {
     expect(riga(rows, 'E1').adempimento).toBe('Verifica e dichiarazione di messa in servizio')
     expect(riga(rows, 'E1.1').apparecchiatura).toBe('Scambiatore di calore')
     expect(riga(rows, 'E1.1').adempimento).toBe('Verifica e dichiarazione di messa in servizio')
+  })
+
+  it('con due scambiatori li elenca entrambi e l’essiccatore eredita l’esito più oneroso', () => {
+    const scheda = makeScheda({
+      essiccatori: [makeEssiccatore()],
+      // E1.2 prima nell'array ed escluso per volume: E1 eredita comunque la verifica di E1.1.
+      scambiatori: [
+        makeScambiatore({ codice: 'E1.2', volume: 10 }),
+        makeScambiatore({ codice: 'E1.1', volume: 16000 }),
+      ],
+    })
+    const rows = buildEsiti(scheda, info)
+    const pos = rows.map(r => r.pos)
+    const i = pos.indexOf('E1')
+    expect(pos.slice(i, i + 3)).toEqual(['E1', 'E1.1', 'E1.2'])
+    expect(riga(rows, 'E1.2').adempimento).toBe('Escluso')
+    expect(riga(rows, 'E1').adempimento).toBe('Verifica e dichiarazione di messa in servizio')
+  })
+
+  it('con due scambiatori, uno senza dati, l’essiccatore non si dichiara escluso', () => {
+    const scheda = makeScheda({
+      essiccatori: [makeEssiccatore()],
+      scambiatori: [
+        makeScambiatore({ codice: 'E1.1', volume: 10 }),
+        makeScambiatore({ codice: 'E1.2', volume: undefined, ps_pressione_max: undefined }),
+      ],
+    })
+    expect(riga(buildEsiti(scheda, info), 'E1').adempimento).toBe('Dati insufficienti')
   })
 
   it('calcola la categoria PED del recipiente filtro quando non è dichiarata', () => {

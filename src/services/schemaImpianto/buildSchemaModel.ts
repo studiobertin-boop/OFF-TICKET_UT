@@ -15,6 +15,7 @@ import type {
   Separatore,
 } from '@/types/technicalSheet'
 import { elencaValvole } from '@/utils/valvoleImpianto'
+import { compareCodes } from '@/utils/equipmentCodes'
 import { eCapoDiMonte, eTeeBypass, linearizzaConBypass, nodoGiunzioneBypass } from './bypass'
 import type { Tarature } from './libreria'
 // `import type` e non un import di valore: `preferenze.ts` importa `ordinaCatenaTrattamento` e
@@ -114,7 +115,18 @@ function buildSerbatoioNodi(
 }
 
 function buildEssiccatoreNodo(e: Essiccatore, scheda: SchedaDatiCompleta): SchemaNodo {
-  const scamb = (scheda.scambiatori ?? []).find((sc) => sc.essiccatore_associato === e.codice)
+  // Fino a due scambiatori per essiccatore (E1.1, E1.2): il primo resta in `accessorio`, dove i
+  // layout salvati lo cercano, il secondo va in `accessoriAggiuntivi`.
+  const accessori: SchemaAccessorioDipendente[] = (scheda.scambiatori ?? [])
+    .filter((sc) => sc.essiccatore_associato === e.codice)
+    .sort((a, b) => compareCodes(a.codice, b.codice))
+    .map((scamb) => ({
+      codice: scamb.codice,
+      etichetta: etichetta('Scambiatore di calore', scamb.marca, scamb.modello),
+      // Lo scambiatore non ha una valvola propria (protetto da valvole altrove, non
+      // deducibili automaticamente — vedi commento su `valvole_protezione` nel tipo).
+      valvoleSicurezza: [],
+    }))
   return {
     id: e.codice,
     tipo: 'essiccatore',
@@ -126,15 +138,8 @@ function buildEssiccatoreNodo(e: Essiccatore, scheda: SchedaDatiCompleta): Schem
     // apparecchiatura vera fuori dalla sala.
     gruppo: 'SALA_COMPRESSORI',
     valvoleSicurezza: [],
-    accessorio: scamb
-      ? {
-          codice: scamb.codice,
-          etichetta: etichetta('Scambiatore di calore', scamb.marca, scamb.modello),
-          // Lo scambiatore non ha una valvola propria (protetto da valvole altrove, non
-          // deducibili automaticamente — vedi commento su `valvole_protezione` nel tipo).
-          valvoleSicurezza: [],
-        }
-      : undefined,
+    accessorio: accessori[0],
+    ...(accessori.length > 1 ? { accessoriAggiuntivi: accessori.slice(1) } : {}),
     origine: 'scheda',
   }
 }

@@ -20,6 +20,7 @@ import type { AdditionalInfo, EngineOptions, EsitoRow } from '../types'
 import type { EsitoDM329 } from '@/utils/dm329Classification'
 import { classificaRecipiente, comportaAdempimento } from '@/utils/dm329Classification'
 import { calculateCategoriaPED } from '@/utils/categoriaPedCalculator'
+import { compareCodes } from '@/utils/equipmentCodes'
 import {
   codiciValvoleDisoleatore,
   codiciValvoleSerbatoio,
@@ -87,6 +88,27 @@ function statoInail(
     return m ? `Già immatricolato n.m. ${m}` : 'Già immatricolato'
   }
   return comportaAdempimento(esito) ? 'Nuova richiesta' : ''
+}
+
+/**
+ * Quanto pesa un esito, per scegliere quello che un'apparecchiatura non recipiente eredita da
+ * più recipienti che contiene (l'essiccatore con due scambiatori). Un recipiente non
+ * classificabile (`null`, dati insufficienti) pesa più di un'esclusione o di un «nessun
+ * adempimento», perché potrebbe nascondere un obbligo, ma meno di un adempimento accertato.
+ */
+function onere(esito: EsitoDM329 | null): number {
+  switch (esito) {
+    case 'VERIFICA': return 4
+    case 'DICHIARAZIONE': return 3
+    case null: return 2
+    case 'SOTTO_SOGLIA': return 1
+    default: return 0
+  }
+}
+
+/** L'esito dell'adempimento più oneroso fra quelli dati (almeno uno). */
+function esitoPiuOneroso(esiti: (EsitoDM329 | null)[]): EsitoDM329 | null {
+  return esiti.reduce((a, b) => (onere(b) > onere(a) ? b : a))
 }
 
 /** Categoria dichiarata se presente, altrimenti calcolata da PS × V. */
@@ -274,11 +296,14 @@ export function buildEsiti(
     gruppi.push(g)
   }
 
-  // --- Essiccatori (+ scambiatore) ------------------------------------------
+  // --- Essiccatori (+ scambiatori) -----------------------------------------
   for (const e of scheda.essiccatori ?? []) {
-    const scamb = (scheda.scambiatori ?? []).find(sc => sc.essiccatore_associato === e.codice)
+    // Fino a due scambiatori per essiccatore (E1.1, E1.2), in ordine di codice.
+    const scambiatori = (scheda.scambiatori ?? [])
+      .filter(sc => sc.essiccatore_associato === e.codice)
+      .sort((a, b) => compareCodes(a.codice, b.codice))
 
-    if (!scamb) {
+    if (scambiatori.length === 0) {
       gruppi.push([
         rigaNonRecipiente({
           pos: e.codice,
@@ -291,27 +316,30 @@ export function buildEsiti(
       continue
     }
 
-    const { row, esito } = rigaRecipiente({
-      pos: scamb.codice,
-      apparecchiatura: 'Scambiatore di calore',
-      marca: scamb.marca,
-      modello: scamb.modello,
-      volume: scamb.volume,
-      ps: scamb.ps_pressione_max,
-      categoriaPed: scamb.categoria_ped,
-      giaDenunciato: scamb.gia_denunciato,
-      matricolaInail: scamb.matricola_inail,
-    })
-    // L'essiccatore non è un recipiente: eredita l'esito dello scambiatore che contiene.
+    const righe = scambiatori.map(scamb =>
+      rigaRecipiente({
+        pos: scamb.codice,
+        apparecchiatura: 'Scambiatore di calore',
+        marca: scamb.marca,
+        modello: scamb.modello,
+        volume: scamb.volume,
+        ps: scamb.ps_pressione_max,
+        categoriaPed: scamb.categoria_ped,
+        giaDenunciato: scamb.gia_denunciato,
+        matricolaInail: scamb.matricola_inail,
+      })
+    )
+    // L'essiccatore non è un recipiente: eredita l'esito dello scambiatore che contiene, e
+    // di due quello dell'adempimento più oneroso.
     gruppi.push([
       rigaNonRecipiente({
         pos: e.codice,
         apparecchiatura: 'Essiccatore frigorifero',
         marca: e.marca,
         modello: e.modello,
-        esito,
+        esito: esitoPiuOneroso(righe.map(r => r.esito)),
       }),
-      row,
+      ...righe.map(r => r.row),
     ])
   }
 

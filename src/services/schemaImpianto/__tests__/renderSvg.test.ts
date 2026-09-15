@@ -4,6 +4,7 @@ import {
   makeDatiImpianto,
   makeEssiccatore,
   makeFiltro,
+  makeScambiatore,
   makeScheda,
   makeSeparatore,
   makeSerbatoio,
@@ -918,6 +919,25 @@ describe('righeLista', () => {
       'S1.1',
       'S1.2',
     ])
+  })
+
+  it('elenca entrambi gli scambiatori di un essiccatore e li nomina nel simbolo', () => {
+    const scheda = makeScheda({
+      essiccatori: [makeEssiccatore()],
+      scambiatori: [
+        makeScambiatore({ codice: 'E1.2', essiccatore_associato: 'E1' }),
+        makeScambiatore({ codice: 'E1.1', essiccatore_associato: 'E1' }),
+      ],
+      filtri: [],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    const layout = layoutSchema(
+      buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    )
+
+    const codici = righeLista(layout).map((r) => (r.sinistra as { codice: string }).codice)
+    expect(codici.slice(codici.indexOf('E1'))).toEqual(['E1', 'E1.1', 'E1.2'])
+    expect(renderSvg(layout)).toContain('E1.1/E1.2')
   })
 
   it('numera i codici in modo naturale, non lessicografico', () => {

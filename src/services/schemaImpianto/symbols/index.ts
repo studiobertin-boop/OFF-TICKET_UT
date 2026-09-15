@@ -18,7 +18,7 @@ import type { Punto } from '../tratti'
 import { PASSO_GRIGLIA } from '../griglia'
 import type { SchemaArcoStile, SchemaNodoTipo, SchemaNodo, SchemaAncora, SchemaLatoAncora, ChiaveSimbolo } from '../types'
 import { chiaveSimbolo } from '../types'
-import { codiceVisibile } from '../codici'
+import { accessoriDi, codiceVisibile } from '../codici'
 import type { Tarature, TaraturaSimbolo } from '../libreria'
 import { taraturaDi } from '../libreria'
 
@@ -810,8 +810,11 @@ function simboloRombo(
     ]
       .map(([px, py]) => `${px.toFixed(1)} ${py.toFixed(1)}`)
       .join(' L ')
+    // Con due scambiatori il cerchio resta uno — è il segno del circuito frigorifero, non un
+    // conteggio — e la sigla li nomina entrambi («E1.1/E1.2»), più piccola per stare nel rombo.
+    const sigle = accessoriDi(nodo).map((a) => a.codice)
     accessorio =
-      testo(cx, cy + 6, nodo.accessorio.codice, 12) +
+      testo(cx, cy + 6, sigle.join('/'), sigle.length > 1 ? 10 : 12) +
       `<circle cx="${cx}" cy="${cyCerchio}" r="${r}" fill="none" stroke="#000" stroke-width="${TRATTO}" />` +
       traccia(`M ${zigzag}`)
   }

@@ -30,7 +30,9 @@ import { UpdateCatalogDialog } from '../UpdateCatalogDialog'
 import type { EquipmentCatalogItem } from '@/types'
 import { calculateCategoriaPED } from '@/utils/categoriaPedCalculator'
 import { EQUIPMENT_LIMITS, type EquipmentCatalogType } from '@/types'
-import { collectCodes, compareCodes, nextFreeCode, pruneSchedaRefs } from '@/utils/equipmentCodes'
+import {
+  childCode, collectCodes, compareCodes, figliMax, nextFreeChildCode, nextFreeCode, pruneSchedaRefs,
+} from '@/utils/equipmentCodes'
 import type { OCRExtractedData } from '@/types/ocr'
 import {
   EQUIPMENT_DEFS, NEW_EQUIPMENT_KINDS, nuovaRiga,
@@ -926,34 +928,42 @@ export const UnifiedEquipmentTable = ({
   })
 
   sortedEntries(essiccatori.fields, essiccatoriVals).forEach(({ f, i, code }) => {
-    const sIdx = (scambiatoriVals ?? scambiatori.fields).findIndex((s: any) => s?.essiccatore_associato === code)
+    // Un essiccatore può contenere fino a due scambiatori (E1.1, E1.2). Si elencano per codice e
+    // non per ordine d'inserimento: eliminato E1.1 e aggiunto di nuovo, torna sopra E1.2.
+    const figli = (scambiatoriVals ?? scambiatori.fields)
+      .map((s: any, idx: number) => ({ s, idx }))
+      .filter(({ s }) => s?.essiccatore_associato === code)
+      .sort((a, b) => compareCodes(a.s?.codice, b.s?.codice))
+    const codiceNuovo = nextFreeChildCode(code, figli.map(({ s }) => s?.codice), figliMax('scambiatori'))
     aggiungiRiga({
       key: `e-${f.id}`, def: EQUIPMENT_DEFS.essiccatore, base: `essiccatori.${i}`, code,
       rowKey: rowKeyOf('essiccatori', code), guide: [],
-      discendente: sIdx >= 0 ? KIND_COLOR.essiccatore : undefined,
+      discendente: figli.length > 0 ? KIND_COLOR.essiccatore : undefined,
       ocr: { equipmentType: 'Essiccatori', equipmentIndex: i },
       identita: { path: `essiccatori.${i}.codice`, value: code },
-      onDelete: () => ask("l'essiccatore", code, () => { if (sIdx >= 0) scambiatori.remove(sIdx); essiccatori.remove(i); dopoEliminazione() }),
-      append: sIdx === -1
-        ? { label: 'Scambiatore', onClick: () => { scambiatori.append(nuovaRiga(EQUIPMENT_DEFS.scambiatore, `${code}.1`, { essiccatore_associato: code })); setValue(`essiccatori.${i}.ha_scambiatore`, true) } }
+      onDelete: () => ask("l'essiccatore", code, () => { if (figli.length > 0) scambiatori.remove(figli.map(({ idx }) => idx)); essiccatori.remove(i); dopoEliminazione() }),
+      append: codiceNuovo
+        ? { label: 'Scambiatore', onClick: () => { scambiatori.append(nuovaRiga(EQUIPMENT_DEFS.scambiatore, codiceNuovo, { essiccatore_associato: code })); setValue(`essiccatori.${i}.ha_scambiatore`, true) } }
         : null,
       fascicolo: fascicoloDi({ code }),
     })
-    if (sIdx >= 0) {
+    figli.forEach(({ s, idx }, k) => {
+      const codiceScamb: string = s?.codice ?? childCode(code, k + 1)
       aggiungiRiga({
-        key: `e-${f.id}-s`, def: EQUIPMENT_DEFS.scambiatore, base: `scambiatori.${sIdx}`, code: `${code}.1`,
-        rowKey: rowKeyOf('scambiatori', `${code}.1`),
-        guide: [{ color: KIND_COLOR.essiccatore, continua: false }],
-        ocr: { equipmentType: 'Scambiatori', equipmentIndex: sIdx },
-        identita: { path: `scambiatori.${sIdx}.codice`, value: `${code}.1` },
-        onDelete: () => ask('lo scambiatore', `${code}.1`, () => { scambiatori.remove(sIdx); setValue(`essiccatori.${i}.ha_scambiatore`, false); dopoEliminazione() }),
+        key: `e-${f.id}-s-${scambiatori.fields[idx]?.id ?? k}`, def: EQUIPMENT_DEFS.scambiatore, base: `scambiatori.${idx}`, code: codiceScamb,
+        rowKey: rowKeyOf('scambiatori', codiceScamb),
+        // Il ramo dell'essiccatore scende fino all'ultimo scambiatore e si chiude lì.
+        guide: [{ color: KIND_COLOR.essiccatore, continua: k < figli.length - 1 }],
+        ocr: { equipmentType: 'Scambiatori', equipmentIndex: idx },
+        identita: { path: `scambiatori.${idx}.codice`, value: codiceScamb },
+        onDelete: () => ask('lo scambiatore', codiceScamb, () => { scambiatori.remove(idx); setValue(`essiccatori.${i}.ha_scambiatore`, figli.length > 1); dopoEliminazione() }),
         append: null,
         fascicolo: fascicoloDi({
-          code: `${code}.1`,
+          code: codiceScamb,
           principale: { codice: code, base: `essiccatori.${i}`, def: EQUIPMENT_DEFS.essiccatore },
         }),
       })
-    }
+    })
   })
 
   sortedEntries(filtri.fields, filtriVals).forEach(({ f, i, code }) => {
