@@ -73,3 +73,4 @@ _Nessun fix in attesa._
 | 2026-09-10 | Relazione tecnica: nella tabella del cap. 4 la casella dell'anno resta vuota quando il dato non c'è. Prima ci si leggeva scritta la parola «null», sui filtri soprattutto. |
 | 2026-09-15 | Scheda dati: un essiccatore può avere due scambiatori di calore (E1.1 ed E1.2). Si aggiungono dalla sua riga e compaiono entrambi nella relazione, nello schema d'impianto e nel riconoscimento da foto («E1.2.jpg»). |
 | 2026-09-15 | Scheda dati: il chip del fascicolo in barra diventa verde anche se il fascicolo è stato generato sull'apparecchiatura principale (C1 per C1.1, E1 per E1.1). Con due scambiatori ciascuno vuole il proprio. |
+| 2026-09-15 | Elenco richieste, generali e DM329: con un filtro attivo, accanto alle chip dei filtri compare quante richieste restano («12 di 48 richieste»), in evidenza. |
