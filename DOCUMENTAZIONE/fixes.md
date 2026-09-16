@@ -75,3 +75,4 @@ _Nessun fix in attesa._
 | 2026-09-15 | Scheda dati: il chip del fascicolo in barra diventa verde anche se il fascicolo è stato generato sull'apparecchiatura principale (C1 per C1.1, E1 per E1.1). Con due scambiatori ciascuno vuole il proprio. |
 | 2026-09-15 | Elenco richieste, generali e DM329: con un filtro attivo, accanto alle chip dei filtri compare quante richieste restano («12 di 48 richieste»), in evidenza. |
 | 2026-09-15 | Relazione tecnica: nella tabella del cap. 4 capacità [l] e portata [l/min] sono due colonne. Prima erano una sola, che cambiava unità di misura riga per riga; la modifica era rimasta non pubblicata, e le relazioni già generate la mostrano ancora fusa finché non si rigenerano. |
+| 2026-09-16 | Scheda dati: si possono aggiungere fino a 15 serbatoi (con relativa valvola di sicurezza), prima il limite era 7. La relazione tecnica riflette il numero giusto senza altre modifiche, essendo già generata dinamicamente sull'elenco. |
