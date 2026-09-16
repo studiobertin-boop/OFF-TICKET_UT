@@ -57,7 +57,7 @@ export interface DatiImpianto {
 }
 
 // ============================================================================
-// SEZIONE 3: SERBATOI (S1-S7)
+// SEZIONE 3: SERBATOI (S1-S15)
 // ============================================================================
 
 export type FinituraInternaOption = 'VERNICIATO' | 'ZINCATO' | 'VITROFLEX' | 'ALTRO'
@@ -95,7 +95,7 @@ export interface Manometro {
 }
 
 export interface Serbatoio {
-  codice: string // S1, S2, ... S7
+  codice: string // S1, S2, ... S15
   marca?: string // Suggerimento DB + OCR
   modello?: string // Suggerimento DB + OCR - NON visibile a tecnicoDM329
   volume?: number // litri (intero, min 50, max 5000)
@@ -315,7 +315,7 @@ export interface SchedaDatiCompleta {
   // Sezioni
   dati_generali: DatiGenerali
   dati_impianto: DatiImpianto
-  serbatoi: Serbatoio[] // max 7
+  serbatoi: Serbatoio[] // max 15
   compressori: Compressore[] // max 5
   disoleatori: Disoleatore[] // max 5 (dipendenti da compressori)
   essiccatori: Essiccatore[] // max 4
@@ -331,7 +331,7 @@ export interface SchedaDatiCompleta {
 // ============================================================================
 
 export const EQUIPMENT_LIMITS = {
-  serbatoi: { min: 1, max: 7, prefix: 'S' },
+  serbatoi: { min: 1, max: 15, prefix: 'S' },
   compressori: { min: 1, max: 5, prefix: 'C' },
   disoleatori: { min: 0, max: 5, prefix: 'C', suffix: '.1' }, // Dipendenti
   essiccatori: { min: 1, max: 4, prefix: 'E' },

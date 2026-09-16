@@ -352,8 +352,9 @@ describe('normalizeSchedaCodes sugli array prodotti dal batch OCR', () => {
   })
 
   test('il record fuori range prende il numero libero più basso, non il successivo', () => {
+    // serbatoi.max = 15: S8 è ormai in range, S16 no.
     const { scheda } = normalizeSchedaCodes({
-      serbatoi: [{ codice: 'S1' }, { codice: 'S3' }, { codice: 'S8' }],
+      serbatoi: [{ codice: 'S1' }, { codice: 'S3' }, { codice: 'S16' }],
     })
     expect(scheda.serbatoi.map((s: any) => s.codice)).toEqual(['S1', 'S3', 'S2'])
   })
