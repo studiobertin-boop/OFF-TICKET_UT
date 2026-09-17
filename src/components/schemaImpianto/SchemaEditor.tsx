@@ -55,7 +55,7 @@ import {
 } from '@mui/icons-material'
 import toast from 'react-hot-toast'
 import { capoValido, connessioneAmmessa, stileIniziale } from '@/services/schemaImpianto/agganci'
-import { codiceVisibile, motivoRifiutoCodice, LUNGHEZZA_MASSIMA_CODICE } from '@/services/schemaImpianto/codici'
+import { codiceVisibile, motivoRifiutoCodice, codiceManualeLibero, LUNGHEZZA_MASSIMA_CODICE } from '@/services/schemaImpianto/codici'
 import type { Asse, Bordo } from '@/services/schemaImpianto/allineamento'
 import { PASSO_GRIGLIA, allineaAllaGriglia } from '@/services/schemaImpianto/griglia'
 import { quoteInstradamento } from '@/services/schemaImpianto/layout'
@@ -244,19 +244,10 @@ function nodiDi(s: { nodes: Node[] }): SchemaNodoPosizionato[] {
   return s.nodes.map((n) => ({ ...(n.data as SchemaNodeData).nodo, x: n.position.x, y: n.position.y }))
 }
 
-// I codici di scheda non hanno mai questo prefisso (S1, C1, SEP1, ...): senza, un nodo
-// manuale "S2" collide con un vero S2 comparso più tardi in scheda, che la riconciliazione
-// tratterebbe da lì in poi come il nodo manuale già presente — non entrerebbe mai fra gli
-// `aggiunti`, e resterebbe "Serbatoio" per sempre, senza marca né valvole.
-const PREFISSO_MANUALE = 'M-'
-
-/** Primo codice libero per un nuovo nodo, es. S1/S2/S3 già presenti → M-S4. */
+/** Primo codice libero per un nuovo nodo, es. S1/S2/S3 già presenti → M-S4. Il prefisso `M-` e
+ *  il perché vivono in `codiceManualeLibero` (codici.ts), condiviso con l'incolla. */
 export function codiceLibero(prefisso: string, nodes: Node[]): string {
-  const usati = new Set(nodes.map((n) => n.id))
-  for (let i = 1; ; i++) {
-    const codice = `${PREFISSO_MANUALE}${prefisso}${i}`
-    if (!usati.has(codice)) return codice
-  }
+  return codiceManualeLibero(prefisso, new Set(nodes.map((n) => n.id)))
 }
 
 /**
