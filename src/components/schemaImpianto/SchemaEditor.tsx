@@ -65,6 +65,7 @@ import { ancoreDi, dimensioniDi } from '@/services/schemaImpianto/symbols'
 import type {
   ChiaveSimbolo,
   SchemaArcoStile,
+  SchemaArea,
   SchemaLayout,
   SchemaNodoPosizionato,
   SchemaNodoTipo,
@@ -164,6 +165,9 @@ interface StatoEditor {
   // (TestiLiberi.tsx) e si maneggiano con `useTestiLiberi`. Stando nello stesso stato, la
   // cronologia le copre gratis, perché lavora sull'intero stato.
   testi: SchemaTestoLibero[]
+  // Le aree tratteggiate, per la stessa ragione dei testi: non sono nodi di react-flow, vivono qui
+  // e la cronologia le copre gratis.
+  aree: SchemaArea[]
   // Sola ascissa, non `SchemaMuroSeparazione`: l'altezza del muro non è un dato che l'utente
   // sceglie, si ricava dal disegno corrente (`muroDaAscissa`, layout.ts) a ogni ricostruzione
   // di `layoutCorrente`. Tenerla anche qui sarebbe una seconda fonte, destinata a divergere al
@@ -359,8 +363,8 @@ function SchemaEditorInterno({
   // che dentro ognuno dei calcoli qui sotto, è quel che tiene quote, capi e anteprima sullo
   // STESSO layout: sono i tre ingressi della geometria condivisa con il documento.
   const layoutCorrente = useMemo(
-    () => flowALayout(stato.nodes, stato.edges, stato.testi, stato.muroX, libreriaEffettiva),
-    [stato.nodes, stato.edges, stato.testi, stato.muroX, libreriaEffettiva]
+    () => flowALayout(stato.nodes, stato.edges, stato.testi, stato.aree, stato.muroX, libreriaEffettiva),
+    [stato.nodes, stato.edges, stato.testi, stato.aree, stato.muroX, libreriaEffettiva]
   )
 
   // Quote a cui le tubazioni attraversano il muro: la STESSA `renderArchi` che disegna il

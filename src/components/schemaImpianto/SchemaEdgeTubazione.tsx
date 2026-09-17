@@ -85,6 +85,10 @@ export interface SchemaEdgeData extends Record<string, unknown> {
    * cronologia della taratura.
    */
   bloccato?: boolean
+  /** Id delle frecce di direzione di questo arco che fanno parte della selezione dell'editor. */
+  frecceSelezionate?: string[]
+  /** Clic su una freccia: `aggiungi` è Ctrl/Cmd premuto. Le altre due specie di segno non si selezionano. */
+  onSelezionaFreccia?: (arco: string, segno: string, aggiungi: boolean) => void
   /**
    * Legate a questo arco specifico da `useGomiti` (vedi `edgesConGomiti` lì dentro): il
    * componente dell'arco non conosce la cronologia, sa solo chiedere di aggiornarla.
@@ -257,6 +261,10 @@ interface SchemaSegnoProps {
   /** Il tipo di ciascuno dei due tratti attorno al segno, per la spunta nel menu. */
   tipiAttorno: { da: SchemaArcoStile; a: SchemaArcoStile }
   onCambiaTipo?: (lato: 'da' | 'a', stile: SchemaArcoStile) => void
+  /** Vero se questa freccia fa parte della selezione dell'editor (le altre due specie di segno non si selezionano). */
+  selezionato?: boolean
+  /** Clic sulla freccia: l'argomento è vero con Ctrl/Cmd premuto (aggiunta alla selezione). */
+  onSeleziona?: (aggiungi: boolean) => void
 }
 
 /** I tre tipi di tubazione, con la dizione della barra strumenti. */
@@ -322,6 +330,8 @@ function SchemaSegno({
   capi,
   tipiAttorno,
   onCambiaTipo,
+  selezionato,
+  onSeleziona,
 }: SchemaSegnoProps) {
   const [menu, setMenu] = useState<HTMLElement | null>(null)
   // La freccia di direzione non porta il menu: indica il verso del flusso, non un componente della
@@ -381,6 +391,16 @@ function SchemaSegno({
     [onCambiaTipo]
   )
 
+  // La freccia si seleziona premendo, come testi e muro: il click lo mangerebbe il trascinamento.
+  // Le valvole e i riduttori no — il loro clic apre il menu del tipo di tubo.
+  const suPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (tipo === 'freccia_direzione') onSeleziona?.(e.ctrlKey || e.metaKey)
+      suInizio(e)
+    },
+    [onSeleziona, suInizio, tipo]
+  )
+
   const markup =
     tipo === 'freccia_direzione'
       ? frecciaDirezione(0, 0, direzione)
@@ -390,7 +410,7 @@ function SchemaSegno({
     <>
     <div
       className="nopan"
-      onPointerDown={suInizio}
+      onPointerDown={suPointerDown}
       onPointerMove={suPointerMove}
       onPointerUp={suPointerUp}
       onPointerCancel={suPointerCancel}
@@ -404,6 +424,8 @@ function SchemaSegno({
         // Inerte in modo taratura, stessa scelta di `SchemaGomito` qui sopra.
         cursor: bloccato ? 'default' : 'move',
         pointerEvents: bloccato ? 'none' : 'all',
+        outline: selezionato ? '1px dashed #1976d2' : 'none',
+        outlineOffset: -6,
       }}
     >
       <svg
@@ -608,6 +630,8 @@ export function SchemaEdgeTubazione({
               capi={nomiDeiCapi}
               tipiAttorno={tipiAttorno(pezzi, segno.t)}
               onCambiaTipo={(lato, tipo) => edgeData?.onCambiaTipoTratto?.(indice, lato, tipo)}
+              selezionato={edgeData?.frecceSelezionate?.includes(segno.id) ?? false}
+              onSeleziona={(aggiungi) => edgeData?.onSelezionaFreccia?.(id, segno.id, aggiungi)}
             />
           )
         })}

@@ -17,6 +17,7 @@ import {
 } from '@/services/schemaImpianto/tratti'
 import type {
   SchemaArcoStile,
+  SchemaArea,
   SchemaLayout,
   SchemaNodoPosizionato,
   SchemaTestoLibero,
@@ -30,7 +31,7 @@ export const TIPO_ARCO_FLOW = 'tubazione'
 export function layoutAFlow(
   layout: SchemaLayout,
   libreria: Tarature = {}
-): { nodes: Node[]; edges: Edge[]; testi: SchemaTestoLibero[] } {
+): { nodes: Node[]; edges: Edge[]; testi: SchemaTestoLibero[]; aree: SchemaArea[] } {
   // `libreria` viaggia dentro `data`, non come prop separata a `SchemaNodeSymbol`: react-flow
   // istanzia i nodi da `nodeTypes` (una mappa tipo→componente dichiarata una volta sola,
   // SchemaEditor.tsx) e non ha un canale per passare extra props a ogni nodo se non i dati.
@@ -54,8 +55,9 @@ export function layoutAFlow(
   }))
 
   // I testi non sono nodi di react-flow (nessuna ancora, nessuna tubazione può attaccarcisi):
-  // attraversano il ponte come lista a sé, senza nulla da convertire.
-  return { nodes, edges, testi: layout.testi ?? [] }
+  // attraversano il ponte come lista a sé, senza nulla da convertire. Le aree per lo stesso
+  // motivo: nessuna ancora, nessuna tubazione le tocca.
+  return { nodes, edges, testi: layout.testi ?? [], aree: layout.aree ?? [] }
 }
 
 /**
@@ -66,6 +68,7 @@ export function flowALayout(
   nodes: Node[],
   edges: Edge[],
   testi: SchemaTestoLibero[],
+  aree: SchemaArea[],
   muroX: number | null,
   libreria: Tarature = {}
 ): SchemaLayout {
@@ -98,6 +101,9 @@ export function flowALayout(
     // sulla tela (TestiLiberi.tsx). Il muro segue lo stesso schema: nasce dal pulsante «Muro»
     // e si trascina in orizzontale sulla tela (MuroSeparazione.tsx).
     testi,
+    // Obbligatorio per la stessa ragione di `testi`: un default lascerebbe perdere le aree in
+    // silenzio a chi dimentica di passarle.
+    aree,
   }
 }
 
@@ -195,6 +201,12 @@ export function polilineaDellArco(capi: CapiArco, data: SchemaEdgeData | undefin
  * handle, sfalsate di 5 unità rispetto al documento), e ogni arco porta il `bloccato` del modo
  * taratura (senza, i gesti propri della tubazione resterebbero vivi mentre l'impianto è spento).
  */
+/** Le frecce di direzione selezionate, per arco, e il gestore del loro clic (useSelezioneMultipla.ts). */
+export interface FrecceDegliArchi {
+  selezionate: Map<string, string[]>
+  onSeleziona: (arco: string, segno: string, aggiungi: boolean) => void
+}
+
 export function fondiDatiArchi(
   edgesConGomitiBase: Edge[],
   edgesConSegni: Edge[],
@@ -204,7 +216,8 @@ export function fondiDatiArchi(
   /** L'arco che un TEE trascinato sta sorvolando (`useInserimentoTee.ts`), o `null`. */
   arcoEvidenziato: string | null,
   /** Modo taratura acceso: la tubazione si vede ma non si tocca (vedi `SchemaEdgeData.bloccato`). */
-  bloccato = false
+  bloccato = false,
+  frecce?: FrecceDegliArchi
 ): Edge[] {
   return edgesConGomitiBase.map((e, i) => ({
     ...e,
@@ -216,6 +229,8 @@ export function fondiDatiArchi(
       capi: capiPerArco.get(e.id),
       evidenziato: e.id === arcoEvidenziato,
       bloccato,
+      // Solo se l'editor le passa: i test e i chiamanti che non selezionano frecce restano identici.
+      ...(frecce ? { frecceSelezionate: frecce.selezionate.get(e.id) ?? [], onSelezionaFreccia: frecce.onSeleziona } : {}),
     } as SchemaEdgeData,
   }))
 }
