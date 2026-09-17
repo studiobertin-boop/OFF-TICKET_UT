@@ -383,6 +383,14 @@ function SchemaSegno({
     setMenu(e.currentTarget)
   }, [])
 
+  // Il clic sulla freccia si ferma qui. Il div vive nel portale di EdgeLabelRenderer ma nell'albero
+  // React è figlio di EdgeWrapper (vedi `suDoppioClic` di `SchemaGomito`): senza, il click
+  // risalirebbe a `onEdgeClick` di react-flow, che seleziona il tubo intero, e l'editor
+  // (`clicSuReactFlow`) svuoterebbe la selezione in cui `suPointerDown` ha appena messo la freccia.
+  // Il doppio clic è un evento a sé e continua a toglierla. Valvole e riduttori non ne hanno
+  // bisogno: `apriMenu` ferma già la propagazione.
+  const fermaClic = useCallback((e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation(), [])
+
   const scegliTipo = useCallback(
     (lato: 'da' | 'a', stile: SchemaArcoStile) => {
       setMenu(null)
@@ -414,7 +422,7 @@ function SchemaSegno({
       onPointerMove={suPointerMove}
       onPointerUp={suPointerUp}
       onPointerCancel={suPointerCancel}
-      onClick={conMenu ? apriMenu : undefined}
+      onClick={conMenu ? apriMenu : fermaClic}
       onDoubleClick={conMenu ? undefined : suDoppioClic}
       style={{
         position: 'absolute',
