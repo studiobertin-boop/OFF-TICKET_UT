@@ -73,8 +73,8 @@ export function incollaAppunto(appunto: Appunto, contesto: ContestoIncolla, ripe
   const idAree = new Set(contesto.idAree)
 
   const nodi = appunto.nodi.map((n) => {
-    // Il codice scritto a mano resta all'originale: due righe uguali in tabella sarebbero un
-    // doppione, e la copia mostra il proprio identificativo finché non la si rinomina.
+    // Il codice scritto a mano resta dell'originale: la copia non lo eredita, e mostra il proprio
+    // identificativo (M-U…/M-G…) finché non la si rinomina.
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { codice: _codice, ...resto } = structuredClone(n)
     const id = codiceManualeLibero(PREFISSO_COPIA[n.tipo]!, idNodi)

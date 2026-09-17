@@ -183,7 +183,8 @@ export function useSelezioneMultipla<T extends StatoSelezionabile>(
   )
 
   // Gesto di gruppo partito da un testo o da un'area. Il PRIMO evento entra in cronologia, gli altri
-  // no — lo stesso principio di `spostaTesto` (useTestiLiberi.ts). Le origini si congelano lì.
+  // no — lo stesso principio del trascinamento del gomito e del segno (useGomiti.ts/useSegniTubo.ts).
+  // Le origini si congelano lì.
   // Si porta dietro anche `tipo`/`id` dell'afferrato: un gesto può finire senza l'evento `concluso`
   // (un Canc da tastiera durante il trascinamento passa da `eliminaSelezione`, o l'elemento sparisce
   // dal dialogo) e il ref resterebbe pieno — il prossimo trascinamento, su un altro elemento, deve
@@ -251,7 +252,7 @@ export function useSelezioneMultipla<T extends StatoSelezionabile>(
     [seguiTrascinamentoNodi]
   )
 
-  /** Frecce della tastiera: solo la prima pressione entra in cronologia (vedi il vecchio `sposta`). */
+  /** Frecce della tastiera: solo la prima pressione entra in cronologia, le ripetizioni tenute (key repeat) no. */
   const spostaConTastiera = useCallback(
     (dx: number, dy: number, ripetuto: boolean) => {
       if (gruppoVuoto(originiDelGruppo(statoRef.current, libereRef.current))) return

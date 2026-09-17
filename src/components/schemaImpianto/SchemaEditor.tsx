@@ -257,7 +257,7 @@ function nodiDi(s: { nodes: Node[] }): SchemaNodoPosizionato[] {
   return s.nodes.map((n) => ({ ...(n.data as SchemaNodeData).nodo, x: n.position.x, y: n.position.y }))
 }
 
-/** Primo codice libero per un nuovo nodo, es. S1/S2/S3 già presenti → M-S4. Il prefisso `M-` e
+/** Primo codice libero per un nuovo nodo, es. M-S1/M-S2 già presenti → M-S3. Il prefisso `M-` e
  *  il perché vivono in `codiceManualeLibero` (codici.ts), condiviso con l'incolla. */
 export function codiceLibero(prefisso: string, nodes: Node[]): string {
   return codiceManualeLibero(prefisso, new Set(nodes.map((n) => n.id)))
@@ -419,29 +419,14 @@ function SchemaEditorInterno({
   // rapido, a nessun effetto visibile). Vedi giro di riparazione 1, causa B.
   const trascinamentoNodoAvviato = useRef(false)
 
-  // Un Canc su un'apparecchiatura collegata fa chiamare a react-flow DUE gestori: `onNodesChange`
-  // con un `remove` e `onEdgesChange` con un altro, in due chiamate distinte dello stesso giro di
-  // eventi. Fino al 17-08-2026 ciascuno scriveva la propria voce di cronologia, e Ctrl+Z ne
-  // annullava una sola: tornava l'apparecchiatura, non le sue tubazioni.
-  //
-  // Stesso rimedio del trascinamento qui sopra, per la stessa ragione: la PRIMA rimozione del
-  // gesto registra, le altre no. Il segnale si azzera a fine giro di eventi (`queueMicrotask`) e
-  // non a tempo, così due Canc consecutivi — o un Canc subito dopo un trascinamento — restano due
-  // gesti distinti e due voci distinte.
-  //
-  // Dal 17-09-2026 il Canc non passa più da qui: `deleteKeyCode={null}` su `<ReactFlow>`, e nodi,
-  // archi e annotazioni si tolgono insieme in `eliminaSelezione` (useSelezioneMultipla.ts), in una
-  // voce sola. La guardia resta per ogni `remove` che react-flow emettesse per altre vie.
-  const rimozioneAvviata = useRef(false)
-
-  const primaRimozioneDelGesto = useCallback(() => {
-    if (rimozioneAvviata.current) return false
-    rimozioneAvviata.current = true
-    queueMicrotask(() => {
-      rimozioneAvviata.current = false
-    })
-    return true
-  }, [])
+  // Fino al 17-08-2026 un Canc su un'apparecchiatura collegata faceva chiamare a react-flow DUE
+  // gestori — `onNodesChange` con un `remove` e `onEdgesChange` con un altro — e ciascuno scriveva
+  // la propria voce di cronologia: Ctrl+Z ne annullava una sola, tornava l'apparecchiatura ma non
+  // le sue tubazioni. Dal 17-09-2026 il Canc non passa più da qui: `deleteKeyCode={null}` su
+  // `<ReactFlow>`, e nodi, archi e annotazioni si tolgono insieme in `eliminaSelezione`
+  // (useSelezioneMultipla.ts), in una voce sola di cronologia. Con la tastiera disattivata react-
+  // flow non genera più `remove` per conto proprio: se uno arrivasse comunque da un'altra via, va
+  // in cronologia come qualsiasi altro gesto, senza bisogno di una guardia contro i doppioni.
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -453,10 +438,7 @@ function SchemaEditorInterno({
       // "primo" e finisce in cronologia correttamente. `remove` è sempre un gesto a sé.
       const primoEventoDelGesto = haEventoDiPosizione && !trascinamentoNodoAvviato.current
       if (haEventoDiPosizione) trascinamentoNodoAvviato.current = !finisceOra
-      // `primaRimozioneDelGesto()` ha un effetto collaterale e sta DOPO il controllo sul tipo:
-      // il `&&` corto garantisce che un trascinamento non consumi il segnale delle rimozioni.
-      const registraInCronologia =
-        primoEventoDelGesto || (changes.some((c) => c.type === 'remove') && primaRimozioneDelGesto())
+      const registraInCronologia = primoEventoDelGesto || changes.some((c) => c.type === 'remove')
       const aggiorna = registraInCronologia ? applica : aggiornaSenzaCronologia
       // Muro invisibile al bordo alto: `dimensioniLayout` (layout.ts) misura il disegno da zero in
       // giù, quindi un'apparecchiatura trascinata sopra quota zero spariva nel .docx. Difetto
@@ -472,16 +454,16 @@ function SchemaEditorInterno({
       )
       aggiorna((s) => ({ ...s, nodes: applyNodeChanges(vincolate, s.nodes) }))
     },
-    [applica, aggiornaSenzaCronologia, primaRimozioneDelGesto]
+    [applica, aggiornaSenzaCronologia]
   )
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
-      const concludeUnGesto = changes.some((c) => c.type === 'remove') && primaRimozioneDelGesto()
+      const concludeUnGesto = changes.some((c) => c.type === 'remove')
       const aggiorna = concludeUnGesto ? applica : aggiornaSenzaCronologia
       aggiorna((s) => ({ ...s, edges: applyEdgeChanges(changes, s.edges) }))
     },
-    [applica, aggiornaSenzaCronologia, primaRimozioneDelGesto]
+    [applica, aggiornaSenzaCronologia]
   )
 
   // Creare, spostare e togliere un gomito: logica isolata in un hook suo (vedi
@@ -503,10 +485,7 @@ function SchemaEditorInterno({
   // (vedi useTestiLiberi.ts), stesso motivo di useGomiti.ts qui sopra. Non riceve `stato`
   // perché, a differenza degli altri tre, non deve derivarne nulla: le annotazioni si rendono
   // da `stato.testi` qui sotto, nel portale della viewport.
-  const { aggiungiTesto, modificaTesto, rimuoviTesto } = useTestiLiberi<StatoEditor>(
-    applica,
-    aggiornaSenzaCronologia
-  )
+  const { aggiungiTesto, modificaTesto, rimuoviTesto } = useTestiLiberi<StatoEditor>(applica)
 
   // Aggiungere e spostare il muro di separazione: logica isolata in un hook suo (vedi
   // useMuro.ts), stesso motivo di useGomiti.ts qui sopra. Come per le annotazioni, non riceve
@@ -1101,8 +1080,9 @@ function SchemaEditorInterno({
   // questo listener a ogni tasto premuto nel campo di scrittura.
   const scritturaAperta = scrittura !== null
 
-  // Ctrl+Z e frecce sull'intera finestra: l'editor occupa tutto il dialog, e chiedere
-  // all'utente di mettere prima a fuoco la tela per annullare o spostare sarebbe un tranello.
+  // Ctrl+Z, frecce, Canc, Ctrl+C e Ctrl+V sull'intera finestra: l'editor occupa tutto il dialog, e
+  // chiedere all'utente di mettere prima a fuoco la tela per annullare, spostare, eliminare,
+  // copiare o incollare sarebbe un tranello.
   useEffect(() => {
     const suTasto = (e: KeyboardEvent) => {
       // Ridondante oggi (il Dialog di scrittura più sotto ferma già ogni tasto, Esc compreso, sul
