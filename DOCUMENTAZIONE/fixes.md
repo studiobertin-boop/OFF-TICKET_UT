@@ -9,6 +9,9 @@ _Nessun fix in attesa._
 
 | DATA | DESCRIZIONE |
 | --- | --- |
+| 2026-09-17 | Schema d'impianto: nell'editor si selezionano più oggetti insieme — riquadro con Shift e trascinamento, Ctrl+clic per aggiungere — comprese scritte libere, frecce sui tubi e aree. Il gruppo si sposta, si cancella e si annulla con un solo Ctrl+Z. |
+| 2026-09-17 | Schema d'impianto: Ctrl+C e Ctrl+V copiano «alle utenze», TEE, frecce, scritte libere e aree. Le copie nascono scollegate e spostate di due passi; le frecce si incollano sul tubo selezionato. |
+| 2026-09-17 | Schema d'impianto: nuovo pulsante «Area» per delimitare zone dell'impianto con un rettangolo tratteggiato, ridimensionabile dagli angoli e con una scritta propria che si sposta anche da sola. Compare anche nel documento, dietro al disegno. |
 | 2026-08-16 | Scheda dati: dopo il riconoscimento da targhetta i dati vengono ricondotti al catalogo — apparecchiatura trovata con certezza, popup di scelta fra i candidati col confronto dei valori, oppure compilazione dai dati letti. Prima ogni apparecchiatura risultava nuova: la ricerca fuzzy nel database era rotta da sempre e falliva in silenzio. |
 | 2026-08-10 | Scheda dati: la scelta su un valore scostato dal catalogo (solo per questa volta / aggiorna / default) si chiede una volta sola. Prima tornava passando all'apparecchiatura successiva, perché confermare non toglieva lo scostamento. |
 | 2026-08-10 | Scheda dati: il diametro delle valvole di sicurezza non entra più nel contatore di completezza, essendo opzionale. Resta pieno a catalogo, dove distingue le varianti della stessa valvola. |
