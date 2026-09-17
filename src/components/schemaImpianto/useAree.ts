@@ -26,12 +26,18 @@ export function useAree<T extends StatoConAree>(applica: Aggiorna<T>, aggiornaSe
   )
 
   // Un solo riferimento per i due gesti: non possono essere in corso insieme, e il riarmo a fine
-  // gesto (`concluso`) vale per entrambi. Primo evento in cronologia, gli altri no.
-  const gestoAvviato = useRef(false)
+  // gesto (`concluso`) vale per entrambi. Primo evento in cronologia, gli altri no. Porta anche
+  // `tipo`/`id` dell'area, come `gestoLibero` in useSelezioneMultipla.ts: se l'area viene
+  // cancellata a metà di un ridimensionamento o di uno spostamento della scritta, l'evento
+  // `concluso` non arriva mai e il ref resterebbe pieno — il prossimo gesto, anche su un'area
+  // diversa o dell'altro tipo, deve comunque essere riconosciuto come primo invece di restare
+  // silenziosamente fuori dalla cronologia.
+  const gestoArea = useRef<{ tipo: 'ridimensiona' | 'scritta'; id: string } | null>(null)
   const aggiornaPerGesto = useCallback(
-    (concluso: boolean) => {
-      const primo = !gestoAvviato.current
-      gestoAvviato.current = !concluso
+    (tipo: 'ridimensiona' | 'scritta', id: string, concluso: boolean) => {
+      const g = gestoArea.current
+      const primo = !g || g.tipo !== tipo || g.id !== id
+      gestoArea.current = concluso ? null : { tipo, id }
       return primo ? applica : aggiornaSenzaCronologia
     },
     [applica, aggiornaSenzaCronologia]
@@ -39,7 +45,7 @@ export function useAree<T extends StatoConAree>(applica: Aggiorna<T>, aggiornaSe
 
   const ridimensionaArea = useCallback(
     (id: string, angolo: AngoloArea, punto: Punto, concluso: boolean) => {
-      aggiornaPerGesto(concluso)((s) => ({
+      aggiornaPerGesto('ridimensiona', id, concluso)((s) => ({
         ...s,
         aree: s.aree.map((a) => (a.id === id ? areaRidimensionata(a, angolo, punto) : a)),
       }))
@@ -49,7 +55,7 @@ export function useAree<T extends StatoConAree>(applica: Aggiorna<T>, aggiornaSe
 
   const spostaScrittaArea = useCallback(
     (id: string, posizione: Punto, concluso: boolean) => {
-      aggiornaPerGesto(concluso)((s) => ({ ...s, aree: areeConScarto(s.aree, id, posizione) }))
+      aggiornaPerGesto('scritta', id, concluso)((s) => ({ ...s, aree: areeConScarto(s.aree, id, posizione) }))
     },
     [aggiornaPerGesto]
   )
