@@ -50,7 +50,7 @@ La selezione dell'editor è l'unione di due insiemi:
 
 | Gesto | Effetto |
 |---|---|
-| Clic su un oggetto | seleziona solo quello, svuota entrambe le selezioni (come oggi) |
+| Clic su un oggetto | seleziona solo quello, svuota entrambe le selezioni (come oggi) — ma su un oggetto GIÀ nel gruppo il gruppo resta intero: il clic è l'inizio del trascinamento, come React Flow sui nodi (rettifica del 17-09-2026, in fase di esecuzione) |
 | Ctrl + clic (Cmd su Mac) | aggiunge/toglie l'oggetto; vale anche per testi, frecce, aree e muro |
 | Shift + trascinamento sullo sfondo | riquadro: React Flow sceglie i suoi oggetti; il rettangolo del gesto, convertito in coordinate del disegno (`screenToFlowPosition`), raccoglie anche testi, frecce e aree |
 | Escape | svuota entrambe le selezioni (come oggi) |
@@ -89,7 +89,7 @@ libreria su Windows (Cmd su Mac) e non entra in conflitto col riquadro.
 - `services/schemaImpianto/selezione.ts` — funzioni pure: contenimento nel riquadro per testi,
   frecce e aree; spostamento di gruppo; cancellazione di gruppo sullo stato dell'editor.
 - `components/schemaImpianto/useSelezioneMultipla.ts` — l'hook React: stato della selezione
-  propria, Shift + clic, fine riquadro, tastiera. Sullo schema di `useMuro`/`useTestiLiberi`, per
+  propria, Ctrl + clic, fine riquadro, tastiera. Sullo schema di `useMuro`/`useTestiLiberi`, per
   non far crescere ancora `SchemaEditor.tsx` (1868 righe).
 
 ## 2. Copia-incolla
@@ -235,7 +235,7 @@ export interface SchemaArea {
 ## Verifica
 
 Prova in pagina **con mouse vero** (non eventi sintetici: vedi il menu dentro l'elemento che cattura
-il puntatore, 17-08-2026): riquadro misto, Shift + clic, trascinamento di gruppo, frecce da
+il puntatore, 17-08-2026): riquadro misto, Ctrl + clic, trascinamento di gruppo, frecce da
 tastiera, Canc, Ctrl+Z, copia-incolla di ciascun tipo (frecce con e senza tubo selezionato), area
 creata/ridimensionata/spostata con scritta spostata a parte e rinominata, salvataggio e
 riapertura, .docx generato con l'area visibile e i tubi nelle stesse posizioni. Modo taratura:
