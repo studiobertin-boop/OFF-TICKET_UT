@@ -16,7 +16,7 @@
 import { arrotonda, ondula } from '../tratti'
 import type { Punto } from '../tratti'
 import { PASSO_GRIGLIA } from '../griglia'
-import type { SchemaArcoStile, SchemaNodoTipo, SchemaNodo, SchemaAncora, SchemaLatoAncora, ChiaveSimbolo } from '../types'
+import type { SchemaArcoStile, SchemaNodoTipo, SchemaNodo, SchemaAncora, SchemaLatoAncora, ChiaveSimbolo, SchemaArea } from '../types'
 import { chiaveSimbolo } from '../types'
 import { accessoriDi, codiceVisibile } from '../codici'
 import type { Tarature, TaraturaSimbolo } from '../libreria'
@@ -1464,6 +1464,28 @@ export function simboloMuro(x: number, yMin: number, yMax: number, varchi: numbe
     .join(' ')
 
   return segmenti + `<path d="${tratti}" fill="none" stroke="#000" stroke-width="1" />`
+}
+
+/** Tratto delle aree: grigio scuro e sottile, perché delimita e non deve competere col disegno. */
+export const STILE_AREA = { colore: '#333', spessore: 1.5, tratteggio: '8 4' }
+
+/**
+ * Il solo rettangolo di un'area, parametrico sulla posizione: la tela lo disegna a (0, 0) dentro
+ * un proprio `<svg>` e trasla il contenitore (AreeImpianto.tsx), il documento lo disegna alle
+ * coordinate vere. Una funzione sola per entrambi, come `simboloMuro`.
+ */
+export function rettangoloArea(x: number, y: number, larghezza: number, altezza: number): string {
+  return `<rect x="${x}" y="${y}" width="${larghezza}" height="${altezza}" fill="none" stroke="${STILE_AREA.colore}" stroke-width="${STILE_AREA.spessore}" stroke-dasharray="${STILE_AREA.tratteggio}" />`
+}
+
+/** Rettangolo e scritta di un'area, per il documento. Scritta vuota: nessun `<text>`. */
+export function simboloArea(area: SchemaArea): string {
+  const rettangolo = rettangoloArea(area.x, area.y, area.larghezza, area.altezza)
+  if (!area.scritta.trim()) return rettangolo
+  return (
+    rettangolo +
+    testoMultiRiga(area.x + area.scartoScritta.dx, area.y + area.scartoScritta.dy, area.scritta, TESTO_LIBERO.dimensione, 'start')
+  )
 }
 
 /**

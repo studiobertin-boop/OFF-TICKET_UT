@@ -6,6 +6,7 @@
  * diametri delle tubazioni, tabella "Lista Apparecchiature" in basso.
  */
 import { corpoNodo, dimensioniLayout, estensioneOrizzontale, quoteInstradamento } from './layout'
+import { ingombroArea } from './aree'
 import type { Tarature } from './libreria'
 import { accessoriDi, codiceVisibile } from './codici'
 import {
@@ -17,6 +18,7 @@ import {
   riduttorePressione,
   simboloDi,
   simboloMuro,
+  simboloArea,
   testoMultiRiga,
   valvolaIntercettazione,
   valvolaScarico,
@@ -38,6 +40,7 @@ import {
 } from './tratti'
 import type {
   SchemaArcoStile,
+  SchemaArea,
   SchemaLayout,
   SchemaNodoPosizionato,
   SchemaNodoTipo,
@@ -379,6 +382,21 @@ function renderNota(note: string[], x: number, w: number, yTop: number): string 
 }
 
 /**
+ * Il foglio allargato quanto serve a contenere le aree. Separato da `dimensioniLayout` apposta:
+ * quella alimenta anche `quoteInstradamento` (la corsia delle condense corre sul fondo del
+ * disegno), e se un'area ne allungasse l'altezza, disegnare un rettangolo sposterebbe i tubi.
+ * Senza aree restituisce le dimensioni del disegno tali e quali: il documento non cambia di un byte.
+ */
+function foglioConAree(disegno: { larghezza: number; altezza: number }, aree: SchemaArea[]) {
+  if (aree.length === 0) return disegno
+  const ingombri = aree.map(ingombroArea)
+  return {
+    larghezza: Math.max(disegno.larghezza, ...ingombri.map((i) => i.destra + MARGINE)),
+    altezza: Math.max(disegno.altezza, ...ingombri.map((i) => i.basso + MARGINE)),
+  }
+}
+
+/**
  * `libreria` sta PRIMA di `options`, non dopo: è il parametro che le due catene di produzione
  * (editor, documento) costruiscono una volta sola e passano sempre, mentre `options` è per
  * consumo occasionale (la nota diametri, oggi il solo campo). Se fosse l'ultimo, ogni chiamante
@@ -391,8 +409,11 @@ export function renderSvg(layout: SchemaLayout, libreria: Tarature = {}, options
   const dimensioniDisegno = dimensioniLayout(layout, libreria)
   const righe = [...righeLista(layout), ...righeLegenda(layout)]
 
+  const aree = layout.aree ?? []
+  const foglio = foglioConAree(dimensioniDisegno, aree)
+
   const quote = quoteInstradamento(layout, libreria)
-  const yNota = dimensioniDisegno.altezza + MARGINE
+  const yNota = foglio.altezza + MARGINE
   const altezzaNota = note.length > 0 ? ALTEZZA_NOTA : 0
   const yTabella = yNota + altezzaNota
   const altezzaTotale = yTabella + RIGA_TABELLA * (righe.length + 1) + MARGINE
@@ -407,7 +428,7 @@ export function renderSvg(layout: SchemaLayout, libreria: Tarature = {}, options
   const tabella = bloccoCentrato(centro, larghezzaRichiestaTabella(righe))
   const nota = bloccoCentrato(centro, larghezzaRichiestaNota(note, tabella.larghezza))
   const larghezzaTotale = Math.max(
-    dimensioniDisegno.larghezza,
+    foglio.larghezza,
     tabella.x + tabella.larghezza + MARGINE,
     ...(note.length > 0 ? [nota.x + nota.larghezza + MARGINE] : [])
   )
@@ -422,6 +443,8 @@ export function renderSvg(layout: SchemaLayout, libreria: Tarature = {}, options
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${larghezzaTotale}" height="${altezzaTotale}" viewBox="0 0 ${larghezzaTotale} ${altezzaTotale}">`,
     `<rect width="${larghezzaTotale}" height="${altezzaTotale}" fill="#fff" />`,
+    // Le aree per prime: delimitano, e tutto il resto va letto sopra di loro.
+    aree.map(simboloArea).join(''),
     muro,
     archi.svg,
     nodi,
