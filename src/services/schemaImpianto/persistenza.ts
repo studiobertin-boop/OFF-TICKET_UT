@@ -9,7 +9,7 @@ import { ancoraAmmette } from './agganci'
 import { layoutSchema, muroDaAscissa, DIMENSIONI_NODO, pozzoCondense } from './layout'
 import type { Tarature } from './libreria'
 import { ancoraDi, ancoreDi, dimensioniDi } from './symbols'
-import type { SchemaArco, SchemaCapo, SchemaLayout, SchemaModel, SchemaNodo, SchemaNodoPosizionato, SchemaTestoLibero } from './types'
+import type { SchemaArco, SchemaArea, SchemaCapo, SchemaLayout, SchemaModel, SchemaNodo, SchemaNodoPosizionato, SchemaTestoLibero } from './types'
 
 const VERSIONE = 1
 
@@ -20,6 +20,9 @@ export interface LayoutSalvato {
   /** Assente sui layout salvati prima del Blocco C2: un campo nuovo e opzionale, non un cambio
    *  di formato — per questo non alza `VERSIONE` (vedi `deserializzaLayout`). */
   testi?: SchemaTestoLibero[]
+  /** Aree tratteggiate. Assente sui layout salvati prima del 17-09-2026 e su ogni layout che non
+   *  ne ha: campo nuovo e opzionale, non un cambio di formato — non alza `VERSIONE`. */
+  aree?: SchemaArea[]
   /**
    * Ascissa del muro di separazione. Assente: nessun muro — il caso di ogni salvataggio scritto
    * prima del Blocco D4, e di ogni pratica finche' il committente non lo aggiunge. Campo nuovo e
@@ -78,6 +81,9 @@ export function serializzaLayout(
     nodi: structuredClone(layout.nodi),
     archi: structuredClone(layout.archi),
     testi: structuredClone(layout.testi ?? []),
+    // Omesse, non `[]`, quando non ce ne sono: un salvataggio senza aree resta identico a uno
+    // scritto prima che il campo esistesse.
+    ...(layout.aree && layout.aree.length > 0 ? { aree: structuredClone(layout.aree) } : {}),
     ...(layout.muro ? { muroX: layout.muro.x } : {}),
     // Omesso, non `{}`, quando non c'è nulla da tarare: un `simboli: {}` scritto sempre
     // renderebbe "assente" e "tarata a vuoto" indistinguibili nel salvato, come già per `muroX`.
@@ -112,6 +118,7 @@ export function deserializzaLayout(
     archi: salvato.archi,
     muro: typeof salvato.muroX === 'number' ? muroDaAscissa(salvato.muroX, salvato.nodi, libreria) : null,
     testi: salvato.testi ?? [],
+    ...(salvato.aree ? { aree: salvato.aree } : {}),
   }
 }
 
@@ -347,7 +354,11 @@ function capoRiattaccato(
  * quelle chiamate.
  */
 export function riconcilia(
-  salvato: Pick<SchemaLayout, 'nodi' | 'archi'> & { testi?: SchemaTestoLibero[]; muro?: SchemaLayout['muro'] },
+  salvato: Pick<SchemaLayout, 'nodi' | 'archi'> & {
+    testi?: SchemaTestoLibero[]
+    muro?: SchemaLayout['muro']
+    aree?: SchemaArea[]
+  },
   modello: SchemaModel,
   libreria: Tarature = {}
 ): EsitoRiconciliazione {
@@ -408,7 +419,11 @@ export function riconcilia(
   // puntava a un nodo appena rimosso, o un arco nuovo verso un nodo che poi risulta scartato.
   const archiSalvati = salvato.archi
   const identitaSalvate = new Set(archiSalvati.map(identitaArco))
-  const idTerminale = nodi.find((n) => n.tipo === 'utenze')?.id
+  // Il terminale VERO, non la prima utenza dell'elenco: dal 17-09-2026 le utenze si incollano, e
+  // una copia manuale posata davanti nell'elenco rubava al terminale la riparazione della sua
+  // tubazione qui sotto (e lasciava passare fra gli `archiNuovi` quella che doveva escludere).
+  // Le copie sono di origine 'manuale', come ogni nodo nato in editor.
+  const idTerminale = nodi.find((n) => n.tipo === 'utenze' && n.origine !== 'manuale')?.id
   // Gli archi che si RIPESCANO vengono dal layout automatico, non dal modello: stessi id e stessa
   // identita', ma con le `t` dei segni gia' risolte e coi gomiti del ponte scritti. Presi dal
   // modello entrerebbero nel salvataggio con la valvola a meta' tubo (la `t: 0.5` di ripiego) e
@@ -506,5 +521,13 @@ export function riconcilia(
   // vedi il commento sulla firma di questa funzione.
   const muro = salvato.muro ? muroDaAscissa(salvato.muro.x, nodi, libreria) : null
 
-  return { layout: { nodi, archi, muro, testi }, aggiunti, aggiuntiDaScheda, rimossi, archiScartati, daZero: false }
+  // Le aree, come i testi, sono manuali per definizione: la scheda non le conosce e le riporta intatte.
+  return {
+    layout: { nodi, archi, muro, testi, ...(salvato.aree ? { aree: salvato.aree } : {}) },
+    aggiunti,
+    aggiuntiDaScheda,
+    rimossi,
+    archiScartati,
+    daZero: false,
+  }
 }

@@ -424,13 +424,14 @@ export function SchemaImpiantoSection({
     // Le annotazioni no. Sono testo scritto a mano che nessuna fonte sa ricostruire, a differenza
     // di posizioni, gomiti, segni e taratura, che il pulsante promette di scartare e che dalla
     // scheda si rifanno. Fino al 17-08-2026 sparivano insieme al resto, senza modo di recuperarle.
+    // Le aree seguono la stessa regola dei testi: sono disegno a mano.
     setEsitoRiconciliazione(null)
     applicaImpronta(improntaPreferenze(preferenzeRisolte))
     const daZero = layoutSchema(
       buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi, preferenze: preferenzeRisolte, libreria }),
       libreria
     )
-    void disegna({ ...daZero, testi: layout?.testi ?? [] })
+    void disegna({ ...daZero, testi: layout?.testi ?? [], aree: layout?.aree ?? [] })
   }, [applicaImpronta, collegamentiCompressoriSerbatoi, disegna, layout, libreria, preferenzeRisolte, scheda])
 
   const leggiFile = useCallback(

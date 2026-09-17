@@ -1041,3 +1041,84 @@ describe('l impronta delle preferenze con cui il disegno e stato generato', () =
     expect(layoutIniziale({ versione: 999, nodi: [], archi: [] }, modello).daZero).toBe(true)
   })
 })
+
+describe('aree tratteggiate', () => {
+  const sala = { id: 'A1', x: 20, y: 20, larghezza: 600, altezza: 400, scritta: 'SALA', scartoScritta: { dx: 10, dy: 30 } }
+
+  it('un layout senza aree si salva come prima, senza il campo', () => {
+    expect('aree' in serializzaLayout(layoutMinimo())).toBe(false)
+    expect('aree' in serializzaLayout({ ...layoutMinimo(), aree: [] })).toBe(false)
+  })
+
+  it('andata e ritorno le conserva', () => {
+    const salvato = serializzaLayout({ ...layoutMinimo(), aree: [sala] })
+    expect(deserializzaLayout(salvato)!.aree).toEqual([sala])
+  })
+
+  it('la copia salvata non condivide oggetti con il layout in memoria', () => {
+    const aree = [{ ...sala }]
+    const salvato = serializzaLayout({ ...layoutMinimo(), aree })
+    aree[0].x = 999
+    expect(salvato.aree![0].x).toBe(20)
+  })
+
+  it('la riconciliazione con la scheda le lascia intatte', () => {
+    const salvato = serializzaLayout({ ...layoutMinimo(), aree: [sala] })
+    expect(layoutIniziale(salvato, modelloMinimo()).layout.aree).toEqual([sala])
+  })
+
+  it('un salvato senza aree non ne inventa', () => {
+    const salvato = serializzaLayout(layoutMinimo())
+    expect(layoutIniziale(salvato, modelloMinimo()).layout.aree).toBeUndefined()
+  })
+})
+
+describe('una copia manuale del terminale utenze', () => {
+  /** Come `modelloDiProva`, ma con un essiccatore opzionale: serve a spostare la coda della
+   *  catena fra un salvataggio e il successivo. È l'adattamento della fixture del brief (vedi
+   *  report Task 3, Step 2): con `modelloDiProva(['C1'])` e la sola tubazione del terminale
+   *  rimossa, il test passava già prima della correzione — non perché il difetto non ci fosse,
+   *  ma perché l'invariante generica della catena (poco più sotto in `riconcilia`, quella che
+   *  ripara "ogni nodo che il modello raggiunge e che ha perso il suo ingresso") ripesca comunque
+   *  l'arco giusto: itera su TUTTI i nodi, non solo sul terminale, quindi ripara anche quando
+   *  `idTerminale` punta alla copia. Il difetto si vede solo nel sintomo che la regola dedicata
+   *  del terminale esiste apposta per evitare: una tubazione DOPPIA sul codolo quando in coda
+   *  alla catena compare un nuovo stadio (vedi il describe 'la tubazione del terminale quando
+   *  cambia la coda della catena' più sopra, che copre lo stesso scenario senza copia manuale).
+   *  Con la copia davanti all'elenco e `idTerminale` sbagliato, l'esclusione dentro `archiNuovi`
+   *  (`a.a.nodo !== idTerminale`) manca il colpo e lascia passare la tubazione nuova (E1→UTENZE)
+   *  accanto a quella già salvata (S1→UTENZE): due tubi sul terminale invece di uno. */
+  function modelloConCatena(conEssiccatore: boolean) {
+    const scheda = makeScheda({
+      compressori: [makeCompressore({ codice: 'C1', ha_disoleatore: false })],
+      disoleatori: [], scambiatori: [], filtri: [],
+      essiccatori: conEssiccatore ? [makeEssiccatore({ ha_scambiatore: false })] : [],
+      serbatoi: [makeSerbatoio()],
+      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+    })
+    return buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+  }
+
+  it('non prende il posto del terminale vero quando si aggiunge uno stadio alla catena', () => {
+    const salvato = layoutSchema(modelloConCatena(false))
+    const terminale = salvato.nodi.find((n) => n.tipo === 'utenze' && n.origine !== 'manuale')
+    expect(terminale).toBeDefined()
+    // La copia sta DAVANTI nell'elenco: è il caso in cui `nodi.find` sceglieva lei come "il"
+    // terminale invece del nodo vero.
+    const copia = { ...terminale!, id: 'M-U1', origine: 'manuale' as const, x: terminale!.x + 20, y: terminale!.y + 20 }
+    const salvatoConCopia = { ...salvato, nodi: [copia, ...salvato.nodi] }
+    const { layout: riaperto } = layoutIniziale(serializzaLayout(salvatoConCopia), modelloConCatena(true))
+    const entranti = riaperto.archi.filter((a) => a.a.nodo === terminale!.id)
+    expect(entranti).toHaveLength(1)
+    expect(riaperto.archi.some((a) => a.a.nodo === 'M-U1')).toBe(false)
+  })
+
+  it('sopravvive alla riapertura con la propria scritta', () => {
+    const modello = modelloDiProva(['C1'])
+    const layout = layoutSchema(modello)
+    const terminale = layout.nodi.find((n) => n.tipo === 'utenze')!
+    const copia = { ...terminale, id: 'M-U1', origine: 'manuale' as const, etichetta: 'Utenze azoto', x: 900, y: 40 }
+    const { layout: riaperto } = layoutIniziale(serializzaLayout({ ...layout, nodi: [...layout.nodi, copia] }), modello)
+    expect(riaperto.nodi.find((n) => n.id === 'M-U1')?.etichetta).toBe('Utenze azoto')
+  })
+})
