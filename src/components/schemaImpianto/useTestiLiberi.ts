@@ -8,7 +8,7 @@
  * Il cablaggio è fatto: `SchemaEditor` chiama queste operazioni dal pulsante «Testo» della
  * palette e dal dialog di scrittura, e `TestiLiberi.tsx` rende le annotazioni sulla tela.
  */
-import { useCallback, useRef } from 'react'
+import { useCallback } from 'react'
 import { allineaAllaGriglia } from '@/services/schemaImpianto/griglia'
 import type { SchemaTestoLibero } from '@/services/schemaImpianto/types'
 
@@ -92,14 +92,11 @@ export function testiSenza(testi: SchemaTestoLibero[], id: string): SchemaTestoL
  * Nessun `stato` fra i parametri, a differenza di useGomiti/useSegniTubo/useTrascinamentoTratto:
  * quelli devono derivare dagli archi correnti gli `edges` arricchiti che passano a react-flow,
  * qui non c'è nulla da derivare — l'editor rende `stato.testi` per conto suo (TestiLiberi.tsx) e
- * queste quattro operazioni leggono sempre lo stato che il reducer passa all'updater, mai
+ * queste tre operazioni leggono sempre lo stato che il reducer passa all'updater, mai
  * un'istantanea catturata nella chiusura. Un parametro tenuto «per uniformità» sarebbe solo
  * peso morto, e per giunta un invito a leggerlo proprio dove non si deve.
  */
-export function useTestiLiberi<T extends StatoConTesti>(
-  applica: Aggiorna<T>,
-  aggiornaSenzaCronologia: Aggiorna<T>
-) {
+export function useTestiLiberi<T extends StatoConTesti>(applica: Aggiorna<T>) {
   // Un gesto solo (il pulsante «Testo» della palette, confermato nel dialog): sempre in
   // cronologia, come creare un gomito o un segno — e una voce sola, non due, perché il
   // contenuto arriva insieme alla posizione. L'id nasce dentro l'updater di `applica`, da
@@ -123,24 +120,6 @@ export function useTestiLiberi<T extends StatoConTesti>(
     [applica]
   )
 
-  // Stesso principio del trascinamento del gomito e del segno: il PRIMO evento del gesto
-  // entra in cronologia, i successivi no (vedi useGomiti.ts/useSegniTubo.ts). Durante un
-  // trascinamento arrivano molti eventi al secondo: se ognuno entrasse in cronologia,
-  // profonda 10, si riempirebbe di stati intermedi e Ctrl+Z diventerebbe inutile; se
-  // entrasse solo l'ultimo, lo stato "precedente" sarebbe già quello finale e Ctrl+Z non
-  // riporterebbe da nessuna parte.
-  const trascinamentoTestoAvviato = useRef(false)
-
-  const spostaTesto = useCallback(
-    (id: string, posizione: { x: number; y: number }, concluso: boolean) => {
-      const primoEventoDelGesto = !trascinamentoTestoAvviato.current
-      trascinamentoTestoAvviato.current = !concluso
-      const aggiorna = primoEventoDelGesto ? applica : aggiornaSenzaCronologia
-      aggiorna((s) => ({ ...s, testi: testiConSpostamento(s.testi, id, posizione) }))
-    },
-    [applica, aggiornaSenzaCronologia]
-  )
-
   // La modifica del contenuto si chiude con un dialog (conferma/annulla), non con eventi al
   // secondo come il trascinamento: un gesto solo, sempre in cronologia.
   const modificaTesto = useCallback(
@@ -157,5 +136,5 @@ export function useTestiLiberi<T extends StatoConTesti>(
     [applica]
   )
 
-  return { aggiungiTesto, spostaTesto, modificaTesto, rimuoviTesto }
+  return { aggiungiTesto, modificaTesto, rimuoviTesto }
 }

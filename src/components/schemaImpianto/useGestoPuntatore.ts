@@ -21,8 +21,8 @@
  *
  * Che cosa NON entra: il riferimento «primo evento del gesto» che decide chi entra in
  * cronologia (`trascinamentoGomitoAvviato` in useGomiti.ts, `trascinamentoSegnoAvviato` in
- * useSegniTubo.ts, `trascinamentoAvviato` in useTrascinamentoTratto.ts — e per le annotazioni,
- * `trascinamentoTestoAvviato` in useTestiLiberi.ts) e il congelamento di punto di presa, gomiti
+ * useSegniTubo.ts, `trascinamentoAvviato` in useTrascinamentoTratto.ts — e per le annotazioni e
+ * le aree, `gestoLibero` in useSelezioneMultipla.ts) e il congelamento di punto di presa, gomiti
  * e indice del tratto (`useTrascinamentoTratto.ts`). Quei riferimenti vivono un livello sopra
  * questo hook, in chi consuma il gesto: decidono la cronologia, non la meccanica del puntatore,
  * e ognuno lo fa con regole proprie del proprio dominio. Il contributo di questo hook è
