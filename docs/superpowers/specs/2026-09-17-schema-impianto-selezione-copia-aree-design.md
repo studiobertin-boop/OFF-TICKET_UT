@@ -51,7 +51,7 @@ La selezione dell'editor è l'unione di due insiemi:
 | Gesto | Effetto |
 |---|---|
 | Clic su un oggetto | seleziona solo quello, svuota entrambe le selezioni (come oggi) |
-| Shift + clic | aggiunge/toglie l'oggetto; vale anche per testi, frecce e aree |
+| Ctrl + clic (Cmd su Mac) | aggiunge/toglie l'oggetto; vale anche per testi, frecce, aree e muro |
 | Shift + trascinamento sullo sfondo | riquadro: React Flow sceglie i suoi oggetti; il rettangolo del gesto, convertito in coordinate del disegno (`screenToFlowPosition`), raccoglie anche testi, frecce e aree |
 | Escape | svuota entrambe le selezioni (come oggi) |
 | Clic sullo sfondo | nulla (come oggi) |
@@ -65,6 +65,12 @@ La selezione dell'editor è l'unione di due insiemi:
   sorpresa. Resta selezionabile col clic come oggi.
 
 Le frecce diventano cliccabili sul simbolo; il trascinamento lungo il tubo resta com'è.
+
+**Ctrl + clic, non Shift + clic (rettifica del 17-09-2026, in fase di piano).** In React Flow 12
+con Shift premuto il `pointerdown` viene catturato dalla tela per avviare il riquadro *anche sopra
+un nodo* (`Pane.onPointerDownCapture`, che ferma la propagazione): un Shift + clic su un'apparecchiatura
+non arriverebbe mai al nodo. Ctrl + clic è il tasto di selezione multipla predefinito della
+libreria su Windows (Cmd su Mac) e non entra in conflitto col riquadro.
 
 ### Azioni sulla selezione
 
@@ -131,6 +137,15 @@ scritta), `righeLista`/`righeLegenda`, `bypass.ts`, instradamento — perché un
 scritta, non entri in tabella e non sparisca al salvataggio. Se qualcosa non regge, si torna dal
 committente prima di procedere.
 
+**Censimento fatto il 17-09-2026, in fase di piano.** Doppio clic (`SchemaEditor.tsx`), righe di
+lista e legenda (`renderSvg.ts`), `daAnnunciare` e `posizioneTerminale` (`persistenza.ts`),
+`inviluppoVerticale`/`calcolaMuro` (`layout.ts`), il nome del capo sul menu del segno e la
+taratura guardano tutti il **tipo**, non l'id: una copia apre il dialogo della scritta, resta fuori
+da lista e legenda, e sopravvive alla riconciliazione perché è di origine `'manuale'`. `bypass.ts`
+non distingue il terminale. **Un solo punto fragile:** `riconcilia` prende come terminale la
+*prima* utenza che trova (`idTerminale`), e con una copia davanti nell'elenco ripara la tubazione
+sul nodo sbagliato. Il piano lo restringe ai nodi non manuali, con un test.
+
 ### Dove vive il codice
 
 - `services/schemaImpianto/appunti.ts` — funzioni pure `copia(stato, selezione)` e
@@ -157,9 +172,10 @@ export interface SchemaArea {
 }
 ```
 
-- `SchemaLayout.aree: SchemaArea[]` **obbligatorio in memoria** (come `testi`, e per la stessa
-  ragione: `strict: false` non segnalerebbe un produttore che lo dimentica); ogni produttore lo
-  normalizza a `[]`.
+- `SchemaLayout.aree?: SchemaArea[]` **opzionale anche in memoria**, letto sempre con `?? []`
+  (rettifica in fase di piano: `tsc` controlla anche i test, e otto file costruiscono
+  `SchemaLayout` letterali che un campo obbligatorio romperebbe senza alcun guadagno — `renderSvg`
+  legge già `testi` con `?? []`). Lo stato dell'editor invece lo porta sempre.
 - `LayoutSalvato.aree?` **opzionale su disco**: i layout salvati non ce l'hanno e si leggono senza
   conversione. Nessuna migrazione.
 - La riconciliazione (`riconcilia`, persistenza.ts) lo riporta intatto, come i testi.
@@ -168,7 +184,10 @@ export interface SchemaArea {
 
 - Pulsante **«Area»** in barra: crea un'area 300×200 con scritta «AREA» accanto al disegno
   (`posaNuoviOggetti.ts`) e la seleziona. Una voce di cronologia.
-- **Ordine**: sotto a tutto il resto sulla tela.
+- **Ordine**: nel documento sotto a tutto il resto. Sulla tela il tratteggio sta nel portale della
+  viewport, che React Flow disegna *sopra* i nodi: è una linea sottile senza riempimento e non
+  intercetta il puntatore (solo le fasce del bordo lo fanno), quindi l'effetto pratico è lo stesso
+  (rettifica in fase di piano).
 - **Presa solo sul bordo**, con fascia più larga della linea (stesso principio di `MARGINE_PRESA`
   del muro): i clic all'interno arrivano agli oggetti contenuti e allo sfondo, quindi il riquadro
   Shift + trascinamento può partire da dentro un'area.
