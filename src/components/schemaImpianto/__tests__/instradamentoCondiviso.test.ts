@@ -82,8 +82,8 @@ function layoutConGiunzione(): SchemaLayout {
  * tela divergeva dal documento.
  */
 function archiComeInEditor(layout: SchemaLayout): { nodes: Node[]; edges: Edge[] } {
-  const { nodes, edges, testi } = layoutAFlow(layout)
-  const layoutCorrente = flowALayout(nodes, edges, testi, null)
+  const { nodes, edges, testi, aree } = layoutAFlow(layout)
+  const layoutCorrente = flowALayout(nodes, edges, testi, aree, null)
   const fusi = fondiDatiArchi(
     edges,
     edges,

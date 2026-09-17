@@ -16,6 +16,7 @@ import {
   applyEdgeChanges,
   applyNodeChanges,
   reconnectEdge,
+  useReactFlow,
   type Connection,
   type Edge,
   type EdgeChange,
@@ -55,16 +56,20 @@ import {
 } from '@mui/icons-material'
 import toast from 'react-hot-toast'
 import { capoValido, connessioneAmmessa, stileIniziale } from '@/services/schemaImpianto/agganci'
-import { codiceVisibile, motivoRifiutoCodice, LUNGHEZZA_MASSIMA_CODICE } from '@/services/schemaImpianto/codici'
+import { codiceVisibile, motivoRifiutoCodice, codiceManualeLibero, LUNGHEZZA_MASSIMA_CODICE } from '@/services/schemaImpianto/codici'
 import type { Asse, Bordo } from '@/services/schemaImpianto/allineamento'
-import { PASSO_GRIGLIA, allineaAllaGriglia } from '@/services/schemaImpianto/griglia'
+import { PASSO_GRIGLIA } from '@/services/schemaImpianto/griglia'
 import { quoteInstradamento } from '@/services/schemaImpianto/layout'
 import { TARATURA_NEUTRA, risolviLibreria, taraturaDi, type Tarature, type TaraturaSimbolo } from '@/services/schemaImpianto/libreria'
 import { renderSvg, varchiDelMuro } from '@/services/schemaImpianto/renderSvg'
+import { idAreaLibero } from '@/services/schemaImpianto/aree'
+import type { FrecciaPosata } from '@/services/schemaImpianto/selezione'
 import { ancoreDi, dimensioniDi } from '@/services/schemaImpianto/symbols'
+import { puntoSuTratto } from '@/services/schemaImpianto/tratti'
 import type {
   ChiaveSimbolo,
   SchemaArcoStile,
+  SchemaArea,
   SchemaLayout,
   SchemaNodoPosizionato,
   SchemaNodoTipo,
@@ -72,6 +77,7 @@ import type {
   SchemaTipoAggancio,
 } from '@/services/schemaImpianto/types'
 import { chiaveSimbolo } from '@/services/schemaImpianto/types'
+import { AreeImpianto } from './AreeImpianto'
 import { BarraTaratura, DialogoUscitaTaratura, ManiglieTaratura } from './BarraTaratura'
 import { DivisorioAnteprima } from './DivisorioAnteprima'
 import { ManigliaRidimensiona } from './ManigliaRidimensiona'
@@ -80,16 +86,27 @@ import { sopraIlBordoSinistro } from './posaNuoviOggetti'
 import { LARGHEZZA_MINIMA_ANTEPRIMA, type PreferenzeEditor } from './preferenzeEditor'
 import { SchemaEdgeTubazione, type SchemaEdgeData } from './SchemaEdgeTubazione'
 import { SchemaNodeSymbol, type SchemaNodeData } from './SchemaNodeSymbol'
-import { TIPO_ARCO_FLOW, TIPO_NODO_FLOW, capiDegliArchi, flowALayout, fondiDatiArchi, layoutAFlow } from './conversioneFlow'
+import {
+  TIPO_ARCO_FLOW,
+  TIPO_NODO_FLOW,
+  capiDegliArchi,
+  flowALayout,
+  fondiDatiArchi,
+  layoutAFlow,
+  polilineaDellArco,
+} from './conversioneFlow'
 import { GuideAllineamento } from './GuideAllineamento'
 import { TestiLiberi } from './TestiLiberi'
 import { useAllineamentoSelezione } from './useAllineamentoSelezione'
+import { useAree } from './useAree'
 import { useGomiti } from './useGomiti'
 import { useGuideAllineamento } from './useGuideAllineamento'
 import { useInserimentoTee } from './useInserimentoTee'
 import { ascissaProposta, useMuro } from './useMuro'
 import { useSchemaHistory } from './useSchemaHistory'
 import { useSegniTubo } from './useSegniTubo'
+import { useAppunti } from './useAppunti'
+import { useSelezioneMultipla, type PressioneSullaTela } from './useSelezioneMultipla'
 import { motivoNonTarabile, useTaratura } from './useTaratura'
 import { useTestiLiberi } from './useTestiLiberi'
 import { useTrascinamentoTratto } from './useTrascinamentoTratto'
@@ -149,13 +166,6 @@ const PASSI: Record<string, [number, number]> = {
   ArrowDown: [0, 1],
 }
 
-/**
- * Muro e annotazioni non sono nodi di react-flow: la selezione della tela (`onSelectionChange`,
- * `selezione` qui sotto) non li vede, e serve una nozione loro. Un `id` per il testo — ce ne
- * possono essere più d'uno — nessun campo per il muro, che è unico.
- */
-type SelezioneLibera = { tipo: 'muro' } | { tipo: 'testo'; id: string } | null
-
 interface StatoEditor {
   nodes: Node[]
   edges: Edge[]
@@ -164,6 +174,9 @@ interface StatoEditor {
   // (TestiLiberi.tsx) e si maneggiano con `useTestiLiberi`. Stando nello stesso stato, la
   // cronologia le copre gratis, perché lavora sull'intero stato.
   testi: SchemaTestoLibero[]
+  // Le aree tratteggiate, per la stessa ragione dei testi: non sono nodi di react-flow, vivono qui
+  // e la cronologia le copre gratis.
+  aree: SchemaArea[]
   // Sola ascissa, non `SchemaMuroSeparazione`: l'altezza del muro non è un dato che l'utente
   // sceglie, si ricava dal disegno corrente (`muroDaAscissa`, layout.ts) a ogni ricostruzione
   // di `layoutCorrente`. Tenerla anche qui sarebbe una seconda fonte, destinata a divergere al
@@ -244,19 +257,10 @@ function nodiDi(s: { nodes: Node[] }): SchemaNodoPosizionato[] {
   return s.nodes.map((n) => ({ ...(n.data as SchemaNodeData).nodo, x: n.position.x, y: n.position.y }))
 }
 
-// I codici di scheda non hanno mai questo prefisso (S1, C1, SEP1, ...): senza, un nodo
-// manuale "S2" collide con un vero S2 comparso più tardi in scheda, che la riconciliazione
-// tratterebbe da lì in poi come il nodo manuale già presente — non entrerebbe mai fra gli
-// `aggiunti`, e resterebbe "Serbatoio" per sempre, senza marca né valvole.
-const PREFISSO_MANUALE = 'M-'
-
-/** Primo codice libero per un nuovo nodo, es. S1/S2/S3 già presenti → M-S4. */
+/** Primo codice libero per un nuovo nodo, es. M-S1/M-S2 già presenti → M-S3. Il prefisso `M-` e
+ *  il perché vivono in `codiceManualeLibero` (codici.ts), condiviso con l'incolla. */
 export function codiceLibero(prefisso: string, nodes: Node[]): string {
-  const usati = new Set(nodes.map((n) => n.id))
-  for (let i = 1; ; i++) {
-    const codice = `${PREFISSO_MANUALE}${prefisso}${i}`
-    if (!usati.has(codice)) return codice
-  }
+  return codiceManualeLibero(prefisso, new Set(nodes.map((n) => n.id)))
 }
 
 /**
@@ -293,11 +297,6 @@ function SchemaEditorInterno({
   const storia = useSchemaHistory<StatoEditor>(iniziale)
   const { stato, applica, aggiornaSenzaCronologia, annulla, puoAnnullare } = storia
   const [selezione, setSelezione] = useState<{ nodes: Node[]; edges: Edge[] }>({ nodes: [], edges: [] })
-  // Muro e annotazioni non sono nodi di react-flow, quindi `deleteKeyCode` non li vede e la
-  // selezione della tela non li comprende: qui accanto vive la loro. In `useState` e non in
-  // `StatoEditor`, che e' cio' su cui lavora la cronologia — selezionare non deve diventare un
-  // passo di Ctrl+Z.
-  const [selezioneLibera, setSelezioneLibera] = useState<SelezioneLibera>(null)
   const [anteprimaAperta, setAnteprimaAperta] = useState(true)
 
   // Il modo taratura (Task 12): id e chiave del simbolo congelati all'ENTRATA, non ricavati a
@@ -321,7 +320,7 @@ function SchemaEditorInterno({
   // `useSchemaHistory` espone già il gesto giusto per questo.
   const taraturaHook = useTaratura(TARATURA_NEUTRA)
 
-  // Il dialog di scrittura, uno solo per tre bersagli.
+  // Il dialog di scrittura, uno solo per quattro bersagli.
   //
   // «terminale»: la scritta del terminale utenze, e solo quella.
   //
@@ -336,8 +335,10 @@ function SchemaEditorInterno({
   //
   // «testo»: un'annotazione libera. Con `id` a `null` è un'annotazione che ancora non esiste:
   // si scrive prima e si crea alla conferma (vedi `confermaScrittura`).
+  //
+  // «area»: la scritta di un'area tratteggiata già esistente (l'area nasce dalla barra con `AREA`).
   const [scrittura, setScrittura] = useState<{
-    bersaglio: 'terminale' | 'testo' | 'apparecchiatura'
+    bersaglio: 'terminale' | 'testo' | 'apparecchiatura' | 'area'
     id: string | null
     valore: string
     /** Solo per «apparecchiatura»: il codice in composizione. */
@@ -368,8 +369,8 @@ function SchemaEditorInterno({
   // che dentro ognuno dei calcoli qui sotto, è quel che tiene quote, capi e anteprima sullo
   // STESSO layout: sono i tre ingressi della geometria condivisa con il documento.
   const layoutCorrente = useMemo(
-    () => flowALayout(stato.nodes, stato.edges, stato.testi, stato.muroX, libreriaEffettiva),
-    [stato.nodes, stato.edges, stato.testi, stato.muroX, libreriaEffettiva]
+    () => flowALayout(stato.nodes, stato.edges, stato.testi, stato.aree, stato.muroX, libreriaEffettiva),
+    [stato.nodes, stato.edges, stato.testi, stato.aree, stato.muroX, libreriaEffettiva]
   )
 
   // Quote a cui le tubazioni attraversano il muro: la STESSA `renderArchi` che disegna il
@@ -418,25 +419,14 @@ function SchemaEditorInterno({
   // rapido, a nessun effetto visibile). Vedi giro di riparazione 1, causa B.
   const trascinamentoNodoAvviato = useRef(false)
 
-  // Un Canc su un'apparecchiatura collegata fa chiamare a react-flow DUE gestori: `onNodesChange`
-  // con un `remove` e `onEdgesChange` con un altro, in due chiamate distinte dello stesso giro di
-  // eventi. Fino al 17-08-2026 ciascuno scriveva la propria voce di cronologia, e Ctrl+Z ne
-  // annullava una sola: tornava l'apparecchiatura, non le sue tubazioni.
-  //
-  // Stesso rimedio del trascinamento qui sopra, per la stessa ragione: la PRIMA rimozione del
-  // gesto registra, le altre no. Il segnale si azzera a fine giro di eventi (`queueMicrotask`) e
-  // non a tempo, così due Canc consecutivi — o un Canc subito dopo un trascinamento — restano due
-  // gesti distinti e due voci distinte.
-  const rimozioneAvviata = useRef(false)
-
-  const primaRimozioneDelGesto = useCallback(() => {
-    if (rimozioneAvviata.current) return false
-    rimozioneAvviata.current = true
-    queueMicrotask(() => {
-      rimozioneAvviata.current = false
-    })
-    return true
-  }, [])
+  // Fino al 17-08-2026 un Canc su un'apparecchiatura collegata faceva chiamare a react-flow DUE
+  // gestori — `onNodesChange` con un `remove` e `onEdgesChange` con un altro — e ciascuno scriveva
+  // la propria voce di cronologia: Ctrl+Z ne annullava una sola, tornava l'apparecchiatura ma non
+  // le sue tubazioni. Dal 17-09-2026 il Canc non passa più da qui: `deleteKeyCode={null}` su
+  // `<ReactFlow>`, e nodi, archi e annotazioni si tolgono insieme in `eliminaSelezione`
+  // (useSelezioneMultipla.ts), in una voce sola di cronologia. Con la tastiera disattivata react-
+  // flow non genera più `remove` per conto proprio: se uno arrivasse comunque da un'altra via, va
+  // in cronologia come qualsiasi altro gesto, senza bisogno di una guardia contro i doppioni.
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -448,10 +438,7 @@ function SchemaEditorInterno({
       // "primo" e finisce in cronologia correttamente. `remove` è sempre un gesto a sé.
       const primoEventoDelGesto = haEventoDiPosizione && !trascinamentoNodoAvviato.current
       if (haEventoDiPosizione) trascinamentoNodoAvviato.current = !finisceOra
-      // `primaRimozioneDelGesto()` ha un effetto collaterale e sta DOPO il controllo sul tipo:
-      // il `&&` corto garantisce che un trascinamento non consumi il segnale delle rimozioni.
-      const registraInCronologia =
-        primoEventoDelGesto || (changes.some((c) => c.type === 'remove') && primaRimozioneDelGesto())
+      const registraInCronologia = primoEventoDelGesto || changes.some((c) => c.type === 'remove')
       const aggiorna = registraInCronologia ? applica : aggiornaSenzaCronologia
       // Muro invisibile al bordo alto: `dimensioniLayout` (layout.ts) misura il disegno da zero in
       // giù, quindi un'apparecchiatura trascinata sopra quota zero spariva nel .docx. Difetto
@@ -467,16 +454,16 @@ function SchemaEditorInterno({
       )
       aggiorna((s) => ({ ...s, nodes: applyNodeChanges(vincolate, s.nodes) }))
     },
-    [applica, aggiornaSenzaCronologia, primaRimozioneDelGesto]
+    [applica, aggiornaSenzaCronologia]
   )
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
-      const concludeUnGesto = changes.some((c) => c.type === 'remove') && primaRimozioneDelGesto()
+      const concludeUnGesto = changes.some((c) => c.type === 'remove')
       const aggiorna = concludeUnGesto ? applica : aggiornaSenzaCronologia
       aggiorna((s) => ({ ...s, edges: applyEdgeChanges(changes, s.edges) }))
     },
-    [applica, aggiornaSenzaCronologia, primaRimozioneDelGesto]
+    [applica, aggiornaSenzaCronologia]
   )
 
   // Creare, spostare e togliere un gomito: logica isolata in un hook suo (vedi
@@ -498,15 +485,55 @@ function SchemaEditorInterno({
   // (vedi useTestiLiberi.ts), stesso motivo di useGomiti.ts qui sopra. Non riceve `stato`
   // perché, a differenza degli altri tre, non deve derivarne nulla: le annotazioni si rendono
   // da `stato.testi` qui sotto, nel portale della viewport.
-  const { aggiungiTesto, spostaTesto, modificaTesto, rimuoviTesto } = useTestiLiberi<StatoEditor>(
-    applica,
-    aggiornaSenzaCronologia
-  )
+  const { aggiungiTesto, modificaTesto, rimuoviTesto } = useTestiLiberi<StatoEditor>(applica)
 
   // Aggiungere e spostare il muro di separazione: logica isolata in un hook suo (vedi
   // useMuro.ts), stesso motivo di useGomiti.ts qui sopra. Come per le annotazioni, non riceve
   // `stato`: il muro si rende da `layoutCorrente.muro` qui sotto, nel portale della viewport.
-  const { aggiungiMuro, spostaMuro, rimuoviMuro } = useMuro<StatoEditor>(applica, aggiornaSenzaCronologia)
+  const { aggiungiMuro, spostaMuro } = useMuro<StatoEditor>(applica, aggiornaSenzaCronologia)
+
+  // La selezione multipla (testi, aree, frecce, muro accanto a quella di react-flow) e i gesti di
+  // gruppo: logica in un hook suo (useSelezioneMultipla.ts). Sta QUI, prima di `edgesConGomiti`,
+  // perché le frecce selezionate viaggiano nei dati degli archi.
+  const {
+    libere,
+    impostaLibere,
+    svuotaLibere,
+    deselezionaReactFlow,
+    premiLibero,
+    clicSuReactFlow,
+    spostaGruppoDa,
+    iniziaTrascinamentoNodi,
+    seguiTrascinamentoNodi,
+    concludiTrascinamentoNodi,
+    spostaConTastiera,
+    eliminaSelezione,
+    iniziaRiquadro,
+    concludiRiquadro,
+  } = useSelezioneMultipla<StatoEditor>(stato, applica, aggiornaSenzaCronologia)
+
+  // Ctrl+C / Ctrl+V: utenze, TEE, testi, aree e frecce (useAppunti.ts, appunti.ts).
+  const { copia, incolla } = useAppunti<StatoEditor>(stato, applica, libere, impostaLibere, libreriaEffettiva)
+
+  // Aree tratteggiate: creazione, angoli, scritta (useAree.ts). Lo spostamento intero è di gruppo.
+  const { aggiungiArea, ridimensionaArea, spostaScrittaArea, riscriviArea } = useAree<StatoEditor>(
+    applica,
+    aggiornaSenzaCronologia
+  )
+
+  // Cosa era selezionato in react-flow quando il puntatore è sceso sulla tela: vedi `PressioneSullaTela`.
+  const pressione = useRef<PressioneSullaTela | null>(null)
+
+  const frecceSelezionate = useMemo(() => {
+    const perArco = new Map<string, string[]>()
+    for (const e of libere) if (e.tipo === 'freccia') perArco.set(e.arco, [...(perArco.get(e.arco) ?? []), e.segno])
+    return perArco
+  }, [libere])
+
+  const premiFreccia = useCallback(
+    (arco: string, segno: string, aggiungi: boolean) => premiLibero({ tipo: 'freccia', arco, segno }, aggiungi),
+    [premiLibero]
+  )
 
   // `edgesConGomitiBase`, `edgesConSegni` ed `edgesConTrascinamento` derivano TUTTI e tre da
   // `stato.edges` con dati aggiuntivi diversi (rispettivamente `onSpostaGomito`/
@@ -532,35 +559,55 @@ function SchemaEditorInterno({
   // spegne `nodesDraggable`/`elementsSelectable={false}` su `<ReactFlow>`, che valgono solo per
   // i gesti gestiti da react-flow. Vedi `SchemaEdgeData.bloccato`.
   const edgesConGomiti = useMemo(
-    () => fondiDatiArchi(edgesConGomitiBase, edgesConSegni, edgesConTrascinamento, quote, capi, arcoEvidenziato, modoTaratura),
-    [edgesConGomitiBase, edgesConSegni, edgesConTrascinamento, quote, capi, arcoEvidenziato, modoTaratura]
+    () =>
+      fondiDatiArchi(edgesConGomitiBase, edgesConSegni, edgesConTrascinamento, quote, capi, arcoEvidenziato, modoTaratura, {
+        selezionate: frecceSelezionate,
+        onSeleziona: premiFreccia,
+      }),
+    [
+      edgesConGomitiBase,
+      edgesConSegni,
+      edgesConTrascinamento,
+      quote,
+      capi,
+      arcoEvidenziato,
+      modoTaratura,
+      frecceSelezionate,
+      premiFreccia,
+    ]
   )
 
   // Guide di allineamento durante il trascinamento: stato locale, non cronologia (vedi
   // useGuideAllineamento.ts), azzerate a fine gesto in onNodeDragStop qui sotto.
   const { guide, onNodeDrag, onNodeDragStop } = useGuideAllineamento(stato.nodes)
 
-  // Guide di allineamento e inserimento del TEE guardano lo stesso trascinamento: i gestori si
-  // compongono, non si sostituiscono. `onNodeDragStart` non c'era: serve all'inserimento per
+  // Guide di allineamento, inserimento del TEE e gesto di gruppo guardano lo stesso trascinamento:
+  // i gestori si compongono, non si sostituiscono. `onNodeDragStart` serve all'inserimento per
   // sapere se il gesto ha mosso il nodo — e quindi se `onNodesChange` ha già scritto la voce di
-  // cronologia su cui appoggiarsi (vedi useInserimentoTee.ts).
+  // cronologia su cui appoggiarsi (vedi useInserimentoTee.ts) — e al gruppo per congelare le
+  // origini di testi e aree selezionati, che react-flow non sposta da sé (useSelezioneMultipla.ts).
   const suInizioTrascinamentoNodo = useCallback(
-    (_evento: MouseEvent | TouchEvent, nodo: Node) => iniziaTrascinamentoTee(nodo),
-    [iniziaTrascinamentoTee]
+    (_evento: MouseEvent | TouchEvent, nodo: Node) => {
+      iniziaTrascinamentoTee(nodo)
+      iniziaTrascinamentoNodi(nodo, pressione.current)
+    },
+    [iniziaTrascinamentoTee, iniziaTrascinamentoNodi]
   )
   const suTrascinamentoNodo = useCallback(
     (evento: MouseEvent | TouchEvent, nodo: Node, nodi: Node[]) => {
       onNodeDrag(evento, nodo, nodi)
       seguiTrascinamentoTee(nodo, nodi)
+      seguiTrascinamentoNodi(nodo)
     },
-    [onNodeDrag, seguiTrascinamentoTee]
+    [onNodeDrag, seguiTrascinamentoTee, seguiTrascinamentoNodi]
   )
   const suFineTrascinamentoNodo = useCallback(
     (_evento: MouseEvent | TouchEvent, nodo: Node, nodi: Node[]) => {
       onNodeDragStop()
       concludiTrascinamentoTee(nodo, nodi)
+      concludiTrascinamentoNodi(nodo)
     },
-    [onNodeDragStop, concludiTrascinamentoTee]
+    [onNodeDragStop, concludiTrascinamentoTee, concludiTrascinamentoNodi]
   )
 
   // Rifiuta la connessione mentre la si sta ancora trascinando, non dopo: un capo posato su
@@ -984,109 +1031,58 @@ function SchemaEditorInterno({
     setAncoraSelezionata(null)
   }, [ancoraSelezionata, ancoreOccupate, taraturaHook])
 
-  // Direzione «react-flow spegne la libera»: clic su un nodo/arco (o selezione a rettangolo)
-  // azzera `selezioneLibera`. L'altra direzione vive in `selezionaLibero`/`deselezionaReactFlow`
-  // qui sotto — il pointerdown del muro/di un'annotazione ferma la propagazione (vedi lì), quindi
-  // questo handler non li vede mai e non può essere lui a spegnerli.
+  // La selezione di react-flow copiata qui, per la barra (Elimina, stile, allineamenti, taratura).
+  // Non svuota la selezione libera: lo fanno clic, trascinamento e riquadro (useSelezioneMultipla.ts),
+  // che sanno se Ctrl era premuto e se l'oggetto afferrato era già nel gruppo.
   const onSelectionChange = useCallback((s: { nodes: Node[]; edges: Edge[] }) => {
     setSelezione(s)
-    if (s.nodes.length > 0 || s.edges.length > 0) setSelezioneLibera(null)
   }, [])
 
-  // Direzione «la libera spegne react-flow». Il pointerdown del muro e di un'annotazione ferma
-  // la propagazione (useGestoPuntatore.ts, TestiLiberi.tsx): il click della pane di react-flow
-  // non scatta e `onSelectionChange` sopra non si accorge di nulla, quindi selezionare il muro o
-  // un testo NON fa decadere da sé una selezione di react-flow già accesa — senza questa
-  // chiamata esplicita un Canc con l'ordine nodo→muro cancellava entrambi, perché due listener
-  // diversi (questo su `window`, quello di react-flow su `document`) leggevano ciascuno la
-  // propria selezione, non condivisa.
-  //
-  // `aggiornaSenzaCronologia`, non `applica`: deselezionare non deve diventare un passo di
-  // Ctrl+Z, per lo stesso motivo per cui `selezioneLibera` sta fuori da `StatoEditor`.
-  const deselezionaReactFlow = useCallback(() => {
-    // Guardia contro la ricorsione con la direzione sopra: senza, ogni chiamata scriverebbe
-    // comunque su `stato` (anche a selezione già vuota), `onSelectionChange` la vedrebbe come un
-    // cambiamento e ripartirebbe un giro a vuoto a ogni clic sul muro/su un'annotazione.
-    if (selezione.nodes.length === 0 && selezione.edges.length === 0) return
-    aggiornaSenzaCronologia((s) => ({
-      ...s,
-      nodes: s.nodes.map((n) => (n.selected ? { ...n, selected: false } : n)),
-      edges: s.edges.map((e) => (e.selected ? { ...e, selected: false } : e)),
-    }))
-  }, [aggiornaSenzaCronologia, selezione.edges.length, selezione.nodes.length])
+  const { screenToFlowPosition } = useReactFlow()
 
-  const selezionaLibero = useCallback(
-    (nuova: SelezioneLibera) => {
-      setSelezioneLibera(nuova)
-      deselezionaReactFlow()
-    },
-    [deselezionaReactFlow]
+  /** Le frecce di direzione con il punto in cui la tela le disegna, per il riquadro. */
+  const frecceSullaTela = useCallback(
+    (): FrecciaPosata[] =>
+      edgesConGomiti.flatMap((e) => {
+        const data = e.data as SchemaEdgeData
+        if (!data.capi) return []
+        const polilinea = polilineaDellArco(data.capi, data)
+        return (data.segni ?? [])
+          .filter((g) => g.tipo === 'freccia_direzione')
+          .map((g) => ({ arco: e.id, segno: g.id, punto: puntoSuTratto(polilinea, g.t).punto }))
+      }),
+    [edgesConGomiti]
   )
 
-  // La selezione libera può restare stantia: l'annotazione selezionata sparisce dal suo dialogo
-  // (`eliminaTestoAperto`) o il muro da un Ctrl+Z che disfa l'aggiunta, e senza questo effetto un
-  // Canc successivo consumerebbe una voce di cronologia per un'operazione ormai a vuoto.
-  useEffect(() => {
-    if (!selezioneLibera) return
-    const esiste =
-      selezioneLibera.tipo === 'muro' ? stato.muroX !== null : stato.testi.some((t) => t.id === selezioneLibera.id)
-    if (!esiste) setSelezioneLibera(null)
-  }, [selezioneLibera, stato.muroX, stato.testi])
+  // L'area nuova nasce selezionata, e da sola: si vede subito con le maniglie, pronta da spostare.
+  const aggiungiAreaDallaBarra = useCallback(() => {
+    const id = idAreaLibero(stato.aree)
+    aggiungiArea(id, (s) => sopraIlBordoSinistro(s.nodes, s.testi, libreriaEffettiva))
+    deselezionaReactFlow()
+    impostaLibere([{ tipo: 'area', id }])
+  }, [aggiungiArea, deselezionaReactFlow, impostaLibere, libreriaEffettiva, stato.aree])
 
-  const eliminaSelezione = useCallback(() => {
-    const nodi = new Set(selezione.nodes.map((n) => n.id))
-    const archi = new Set(selezione.edges.map((e) => e.id))
-    if (nodi.size === 0 && archi.size === 0) return
-    applica((s) => ({
-      ...s,
-      nodes: s.nodes.filter((n) => !nodi.has(n.id)),
-      // Un'apparecchiatura rimossa si porta via le tubazioni che vi arrivavano, o
-      // resterebbero collegamenti verso un nodo inesistente.
-      edges: s.edges.filter((e) => !archi.has(e.id) && !nodi.has(e.source) && !nodi.has(e.target)),
-    }))
-  }, [applica, selezione])
+  /** Doppio clic sulla scritta o sul bordo di un'area: la riapre in scrittura. */
+  const apriArea = useCallback(
+    (id: string) => {
+      const area = stato.aree.find((a) => a.id === id)
+      if (area) setScrittura({ bersaglio: 'area', id, valore: area.scritta })
+    },
+    [stato.aree]
+  )
 
   // Allineamento e distribuzione della selezione: logica isolata in un hook suo (vedi
   // useAllineamentoSelezione.ts), stesso motivo di useGomiti.ts qui sopra.
   const { applicaAllineamento, applicaDistribuzione } = useAllineamentoSelezione(selezione, applica)
-
-  // Spostamento con le frecce. `ripetuto` distingue la prima pressione dalla ripetizione
-  // automatica del tasto tenuto premuto (KeyboardEvent.repeat): solo la prima entra in
-  // cronologia, così un tocco singolo resta annullabile con un solo Ctrl+Z, e tenere
-  // premuta una freccia — che genera molti eventi in un secondo — non svuota la
-  // cronologia (profonda solo PROFONDITA_CRONOLOGIA) consumandola con ogni passo intermedio.
-  // Le ripetizioni si accumulano senza toccare la cronologia, esattamente come i tanti
-  // eventi di un trascinamento col mouse in onNodesChange qui sopra: un Ctrl+Z alla fine
-  // di una pressione tenuta riporta all'inizio del gesto, non a un passo intermedio.
-  const sposta = useCallback(
-    (dx: number, dy: number, ripetuto: boolean) => {
-      const selezionati = new Set(selezione.nodes.map((n) => n.id))
-      if (selezionati.size === 0) return
-      const aggiorna = ripetuto ? aggiornaSenzaCronologia : applica
-      aggiorna((s) => ({
-        ...s,
-        nodes: s.nodes.map((n) => {
-          if (!selezionati.has(n.id)) return n
-          // Le coordinate vivono solo in position. Si allinea la posizione RISULTANTE e non
-          // lo spostamento: un'apparecchiatura che partisse fuori griglia — l'auto-layout ne
-          // produce, E1 e F1 nascono a y=185 — ci resterebbe a ogni passo, sommando multipli
-          // di 10 a uno scarto che non se ne va. È lo stesso difetto del tratto trascinato.
-          const x = allineaAllaGriglia(n.position.x + dx)
-          const y = allineaAllaGriglia(n.position.y + dy)
-          return { ...n, position: { x, y } }
-        }),
-      }))
-    },
-    [applica, aggiornaSenzaCronologia, selezione.nodes]
-  )
 
   // `scrittura !== null`, non l'intero oggetto: cambia identità a ogni carattere digitato (il
   // valore del campo vive lì), e in dipendenza dell'effetto qui sotto sganciava e riagganciava
   // questo listener a ogni tasto premuto nel campo di scrittura.
   const scritturaAperta = scrittura !== null
 
-  // Ctrl+Z e frecce sull'intera finestra: l'editor occupa tutto il dialog, e chiedere
-  // all'utente di mettere prima a fuoco la tela per annullare o spostare sarebbe un tranello.
+  // Ctrl+Z, frecce, Canc, Ctrl+C e Ctrl+V sull'intera finestra: l'editor occupa tutto il dialog, e
+  // chiedere all'utente di mettere prima a fuoco la tela per annullare, spostare, eliminare,
+  // copiare o incollare sarebbe un tranello.
   useEffect(() => {
     const suTasto = (e: KeyboardEvent) => {
       // Ridondante oggi (il Dialog di scrittura più sotto ferma già ogni tasto, Esc compreso, sul
@@ -1110,11 +1106,11 @@ function SchemaEditorInterno({
         // L'uscita dal MODO resta il dialogo a tre vie: Escape non la avvia e non la scavalca.
         if (modoTaratura) setAncoraSelezionata(null)
         else {
-          // Due selezioni, non una: react-flow non conosce muro e annotazioni, che hanno la
-          // propria (`selezioneLibera`). Nessuna delle due tocca la cronologia —
+          // Due selezioni, non una: react-flow non conosce testi, aree, frecce e muro, che hanno
+          // la propria (`libere`, useSelezioneMultipla.ts). Nessuna delle due tocca la cronologia —
           // `deselezionaReactFlow` passa già da `aggiornaSenzaCronologia`.
           deselezionaReactFlow()
-          setSelezioneLibera(null)
+          svuotaLibere()
         }
         return
       }
@@ -1132,37 +1128,58 @@ function SchemaEditorInterno({
         // che qui è spento: aggiungi nodo/elimina/allinea non convivono con la taratura.
         if (e.key === 'Delete' || e.key === 'Backspace') togliAncoraSelezionata()
         // Le frecce restano un comando d'impianto (spostano l'apparecchiatura selezionata): la
-        // condizione sotto (`selezione.nodes.length > 0`) sarebbe comunque vera — il modo si
+        // condizione sotto (`qualcosaDaSpostare`) sarebbe comunque vera — il modo si
         // attiva solo con un nodo selezionato — quindi qui vanno spente esplicitamente, o un
         // tocco di freccia sposterebbe il simbolo mentre si crede di star tarando le sue ancore.
         return
       }
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selezioneLibera) {
-        if (selezioneLibera.tipo === 'muro') rimuoviMuro()
-        else rimuoviTesto(selezioneLibera.id)
-        setSelezioneLibera(null)
+      // Copia e incolla dell'impianto. Dopo il ramo della taratura, che esce prima: lì restano quelli
+      // del browser. Il dialogo di scrittura ferma già i suoi tasti, quindi dentro un campo di testo
+      // Ctrl+C/Ctrl+V copiano il testo come sempre. Un testo selezionato altrove nella pagina (una
+      // riga della barra) si lascia copiare al browser.
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+        if (window.getSelection()?.toString()) return
+        e.preventDefault()
+        copia()
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+        e.preventDefault()
+        incolla()
+        return
+      }
+      // Canc passa SOLO da qui, anche per nodi e archi: `deleteKeyCode={null}` su `<ReactFlow>`.
+      // Con due strade (react-flow e questo listener) una selezione mista finiva in due voci di
+      // cronologia, e Ctrl+Z ne annullava metà.
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        eliminaSelezione()
         return
       }
       const passo = PASSI[e.key]
-      if (passo && selezione.nodes.length > 0) {
+      const qualcosaDaSpostare =
+        selezione.nodes.length > 0 || libere.some((l) => l.tipo === 'testo' || l.tipo === 'area')
+      if (passo && qualcosaDaSpostare) {
         e.preventDefault()
         const fattore = e.shiftKey ? PASSO_GRIGLIA * 5 : PASSO_GRIGLIA
-        sposta(passo[0] * fattore, passo[1] * fattore, e.repeat)
+        spostaConTastiera(passo[0] * fattore, passo[1] * fattore, e.repeat)
       }
     }
     window.addEventListener('keydown', suTasto)
     return () => window.removeEventListener('keydown', suTasto)
   }, [
     annulla,
+    copia,
     deselezionaReactFlow,
     dialogoUscitaAperto,
+    eliminaSelezione,
+    incolla,
+    libere,
     modoTaratura,
-    rimuoviMuro,
-    rimuoviTesto,
     scritturaAperta,
     selezione.nodes,
-    selezioneLibera,
-    sposta,
+    spostaConTastiera,
+    svuotaLibere,
     taraturaHook,
     togliAncoraSelezionata,
   ])
@@ -1220,18 +1237,20 @@ function SchemaEditorInterno({
   const scrittaValida = Boolean(scrittura?.valore.trim())
 
   // Il rifiuto del codice, già in italiano e pronto da mostrare, oppure `null`. Solo per
-  // «apparecchiatura»: gli altri due bersagli non hanno un codice da controllare.
+  // «apparecchiatura»: gli altri bersagli non hanno un codice da controllare.
   const rifiutoCodice =
     scrittura?.bersaglio === 'apparecchiatura'
       ? motivoRifiutoCodice(scrittura.codice ?? '', nodiDi(stato), scrittura.id ?? '')
       : null
   // Vale sia per il pulsante sia per la scorciatoia da tastiera: senza la seconda, Ctrl+Invio
   // scavalcherebbe il pulsante spento e scriverebbe un codice doppio.
-  const scritturaConfermabile = scrittaValida && rifiutoCodice === null
+  //
+  // Un'area può restare senza scritta: il rettangolo si vede e si riafferra comunque dal bordo.
+  const scritturaConfermabile = (scrittaValida || scrittura?.bersaglio === 'area') && rifiutoCodice === null
   const dizioneConferma =
     scrittura === null
       ? ''
-      : scrittura.bersaglio === 'apparecchiatura'
+      : scrittura.bersaglio === 'apparecchiatura' || scrittura.bersaglio === 'area'
         ? 'Salva'
         : scrittura.bersaglio === 'terminale'
           ? 'Cambia scritta'
@@ -1244,8 +1263,13 @@ function SchemaEditorInterno({
     const { bersaglio, id, codice } = scrittura
     const contenuto = scrittura.valore.trim()
     setScrittura(null)
+    // Prima del controllo sul vuoto: una scritta d'area svuotata è un gesto valido, non un rifiuto.
+    if (bersaglio === 'area') {
+      if (id !== null) riscriviArea(id, contenuto)
+      return
+    }
     if (!contenuto) return
-    // Tutti e tre i rami passano da `applica` (dentro l'hook, per le annotazioni) e non da
+    // Tutti i rami passano da `applica` (dentro l'hook, per annotazioni e aree) e non da
     // `aggiornaSenzaCronologia`: sono gesti come lo spostamento, e un solo Ctrl+Z deve
     // annullarli. Per un'annotazione nuova la voce di cronologia è UNA, non due, perché il
     // contenuto entra insieme alla posizione: annullare la toglie del tutto, invece di
@@ -1318,12 +1342,10 @@ function SchemaEditorInterno({
     // useTestiLiberi.ts — `stato` può essere l'istantanea di un render precedente a quello su
     // cui il reducer sta per applicare l'aggiunta, e l'annotazione nascerebbe sopra qualcosa.
     aggiungiTesto((s) => sopraIlBordoSinistro(s.nodes, s.testi, libreriaEffettiva), contenuto)
-  }, [aggiungiTesto, applica, libreriaEffettiva, modificaTesto, scrittura])
+  }, [aggiungiTesto, applica, libreriaEffettiva, modificaTesto, riscriviArea, scrittura])
 
-  /** Elimina l'annotazione aperta nel dialog: la via più vecchia delle due che esistono — l'altra
-   *  è selezionarla sulla tela e premere Canc (`selezioneLibera` qui sopra). Il pulsante «Elimina»
-   *  della barra resta cieco a entrambe, perché lavora solo sulla selezione di react-flow e le
-   *  annotazioni non sono nodi. */
+  /** Elimina l'annotazione aperta nel dialog: la via più vecchia; le altre sono selezionarla sulla
+   *  tela e premere Canc o «Elimina» in barra (`eliminaSelezione`, useSelezioneMultipla.ts). */
   const eliminaTestoAperto = useCallback(() => {
     if (!scrittura || scrittura.bersaglio !== 'testo' || scrittura.id === null) return
     const { id } = scrittura
@@ -1346,15 +1368,21 @@ function SchemaEditorInterno({
             </Button>
           </span>
         </Tooltip>
-        <Button
-          size="small"
-          color="error"
-          startIcon={<DeleteIcon />}
-          onClick={eliminaSelezione}
-          disabled={(selezione.nodes.length === 0 && selezione.edges.length === 0) || modoTaratura}
-        >
-          Elimina
-        </Button>
+        <Tooltip title="Elimina la selezione (Canc). Shift + trascinamento per selezionare a riquadro, Ctrl + clic per aggiungere, Ctrl+C / Ctrl+V per copiare utenze, TEE, testi, aree e frecce.">
+          <span>
+            <Button
+              size="small"
+              color="error"
+              startIcon={<DeleteIcon />}
+              onClick={eliminaSelezione}
+              disabled={
+                (selezione.nodes.length === 0 && selezione.edges.length === 0 && libere.length === 0) || modoTaratura
+              }
+            >
+              Elimina
+            </Button>
+          </span>
+        </Tooltip>
 
         <Divider orientation="vertical" flexItem />
 
@@ -1479,6 +1507,13 @@ function SchemaEditorInterno({
             </Button>
           </span>
         </Tooltip>
+        <Tooltip title="Un rettangolo tratteggiato per delimitare un'area dell'impianto: si trascina dal bordo, si ridimensiona dagli angoli, doppio clic sulla scritta (o sul bordo) per cambiarla">
+          <span>
+            <Button size="small" startIcon={<AddIcon />} onClick={aggiungiAreaDallaBarra} disabled={modoTaratura}>
+              Area
+            </Button>
+          </span>
+        </Tooltip>
 
         {/* Il modo taratura: unico comando che resta acceso mentre tutti gli altri sopra si
             spengono — i comandi che agiscono sull'impianto non convivono con la taratura di un
@@ -1547,6 +1582,15 @@ function SchemaEditorInterno({
             '--xy-controls-button-color-hover': '#37414f',
           },
         }}
+        // Prima di react-flow (fase di cattura sul contenitore): cosa era selezionato e se Ctrl era
+        // premuto, per decidere dopo se un nodo afferrato faceva parte del gruppo.
+        onPointerDownCapture={(e) => {
+          pressione.current = {
+            nodi: new Set(stato.nodes.filter((n) => n.selected).map((n) => n.id)),
+            archi: new Set(stato.edges.filter((a) => a.selected).map((a) => a.id)),
+            aggiungi: e.ctrlKey || e.metaKey,
+          }
+        }}
       >
         <ReactFlow
           nodes={stato.nodes}
@@ -1566,7 +1610,13 @@ function SchemaEditorInterno({
           onNodeDragStop={suFineTrascinamentoNodo}
           isValidConnection={isValidConnection}
           onSelectionChange={onSelectionChange}
-          onPaneClick={() => setSelezioneLibera(null)}
+          onPaneClick={svuotaLibere}
+          onNodeClick={(_, nodo) => clicSuReactFlow(nodo.id, 'nodo', pressione.current)}
+          onEdgeClick={(_, arco) => clicSuReactFlow(arco.id, 'arco', pressione.current)}
+          // Il riquadro (Shift + trascinamento): nodi e archi li sceglie react-flow, testi, aree e
+          // frecce che ci cadono dentro li raccoglie l'hook a fine gesto.
+          onSelectionStart={(e) => iniziaRiquadro(screenToFlowPosition({ x: e.clientX, y: e.clientY }))}
+          onSelectionEnd={(e) => concludiRiquadro(screenToFlowPosition({ x: e.clientX, y: e.clientY }), frecceSullaTela())}
           // In modo taratura l'impianto è spento anche sulla tela, non solo in barra: senza,
           // trascinare dentro il riquadro delle maniglie (`ManiglieTaratura`, sotto) rischierebbe
           // di spostare l'apparecchiatura invece di tarare la sua sagoma, e un capo trascinato
@@ -1612,7 +1662,7 @@ function SchemaEditorInterno({
           // anche altro (Enter/Escape per selezionare/deselezionare da tastiera, il
           // centraggio automatico sul nodo che riceve il focus, gli annunci per gli screen
           // reader): nessuna di queste funzioni è usata dall'editor, che seleziona sempre a
-          // clic/shift+clic/rettangolo, quindi la perdita è accettata, non solo un
+          // clic/Ctrl+clic/riquadro, quindi la perdita è accettata, non solo un
           // sottoprodotto trascurato.
           disableKeyboardA11y
           // Lo schema è un disegno tecnico: si trascina sulla griglia del CAD, non a piacere.
@@ -1620,13 +1670,11 @@ function SchemaEditorInterno({
           // mostrerebbe un reticolo diverso da quello a cui i nodi si agganciano davvero.
           snapToGrid
           snapGrid={[10, 10]}
-          // `null` in modo taratura, non l'elenco: senza, il Canc premuto per togliere
-          // un'ancora selezionata raggiunge ANCHE la gestione interna di react-flow (che non sa
-          // nulla del modo taratura) e cancella il nodo selezionato — l'apparecchiatura intera,
-          // non l'ancora — esattamente il pericolo che il brief mette in guardia («cancellare
-          // un'apparecchiatura credendo di togliere un'ancora»). Misurato in pagina: senza
-          // questa guardia, Canc su un'ancora toglieva il simbolo tarato dalla tela.
-          deleteKeyCode={modoTaratura ? null : ['Delete', 'Backspace']}
+          // Sempre `null`: il Canc lo gestisce solo l'editor (`eliminaSelezione`,
+          // useSelezioneMultipla.ts), per nodi, archi e annotazioni insieme, in una voce di
+          // cronologia. In modo taratura il listener esce prima (ramo `modoTaratura`), quindi il
+          // pericolo di cancellare l'apparecchiatura credendo di togliere un'ancora resta chiuso.
+          deleteKeyCode={null}
           translateExtent={[
             [-500, -500],
             [4000, 4000],
@@ -1647,13 +1695,23 @@ function SchemaEditorInterno({
               spegne. Zoom e «Fit View» restano: servono, e non toccano il disegno. */}
           <Controls showInteractive={!modoTaratura} />
           <ViewportPortal>
+            <AreeImpianto
+              aree={stato.aree}
+              selezionate={libere.flatMap((l) => (l.tipo === 'area' ? [l.id] : []))}
+              onPremi={(id, aggiungi) => premiLibero({ tipo: 'area', id }, aggiungi)}
+              onSposta={(id, posizione, concluso) => spostaGruppoDa({ tipo: 'area', id }, posizione, concluso)}
+              onRidimensiona={ridimensionaArea}
+              onSpostaScritta={spostaScrittaArea}
+              onModifica={apriArea}
+              bloccato={modoTaratura}
+            />
             <GuideAllineamento guide={guide} />
             <TestiLiberi
               testi={stato.testi}
-              onSposta={spostaTesto}
+              onSposta={(id, posizione, concluso) => spostaGruppoDa({ tipo: 'testo', id }, posizione, concluso)}
               onModifica={apriTesto}
-              selezionato={selezioneLibera?.tipo === 'testo' ? selezioneLibera.id : null}
-              onSeleziona={(id) => selezionaLibero({ tipo: 'testo', id })}
+              selezionati={libere.flatMap((l) => (l.tipo === 'testo' ? [l.id] : []))}
+              onSeleziona={(id, aggiungi) => premiLibero({ tipo: 'testo', id }, aggiungi)}
               // Annotazioni e muro montano gestori PROPRI, che le prop di `<ReactFlow>` qui sotto
               // non toccano: senza questa guardia in modo taratura si potrebbero ancora spostare
               // o riaprire in scrittura, scrivendo nella cronologia dell'impianto (vedi
@@ -1664,9 +1722,9 @@ function SchemaEditorInterno({
               <MuroSeparazione
                 muro={layoutCorrente.muro}
                 varchi={varchiMuro}
-                selezionato={selezioneLibera?.tipo === 'muro'}
+                selezionato={libere.some((l) => l.tipo === 'muro')}
                 onSposta={spostaMuro}
-                onSeleziona={() => selezionaLibero({ tipo: 'muro' })}
+                onSeleziona={(aggiungi) => premiLibero({ tipo: 'muro' }, aggiungi)}
                 bloccato={modoTaratura}
               />
             )}
@@ -1734,8 +1792,8 @@ function SchemaEditorInterno({
         )}
       </Stack>
 
-      {/* Un dialog solo per due bersagli (la scritta del terminale e le annotazioni libere):
-          sono lo stesso gesto — comporre un testo su più righe e confermarlo — e sdoppiarlo
+      {/* Un dialog solo per tutte le scritte (terminale, annotazioni libere, apparecchiature a mano,
+          aree): sono lo stesso gesto — comporre un testo su più righe e confermarlo — e sdoppiarlo
           significherebbe tenere allineate a mano due copie delle stesse cautele su tasti,
           Esc e validazione qui sotto. Cambiano il titolo, l'esempio e le dizioni dei pulsanti.
           Annullare non lascia mai nulla dietro: un'annotazione nuova non è ancora stata creata,
@@ -1770,11 +1828,13 @@ function SchemaEditorInterno({
         }}
       >
         <DialogTitle>
-          {scrittura?.bersaglio === 'testo'
-            ? 'Testo sul disegno'
-            : scrittura?.bersaglio === 'apparecchiatura'
-              ? 'Codice e descrizione'
-              : 'Scritta del terminale'}
+          {scrittura?.bersaglio === 'area'
+            ? "Scritta dell'area"
+            : scrittura?.bersaglio === 'testo'
+              ? 'Testo sul disegno'
+              : scrittura?.bersaglio === 'apparecchiatura'
+                ? 'Codice e descrizione'
+                : 'Scritta del terminale'}
         </DialogTitle>
         <DialogContent>
           {scrittura?.bersaglio === 'apparecchiatura' && (
@@ -1799,14 +1859,16 @@ function SchemaEditorInterno({
             margin="dense"
             label={scrittura?.bersaglio === 'apparecchiatura' ? 'Descrizione' : 'Testo'}
             // La descrizione è una riga sola: in tabella ne entra una, e un a capo scritto qui
-            // sparirebbe senza dirlo. Gli altri due bersagli restano multi-riga dal Blocco C2.
+            // sparirebbe senza dirlo. Gli altri bersagli restano multi-riga dal Blocco C2.
             {...(scrittura?.bersaglio === 'apparecchiatura' ? {} : { multiline: true, minRows: 2, maxRows: 8 })}
             helperText={
-              scrittura?.bersaglio === 'apparecchiatura'
-                ? 'La riga che compare nella lista apparecchiature, per esempio «Serbatoio di riserva 500 l».'
-                : scrittura?.bersaglio === 'testo'
-                  ? 'Una scritta libera sul disegno, per esempio «Locale compressori». Invio va a capo, Ctrl+Invio conferma (oppure usa il pulsante qui sotto).'
-                  : 'Per esempio «Utenze aria», «Utenze azoto». Invio va a capo, Ctrl+Invio conferma (oppure usa il pulsante qui sotto).'
+              scrittura?.bersaglio === 'area'
+                ? 'Per esempio «SALA COMPRESSORI». Può restare vuota. Invio va a capo, Ctrl+Invio conferma.'
+                : scrittura?.bersaglio === 'apparecchiatura'
+                  ? 'La riga che compare nella lista apparecchiature, per esempio «Serbatoio di riserva 500 l».'
+                  : scrittura?.bersaglio === 'testo'
+                    ? 'Una scritta libera sul disegno, per esempio «Locale compressori». Invio va a capo, Ctrl+Invio conferma (oppure usa il pulsante qui sotto).'
+                    : 'Per esempio «Utenze aria», «Utenze azoto». Invio va a capo, Ctrl+Invio conferma (oppure usa il pulsante qui sotto).'
             }
             value={scrittura?.valore ?? ''}
             onChange={(e) => setScrittura((s) => (s ? { ...s, valore: e.target.value } : s))}

@@ -105,4 +105,20 @@ describe('fondiDatiArchi', () => {
     const fusi = fondiDatiArchi(conGomiti, conSegni, conTrascinamento, QUOTE, CAPI, null)
     expect(fusi.every((e) => (e.data as SchemaEdgeData).evidenziato === false)).toBe(true)
   })
+
+  it('senza frecce selezionabili non aggiunge chiavi agli archi', () => {
+    const { conGomiti, conSegni, conTrascinamento } = treElenchi()
+    const fusi = fondiDatiArchi(conGomiti, conSegni, conTrascinamento, QUOTE, CAPI, null)
+    expect(fusi.every((e) => !('frecceSelezionate' in (e.data as object)))).toBe(true)
+  })
+
+  it('porta a ogni arco le sue frecce selezionate e il gestore del clic', () => {
+    const { conGomiti, conSegni, conTrascinamento } = treElenchi()
+    const onSeleziona = () => {}
+    const selezionate = new Map([[conGomiti[0].id, ['s1']]])
+    const fusi = fondiDatiArchi(conGomiti, conSegni, conTrascinamento, QUOTE, CAPI, null, false, { selezionate, onSeleziona })
+    expect((fusi[0].data as { frecceSelezionate: string[] }).frecceSelezionate).toEqual(['s1'])
+    expect((fusi[1]?.data as { frecceSelezionate?: string[] } | undefined)?.frecceSelezionate ?? []).toEqual([])
+    expect((fusi[0].data as { onSelezionaFreccia: unknown }).onSelezionaFreccia).toBe(onSeleziona)
+  })
 })

@@ -82,3 +82,18 @@ export function motivoRifiutoCodice(codice: string, nodi: SchemaNodo[], idNodo: 
   if (codiciOccupati(nodi, idNodo).has(pulito)) return 'Questo codice è già usato.'
   return null
 }
+
+// I codici di scheda non hanno mai questo prefisso (S1, C1, SEP1, ...): senza, un nodo
+// manuale "S2" collide con un vero S2 comparso più tardi in scheda, che la riconciliazione
+// tratterebbe da lì in poi come il nodo manuale già presente — non entrerebbe mai fra gli
+// `aggiunti`, e resterebbe "Serbatoio" per sempre, senza marca né valvole.
+export const PREFISSO_MANUALE = 'M-'
+
+/** Primo codice manuale libero, es. M-S1/M-S2 già usati → M-S3. Lo usano la palette
+ *  (`codiceLibero`, SchemaEditor.tsx) e l'incolla (`incollaAppunto`, appunti.ts). */
+export function codiceManualeLibero(prefisso: string, usati: Set<string>): string {
+  for (let i = 1; ; i++) {
+    const codice = `${PREFISSO_MANUALE}${prefisso}${i}`
+    if (!usati.has(codice)) return codice
+  }
+}

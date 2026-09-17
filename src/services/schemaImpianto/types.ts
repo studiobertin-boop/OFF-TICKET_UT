@@ -282,6 +282,28 @@ export interface SchemaTestoLibero {
   contenuto: string
 }
 
+/**
+ * Area impiantistica disegnata a mano: un rettangolo tratteggiato con una scritta propria, per
+ * delimitare zone diverse dello stesso impianto (sala compressori, reparto, …). Come i testi
+ * liberi non è un nodo — nessuna ancora, nessuna tubazione, niente lista né legenda — e la
+ * riconciliazione con la scheda non la tocca mai.
+ *
+ * La scritta segue il rettangolo quando lo si sposta, ma si può spostare anche da sola: per questo
+ * la sua posizione è uno SCARTO dall'angolo in alto a sinistra, non una coordinata assoluta.
+ */
+export interface SchemaArea {
+  id: string
+  /** Angolo in alto a sinistra, in unità del disegno. Mai negativo: il documento parte da zero. */
+  x: number
+  y: number
+  larghezza: number
+  altezza: number
+  /** Può essere vuota (non si disegna nulla) o andare a capo, come un testo libero. */
+  scritta: string
+  /** Primo capo della prima riga della scritta, rispetto a (x, y). */
+  scartoScritta: { dx: number; dy: number }
+}
+
 /** Output di `layout`: stessa struttura logica, con posizioni assegnate. Consumato da `renderSvg` e dall'editor. */
 export interface SchemaLayout {
   nodi: SchemaNodoPosizionato[]
@@ -298,4 +320,10 @@ export interface SchemaLayout {
    * Blocco C2 non ce l'ha.
    */
   testi: SchemaTestoLibero[]
+  /**
+   * Aree tratteggiate. Opzionale anche in memoria, a differenza di `testi`: ogni lettore usa
+   * `?? []`, e renderlo obbligatorio avrebbe rotto senza guadagno gli `SchemaLayout` letterali dei
+   * test (vedi la rettifica nella specifica del 17-09-2026). Assente e vuoto sono la stessa cosa.
+   */
+  aree?: SchemaArea[]
 }

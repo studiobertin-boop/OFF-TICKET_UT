@@ -1363,3 +1363,51 @@ describe('righeLista e il codice scritto a mano', () => {
     expect(righeLista(layoutConNodo())[0].sinistra).toEqual({ codice: 'M-S1' })
   })
 })
+
+describe('aree tratteggiate', () => {
+  const sala = {
+    id: 'A1', x: 20, y: 20, larghezza: 600, altezza: 400, scritta: 'SALA COMPRESSORI', scartoScritta: { dx: 10, dy: 30 },
+  }
+
+  it('disegna il rettangolo tratteggiato e la scritta', () => {
+    const svg = renderSvg({ ...layoutMinimo(), aree: [sala] })
+    expect(svg).toContain('<rect x="20" y="20" width="600" height="400" fill="none" stroke="#333" stroke-width="1.5" stroke-dasharray="8 4" />')
+    expect(svg).toContain('>SALA COMPRESSORI</tspan>')
+  })
+
+  it('una scritta vuota non produce testo', () => {
+    const svg = renderSvg({ ...layoutMinimo(), aree: [{ ...sala, scritta: '  ' }] })
+    expect(svg).toContain('stroke-dasharray="8 4"')
+    expect(svg.match(/<text/g)?.length).toBe(renderSvg(layoutMinimo()).match(/<text/g)?.length)
+  })
+
+  it('si disegna prima di tubi e nodi, subito dopo il fondo bianco', () => {
+    const svg = renderSvg({ ...layoutMinimo(), aree: [sala] })
+    const fondo = svg.indexOf('fill="#fff" />')
+    const indiceArea = svg.indexOf('stroke-dasharray="8 4"')
+    const indiceTubo = svg.indexOf('stroke-dasharray="10 7"')
+    const indiceNodo = svg.indexOf('<circle cx="60" cy="60"')
+    expect(fondo).toBeGreaterThan(-1)
+    expect(indiceArea).toBeGreaterThan(fondo)
+    expect(indiceArea).toBeLessThan(indiceTubo)
+    expect(indiceArea).toBeLessThan(indiceNodo)
+  })
+
+  it('un\'area oltre il disegno allarga il foglio invece di essere tagliata', () => {
+    const senza = renderSvg(layoutMinimo())
+    const con = renderSvg({ ...layoutMinimo(), aree: [{ ...sala, x: 3000, y: 2500 }] })
+    const misura = (svg: string, attr: string) => Number(svg.match(new RegExp(`${attr}="([0-9.]+)"`))![1])
+    expect(misura(con, 'width')).toBeGreaterThanOrEqual(3600)
+    expect(misura(con, 'height')).toBeGreaterThan(misura(senza, 'height'))
+    expect(misura(con, 'height')).toBeGreaterThanOrEqual(2900)
+  })
+
+  it('le quote di instradamento non dipendono dalle aree', () => {
+    const layout = layoutMinimo()
+    expect(quoteInstradamento({ ...layout, aree: [{ ...sala, y: 5000 }] })).toEqual(quoteInstradamento(layout))
+  })
+
+  it('aree vuote o assenti danno lo stesso SVG di sempre', () => {
+    expect(renderSvg({ ...layoutMinimo(), aree: [] })).toBe(renderSvg(layoutMinimo()))
+  })
+})

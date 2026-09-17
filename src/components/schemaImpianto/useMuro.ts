@@ -47,18 +47,17 @@ export function ascissaSpostata(x: number): number {
 }
 
 /**
- * Tre gesti sul muro, sulla falsariga di useTestiLiberi.ts:
+ * Due gesti sul muro, sulla falsariga di useTestiLiberi.ts:
  *
  * - `aggiungiMuro` accetta la proposta come funzione dello stato, non come numero già calcolato:
  *   chi la produce (`ascissaProposta`, applicata ai nodi correnti) deve leggere lo stato che il
  *   reducer sta per aggiornare, non quello catturato nella chiusura del render — stessa cautela
- *   di `aggiungiTesto` in useTestiLiberi.ts.
+ *   di `aggiungiTesto` in useTestiLiberi.ts. È un gesto singolo: sempre in cronologia.
  * - `spostaMuro` manda in cronologia solo il PRIMO evento del gesto di trascinamento
  *   (`trascinamentoMuroAvviato`, come `trascinamentoTestoAvviato`): durante un trascinamento
  *   arrivano molti eventi al secondo, e la cronologia è profonda 10 — se ognuno vi entrasse si
  *   riempirebbe di stati intermedi e Ctrl+Z diventerebbe inutile; se entrasse solo l'ultimo, lo
  *   stato "precedente" sarebbe già quello finale e Ctrl+Z non riporterebbe da nessuna parte.
- * - `aggiungiMuro` e `rimuoviMuro` sono gesti singoli: sempre in cronologia.
  */
 export function useMuro<T extends StatoConMuro>(applica: Aggiorna<T>, aggiornaSenzaCronologia: Aggiorna<T>) {
   const aggiungiMuro = useCallback(
@@ -80,9 +79,5 @@ export function useMuro<T extends StatoConMuro>(applica: Aggiorna<T>, aggiornaSe
     [applica, aggiornaSenzaCronologia]
   )
 
-  const rimuoviMuro = useCallback(() => {
-    applica((s) => ({ ...s, muroX: null }))
-  }, [applica])
-
-  return { aggiungiMuro, spostaMuro, rimuoviMuro }
+  return { aggiungiMuro, spostaMuro }
 }
