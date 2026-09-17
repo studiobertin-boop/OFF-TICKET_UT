@@ -69,6 +69,14 @@ describe('riquadro', () => {
     expect(elementiNelRiquadro(r, { testi: [{ id: 'T1', x: 50, y: 105, contenuto: 'a' }], aree: [], frecce: [] })).toEqual([])
   })
 
+  it('un riquadro che taglia la metà inferiore dell’ultima riga non prende il testo', () => {
+    // y: 100 è il centro della riga (dominant-baseline="central"): il vero bordo basso sta a
+    // 111.25 (y + MEZZA_RIGA). Un riquadro che finisce a 105 tocca solo la metà superiore della
+    // riga, e non deve bastare.
+    const r = riquadroDaPunti({ x: 0, y: 0 }, { x: 500, y: 105 })
+    expect(elementiNelRiquadro(r, { testi: [{ id: 'T1', x: 50, y: 100, contenuto: 'a' }], aree: [], frecce: [] })).toEqual([])
+  })
+
   it('il muro non entra mai: non è fra i contenuti che il riquadro guarda', () => {
     const r = riquadroDaPunti({ x: -1e6, y: -1e6 }, { x: 1e6, y: 1e6 })
     expect(elementiNelRiquadro(r, { testi: [], aree: [], frecce: [] })).toEqual([])

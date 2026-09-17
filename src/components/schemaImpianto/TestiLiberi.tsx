@@ -15,19 +15,21 @@
  */
 import { useCallback, useRef } from 'react'
 import { useReactFlow } from '@xyflow/react'
+import { MEZZA_RIGA } from '@/services/schemaImpianto/layout'
 import { FONT, INTERLINEA_TESTO, TESTO_LIBERO } from '@/services/schemaImpianto/symbols'
 import type { SchemaTestoLibero } from '@/services/schemaImpianto/types'
 
-/**
+/*
  * Nel documento `(x, y)` è l'inizio della prima riga con `dominant-baseline="central"`: la sua
  * ordinata cade a metà della riga, non in cima. Un `<div>` HTML invece parte dal bordo
  * superiore della prima riga, alta `dimensione * INTERLINEA_TESTO`: va quindi alzato di mezza
- * riga perché le due rese si sovrappongano. È un'approssimazione (il centro della riga CSS e il
- * `central` dell'SVG differiscono di poco, per come il font distribuisce ascendenti e
- * discendenti), sufficiente allo scopo: la tela serve a decidere dove va la scritta, il giudice
- * dell'aspetto finale resta l'anteprima qui accanto, che è lo stesso SVG del .docx.
+ * riga (`MEZZA_RIGA`, esportata da `layout.ts` perché la usa anche il riquadro di selezione in
+ * `selezione.ts`, sullo stesso calcolo) perché le due rese si sovrappongano. È un'approssimazione
+ * (il centro della riga CSS e il `central` dell'SVG differiscono di poco, per come il font
+ * distribuisce ascendenti e discendenti), sufficiente allo scopo: la tela serve a decidere dove va
+ * la scritta, il giudice dell'aspetto finale resta l'anteprima qui accanto, che è lo stesso SVG
+ * del .docx.
  */
-const MEZZA_RIGA = (TESTO_LIBERO.dimensione * INTERLINEA_TESTO) / 2
 
 export interface TestiLiberiProps {
   testi: SchemaTestoLibero[]

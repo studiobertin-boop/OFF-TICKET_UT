@@ -8,8 +8,7 @@
  * cancellarlo col riquadro sarebbe una sorpresa. Deciso col committente il 17-09-2026.
  */
 import { allineaAllaGriglia } from './griglia'
-import { ingombroTesto } from './layout'
-import { TESTO_LIBERO } from './symbols'
+import { MEZZA_RIGA, ingombroTesto } from './layout'
 import type { Punto } from './tratti'
 import type { SchemaArea, SchemaTestoLibero } from './types'
 
@@ -77,8 +76,10 @@ export interface FrecciaPosata {
 
 /**
  * Contenimento pieno, come React Flow per i nodi (`SelectionMode.Full`). Il testo si misura con
- * `ingombroTesto`, e il suo bordo alto è la `y` meno un corpo: `y` è la linea di base della prima
- * riga, e la scritta sale sopra di essa.
+ * `ingombroTesto`, ma la sua `y` è il CENTRO della prima riga (`dominant-baseline="central"` in
+ * `testoMultiRiga`, symbols/index.ts), non la sua base: il bordo alto va quindi mezza riga sopra la
+ * `y`, e il bordo basso mezza riga sotto il centro dell'ultima riga che `ingombroTesto` restituisce
+ * — stessa `MEZZA_RIGA` di `TestiLiberi.tsx`, condivisa da qui per non farla divergere in due file.
  */
 export function elementiNelRiquadro(
   r: Riquadro,
@@ -87,7 +88,7 @@ export function elementiNelRiquadro(
   const testi = contenuto.testi
     .filter((t) => {
       const ingombro = ingombroTesto(t)
-      return contiene(r, t.x, t.y - TESTO_LIBERO.dimensione, ingombro.destra, ingombro.basso)
+      return contiene(r, t.x, t.y - MEZZA_RIGA, ingombro.destra, ingombro.basso + MEZZA_RIGA)
     })
     .map((t): ElementoLibero => ({ tipo: 'testo', id: t.id }))
   const aree = contenuto.aree
@@ -115,10 +116,10 @@ function mappa(origini: Record<string, Punto>, trasforma: (p: Punto) => Punto): 
 }
 
 /**
- * Tutte le origini dello stesso scarto, con la posizione RISULTANTE agganciata alla griglia (lo
- * stesso criterio di `sposta` e di `testiConSpostamento`: un'origine fuori griglia non si trascina
- * dietro il proprio scarto per sempre). I vincoli sono quelli che ciascun tipo ha già da solo: y ≥ 0
- * per i nodi, x e y ≥ 0 per le aree, nessuno per i testi.
+ * Tutte le origini dello stesso scarto, con la posizione RISULTANTE agganciata alla griglia (come
+ * `testiConSpostamento`: un'origine fuori griglia non si trascina dietro il proprio scarto per
+ * sempre). I vincoli sono quelli che ciascun tipo ha già da solo: y ≥ 0 per i nodi, x e y ≥ 0 per
+ * le aree, nessuno per i testi.
  */
 export function posizioniSpostate(origini: PosizioniGruppo, dx: number, dy: number): PosizioniGruppo {
   const x = (p: Punto) => allineaAllaGriglia(p.x + dx)

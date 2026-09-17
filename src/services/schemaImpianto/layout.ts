@@ -874,6 +874,10 @@ export function corpoNodo(
  * venisse ritoccato senza l'altro. Non è tipografia vera — misurare i glifi richiederebbe un DOM
  * che queste funzioni non hanno — serve solo a decidere quanto allargare la tela.
  *
+ * `basso` è il centro (non il fondo) dell'ultima riga: `testoMultiRiga` (symbols/index.ts) disegna
+ * con `dominant-baseline="central"`, quindi la `y` di ciascuna riga cade a metà, non alla base. Chi
+ * ha bisogno del vero bordo inferiore aggiunge `MEZZA_RIGA`.
+ *
  * Esportata perché la usa anche l'editor: un'annotazione nuova nasce sotto tutto il disegno
  * (`piedeDelDisegno` in SchemaEditor.tsx), e «sotto» comprende le annotazioni già posate, o due
  * scritte create di seguito finirebbero esattamente l'una sull'altra.
@@ -886,6 +890,16 @@ export function ingombroTesto(testo: SchemaTestoLibero): { destra: number; basso
     basso: testo.y + (righe.length - 1) * TESTO_LIBERO.dimensione * INTERLINEA_TESTO,
   }
 }
+
+/**
+ * Metà dell'altezza di una riga di annotazione libera (corpo × interlinea): la `y` che il
+ * documento passa a `testoMultiRiga` è il CENTRO della prima riga (`dominant-baseline="central"`,
+ * vedi `ingombroTesto`), non il suo bordo superiore. Un `<div>` HTML invece parte dal bordo
+ * superiore — da qui il ricorso a questa costante in `TestiLiberi.tsx` per allineare la tela al
+ * documento — e il riquadro di selezione (`selezione.ts`) la usa per lo stesso motivo, sui due
+ * bordi verticali del testo.
+ */
+export const MEZZA_RIGA = (TESTO_LIBERO.dimensione * INTERLINEA_TESTO) / 2
 
 /**
  * Bordo sinistro e bordo destro del disegno, in coordinate della tela. `dimensioniLayout` ne
