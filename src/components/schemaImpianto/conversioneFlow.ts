@@ -187,6 +187,12 @@ export function polilineaDellArco(capi: CapiArco, data: SchemaEdgeData | undefin
   return instrada(stile, capi.da, capi.a, data.punti, data.quote, capi.lati)
 }
 
+/** Le frecce di direzione selezionate, per arco, e il gestore del loro clic (useSelezioneMultipla.ts). */
+export interface FrecceDegliArchi {
+  selezionate: Map<string, string[]>
+  onSeleziona: (arco: string, segno: string, aggiungi: boolean) => void
+}
+
 /**
  * Fonde i tre elenchi di archi che `useGomiti`, `useSegniTubo` e `useTrascinamentoTratto`
  * derivano ognuno da `stato.edges` con dati aggiuntivi diversi (rispettivamente
@@ -201,12 +207,6 @@ export function polilineaDellArco(capi: CapiArco, data: SchemaEdgeData | undefin
  * handle, sfalsate di 5 unità rispetto al documento), e ogni arco porta il `bloccato` del modo
  * taratura (senza, i gesti propri della tubazione resterebbero vivi mentre l'impianto è spento).
  */
-/** Le frecce di direzione selezionate, per arco, e il gestore del loro clic (useSelezioneMultipla.ts). */
-export interface FrecceDegliArchi {
-  selezionate: Map<string, string[]>
-  onSeleziona: (arco: string, segno: string, aggiungi: boolean) => void
-}
-
 export function fondiDatiArchi(
   edgesConGomitiBase: Edge[],
   edgesConSegni: Edge[],
