@@ -26,7 +26,8 @@ export interface MuroSeparazioneProps {
   /** `spostaMuro` di useMuro: `concluso` distingue l'ultimo evento del gesto, quello che entra
    *  in cronologia una volta sola invece che a ogni pixel. */
   onSposta: (x: number, concluso: boolean) => void
-  onSeleziona: () => void
+  /** `aggiungi` è Ctrl/Cmd: il muro entra nella selezione multipla, ma non nel riquadro né nello spostamento di gruppo. */
+  onSeleziona: (aggiungi: boolean) => void
   /**
    * Modo taratura acceso: il muro resta disegnato ma non si afferra più. La sua maniglia è un
    * gestore PROPRIO di questo componente, che `nodesDraggable`/`elementsSelectable={false}` su
@@ -72,7 +73,7 @@ export function MuroSeparazione({ muro, varchi, selezionato, onSposta, onSelezio
 
   const suPointerDown = useCallback(
     (e: React.PointerEvent<SVGRectElement>) => {
-      onSeleziona()
+      onSeleziona(e.ctrlKey || e.metaKey)
       scostamentoRef.current = screenToFlowPosition({ x: e.clientX, y: e.clientY }).x - muro.x
       suInizio(e)
     },

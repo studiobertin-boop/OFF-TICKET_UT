@@ -31,15 +31,15 @@ const MEZZA_RIGA = (TESTO_LIBERO.dimensione * INTERLINEA_TESTO) / 2
 
 export interface TestiLiberiProps {
   testi: SchemaTestoLibero[]
-  /** `spostaTesto` di useTestiLiberi: `concluso` distingue l'ultimo evento del gesto. */
+  /** `spostaGruppoDa` di useSelezioneMultipla (l'annotazione si porta dietro il resto della
+   *  selezione): `concluso` distingue l'ultimo evento del gesto. */
   onSposta: (id: string, posizione: { x: number; y: number }, concluso: boolean) => void
   /** Riapre in scrittura l'annotazione: da lì si può anche eliminarla, come da sempre. */
   onModifica: (id: string) => void
-  /** L'id dell'annotazione selezionata sulla tela (Canc la cancella, in SchemaEditor.tsx), o
-   *  `null` se nessuna lo è. */
-  selezionato: string | null
-  /** Segnala a `SchemaEditor` che questa annotazione è quella appena scelta. */
-  onSeleziona: (id: string) => void
+  /** Gli id delle annotazioni nella selezione dell'editor (Canc le cancella, si trascinano insieme). */
+  selezionati: string[]
+  /** Pressione su un'annotazione: `aggiungi` è Ctrl/Cmd (vedi `premiLibero`, useSelezioneMultipla.ts). */
+  onSeleziona: (id: string, aggiungi: boolean) => void
   /**
    * Modo taratura acceso: le annotazioni restano leggibili ma non si afferrano né si riaprono
    * in scrittura. Sono gestori PROPRI di questo componente, che `nodesDraggable`/
@@ -93,13 +93,13 @@ function TestoLibero({ testo, onSposta, onModifica, selezionato, onSeleziona, bl
       // Al pointerdown e non al click: il click lo mangia il trascinamento (stesso motivo per
       // cui MuroSeparazione.tsx seleziona da `suPointerDown`), e un clic che non seleziona MAI
       // renderebbe la selezione raggiungibile solo lasciando l'annotazione ferma per errore.
-      onSeleziona(testo.id)
+      onSeleziona(testo.id, e.ctrlKey || e.metaKey)
       mossoRef.current = false
       const puntatore = screenToFlowPosition({ x: e.clientX, y: e.clientY })
       scostamentoRef.current = { x: puntatore.x - testo.x, y: puntatore.y - testo.y }
       e.currentTarget.setPointerCapture(e.pointerId)
     },
-    [onSeleziona, screenToFlowPosition, testo.x, testo.y]
+    [onSeleziona, screenToFlowPosition, testo.id, testo.x, testo.y]
   )
 
   const suPointerMove = useCallback(
@@ -128,9 +128,10 @@ function TestoLibero({ testo, onSposta, onModifica, selezionato, onSeleziona, bl
 
   /**
    * Puntatore annullato a metà gesto (il sistema lo revoca, il dito esce dalla superficie
-   * touch): il rilascio non arriverà mai, e il gesto va chiuso qui. Senza, `spostaTesto`
-   * resterebbe con il suo «trascinamento avviato» alzato, e il PRIMO evento del trascinamento
-   * successivo — l'unico che entra in cronologia — passerebbe da `aggiornaSenzaCronologia`:
+   * touch): il rilascio non arriverà mai, e il gesto va chiuso qui. Senza, il gesto di gruppo
+   * (`spostaGruppoDa`, useSelezioneMultipla.ts) resterebbe aperto, e il PRIMO evento del
+   * trascinamento successivo della stessa annotazione — l'unico che entra in cronologia —
+   * passerebbe da `aggiornaSenzaCronologia`, con le origini del gesto vecchio:
    * quello spostamento non sarebbe più annullabile con Ctrl+Z.
    *
    * Si chiude sull'ultima posizione consegnata, non su quelle dell'evento di annullamento, che
@@ -219,7 +220,7 @@ function TestoLibero({ testo, onSposta, onModifica, selezionato, onSeleziona, bl
  * una scritta posata su un simbolo resta leggibile, esattamente come nel documento, dove
  * `renderTestiLiberi` disegna dopo nodi e tubazioni.
  */
-export function TestiLiberi({ testi, onSposta, onModifica, selezionato, onSeleziona, bloccato = false }: TestiLiberiProps) {
+export function TestiLiberi({ testi, onSposta, onModifica, selezionati, onSeleziona, bloccato = false }: TestiLiberiProps) {
   return (
     <>
       {testi.map((testo) => (
@@ -228,7 +229,7 @@ export function TestiLiberi({ testi, onSposta, onModifica, selezionato, onSelezi
           testo={testo}
           onSposta={onSposta}
           onModifica={onModifica}
-          selezionato={selezionato === testo.id}
+          selezionato={selezionati.includes(testo.id)}
           onSeleziona={onSeleziona}
           bloccato={bloccato}
         />
