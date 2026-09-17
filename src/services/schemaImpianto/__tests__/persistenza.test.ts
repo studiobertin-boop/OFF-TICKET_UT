@@ -567,23 +567,28 @@ describe('terminale utenze nei layout salvati prima che esistesse', () => {
   })
 })
 
+/** Come `modelloDiProva`, ma con un essiccatore opzionale: serve a spostare la coda della catena
+ *  fra un salvataggio e il successivo. A livello di modulo perché la usano due `describe`
+ *  diversi — quello sulla riparazione della tubazione del terminale e quello sulla copia
+ *  manuale, che riproduce lo stesso scenario aggiungendoci la copia davanti all'elenco (vedi
+ *  report Task 3, Step 2, e Fix round 1: prima erano due copie identiche, una per describe). */
+function modelloConCatena(conEssiccatore: boolean) {
+  const scheda = makeScheda({
+    compressori: [makeCompressore({ codice: 'C1', ha_disoleatore: false })],
+    disoleatori: [], scambiatori: [], filtri: [],
+    essiccatori: conEssiccatore ? [makeEssiccatore({ ha_scambiatore: false })] : [],
+    serbatoi: [makeSerbatoio()],
+    dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+  })
+  return buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+}
+
 /**
  * Finché la freccia verso le utenze si ridisegnava a ogni render dal nodo più a destra, era
  * autocorrettiva. Ora è un arco salvato, e correggere la scheda dopo aver già salvato il
  * disegno — un gesto del tutto normale — la mandava in stallo in due modi opposti.
  */
 describe('la tubazione del terminale quando cambia la coda della catena', () => {
-  function modelloConCatena(conEssiccatore: boolean) {
-    const scheda = makeScheda({
-      compressori: [makeCompressore({ codice: 'C1', ha_disoleatore: false })],
-      disoleatori: [], scambiatori: [], filtri: [],
-      essiccatori: conEssiccatore ? [makeEssiccatore({ ha_scambiatore: false })] : [],
-      serbatoi: [makeSerbatoio()],
-      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
-    })
-    return buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
-  }
-
   /** Le tubazioni che arrivano sul codolo del terminale: dev'essere sempre esattamente una. */
   function entrantiAlTerminale(esito: ReturnType<typeof riconcilia>) {
     return esito.layout.archi.filter((a) => a.a.nodo === 'UTENZE')
@@ -1074,30 +1079,20 @@ describe('aree tratteggiate', () => {
 })
 
 describe('una copia manuale del terminale utenze', () => {
-  /** Come `modelloDiProva`, ma con un essiccatore opzionale: serve a spostare la coda della
-   *  catena fra un salvataggio e il successivo. È l'adattamento della fixture del brief (vedi
-   *  report Task 3, Step 2): con `modelloDiProva(['C1'])` e la sola tubazione del terminale
-   *  rimossa, il test passava già prima della correzione — non perché il difetto non ci fosse,
-   *  ma perché l'invariante generica della catena (poco più sotto in `riconcilia`, quella che
-   *  ripara "ogni nodo che il modello raggiunge e che ha perso il suo ingresso") ripesca comunque
-   *  l'arco giusto: itera su TUTTI i nodi, non solo sul terminale, quindi ripara anche quando
-   *  `idTerminale` punta alla copia. Il difetto si vede solo nel sintomo che la regola dedicata
-   *  del terminale esiste apposta per evitare: una tubazione DOPPIA sul codolo quando in coda
-   *  alla catena compare un nuovo stadio (vedi il describe 'la tubazione del terminale quando
-   *  cambia la coda della catena' più sopra, che copre lo stesso scenario senza copia manuale).
-   *  Con la copia davanti all'elenco e `idTerminale` sbagliato, l'esclusione dentro `archiNuovi`
-   *  (`a.a.nodo !== idTerminale`) manca il colpo e lascia passare la tubazione nuova (E1→UTENZE)
-   *  accanto a quella già salvata (S1→UTENZE): due tubi sul terminale invece di uno. */
-  function modelloConCatena(conEssiccatore: boolean) {
-    const scheda = makeScheda({
-      compressori: [makeCompressore({ codice: 'C1', ha_disoleatore: false })],
-      disoleatori: [], scambiatori: [], filtri: [],
-      essiccatori: conEssiccatore ? [makeEssiccatore({ ha_scambiatore: false })] : [],
-      serbatoi: [makeSerbatoio()],
-      dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
-    })
-    return buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
-  }
+  // `modelloConCatena` (file-scope, sopra) sposta la coda della catena fra un salvataggio e il
+  // successivo. È l'adattamento della fixture del brief (vedi report Task 3, Step 2): con
+  // `modelloDiProva(['C1'])` e la sola tubazione del terminale rimossa, il test sotto passava
+  // già prima della correzione — non perché il difetto non ci fosse, ma perché l'invariante
+  // generica della catena (poco più sotto in `riconcilia`, quella che ripara "ogni nodo che il
+  // modello raggiunge e che ha perso il suo ingresso") ripesca comunque l'arco giusto: itera su
+  // TUTTI i nodi, non solo sul terminale, quindi ripara anche quando `idTerminale` punta alla
+  // copia. Il difetto si vede solo nel sintomo che la regola dedicata del terminale esiste
+  // apposta per evitare: una tubazione DOPPIA sul codolo quando in coda alla catena compare un
+  // nuovo stadio (vedi il describe 'la tubazione del terminale quando cambia la coda della
+  // catena' più sopra, che copre lo stesso scenario senza copia manuale). Con la copia davanti
+  // all'elenco e `idTerminale` sbagliato, l'esclusione dentro `archiNuovi`
+  // (`a.a.nodo !== idTerminale`) manca il colpo e lascia passare la tubazione nuova (E1→UTENZE)
+  // accanto a quella già salvata (S1→UTENZE): due tubi sul terminale invece di uno.
 
   it('non prende il posto del terminale vero quando si aggiunge uno stadio alla catena', () => {
     const salvato = layoutSchema(modelloConCatena(false))
