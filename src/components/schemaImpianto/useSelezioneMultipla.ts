@@ -184,11 +184,16 @@ export function useSelezioneMultipla<T extends StatoSelezionabile>(
 
   // Gesto di gruppo partito da un testo o da un'area. Il PRIMO evento entra in cronologia, gli altri
   // no — lo stesso principio di `spostaTesto` (useTestiLiberi.ts). Le origini si congelano lì.
-  const gestoLibero = useRef<{ origini: PosizioniGruppo; afferrato: Punto } | null>(null)
+  // Si porta dietro anche `tipo`/`id` dell'afferrato: un gesto può finire senza l'evento `concluso`
+  // (un Canc da tastiera durante il trascinamento passa da `eliminaSelezione`, o l'elemento sparisce
+  // dal dialogo) e il ref resterebbe pieno — il prossimo trascinamento, su un altro elemento, deve
+  // comunque essere riconosciuto come primo evento invece di riusare le origini vecchie.
+  const gestoLibero = useRef<{ tipo: 'testo' | 'area'; id: string; origini: PosizioniGruppo; afferrato: Punto } | null>(null)
 
   const spostaGruppoDa = useCallback(
     (afferrato: { tipo: 'testo' | 'area'; id: string }, posizione: Punto, concluso: boolean) => {
-      const primo = gestoLibero.current === null
+      const g = gestoLibero.current
+      const primo = !g || g.tipo !== afferrato.tipo || g.id !== afferrato.id
       if (primo) {
         const s = statoRef.current
         const proprio = afferrato.tipo === 'testo' ? s.testi.find((t) => t.id === afferrato.id) : s.aree.find((a) => a.id === afferrato.id)
@@ -196,7 +201,7 @@ export function useSelezioneMultipla<T extends StatoSelezionabile>(
         const origini = originiDelGruppo(s, libereRef.current)
         // L'afferrato si muove anche se, per una corsa fra render, non risultasse selezionato.
         ;(afferrato.tipo === 'testo' ? origini.testi : origini.aree)[afferrato.id] = { x: proprio.x, y: proprio.y }
-        gestoLibero.current = { origini, afferrato: { x: proprio.x, y: proprio.y } }
+        gestoLibero.current = { tipo: afferrato.tipo, id: afferrato.id, origini, afferrato: { x: proprio.x, y: proprio.y } }
       }
       const { origini, afferrato: o } = gestoLibero.current!
       const posizioni = posizioniSpostate(origini, posizione.x - o.x, posizione.y - o.y)
@@ -262,6 +267,10 @@ export function useSelezioneMultipla<T extends StatoSelezionabile>(
     if (selezioneVuota(statoRef.current, libereOra)) return
     applica((s) => statoSenzaSelezione(s, libereOra))
     impostaLibere([])
+    // L'elemento afferrato può sparire qui (Canc durante un trascinamento): senza questo, il
+    // prossimo gesto su un elemento diverso lo scambierebbe per una continuazione di questo.
+    gestoLibero.current = null
+    gestoNodi.current = null
   }, [applica, impostaLibere])
 
   // Il riquadro: react-flow sceglie i suoi oggetti da sé; qui si raccolgono gli altri a fine gesto.
