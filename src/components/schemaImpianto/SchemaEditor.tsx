@@ -105,6 +105,7 @@ import { useInserimentoTee } from './useInserimentoTee'
 import { ascissaProposta, useMuro } from './useMuro'
 import { useSchemaHistory } from './useSchemaHistory'
 import { useSegniTubo } from './useSegniTubo'
+import { useAppunti } from './useAppunti'
 import { useSelezioneMultipla, type PressioneSullaTela } from './useSelezioneMultipla'
 import { motivoNonTarabile, useTaratura } from './useTaratura'
 import { useTestiLiberi } from './useTestiLiberi'
@@ -531,6 +532,9 @@ function SchemaEditorInterno({
     iniziaRiquadro,
     concludiRiquadro,
   } = useSelezioneMultipla<StatoEditor>(stato, applica, aggiornaSenzaCronologia)
+
+  // Ctrl+C / Ctrl+V: utenze, TEE, testi, aree e frecce (useAppunti.ts, appunti.ts).
+  const { copia, incolla } = useAppunti<StatoEditor>(stato, applica, libere, impostaLibere, libreriaEffettiva)
 
   // Aree tratteggiate: creazione, angoli, scritta (useAree.ts). Lo spostamento intero è di gruppo.
   const { aggiungiArea, ridimensionaArea, spostaScrittaArea, riscriviArea } = useAree<StatoEditor>(
@@ -1149,6 +1153,21 @@ function SchemaEditorInterno({
         // tocco di freccia sposterebbe il simbolo mentre si crede di star tarando le sue ancore.
         return
       }
+      // Copia e incolla dell'impianto. Dopo il ramo della taratura, che esce prima: lì restano quelli
+      // del browser. Il dialogo di scrittura ferma già i suoi tasti, quindi dentro un campo di testo
+      // Ctrl+C/Ctrl+V copiano il testo come sempre. Un testo selezionato altrove nella pagina (una
+      // riga della barra) si lascia copiare al browser.
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+        if (window.getSelection()?.toString()) return
+        e.preventDefault()
+        copia()
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+        e.preventDefault()
+        incolla()
+        return
+      }
       // Canc passa SOLO da qui, anche per nodi e archi: `deleteKeyCode={null}` su `<ReactFlow>`.
       // Con due strade (react-flow e questo listener) una selezione mista finiva in due voci di
       // cronologia, e Ctrl+Z ne annullava metà.
@@ -1170,9 +1189,11 @@ function SchemaEditorInterno({
     return () => window.removeEventListener('keydown', suTasto)
   }, [
     annulla,
+    copia,
     deselezionaReactFlow,
     dialogoUscitaAperto,
     eliminaSelezione,
+    incolla,
     libere,
     modoTaratura,
     scritturaAperta,
@@ -1367,17 +1388,21 @@ function SchemaEditorInterno({
             </Button>
           </span>
         </Tooltip>
-        <Button
-          size="small"
-          color="error"
-          startIcon={<DeleteIcon />}
-          onClick={eliminaSelezione}
-          disabled={
-            (selezione.nodes.length === 0 && selezione.edges.length === 0 && libere.length === 0) || modoTaratura
-          }
-        >
-          Elimina
-        </Button>
+        <Tooltip title="Elimina la selezione (Canc). Shift + trascinamento per selezionare a riquadro, Ctrl + clic per aggiungere, Ctrl+C / Ctrl+V per copiare utenze, TEE, testi, aree e frecce.">
+          <span>
+            <Button
+              size="small"
+              color="error"
+              startIcon={<DeleteIcon />}
+              onClick={eliminaSelezione}
+              disabled={
+                (selezione.nodes.length === 0 && selezione.edges.length === 0 && libere.length === 0) || modoTaratura
+              }
+            >
+              Elimina
+            </Button>
+          </span>
+        </Tooltip>
 
         <Divider orientation="vertical" flexItem />
 
