@@ -2778,3 +2778,77 @@ git commit -m "docs: esito del piano selezione, copia-incolla e aree dello schem
 ```
 
 Poi usa superpowers:finishing-a-development-branch. **Nessun push su `main` senza l'ok esplicito del committente** (il push su `main` va in produzione). Prima del merge: `git fetch` e `git merge-tree` contro `origin/main` (memorie «Worktree paralleli e push in produzione», «Conflitto RelazioneDataDialog»). `fixes.md` si aggiorna solo a deploy READY verificato.
+
+---
+
+## Cosa è andato diversamente
+
+**Esecuzione:** 17-09-2026, un sotto-agente per task, revisione dopo ogni task, revisione finale
+dell'intero ramo. 16 commit da `ee13c98` a `b61124e`. Verifiche finali: `tsc` pulito, `npx vitest run`
+1593/1593 verdi, `vite build` riuscita.
+
+### Difetti trovati dalle revisioni (tutti corretti)
+
+1. **Il clic su una freccia di direzione selezionava il tubo** (Task 9). Il div della freccia sta in
+   `EdgeLabelRenderer`, cioè in un portale del DOM, ma nell'albero React resta figlio di
+   `EdgeWrapper`: il click risaliva a `onEdgeClick` di react-flow, che selezionava l'arco e svuotava
+   la selezione propria. Con un Canc si cancellava il tubo credendo di togliere la freccia. È la
+   stessa trappola del menu dentro l'elemento che cattura il puntatore (17-08-2026), da un'altra
+   porta. Corretto con `stopPropagation` sul click della freccia (`41ef3c9`), provato col mouse vero.
+2. **Un gesto di gruppo interrotto contaminava il successivo** (Task 7): `gestoLibero` si riarmava
+   solo sull'evento conclusivo, che un elemento smontato a metà trascinamento non manda mai. Ora il
+   riferimento porta tipo e id dell'afferrato, e `eliminaSelezione` lo azzera (`480f17d`). Lo stesso
+   difetto è stato poi trovato e corretto anche in `useAree` dalla revisione finale (`902b006`).
+3. **Il riquadro sbagliava il bordo dei testi** (revisione finale): il piano dava la `y` di un testo
+   per linea di base, ma `testoMultiRiga` usa `dominant-baseline="central"` — è il centro della prima
+   riga. `MEZZA_RIGA` è ora esportata da `layout.ts` e condivisa da `selezione.ts` e `TestiLiberi.tsx`
+   (`d27024f`).
+4. **La fixture del test sul terminale utenze non riproduceva il difetto** (Task 3): l'invariante
+   generica di `riconcilia` (ogni nodo che il modello raggiunge deve avere un ingresso) riparava
+   comunque la tubazione, qualunque nodo `idTerminale` scegliesse. Il test è stato rifatto sullo
+   scenario «si aggiunge uno stadio in coda»: lì il difetto produce due tubazioni sul terminale.
+   Il piano diceva «fermati e segnala»; il controller ha deciso di far riscrivere la fixture.
+5. **Commenti superati e codice morto** (revisione finale): la guardia `primaRimozioneDelGesto` non
+   aveva più chiamanti dopo `deleteKeyCode={null}`, e con lei sono caduti `spostaTesto` e
+   `rimuoviMuro`; quattro commenti descrivevano codice rimosso (`c1ea6af`, `59e3839`).
+
+### Scostamenti dal piano
+
+- **Vincolo di lint irreale.** Il piano chiedeva `npm run lint` a zero warning: il repo ne ha 455
+  preesistenti (386 in `src`). Il controllo è diventato «i file toccati sono puliti e il totale non
+  aumenta».
+- **Ctrl + clic al posto di Shift + clic** e **aree opzionali nel layout**: rettifiche già scritte
+  nella specifica in fase di piano, non emerse in esecuzione.
+- **`useTestiLiberi` ha perso il parametro `aggiornaSenzaCronologia`**, conseguenza della rimozione
+  di `spostaTesto` (lo spostamento dei testi è passato allo spostamento di gruppo).
+- **Prove in pagina fatte dal controller** dopo il Task 10, non dentro i Task 9 e 10: servono login e
+  browser della sessione.
+
+### Prova in pagina (17-09-2026, pratica di prova 652_00-2026, mouse vero)
+
+Verificati: creazione dell'area accanto al disegno; selezione col clic sul bordo; ridimensionamento
+dall'angolo (300×200 → 370×250, agganciato alla griglia); spostamento dal bordo con la scritta che
+segue; scritta trascinata da sola; doppio clic che apre «Scritta dell'area» e rinomina; clic sulla
+freccia che seleziona la freccia e **non** il tubo; Escape; spostamento di gruppo con le frecce della
+tastiera (apparecchiatura + area + testo insieme); Canc che elimina tutto il gruppo con le sue
+tubazioni; **un** Ctrl+Z che riporta tutto; Ctrl+C/Ctrl+V con due incolla consecutivi (`M-U1`, `M-U2`,
+scarto 20 per ripetizione) e un Ctrl+Z che ne annulla uno intero; doppio clic sulla copia che apre
+«Scritta del terminale» con la scritta dell'originale.
+
+Nel documento (l'SVG dell'anteprima, che è la stessa funzione del .docx): rettangolo tratteggiato
+disegnato **prima** dei simboli, scritta dell'area e testo libero presenti, foglio allargato
+(1730×1447), e nessuno dei tre in «LISTA APPARECCHIATURE».
+
+Persistenza: «Conferma schema» + chiusura della finestra SC salvano `aree`, `testi` e il nodo `M-U1`;
+dopo un ricaricamento della pagina l'editor li ritrova. La pratica è stata poi **riportata byte per
+byte allo stato iniziale** dal backup preso prima della prova.
+
+**Limite della prova:** il riquadro Shift + trascinamento non si può provare col mouse del browser di
+collaudo, che non tiene premuto Shift durante un trascinamento. È stato provato con eventi di
+puntatore reali del browser (`PointerEvent` con `shiftKey`), che passano per lo stesso codice di
+react-flow e dell'editor: area, testo e apparecchiatura contenuti nel rettangolo risultano
+selezionati insieme. Resta da provare a mano dal committente.
+
+La prova ha anche confermato il rilievo minore della revisione finale: l'origine del riquadro viene
+presa al primo movimento del puntatore, non alla pressione. Con un mouse vero lo scarto è di circa un
+pixel; con eventi sintetici distanti fra loro diventa evidente.
