@@ -48,6 +48,11 @@ interface AreaProps extends Omit<AreeImpiantoProps, 'aree' | 'selezionate'> {
 function Area({ area, selezionata, onPremi, onSposta, onRidimensiona, onSpostaScritta, onModifica, bloccato }: AreaProps) {
   const { screenToFlowPosition } = useReactFlow()
   const zoom = useStore((s) => s.transform[2])
+  // Un'istanza sola per `bordo` (le quattro fasce) e una sola per `maniglia` (i quattro angoli),
+  // non una a fascia/angolo: basta perché il puntatore reale è uno solo (mouse, desktop, come
+  // il resto dell'editor). Con due dita su due maniglie della stessa area il `pointerdown` del
+  // secondo azzererebbe il «si è mosso» del primo — limite accettato, fuori dal perimetro touch
+  // di questo editor.
   const bordo = useGestoPuntatore<HTMLDivElement, Punto>()
   const scritta = useGestoPuntatore<HTMLDivElement, Punto>()
   const maniglia = useGestoPuntatore<HTMLDivElement, Punto>()
