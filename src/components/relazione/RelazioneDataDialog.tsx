@@ -19,12 +19,10 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  OutlinedInput,
-  Checkbox,
-  ListItemText,
   Box,
   Alert,
   CircularProgress,
+  Chip,
 } from '@mui/material'
 import { GruppoCampi } from '@/components/common'
 import toast from 'react-hot-toast'
@@ -47,6 +45,7 @@ import type {
 } from '@/services/relazione/types'
 import type { LayoutSalvato } from '@/services/schemaImpianto/persistenza'
 import { collectCodes, pruneAdditionalInfo } from '@/utils/equipmentCodes'
+import { codiciSpessimetrica } from '@/utils/spessimetrica'
 import { oggiISO } from '@/services/relazione/helpers'
 import { ETICHETTA_TRONCATA, LARGHEZZA_SELECT } from './selectStyles'
 
@@ -109,16 +108,8 @@ export default function RelazioneDataDialog({
     () => (scheda.compressori ?? []).filter((c) => !c.giri && (!c.tipo || c.tipo === 'VITE')),
     [scheda]
   )
-  const serbatoiCodes = useMemo(() => (scheda.serbatoi ?? []).map((s) => s.codice), [scheda])
-  const spessimetricaOptions = useMemo(
-    () => [
-      ...(scheda.disoleatori ?? []).map((d) => d.codice),
-      ...serbatoiCodes,
-      ...(scheda.scambiatori ?? []).map((s) => s.codice),
-      ...(scheda.recipienti_filtro ?? []).map((r) => r.codice),
-    ],
-    [scheda, serbatoiCodes]
-  )
+  /** Ereditate dal dettaglio delle singole apparecchiature: qui si leggono soltanto. */
+  const spessimetrica = useMemo(() => codiciSpessimetrica(scheda), [scheda])
 
   /** Codici realmente presenti nella scheda: valida i riferimenti salvati in additional_info. */
   const schedaCodes = useMemo(() => collectCodes(scheda), [scheda])
@@ -132,7 +123,6 @@ export default function RelazioneDataDialog({
   const [descrizioneAttivita, setDescrizioneAttivita] = useState('')
   const [dataEmissione, setDataEmissione] = useState('')
   const [giri, setGiri] = useState<Record<string, TipoGiri>>({})
-  const [spessimetrica, setSpessimetrica] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [droppedRefs, setDroppedRefs] = useState<string[]>([])
 
@@ -164,7 +154,6 @@ export default function RelazioneDataDialog({
     // Quella salvata vince, perché rigenerando una relazione vecchia si vuole la sua data.
     setDataEmissione(info.dataEmissione || oggiISO())
     setGiri(info.compressoriGiri ?? {})
-    setSpessimetrica(info.spessimetrica ?? [])
     setDroppedRefs(dropped)
   }, [open, initialAdditionalInfo, customer, schedaCodes])
 
@@ -176,7 +165,6 @@ export default function RelazioneDataDialog({
       descrizioneAttivita: descrizioneAttivita.trim(),
       dataEmissione,
       compressoriGiri: giri,
-      spessimetrica,
       collegamentiCompressoriSerbatoi,
       schemaLayout: schemaLayoutDaPersistere,
       // Ripassato invariato: senza, `handleGenera` scriverebbe una colonna senza questo campo e
@@ -187,7 +175,6 @@ export default function RelazioneDataDialog({
       descrizioneAttivita,
       dataEmissione,
       giri,
-      spessimetrica,
       collegamentiCompressoriSerbatoi,
       schemaLayoutDaPersistere,
       schemaPreferenze,
@@ -281,8 +268,6 @@ export default function RelazioneDataDialog({
       setSaving(false)
     }
   }
-
-  const renderMultiValue = (selected: string[]) => selected.join(', ')
 
   return (
     <Dialog open={open} onClose={saving ? undefined : onClose} maxWidth="md" fullWidth>
@@ -390,28 +375,18 @@ export default function RelazioneDataDialog({
           )}
 
           <GruppoCampi titolo="Apparecchiature con verifica spessimetrica">
-            <FormControl size="small" sx={{ width: { xs: '100%', sm: 360 } }}>
-              <InputLabel id="spess">Apparecchiature</InputLabel>
-              <Select
-                labelId="spess"
-                multiple
-                value={spessimetrica}
-                onChange={(e: SelectChangeEvent<string[]>) =>
-                  setSpessimetrica(
-                    typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value
-                  )
-                }
-                input={<OutlinedInput label="Apparecchiature" />}
-                renderValue={renderMultiValue}
-              >
-                {spessimetricaOptions.map((code) => (
-                  <MenuItem key={code} value={code}>
-                    <Checkbox checked={spessimetrica.includes(code)} />
-                    <ListItemText primary={code} />
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            {/* Si segnano nel dettaglio di ciascuna apparecchiatura, in scheda dati: qui se ne
+                riporta l'elenco perché il redattore veda cosa finirà in relazione. */}
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75 }}>
+              {spessimetrica.length > 0 ? (
+                spessimetrica.map((code) => <Chip key={code} label={code} size="small" color="warning" />)
+              ) : (
+                <Typography variant="body2" color="text.secondary">Nessuna</Typography>
+              )}
+            </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
+              Si segnano nel dettaglio di ciascuna apparecchiatura, in scheda dati.
+            </Typography>
           </GruppoCampi>
 
           <Divider />

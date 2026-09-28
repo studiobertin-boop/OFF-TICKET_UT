@@ -126,6 +126,14 @@
     print-color-adjust: exact !important;
   }
 
+  /* Spessimetrica badge - orange background, come a schermo */
+  .spessimetrica {
+    background-color: #e8590c !important;
+    color: #fff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
   /* ============================================================================
      CARDS & CONTAINERS
      ============================================================================ */

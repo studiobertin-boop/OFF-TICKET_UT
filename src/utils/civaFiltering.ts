@@ -92,6 +92,8 @@ function extractSerbatoi(
       ps_pressione_max: serbatoio.ps_pressione_max,
       ts_temperatura: tsScheda(serbatoio.ts, serbatoio.ts_temperatura),
       categoria_ped: serbatoio.categoria_ped,
+      certificazione: serbatoio.certificazione ?? undefined,
+      spessimetrica: serbatoio.spessimetrica === true,
       tipoPratica,
       manufacturer
     })
@@ -139,6 +141,8 @@ function extractScambiatori(
       ps_pressione_max: scambiatore.ps_pressione_max,
       ts_temperatura: tsScheda(scambiatore.ts, scambiatore.ts_temperatura),
       categoria_ped: scambiatore.categoria_ped,
+      certificazione: scambiatore.certificazione ?? undefined,
+      spessimetrica: scambiatore.spessimetrica === true,
       tipoPratica,
       manufacturer,
       parentCodice: scambiatore.essiccatore_associato
@@ -187,6 +191,8 @@ function extractDisoleatori(
       ps_pressione_max: disoleatore.ps_pressione_max,
       ts_temperatura: tsScheda(disoleatore.ts, disoleatore.ts_temperatura),
       categoria_ped: disoleatore.categoria_ped,
+      certificazione: disoleatore.certificazione ?? undefined,
+      spessimetrica: disoleatore.spessimetrica === true,
       tipoPratica,
       manufacturer,
       parentCodice: disoleatore.compressore_associato
@@ -235,6 +241,8 @@ function extractRecipientiFiltro(
       ps_pressione_max: recipiente.ps_pressione_max,
       ts_temperatura: tsScheda(recipiente.ts, recipiente.ts_temperatura),
       categoria_ped: undefined, // RecipienteFiltro doesn't have categoria_ped field
+      certificazione: recipiente.certificazione ?? undefined,
+      spessimetrica: recipiente.spessimetrica === true,
       tipoPratica,
       manufacturer,
       parentCodice: recipiente.filtro_associato

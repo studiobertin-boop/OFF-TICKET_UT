@@ -24,6 +24,11 @@ export interface RisultatoClassificazione {
   confidenza: number
   motivazione: string
   origine: 'ai' | 'euristica'
+  /**
+   * Direttive citate dal documento, se è un certificato CE: le trascrive il modello, e da qui si
+   * ricava se il recipiente è RSP o PED (`certificazione.ts`). Assente nel ripiego sul nome.
+   */
+  direttive?: string[]
 }
 
 /** Toglie accenti e punteggiatura: `Conformità_CE (1).pdf` e `conformita ce` devono combaciare. */

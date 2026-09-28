@@ -85,7 +85,12 @@ export interface AdditionalInfo {
    * comunque riscritta a catalogo.
    */
   compressoriGiri?: Record<string, TipoGiri>
-  /** Codici apparecchiature sottoposte a verifica spessimetrica, es. ['C1','S2'] */
+  /**
+   * Codici apparecchiature sottoposte a verifica spessimetrica, es. ['C1.1','S2'].
+   *
+   * Non si persiste più: `buildRelazioneModel` lo ricava dalla scheda (`codiciSpessimetrica`),
+   * dove il flag sta sulla singola apparecchiatura. Resta qui come ingresso dei singoli motori.
+   */
   spessimetrica?: string[]
   /** Collegamenti compressori→serbatoi: { C1: ['S1','S2'] } */
   collegamentiCompressoriSerbatoi?: Record<string, string[]>

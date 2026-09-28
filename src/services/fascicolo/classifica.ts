@@ -75,7 +75,7 @@ export const classificaDocumenti = async (
       success: boolean
       error?: string
       /** Non tipizzato oltre l'id: quel che arriva da un modello si valida, non si dichiara. */
-      risultati?: { id: string; ruoli?: unknown; valvola?: unknown; confidenza?: unknown; motivazione?: unknown }[]
+      risultati?: { id: string; ruoli?: unknown; valvola?: unknown; confidenza?: unknown; motivazione?: unknown; direttive?: unknown }[]
     } = await risposta.json()
 
     if (!esito.success) throw new Error(esito.error || 'Classificazione fallita')
@@ -98,6 +98,9 @@ export const classificaDocumenti = async (
           confidenza: typeof r.confidenza === 'number' ? r.confidenza : 0.5,
           motivazione: typeof r.motivazione === 'string' ? r.motivazione : '',
           origine: 'ai' as const,
+          direttive: Array.isArray(r.direttive)
+            ? r.direttive.filter((d): d is string => typeof d === 'string')
+            : [],
         }
       }),
     }

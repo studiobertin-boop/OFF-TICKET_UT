@@ -2,7 +2,7 @@ import type { EquipmentCatalogType } from '@/types'
 import {
   FLUIDO_LABELS, FLUIDO_OPTIONS, ORIENTAMENTO_LABELS, ORIENTAMENTO_OPTIONS,
   TIPO_COMPRESSORE_LABELS, TIPO_COMPRESSORE_OPTIONS, TIPO_FILTRO_LABELS, TIPO_FILTRO_OPTIONS,
-  TIPO_GIRI_LABELS, TIPO_GIRI_OPTIONS,
+  TIPO_GIRI_LABELS, TIPO_GIRI_OPTIONS, CERTIFICAZIONE_LABELS, CERTIFICAZIONE_OPTIONS,
   UBICAZIONE_SERBATOIO_LABELS, UBICAZIONE_SERBATOIO_OPTIONS,
 } from '@/types/technicalSheet'
 
@@ -93,6 +93,18 @@ const DENUNCIA_EXTRA: ExtraFieldDef[] = [
   { name: 'gia_denunciato', label: 'Già denunciato', kind: 'check' },
   { name: 'matricola_inail', label: 'Matr. INAIL', kind: 'text' },
 ]
+/**
+ * Campi propri dei recipienti in pressione. Opzionali: non entrano nella completezza, perché
+ * la spessimetrica riguarda poche apparecchiature e la certificazione la propone il fascicolo
+ * quando se ne carica il certificato.
+ */
+const RECIPIENTE_EXTRA: ExtraFieldDef[] = [
+  {
+    name: 'certificazione', label: 'Certificazione', kind: 'select', opzionale: true,
+    options: CERTIFICAZIONE_OPTIONS, display: { RSP: 'RSP', PED: 'PED' }, labels: CERTIFICAZIONE_LABELS,
+  },
+  { name: 'spessimetrica', label: 'Verifica spessimetrica', kind: 'check', opzionale: true },
+]
 
 export const EQUIPMENT_DEFS: Record<EquipmentKind, EquipmentTypeDef> = {
   serbatoio: {
@@ -109,7 +121,7 @@ export const EQUIPMENT_DEFS: Record<EquipmentKind, EquipmentTypeDef> = {
       { name: 'ancorato_terra', label: 'Ancorato a terra', kind: 'check' },
       { name: 'manometro.fondo_scala', label: 'Man. fondo scala', kind: 'number', min: 10, max: 30, step: 0.1 },
       { name: 'manometro.segno_rosso', label: 'Man. segno rosso', kind: 'number', min: 10, max: 30, step: 0.1 },
-      NOTE_EXTRA, ...DENUNCIA_EXTRA,
+      ...RECIPIENTE_EXTRA, NOTE_EXTRA, ...DENUNCIA_EXTRA,
     ],
     specsMap: { volume: 'volume', ps: 'ps_pressione_max', ts: 'ts', categoria_ped: 'categoria_ped' },
     mandatoryValvola: true,
@@ -139,7 +151,7 @@ export const EQUIPMENT_DEFS: Record<EquipmentKind, EquipmentTypeDef> = {
   disoleatore: {
     kind: 'disoleatore', label: 'Disoleatore', prefix: 'C', catalogType: 'Disoleatori',
     capacitaField: 'volume', pressioneField: 'ps_pressione_max', ts: true, cat: 'edit', autoPed: false,
-    extra: [NOTE_EXTRA, ...DENUNCIA_EXTRA],
+    extra: [...RECIPIENTE_EXTRA, NOTE_EXTRA, ...DENUNCIA_EXTRA],
     specsMap: { volume: 'volume', ps: 'ps_pressione_max', ts: 'ts', categoria_ped: 'categoria_ped' },
     mandatoryValvola: true,
     adv: ['pressione', 'ts', 'cat'],
@@ -155,7 +167,7 @@ export const EQUIPMENT_DEFS: Record<EquipmentKind, EquipmentTypeDef> = {
   scambiatore: {
     kind: 'scambiatore', label: 'Scambiatore', prefix: 'E', catalogType: 'Scambiatori',
     capacitaField: 'volume', pressioneField: 'ps_pressione_max', ts: true, cat: 'edit', autoPed: true,
-    extra: [VALVOLE_PROTEZIONE_EXTRA, NOTE_EXTRA, ...DENUNCIA_EXTRA],
+    extra: [VALVOLE_PROTEZIONE_EXTRA, ...RECIPIENTE_EXTRA, NOTE_EXTRA, ...DENUNCIA_EXTRA],
     specsMap: { volume: 'volume', ps: 'ps_pressione_max', ts: 'ts', categoria_ped: 'categoria_ped' },
     adv: ['capacita', 'pressione', 'ts', 'cat'],
   },
@@ -174,7 +186,7 @@ export const EQUIPMENT_DEFS: Record<EquipmentKind, EquipmentTypeDef> = {
   recipiente: {
     kind: 'recipiente', label: 'Recipiente filtro', prefix: 'F', catalogType: 'Recipienti filtro',
     capacitaField: 'volume', pressioneField: 'ps_pressione_max', ts: true, cat: 'edit', autoPed: true,
-    extra: [VALVOLE_PROTEZIONE_EXTRA, NOTE_EXTRA, ...DENUNCIA_EXTRA],
+    extra: [VALVOLE_PROTEZIONE_EXTRA, ...RECIPIENTE_EXTRA, NOTE_EXTRA, ...DENUNCIA_EXTRA],
     specsMap: { volume: 'volume', ps: 'ps_pressione_max', ts: 'ts', categoria_ped: 'categoria_ped' },
     roleHidden: true,
   },

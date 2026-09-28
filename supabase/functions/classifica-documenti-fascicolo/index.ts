@@ -96,8 +96,14 @@ const SCHEMA = {
           },
           confidenza: { type: 'number' },
           motivazione: { type: 'string' },
+          direttive: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Per i certificati CE: direttive e decreti di recepimento citati come riferimento di conformità, trascritti come compaiono. Vuoto per gli altri documenti.',
+          },
         },
-        required: ['id', 'ruoli', 'valvola', 'confidenza', 'motivazione'],
+        required: ['id', 'ruoli', 'valvola', 'confidenza', 'motivazione', 'direttive'],
         additionalProperties: false,
       },
     },
@@ -163,6 +169,12 @@ Come decidere:
   di quella giusta; altrimenti lascia null.
 - Se non riesci a stabilire il ruolo, restituisci un elenco di ruoli vuoto e confidenza 0. È
   preferibile a un'attribuzione sbagliata: l'utente rivede e corregge prima di generare.
+- In "direttive", per ogni certificato CE (CERT_APPARECCHIATURA, CERT_VALVOLA, CERT_PRINCIPALE),
+  trascrivi le direttive europee e i decreti italiani di recepimento che il documento dichiara di
+  rispettare, esattamente come sono scritti (es. "2014/29/UE", "87/404/CEE", "97/23/CE",
+  "2014/68/UE", "D.Lgs. 93/2000", "D.Lgs. 311/91"). Non interpretarle e non aggiungerne: se il
+  certificato non ne cita, lascia l'elenco vuoto. Norme tecniche armonizzate (EN 286-1, EN 13445,
+  ISO …) non sono direttive: non vanno qui. Per i documenti che non sono certificati, elenco vuoto.
 - "confidenza" va da 0 a 1. "motivazione" è una riga in italiano sul perché, citando il dato che
   ha deciso l'attribuzione.${giaCopertiTesto(giaCoperti)}
 

@@ -1,4 +1,4 @@
-import { useWatch, type Control } from 'react-hook-form'
+import { useFormContext, useWatch, type Control } from 'react-hook-form'
 import type { ReactNode } from 'react'
 import {
   Box, Button, Chip, Dialog, IconButton, Tooltip, Typography,
@@ -281,6 +281,9 @@ const SezioneFascicolo = ({ control, def, base, code, fascicolo }: {
   fascicolo: RigaFascicolo
 }) => {
   const tutti = useWatch({ control })
+  const { setValue } = useFormContext()
+  // Solo i recipienti in pressione portano il campo: per gli altri tipi il fascicolo non propone nulla.
+  const haCertificazione = def.extra.some((f) => f.name === 'certificazione')
 
   const contesto: ContestoFascicolo = {
     apparecchiatura: apparecchiaturaDa(def, code, leggi(tutti, base)),
@@ -299,6 +302,11 @@ const SezioneFascicolo = ({ control, def, base, code, fascicolo }: {
       requestId={fascicolo.requestId}
       codice={fascicolo.codice}
       movimenti={fascicolo.movimenti}
+      onCertificazione={
+        haCertificazione
+          ? (c) => setValue(`${base}.certificazione`, c, { shouldDirty: true })
+          : undefined
+      }
     />
   )
 }

@@ -64,6 +64,29 @@ export type FinituraInternaOption = 'VERNICIATO' | 'ZINCATO' | 'VITROFLEX' | 'AL
 export type ScaricoOption = 'AUTOMATICO' | 'MANUALE' | 'ASSENTE'
 export type CategoriaPED = 'I' | 'II' | 'III' | 'IV'
 
+/**
+ * Regime di certificazione CE di un recipiente, desunto dalla direttiva citata nel certificato.
+ * RSP = recipiente semplice a pressione (87/404/CEE, 2009/105/CE, 2014/29/UE);
+ * PED = attrezzatura a pressione (97/23/CE, 2014/68/UE).
+ */
+export type CertificazioneRecipiente = 'RSP' | 'PED'
+export const CERTIFICAZIONE_OPTIONS = ['RSP', 'PED'] as const
+export const CERTIFICAZIONE_LABELS: Record<CertificazioneRecipiente, string> = {
+  RSP: 'RSP — recipiente semplice (2014/29/UE)',
+  PED: 'PED — attrezzatura a pressione (2014/68/UE)',
+}
+
+/**
+ * Campi comuni ai recipienti in pressione (serbatoio, disoleatore, scambiatore, recipiente
+ * filtro): dichiarati sulla singola apparecchiatura perché riguardano lei sola.
+ */
+export interface CampiRecipiente {
+  /** Sottoposto a verifica di integrità (prova spessimetrica). */
+  spessimetrica?: boolean
+  /** Regime di certificazione CE: lo propone il fascicolo leggendo il certificato. */
+  certificazione?: CertificazioneRecipiente
+}
+
 /** Orientamento del serbatoio — usato nella descrizione dell'apparecchiatura. */
 export type OrientamentoOption = 'VERTICALE' | 'ORIZZONTALE'
 
@@ -94,7 +117,7 @@ export interface Manometro {
   segno_rosso?: number // BAR (1 decimale, min 10, max 30)
 }
 
-export interface Serbatoio {
+export interface Serbatoio extends CampiRecipiente {
   codice: string // S1, S2, ... S15
   marca?: string // Suggerimento DB + OCR
   modello?: string // Suggerimento DB + OCR - NON visibile a tecnicoDM329
@@ -163,7 +186,7 @@ export interface Compressore {
 // SEZIONE 5: DISOLEATORI (C1.1-C5.1) - DIPENDENTI DA COMPRESSORI
 // ============================================================================
 
-export interface Disoleatore {
+export interface Disoleatore extends CampiRecipiente {
   codice: string // C1.1, C2.1, ... C5.1
   compressore_associato: string // C1, C2, ... C5
   marca?: string // Suggerimento DB + OCR
@@ -206,7 +229,7 @@ export interface Essiccatore {
 // SEZIONE 7: SCAMBIATORI (E1.1-E4.2) - DIPENDENTI DA ESSICCATORI
 // ============================================================================
 
-export interface Scambiatore {
+export interface Scambiatore extends CampiRecipiente {
   codice: string // E1.1, E1.2, … E4.2 — fino a due per essiccatore
   essiccatore_associato: string // E1, E2, E3, E4
   marca?: string // Suggerimento DB + OCR
@@ -236,7 +259,7 @@ export interface Scambiatore {
 // SEZIONE 8: FILTRI (F1-F8)
 // ============================================================================
 
-export interface RecipienteFiltro {
+export interface RecipienteFiltro extends CampiRecipiente {
   codice: string // F1.1, F2.1, ... F8.1
   filtro_associato: string // F1, F2, ... F8
   marca?: string // Suggerimento DB + OCR - NON visibile a tecnicoDM329

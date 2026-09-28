@@ -10,6 +10,7 @@ import {
   makeCustomer,
   makeAdditionalInfo,
   makeCompressore,
+  makeSerbatoio,
   makePratica,
 } from './fixtures'
 import { attendiXmlValido } from './xmlBenFormato'
@@ -59,11 +60,11 @@ describe('integrazione template ↔ engine', () => {
     const template = readFileSync(TEMPLATE_PATH)
     const model = buildRelazioneModel({
       scheda: makeScheda({
+        serbatoi: [makeSerbatoio({ spessimetrica: true })],
         compressori: [makeCompressore({ codice: 'C1', ha_disoleatore: false })],
         disoleatori: [],
       }),
       additionalInfo: makeAdditionalInfo({
-        spessimetrica: ['S1'],
         dataEmissione: '2026-08-10',
       }),
       customer: makeCustomer({ ragione_sociale: 'ACME S.r.l.' }),
@@ -113,8 +114,8 @@ describe('integrazione template ↔ engine', () => {
   test('i blocchi condizionali di §5.3 e §7.2 compaiono quando hanno contenuto', () => {
     const template = readFileSync(TEMPLATE_PATH)
     const model = buildRelazioneModel({
-      scheda: makeScheda(),
-      additionalInfo: makeAdditionalInfo({ spessimetrica: ['S1'] }),
+      scheda: makeScheda({ serbatoi: [makeSerbatoio({ spessimetrica: true })] }),
+      additionalInfo: makeAdditionalInfo(),
       customer: makeCustomer(),
       pratica: makePratica(),
     })
@@ -141,7 +142,7 @@ describe('integrazione template ↔ engine', () => {
         scambiatori: [],
         recipienti_filtro: [],
       }),
-      additionalInfo: makeAdditionalInfo({ spessimetrica: [] }),
+      additionalInfo: makeAdditionalInfo(),
       customer: makeCustomer(),
       pratica: makePratica(),
     })
@@ -188,8 +189,8 @@ describe('integrazione template ↔ engine', () => {
   test('la tabella degli esiti elenca le sole apparecchiature soggette', () => {
     const template = readFileSync(TEMPLATE_PATH)
     const model = buildRelazioneModel({
-      scheda: makeScheda(),
-      additionalInfo: makeAdditionalInfo({ spessimetrica: ['S1'] }),
+      scheda: makeScheda({ serbatoi: [makeSerbatoio({ spessimetrica: true })] }),
+      additionalInfo: makeAdditionalInfo(),
       customer: makeCustomer(),
       pratica: makePratica(),
     })

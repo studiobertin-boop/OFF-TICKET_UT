@@ -9,6 +9,7 @@ import type {
   Installer,
   Manufacturer,
   CategoriaPED,
+  CertificazioneRecipiente,
   DatiImpianto
 } from './index'
 
@@ -48,6 +49,10 @@ export interface CIVAApparecchio {
    */
   ts_temperatura?: string // °C
   categoria_ped?: CategoriaPED
+  /** RSP o PED, dal dettaglio del recipiente in scheda dati. */
+  certificazione?: CertificazioneRecipiente
+  /** Sottoposto a verifica di integrità (prova spessimetrica), dal dettaglio in scheda dati. */
+  spessimetrica: boolean
 
   // CIVA classification
   tipoPratica: TipoPraticaCIVA

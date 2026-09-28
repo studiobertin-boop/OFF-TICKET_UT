@@ -7,6 +7,7 @@ import {
   makeCustomer,
   makeAdditionalInfo,
   makeCompressore,
+  makeSerbatoio,
   makePratica,
 } from './fixtures'
 
@@ -62,8 +63,8 @@ describe('renderRelazioneDocx', () => {
       `<w:p><w:r><w:t>{#esiti}{pos}={verificaIntegritaMark};{/esiti}</w:t></w:r></w:p>`
     const template = makeTemplateDocx(body)
     const model = buildRelazioneModel({
-      scheda: makeScheda(),
-      additionalInfo: makeAdditionalInfo({ spessimetrica: ['S1'] }),
+      scheda: makeScheda({ serbatoi: [makeSerbatoio({ spessimetrica: true })] }),
+      additionalInfo: makeAdditionalInfo(),
       customer: makeCustomer(),
       pratica: makePratica(),
     })

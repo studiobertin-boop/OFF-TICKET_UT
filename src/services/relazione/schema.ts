@@ -16,7 +16,12 @@ export const additionalInfoSchema = z.object({
     .or(z.literal(''))
     .default(''),
   compressoriGiri: z.record(z.string(), tipoGiriSchema).default({}),
-  spessimetrica: z.array(z.string()).default([]),
+  /**
+   * Retaggio: fino al 28-09-2026 le spessimetriche si dichiaravano qui. Ora si segnano sulla
+   * singola apparecchiatura in scheda dati; il campo resta tollerato per le righe vecchie, ma
+   * senza default: il dialog non lo scrive più.
+   */
+  spessimetrica: z.array(z.string()).optional(),
   collegamentiCompressoriSerbatoi: z.record(z.string(), z.array(z.string())).default({}),
   /**
    * Layout dello schema d'impianto ritoccato a mano. Struttura libera per Zod: la validazione

@@ -24,8 +24,6 @@ interface CIVAApparecchioColumnProps {
   installer: Installer
   /** Indirizzo impianto già risolto dal chiamante (sorgente: requests.indirizzo_impianto). */
   indirizzoImpianto: string
-  /** True se l'apparecchio è fra quelli sottoposti a verifica spessimetrica (requests.additional_info.spessimetrica). */
-  verificaIntegrita: boolean
   /** Larghezza fissa della card (px). Di default quella che contiene esattamente le due colonne di dati. */
   width?: number
   /** Frecce per sfogliare l'apparecchiatura precedente/successiva, integrate nell'intestazione. Omesse (es. in stampa) se non passate. */
@@ -43,6 +41,17 @@ interface SectionData {
 }
 
 const DASH = '—'
+
+/**
+ * Badge dell'intestazione, più stretti del `small` di MUI: codice, tipo pratica e SPESSIMETRICA
+ * devono stare sulla stessa riga delle frecce, nei 362px della card.
+ */
+const BADGE_SX = {
+  fontWeight: 600,
+  fontSize: '0.66rem',
+  height: 20,
+  '& .MuiChip-label': { px: 0.75 }
+}
 
 /**
  * Riga etichetta/valore. Il clic copia il valore negli appunti: la pagina va usata
@@ -146,7 +155,6 @@ export const CIVAApparecchioColumn = ({
   customer,
   installer,
   indirizzoImpianto,
-  verificaIntegrita,
   width = 362,
   nav
 }: CIVAApparecchioColumnProps) => {
@@ -219,7 +227,10 @@ export const CIVAApparecchioColumn = ({
     {
       title: 'Dati tecnici',
       rows: [
-        { label: 'Verifica integrità', value: verificaIntegrita ? 'SI' : 'NO' },
+        { label: 'Verifica integrità', value: apparecchio.spessimetrica ? 'SI' : 'NO' },
+        // Subito prima del numero di fabbrica: è il regime sotto cui quel numero è stato
+        // certificato, e sul portale va dichiarato insieme.
+        { label: 'Certificazione', value: apparecchio.certificazione },
         { label: 'N. fabbrica', value: apparecchio.n_fabbrica },
         { label: 'PS (bar)', value: apparecchio.ps_pressione_max },
         { label: 'TS (°C)', value: apparecchio.ts_temperatura },
@@ -258,7 +269,7 @@ export const CIVAApparecchioColumn = ({
         {/* Header: Codice + Badge + navigazione + identificazione */}
         <Box sx={{ borderBottom: '1px solid', borderColor: 'divider', pb: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', minWidth: 0 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', minWidth: 0 }}>
               <Typography sx={{ fontWeight: 700, fontFamily: 'monospace', fontSize: '1.75rem', lineHeight: 1.1 }}>
                 {apparecchio.codice}
               </Typography>
@@ -266,9 +277,19 @@ export const CIVAApparecchioColumn = ({
                 label={apparecchio.tipoPratica}
                 color={badgeColor}
                 size="small"
-                sx={{ fontWeight: 600 }}
+                sx={BADGE_SX}
                 className={`tipo-pratica-${apparecchio.tipoPratica.toLowerCase()}`}
               />
+              {apparecchio.spessimetrica && (
+                <Chip
+                  label="SPESSIMETRICA"
+                  size="small"
+                  className="spessimetrica"
+                  // Arancio pieno e non il `warning` del tema: quello è già l'ambra del badge
+                  // VERIFICA accanto, e i due si confonderebbero. La stampa è in civaPrint.css.
+                  sx={{ ...BADGE_SX, bgcolor: '#e8590c', color: '#fff' }}
+                />
+              )}
             </Box>
             {nav && (
               <Box sx={{ display: 'flex', gap: 0.25, flexShrink: 0 }}>

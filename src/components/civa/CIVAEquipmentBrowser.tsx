@@ -17,7 +17,6 @@ interface CIVAEquipmentBrowserProps {
   customer: Customer
   installer: Installer
   indirizzoImpianto: string
-  spessimetricaCodes: Set<string>
   width?: number
 }
 
@@ -26,7 +25,6 @@ export const CIVAEquipmentBrowser = ({
   customer,
   installer,
   indirizzoImpianto,
-  spessimetricaCodes,
   width = 362
 }: CIVAEquipmentBrowserProps) => {
   const [index, setIndex] = useState(0)
@@ -42,7 +40,6 @@ export const CIVAEquipmentBrowser = ({
         customer={customer}
         installer={installer}
         indirizzoImpianto={indirizzoImpianto}
-        verificaIntegrita={spessimetricaCodes.has(current.codice)}
         width={width}
         nav={{
           onPrev: () => setIndex(safeIndex - 1),

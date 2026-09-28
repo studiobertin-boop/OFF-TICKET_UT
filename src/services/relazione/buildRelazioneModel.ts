@@ -19,6 +19,7 @@ import { buildSpessimetriche } from './engine/spessimetriche'
 import { buildTubazioni } from './engine/tubazioni'
 import { buildValvole } from './engine/valvole'
 import { buildAllegati } from './engine/allegati'
+import { codiciSpessimetrica } from '@/utils/spessimetrica'
 
 export interface BuildRelazioneInput extends EngineOptions {
   scheda: SchedaDatiCompleta
@@ -31,7 +32,10 @@ export interface BuildRelazioneInput extends EngineOptions {
 }
 
 export function buildRelazioneModel(input: BuildRelazioneInput): RelazioneModel {
-  const { scheda, additionalInfo, customer, pratica, schemaImpianto, resolveCostruttore } = input
+  const { scheda, customer, pratica, schemaImpianto, resolveCostruttore } = input
+  // Le apparecchiature sottoposte a spessimetrica si segnano sulla singola apparecchiatura: la
+  // scheda è la fonte, e un elenco rimasto in `additional_info` dalle pratiche di prima non conta.
+  const additionalInfo: AdditionalInfo = { ...input.additionalInfo, spessimetrica: codiciSpessimetrica(scheda) }
   const options: EngineOptions = { resolveCostruttore }
 
   const esiti = buildEsiti(scheda, additionalInfo, options)

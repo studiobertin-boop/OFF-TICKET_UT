@@ -121,3 +121,13 @@ describe('EquipmentDetailDialog — navigazione fra apparecchiature', () => {
     expect(screen.getByText(/17 campi previsti/)).toBeTruthy()
   })
 })
+
+describe('EquipmentDetailDialog — campi del recipiente', () => {
+  it('mostra certificazione e verifica spessimetrica senza contarle fra i previsti', () => {
+    render(<Scheda />)
+    expect(screen.getByText('Certificazione')).toBeTruthy()
+    expect(screen.getByText('Verifica spessimetrica')).toBeTruthy()
+    // Il conteggio resta quello di prima: i due campi sono opzionali.
+    expect(screen.getByText(/20 campi previsti/)).toBeTruthy()
+  })
+})

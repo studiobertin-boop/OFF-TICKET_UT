@@ -10,6 +10,8 @@ import {
 } from '@mui/icons-material'
 import { radii } from '@/theme/tokens'
 import { classificaDocumenti } from '@/services/fascicolo/classifica'
+import { certificazioneDaDirettive } from '@/services/fascicolo/certificazione'
+import type { CertificazioneRecipiente } from '@/types/technicalSheet'
 import { componiFascicolo, LIMITE_BYTE } from '@/services/fascicolo/componiPdf'
 import { ordinaFascicolo, ruoliPrevisti } from '@/services/fascicolo/ordina'
 import { statoScadenza, type MovimentoPratica } from '@/services/fascicolo/scadenza'
@@ -28,6 +30,11 @@ export interface FascicoloSectionProps {
   codice: string
   /** Stato e date della pratica: da qui si ricava quando i documenti verranno cancellati. */
   movimenti?: MovimentoPratica
+  /**
+   * Chiamata quando il certificato CE dell'apparecchiatura appena caricato cita direttive che ne
+   * dicono il regime (RSP o PED). Passata solo per i recipienti in pressione.
+   */
+  onCertificazione?: (certificazione: CertificazioneRecipiente) => void
 }
 
 const ACCETTATI = 'image/*,.pdf,application/pdf'
@@ -142,7 +149,7 @@ const RigaDocumento = ({ doc, contesto, previsti, disabilitato, onAssegna, onRim
  * al loro posto coi ruoli già assegnati. Non per sempre, però: scadono da soli — l'avviso e la
  * data qui sotto vengono dalla stessa regola che di notte li cancella davvero.
  */
-export const FascicoloSection = ({ contesto, nomeFile, requestId, codice, movimenti }: FascicoloSectionProps) => {
+export const FascicoloSection = ({ contesto, nomeFile, requestId, codice, movimenti, onCertificazione }: FascicoloSectionProps) => {
   const queryClient = useQueryClient()
   const chiave = ['fascicolo-documenti', requestId, codice]
 
@@ -238,6 +245,15 @@ export const FascicoloSection = ({ contesto, nomeFile, requestId, codice, movime
         })
       }
       ricarica()
+
+      // Il regime del recipiente si legge dal suo certificato: solo da quello appena caricato,
+      // perché i documenti già salvati non si rianalizzano. Il valore resta correggibile a mano
+      // nel dettaglio dell'apparecchiatura.
+      if (onCertificazione) {
+        const certificato = risultati.find((r) => r.ruoli.includes('CERT_APPARECCHIATURA'))
+        const regime = certificato ? certificazioneDaDirettive(certificato.direttive ?? []) : null
+        if (regime) onCertificazione(regime)
+      }
 
       setAvviso(
         [nota, nonCaricati.length ? `Non caricati: ${nonCaricati.join('; ')}` : null]

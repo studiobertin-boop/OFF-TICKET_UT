@@ -6,7 +6,7 @@ describe('additionalInfoSchema', () => {
     const parsed = additionalInfoSchema.parse({ descrizioneAttivita: 'produzione' })
     expect(parsed.descrizioneAttivita).toBe('produzione')
     expect(parsed.compressoriGiri).toEqual({})
-    expect(parsed.spessimetrica).toEqual([])
+    expect(parsed.spessimetrica).toBeUndefined()
     expect(parsed.collegamentiCompressoriSerbatoi).toEqual({})
   })
 

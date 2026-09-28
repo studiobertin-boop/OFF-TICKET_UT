@@ -45,7 +45,6 @@ export const CIVASummary = () => {
   // Load all CIVA data
   const {
     request,
-    technicalData,
     equipmentData,
     customer,
     installer,
@@ -63,13 +62,6 @@ export const CIVASummary = () => {
     }
     return filterCIVAEquipment(equipmentData, manufacturers)
   }, [equipmentData, manufacturers])
-
-  // Apparecchiature sottoposte a verifica spessimetrica (requests.additional_info.spessimetrica),
-  // usate per il campo "Verifica di integrità" della scheda CIVA.
-  const spessimetricaCodes = useMemo(() => {
-    const codici = (technicalData?.additional_info as { spessimetrica?: string[] } | undefined)?.spessimetrica
-    return new Set(codici ?? [])
-  }, [technicalData])
 
   // Elenco unico, nell'ordine già determinato da filterCIVAEquipment (dichiarazioni poi verifiche)
   const tuttiApparecchi = useMemo(
@@ -280,7 +272,6 @@ export const CIVASummary = () => {
           customer={customer!}
           installer={installer!}
           indirizzoImpianto={indirizzoImpianto}
-          spessimetricaCodes={spessimetricaCodes}
         />
       </Box>
 
@@ -299,7 +290,6 @@ export const CIVASummary = () => {
                   customer={customer!}
                   installer={installer!}
                   indirizzoImpianto={indirizzoImpianto}
-                  verificaIntegrita={spessimetricaCodes.has(apparecchio.codice)}
                 />
               ))}
             </Box>
@@ -319,7 +309,6 @@ export const CIVASummary = () => {
                   customer={customer!}
                   installer={installer!}
                   indirizzoImpianto={indirizzoImpianto}
-                  verificaIntegrita={spessimetricaCodes.has(apparecchio.codice)}
                 />
               ))}
             </Box>
