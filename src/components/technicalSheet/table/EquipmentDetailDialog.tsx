@@ -307,6 +307,7 @@ const SezioneFascicolo = ({ control, def, base, code, fascicolo }: {
           ? (c) => setValue(`${base}.certificazione`, c, { shouldDirty: true })
           : undefined
       }
+      certificazione={leggi(tutti, base)?.certificazione ?? null}
     />
   )
 }

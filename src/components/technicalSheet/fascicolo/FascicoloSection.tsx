@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { saveAs } from 'file-saver'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -10,7 +10,7 @@ import {
 } from '@mui/icons-material'
 import { radii } from '@/theme/tokens'
 import { classificaDocumenti } from '@/services/fascicolo/classifica'
-import { certificazioneDaDirettive } from '@/services/fascicolo/certificazione'
+import { esitoDaDirettive, rilevaCertificazione } from '@/services/fascicolo/rilevaCertificazione'
 import type { CertificazioneRecipiente } from '@/types/technicalSheet'
 import { componiFascicolo, LIMITE_BYTE } from '@/services/fascicolo/componiPdf'
 import { ordinaFascicolo, ruoliPrevisti } from '@/services/fascicolo/ordina'
@@ -35,7 +35,16 @@ export interface FascicoloSectionProps {
    * dicono il regime (RSP o PED). Passata solo per i recipienti in pressione.
    */
   onCertificazione?: (certificazione: CertificazioneRecipiente) => void
+  /** Valore corrente del campo: vuoto, si legge dal certificato già salvato all'apertura. */
+  certificazione?: CertificazioneRecipiente | null
 }
+
+/**
+ * Certificati già letti in questa sessione per ricavarne RSP o PED. Sta fuori dal componente
+ * perché la finestra si chiude e si riapre: un certificato che non cita direttive non va
+ * rianalizzato — e ripagato — a ogni apertura.
+ */
+const certificatiLetti = new Set<string>()
 
 const ACCETTATI = 'image/*,.pdf,application/pdf'
 
@@ -149,7 +158,9 @@ const RigaDocumento = ({ doc, contesto, previsti, disabilitato, onAssegna, onRim
  * al loro posto coi ruoli già assegnati. Non per sempre, però: scadono da soli — l'avviso e la
  * data qui sotto vengono dalla stessa regola che di notte li cancella davvero.
  */
-export const FascicoloSection = ({ contesto, nomeFile, requestId, codice, movimenti, onCertificazione }: FascicoloSectionProps) => {
+export const FascicoloSection = ({
+  contesto, nomeFile, requestId, codice, movimenti, onCertificazione, certificazione,
+}: FascicoloSectionProps) => {
   const queryClient = useQueryClient()
   const chiave = ['fascicolo-documenti', requestId, codice]
 
@@ -180,6 +191,7 @@ export const FascicoloSection = ({ contesto, nomeFile, requestId, codice, movime
   const [errore, setErrore] = useState<string | null>(null)
   const [esito, setEsito] = useState<Esito | null>(null)
   const [sopra, setSopra] = useState(false)
+  const [notaCertificazione, setNotaCertificazione] = useState<{ testo: string; letta: boolean } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const previsti = ruoliPrevisti(contesto)
@@ -251,8 +263,13 @@ export const FascicoloSection = ({ contesto, nomeFile, requestId, codice, movime
       // nel dettaglio dell'apparecchiatura.
       if (onCertificazione) {
         const certificato = risultati.find((r) => r.ruoli.includes('CERT_APPARECCHIATURA'))
-        const regime = certificato ? certificazioneDaDirettive(certificato.direttive ?? []) : null
-        if (regime) onCertificazione(regime)
+        if (certificato) {
+          const doc = caricati.find((d) => d.id === certificato.id)
+          certificatiLetti.add(certificato.id)
+          applicaCertificazione(
+            esitoDaDirettive(certificato.origine === 'ai' ? (certificato.direttive ?? []) : null, doc?.nome ?? 'certificato')
+          )
+        }
       }
 
       setAvviso(
@@ -267,6 +284,31 @@ export const FascicoloSection = ({ contesto, nomeFile, requestId, codice, movime
       setAvanzamento('')
     }
   }
+
+  const applicaCertificazione = (esito: { regime: CertificazioneRecipiente | null; messaggio: string }) => {
+    if (esito.regime) onCertificazione?.(esito.regime)
+    setNotaCertificazione({ testo: esito.messaggio, letta: esito.regime !== null })
+  }
+
+  const leggiCertificato = async (doc: DocumentoFascicolo) => {
+    certificatiLetti.add(doc.id)
+    setNotaCertificazione({ testo: `Lettura della certificazione da «${doc.nome}»…`, letta: false })
+    applicaCertificazione(await rilevaCertificazione(doc, contesto))
+  }
+
+  /**
+   * Fascicolo composto prima che il regime si leggesse dai certificati: se il campo è vuoto e il
+   * certificato del recipiente è già salvato, lo si legge all'apertura. Una volta per documento.
+   */
+  const puoLeggere = Boolean(onCertificazione)
+  const certificatoSalvato = documenti.find((d) => d.tipo !== 'fascicolo' && d.ruoli.includes('CERT_APPARECCHIATURA'))
+  useEffect(() => {
+    if (!puoLeggere || certificazione || !certificatoSalvato || lavorando) return
+    if (certificatiLetti.has(certificatoSalvato.id)) return
+    leggiCertificato(certificatoSalvato)
+    // `leggiCertificato` cambia identità a ogni render: conta solo quale documento c'è.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [puoLeggere, certificazione, certificatoSalvato?.id, lavorando])
 
   const rimuovi = async (id: string) => {
     setEsito(null)
@@ -289,6 +331,11 @@ export const FascicoloSection = ({ contesto, nomeFile, requestId, codice, movime
         motivazione: doc?.motivazione, origine: 'manuale',
       })
       ricarica()
+      // Un documento appena indicato come certificato del recipiente è la prova nuova: se ne legge
+      // il regime anche se il campo è già compilato.
+      if (doc && onCertificazione && ruoli.includes('CERT_APPARECCHIATURA') && !doc.ruoli.includes('CERT_APPARECCHIATURA')) {
+        leggiCertificato(doc)
+      }
     } catch (e) {
       setErrore(e instanceof Error ? e.message : 'Assegnazione non riuscita')
     }
@@ -489,6 +536,15 @@ export const FascicoloSection = ({ contesto, nomeFile, requestId, codice, movime
       )}
 
       {avviso && <Alert severity="warning" sx={{ py: 0.25 }}>{avviso}</Alert>}
+      {notaCertificazione && (
+        <Alert
+          severity={notaCertificazione.letta ? 'success' : 'info'}
+          sx={{ py: 0.25 }}
+          onClose={() => setNotaCertificazione(null)}
+        >
+          {notaCertificazione.testo}
+        </Alert>
+      )}
       {errore && <Alert severity="error" sx={{ py: 0.25 }} onClose={() => setErrore(null)}>{errore}</Alert>}
 
       {esito && (
