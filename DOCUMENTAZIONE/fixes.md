@@ -9,6 +9,8 @@ _Nessun fix in attesa._
 
 | DATA | DESCRIZIONE |
 | --- | --- |
+| 2026-09-28 | Scheda dati: la verifica spessimetrica si spunta nel dettaglio di ciascun recipiente, non più nel form della relazione, che ora la mostra in sola lettura. Il riepilogo CIVA la segnala con un badge arancio SPESSIMETRICA accanto al tipo pratica. |
+| 2026-09-28 | Fascicolo: dal certificato CE caricato si riconosce se il recipiente è RSP (2014/29/UE, 87/404/CEE, 2009/105/CE) o PED (2014/68/UE, 97/23/CE); il dato compare nel dettaglio del recipiente, correggibile, e nel riepilogo CIVA prima del numero di fabbrica. |
 | 2026-09-17 | Schema d'impianto: nell'editor si selezionano più oggetti insieme — riquadro con Shift e trascinamento, Ctrl+clic per aggiungere — comprese scritte libere, frecce sui tubi e aree. Il gruppo si sposta, si cancella e si annulla con un solo Ctrl+Z. |
 | 2026-09-17 | Schema d'impianto: Ctrl+C e Ctrl+V copiano «alle utenze», TEE, frecce, scritte libere e aree. Le copie nascono scollegate e spostate di due passi; le frecce si incollano sul tubo selezionato. |
 | 2026-09-17 | Schema d'impianto: nuovo pulsante «Area» per delimitare zone dell'impianto con un rettangolo tratteggiato, ridimensionabile dagli angoli e con una scritta propria che si sposta anche da sola. Compare anche nel documento, dietro al disegno. |
