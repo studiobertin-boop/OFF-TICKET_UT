@@ -9,6 +9,8 @@ _Nessun fix in attesa._
 
 | DATA | DESCRIZIONE |
 | --- | --- |
+| 2026-09-28 | Fascicolo: la certificazione RSP/PED si legge anche dal certificato già salvato, all'apertura del dettaglio se il campo è vuoto, e quando un documento viene indicato a mano come certificato. Una riga dice cosa si è letto o perché va scelta a mano. |
+| 2026-09-28 | Produzione: i link diretti alle pagine interne (o il ricaricamento di una pagina) davano 404 di Vercel. Ripristinata la rewrite SPA, cancellata per errore a novembre 2025. |
 | 2026-09-28 | Scheda dati: la verifica spessimetrica si spunta nel dettaglio di ciascun recipiente, non più nel form della relazione, che ora la mostra in sola lettura. Il riepilogo CIVA la segnala con un badge arancio SPESSIMETRICA accanto al tipo pratica. |
 | 2026-09-28 | Fascicolo: dal certificato CE caricato si riconosce se il recipiente è RSP (2014/29/UE, 87/404/CEE, 2009/105/CE) o PED (2014/68/UE, 97/23/CE); il dato compare nel dettaglio del recipiente, correggibile, e nel riepilogo CIVA prima del numero di fabbrica. |
 | 2026-09-17 | Schema d'impianto: nell'editor si selezionano più oggetti insieme — riquadro con Shift e trascinamento, Ctrl+clic per aggiungere — comprese scritte libere, frecce sui tubi e aree. Il gruppo si sposta, si cancella e si annulla con un solo Ctrl+Z. |
