@@ -47,7 +47,19 @@ export interface CustomerFilters {
   is_active?: boolean
   page?: number
   pageSize?: number
-  sortBy?: 'nome' | 'codice'
+  sortBy?: CustomerSortField
+  sortDir?: 'asc' | 'desc'
+}
+
+/** Colonne della tabella clienti ordinabili, con le colonne del DB su cui si ordina. */
+export type CustomerSortField = 'nome' | 'codice' | 'telefono' | 'pec' | 'indirizzo'
+
+const SORT_COLUMNS: Record<CustomerSortField, string[]> = {
+  nome: ['ragione_sociale'],
+  codice: ['codice_cliente_num'],
+  telefono: ['telefono'],
+  pec: ['pec'],
+  indirizzo: ['comune', 'via', 'numero_civico'],
 }
 
 export interface CustomersResponse {
@@ -89,15 +101,19 @@ export const customersApi = {
     }
 
     // Then, get the paginated data.
-    // Sort by numeric client code (codice_cliente_num) when requested; default by name so the
-    // ~22k code-less MAGO anagrafica rows aren't pushed to the bottom of the default view.
+    // Default by name so the ~22k code-less MAGO anagrafica rows aren't pushed to the bottom
+    // of the default view. I valori vuoti vanno sempre in fondo, in entrambe le direzioni,
+    // e la ragione sociale fa da spareggio per avere un ordine stabile fra le pagine.
     let query = supabase
       .from('customers')
       .select('*')
 
-    query = filters?.sortBy === 'codice'
-      ? query.order('codice_cliente_num', { ascending: true, nullsFirst: false })
-      : query.order('ragione_sociale')
+    const sortBy = filters?.sortBy ?? 'nome'
+    const ascending = (filters?.sortDir ?? 'asc') === 'asc'
+    for (const column of SORT_COLUMNS[sortBy]) {
+      query = query.order(column, { ascending, nullsFirst: false })
+    }
+    if (sortBy !== 'nome') query = query.order('ragione_sociale')
 
     query = query.eq('is_active', isActive)
 

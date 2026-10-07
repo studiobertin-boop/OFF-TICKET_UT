@@ -47,13 +47,14 @@ import { useAuth } from '@/hooks/useAuth'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
 import { isCustomerComplete, createCustomerSchema, updateCustomerSchema } from '@/utils/customerValidation'
-import { customersApi } from '@/services/api/customers'
+import { customersApi, type CustomerSortField } from '@/services/api/customers'
 import { CustomerFormFields } from '@/components/customers/CustomerFormFields'
 
 export default function CustomersManagement() {
   const { user } = useAuth()
   const [searchTerm, setSearchTerm] = useState('')
-  const [sortBy, setSortBy] = useState<'nome' | 'codice'>('nome')
+  const [sortBy, setSortBy] = useState<CustomerSortField>('nome')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [page, setPage] = useState(0)
   const [rowsPerPage, setRowsPerPage] = useState(50)
   const [pageInputValue, setPageInputValue] = useState('')
@@ -99,15 +100,34 @@ export default function CustomersManagement() {
   const { data: customersResponse, isLoading, error } = useCustomers({
     search: searchTerm,
     sortBy,
+    sortDir,
     page,
     pageSize: rowsPerPage,
   })
 
-  // Toggle ordering by client code (numeric) vs by name; reset to first page on change
-  const handleToggleSortByCodice = () => {
-    setSortBy((prev) => (prev === 'codice' ? 'nome' : 'codice'))
+  // Clic sulla colonna già ordinata: inverte la direzione; su un'altra: parte da crescente.
+  // Si torna alla prima pagina, perché l'ordine nuovo cambia cosa sta dove.
+  const handleSort = (field: CustomerSortField) => {
+    if (field === sortBy) {
+      setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortBy(field)
+      setSortDir('asc')
+    }
     setPage(0)
   }
+
+  const renderSortHeader = (field: CustomerSortField, label: string) => (
+    <TableCell sortDirection={sortBy === field ? sortDir : false}>
+      <TableSortLabel
+        active={sortBy === field}
+        direction={sortBy === field ? sortDir : 'asc'}
+        onClick={() => handleSort(field)}
+      >
+        {label}
+      </TableSortLabel>
+    </TableCell>
+  )
   const createCustomer = useCreateCustomer()
   const updateCustomer = useUpdateCustomer()
   const deleteCustomer = useDeleteCustomer()
@@ -296,19 +316,11 @@ export default function CustomersManagement() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell sortDirection={sortBy === 'codice' ? 'asc' : false}>
-                  <TableSortLabel
-                    active={sortBy === 'codice'}
-                    direction="asc"
-                    onClick={handleToggleSortByCodice}
-                  >
-                    Identificativo
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell>Ragione Sociale</TableCell>
-                <TableCell>Telefono</TableCell>
-                <TableCell>PEC</TableCell>
-                <TableCell>Indirizzo Completo</TableCell>
+                {renderSortHeader('codice', 'Identificativo')}
+                {renderSortHeader('nome', 'Ragione Sociale')}
+                {renderSortHeader('telefono', 'Telefono')}
+                {renderSortHeader('pec', 'PEC')}
+                {renderSortHeader('indirizzo', 'Indirizzo Completo')}
                 <TableCell>Completezza</TableCell>
                 <TableCell>Stato</TableCell>
                 <TableCell align="right">Azioni</TableCell>

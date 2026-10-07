@@ -138,9 +138,12 @@ function isEmpty(value: any): boolean {
  * Note: telefono and address fields are no longer required
  */
 export function getMissingCustomerFields(customer: Customer): Array<{ field: keyof Customer; label: string }> {
-  // Solo la ragione sociale è obbligatoria; tutti gli altri campi sono facoltativi
+  // Per dirsi completo servono ragione sociale, PEC e descrizione attività (ATECO).
+  // Non sono obbligatori per il salvataggio: lo schema Zod accetta anche solo la ragione sociale.
   const requiredFields: Array<keyof Customer> = [
     'ragione_sociale',
+    'pec',
+    'descrizione_attivita',
   ]
 
   return requiredFields
