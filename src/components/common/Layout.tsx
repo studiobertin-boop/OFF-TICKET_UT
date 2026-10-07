@@ -81,14 +81,14 @@ export const Layout = ({ children }: LayoutProps) => {
   /**
    * Voci del menu di gestione, filtrate per ruolo.
    *
-   * Il catalogo apparecchiature è l'unica voce aperta anche a userdm329, che è
-   * chi lo usa quotidianamente compilando le schede dati. Per questo il pulsante
-   * cambia etichetta: a un non-amministratore «Admin» prometterebbe altro.
+   * Il catalogo apparecchiature e la gestione clienti sono le uniche voci aperte
+   * anche a userdm329, che li usa quotidianamente lavorando le pratiche. Per questo
+   * il pulsante cambia etichetta: a un non-amministratore «Admin» prometterebbe altro.
    */
   const vociGestione = [
     { path: '/admin/request-types', etichetta: 'Tipi Richieste', icona: <CategoryIcon fontSize="small" />, ruoli: ['admin'] },
     { path: '/admin/users', etichetta: 'Gestione Utenti', icona: <PeopleIcon fontSize="small" />, ruoli: ['admin'] },
-    { path: '/admin/customers', etichetta: 'Gestione Clienti', icona: <BusinessIcon fontSize="small" />, ruoli: ['admin'] },
+    { path: '/admin/customers', etichetta: 'Gestione Clienti', icona: <BusinessIcon fontSize="small" />, ruoli: ['admin', 'userdm329'] },
     { path: '/admin/manufacturers', etichetta: 'Gestione Costruttori', icona: <FactoryIcon fontSize="small" />, ruoli: ['admin'] },
     { path: '/admin/installers', etichetta: 'Gestione Installatori', icona: <BuildIcon fontSize="small" />, ruoli: ['admin'] },
     { path: '/admin/equipment-catalog', etichetta: 'Gestisci Apparecchiature', icona: <PrecisionManufacturingIcon fontSize="small" />, ruoli: ['admin', 'userdm329'] },

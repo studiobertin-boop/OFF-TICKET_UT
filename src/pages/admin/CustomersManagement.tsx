@@ -43,6 +43,7 @@ import {
 } from '@/hooks/useCustomers'
 import type { Customer } from '@/types'
 import { Layout } from '@/components/common/Layout'
+import { useAuth } from '@/hooks/useAuth'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
 import { isCustomerComplete, createCustomerSchema, updateCustomerSchema } from '@/utils/customerValidation'
@@ -50,6 +51,7 @@ import { customersApi } from '@/services/api/customers'
 import { CustomerFormFields } from '@/components/customers/CustomerFormFields'
 
 export default function CustomersManagement() {
+  const { user } = useAuth()
   const [searchTerm, setSearchTerm] = useState('')
   const [sortBy, setSortBy] = useState<'nome' | 'codice'>('nome')
   const [page, setPage] = useState(0)
@@ -379,15 +381,19 @@ export default function CustomersManagement() {
                             <EditIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
-                        <Tooltip title="Elimina">
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => handleDeleteClick(customer)}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                        {/* La RLS riserva l'eliminazione all'admin: a userdm329 il pulsante
+                            non farebbe nulla */}
+                        {user?.role === 'admin' && (
+                          <Tooltip title="Elimina">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleDeleteClick(customer)}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                       </TableCell>
                     </TableRow>
                   )
