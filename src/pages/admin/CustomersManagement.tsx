@@ -387,7 +387,7 @@ export default function CustomersManagement() {
                           size="small"
                         />
                       </TableCell>
-                      <TableCell align="right">
+                      <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                         <Tooltip title="Modifica">
                           <IconButton size="small" onClick={() => handleEditClick(customer)}>
                             <EditIcon fontSize="small" />
