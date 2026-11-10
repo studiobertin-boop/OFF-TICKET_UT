@@ -9,6 +9,9 @@ _Nessun fix in attesa._
 
 | DATA | DESCRIZIONE |
 | --- | --- |
+| 2026-11-10 | Schema d’impianto, editor: il terminale «utenze» ha un riquadro stretto e si ruota di 90° (pulsante o tasto R); un tubo fra due attacchi dello stesso filtro sta davanti al simbolo e si trascina; il TEE nuovo nasce accanto all’ultimo clic e in stampa non porta più il pallino. |
+| 2026-11-10 | Schema d’impianto, generazione: i serbatoi ricevono dall’attacco basso; con un by-pass in testa la mandata sale col montante e il collettore; il by-pass di un serbatoio è rigido con una valvola per parte; il by-pass che chiude la linea porta le utenze in alto, sulla quota del ponte. |
+| 2026-11-10 | Schema d’impianto: nuovo muro orizzontale («Muro orizz.»), con i varchi dove passano i tubi. Cambiare il tipo di linea da un lato di una valvola non cambia più l’altro lato. |
 | 2026-09-28 | Fascicolo: la certificazione RSP/PED si legge anche dal certificato già salvato, all'apertura del dettaglio se il campo è vuoto, e quando un documento viene indicato a mano come certificato. Una riga dice cosa si è letto o perché va scelta a mano. |
 | 2026-09-28 | Produzione: i link diretti alle pagine interne (o il ricaricamento di una pagina) davano 404 di Vercel. Ripristinata la rewrite SPA, cancellata per errore a novembre 2025. |
 | 2026-09-28 | Scheda dati: la verifica spessimetrica si spunta nel dettaglio di ciascun recipiente, non più nel form della relazione, che ora la mostra in sola lettura. Il riepilogo CIVA la segnala con un badge arancio SPESSIMETRICA accanto al tipo pratica. |
