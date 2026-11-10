@@ -57,6 +57,28 @@ export function eCapoDiMonte(id: string): boolean {
   return /^BP\d+-IN$/.test(id)
 }
 
+/** Vero per il capo di VALLE di un by-pass (`BP1-OUT`). */
+export function eCapoDiValle(id: string): boolean {
+  return /^BP\d+-OUT$/.test(id)
+}
+
+/**
+ * L'ultimo elemento scavalcato dal by-pass che si chiude su questo capo di valle: quello che lo
+ * precede nella sequenza, saltando gli altri capi di valle (due gruppi annidati che finiscono
+ * sullo stesso elemento chiudono uno dopo l'altro). `undefined` se `indice` non è un capo di valle.
+ *
+ * Serve a una domanda sola, che si fanno in due — chi costruisce gli archi e chi dispone la
+ * sequenza: «questo by-pass si chiude su un SERBATOIO?». Se sì il capo di valle sta alla quota
+ * della sua uscita, e non sulla linea (vedi `buildArchi` e `disponiSequenza`).
+ */
+export function ultimoScavalcato<T extends { id: string }>(sequenza: T[], indice: number): T | undefined {
+  if (!sequenza[indice] || !eCapoDiValle(sequenza[indice].id)) return undefined
+  for (let i = indice - 1; i >= 0; i--) {
+    if (!eCapoDiValle(sequenza[i].id)) return sequenza[i]
+  }
+  return undefined
+}
+
 /** Il capo di valle che fa coppia con un capo di monte: `BP1-IN` → `BP1-OUT`. Serve ad accoppiarli
  *  nella sequenza per sapere quale intervallo scavalca il ponte, cioe' su che corsia corre. */
 export function capoDiValleDi(idMonte: string): string {

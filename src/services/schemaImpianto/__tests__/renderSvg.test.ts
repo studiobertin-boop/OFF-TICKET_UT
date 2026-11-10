@@ -1272,6 +1272,19 @@ describe('riferimento SVG del TEE', () => {
   it('un impianto con un TEE resta identico al riferimento', () => {
     expect(renderSvg(layoutConTee())).toBe(SVG_RIFERIMENTO_CON_TEE)
   })
+
+  // 10-11-2026: il TEE è un aiuto alla costruzione, e sul disegno consegnato non si deve vedere.
+  // Sulla tela resta com'è — lì passa da `simboloDi`, che non cambia.
+  it('nel documento la giunzione non porta il pallino, sulla tela sì', () => {
+    const layout = layoutConTee()
+    const giunzione = layout.nodi.find((n) => n.tipo === 'giunzione')!
+    const pallino = simboloDi(giunzione)
+    expect(pallino).toContain('r="2.5"')
+    const svg = renderSvg(layout)
+    expect(svg).not.toContain(pallino)
+    // Resta il solo punto largo quanto il tratto, che chiude lo spigolo fra i tubi.
+    expect(svg).toContain(`<g transform="translate(${giunzione.x} ${giunzione.y})"><circle cx="10" cy="10" r="1" fill="#000" /></g>`)
+  })
 })
 
 /**

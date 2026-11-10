@@ -4,7 +4,7 @@
  * `SchemaLayout` che il render statico sa già disegnare.
  */
 import type { Edge, Node } from '@xyflow/react'
-import { muroDaAscissa } from '@/services/schemaImpianto/layout'
+import { muroDaAscissa, muroOrizzontaleDaOrdinata } from '@/services/schemaImpianto/layout'
 import type { Tarature } from '@/services/schemaImpianto/libreria'
 import { posizioneAncora } from '@/services/schemaImpianto/renderSvg'
 import { latoImposto } from '@/services/schemaImpianto/symbols'
@@ -70,7 +70,11 @@ export function flowALayout(
   testi: SchemaTestoLibero[],
   aree: SchemaArea[],
   muroX: number | null,
-  libreria: Tarature = {}
+  libreria: Tarature = {},
+  /** Ordinata del muro orizzontale, o `null`. In coda e col default perché è arrivato dopo
+   *  (10-11-2026): il solo chiamante di produzione, `layoutCorrente` in `SchemaEditor`, lo passa
+   *  sempre, ed è un test a fissarlo (`muroOrizzontale.test.ts`). */
+  muroY: number | null = null
 ): SchemaLayout {
   const nodi: SchemaNodoPosizionato[] = nodes.map((n) => ({
     ...(n.data as SchemaNodeData).nodo,
@@ -90,6 +94,7 @@ export function flowALayout(
     // Il quarto parametro è obbligatorio per la stessa ragione di `testi` due righe sotto: un
     // default `null` lascerebbe perdere in silenzio il muro a un chiamante che lo dimentica.
     muro: muroX === null ? null : muroDaAscissa(muroX, nodi, libreria),
+    ...(muroY === null ? {} : { muroOrizzontale: muroOrizzontaleDaOrdinata(muroY, nodi, libreria) }),
     // I testi non sono nodi di react-flow: non stanno in `nodes`/`edges`, quindi viaggiano come
     // terzo parametro esplicito, per copia di riferimento e senza trasformazioni — il ponte
     // esiste solo perché lo stato dell'editor e il layout hanno forme diverse, non perché le
@@ -187,6 +192,20 @@ export function polilineaDellArco(capi: CapiArco, data: SchemaEdgeData | undefin
   return instrada(stile, capi.da, capi.a, data.punti, data.quote, capi.lati)
 }
 
+/**
+ * Livello di un arco che parte e arriva sullo STESSO nodo — il tratto fra i due attacchi di un
+ * filtro o di un essiccatore, da cui nasce un by-pass tirato a mano. react-flow disegna gli archi
+ * sotto i nodi, e un tubo che corre tutto dentro il riquadro del proprio simbolo non si poteva né
+ * selezionare né trascinare: il puntatore trovava sempre il simbolo (richiesta del committente,
+ * 10-11-2026). Sopra 1000 perché è lì che react-flow porta il nodo quando lo si seleziona
+ * (`elevateNodesOnSelect`): a meno, il tubo tornerebbe sotto proprio dopo il primo clic.
+ *
+ * Solo questi archi, non tutti: un tubo qualunque esce dal simbolo e si afferra da fuori, mentre
+ * alzarli tutti metterebbe l'area di presa di ogni tubazione sopra gli attacchi da cui si traccia
+ * la successiva.
+ */
+export const LIVELLO_ARCO_SUL_PROPRIO_NODO = 1001
+
 /** Le frecce di direzione selezionate, per arco, e il gestore del loro clic (useSelezioneMultipla.ts). */
 export interface FrecceDegliArchi {
   selezionate: Map<string, string[]>
@@ -221,6 +240,11 @@ export function fondiDatiArchi(
 ): Edge[] {
   return edgesConGomitiBase.map((e, i) => ({
     ...e,
+    // Sopra il proprio nodo, e senza le ancore di riaggancio di react-flow: stanno sui due capi
+    // dell’arco, cioè esattamente sopra gli attacchi del simbolo, e da lì non si potrebbe più
+    // tracciare una tubazione nuova — il puntatore troverebbe il capo di questa. Per spostare un
+    // capo di un tratto così corto lo si cancella e lo si ritraccia.
+    ...(e.source === e.target ? { zIndex: LIVELLO_ARCO_SUL_PROPRIO_NODO, reconnectable: false } : {}),
     data: {
       ...e.data,
       ...edgesConSegni[i]?.data,

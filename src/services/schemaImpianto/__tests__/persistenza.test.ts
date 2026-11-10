@@ -5,7 +5,7 @@ import { preferenzeRisolteDaScheda } from '../preferenze'
 import { layoutSchema, muroDaAscissa, DIMENSIONI_NODO } from '../layout'
 import { serializzaLayout, deserializzaLayout, riconcilia, layoutIniziale, layoutDaPersistere } from '../persistenza'
 import type { LayoutSalvato } from '../persistenza'
-import { dimensioniDi } from '../symbols'
+import { ancoraDi, dimensioniDi } from '../symbols'
 import type { Tarature } from '../libreria'
 import { risolviLibreria } from '../libreria'
 import type { SchemaLayout, SchemaModel } from '../types'
@@ -936,9 +936,12 @@ describe('il by-pass alla riapertura', () => {
     }
 
     const ponte = arcoAria(riconcilia(salvato, conBypass).layout, 'BP1-IN', 'BP1-OUT')!
-    // UN gomito dal Blocco 5: il ponte parte dal capo di monte, gia' in alto, corre e scende sul
-    // capo di valle. Erano due quando saliva da una linea complanare.
-    expect(ponte.punti).toHaveLength(1)
+    // Qui il by-pass chiude la linea (E1 e' l'unico stadio), e dal 10-11-2026 il capo di valle sta
+    // in alto: il ponte e' un segmento solo, senza gomiti. Cio' che prova che l'arco viene dal
+    // layout e non dal modello e' la valvola: risolta, senza piu' l'ancoraggio di sola andata.
+    expect(ponte.punti ?? []).toHaveLength(0)
+    expect(ponte.segni).toHaveLength(1)
+    expect(ponte.segni![0]).not.toHaveProperty('ancoraggio')
     // E la `forma` non torna a galla: il contratto di sola andata regge anche di qua.
     expect(ponte).not.toHaveProperty('forma')
   })
@@ -1115,5 +1118,50 @@ describe('una copia manuale del terminale utenze', () => {
     const copia = { ...terminale, id: 'M-U1', origine: 'manuale' as const, etichetta: 'Utenze azoto', x: 900, y: 40 }
     const { layout: riaperto } = layoutIniziale(serializzaLayout({ ...layout, nodi: [...layout.nodi, copia] }), modello)
     expect(riaperto.nodi.find((n) => n.id === 'M-U1')?.etichetta).toBe('Utenze azoto')
+  })
+})
+
+describe('il terminale utenze dopo il restringimento del riquadro', () => {
+  const terminale = (x: number, y: number, extra: Record<string, unknown> = {}) => ({
+    id: 'UTENZE', tipo: 'utenze' as const, etichetta: 'Utenze\naria', gruppo: 'LINEA_DISTRIBUZIONE' as const,
+    valvoleSicurezza: [], origine: 'scheda' as const, x, y, ...extra,
+  })
+
+  // Prima del 10-11-2026 il riquadro era largo almeno 200 e l'attacco stava a (100, 170)
+  // dall'origine. Un salvataggio di allora va riletto in modo che l'attacco — e con lui punta,
+  // scritta e la tubazione che vi arriva — resti dov'era sul foglio.
+  it('un salvataggio scritto col riquadro largo si rilegge con l’attacco nello stesso punto', () => {
+    const vecchio: LayoutSalvato = { versione: 1, nodi: [...layoutMinimo().nodi, terminale(480, 200)], archi: [] }
+    const riletto = deserializzaLayout(vecchio)!
+    const u = riletto.nodi.find((n) => n.tipo === 'utenze')!
+    const attacco = ancoraDi(u, 'in')!
+    expect({ x: u.x + attacco.x, y: u.y + attacco.y }).toEqual({ x: 480 + 100, y: 200 + 170 })
+    expect(u.x).toBe(540)
+    // Gli altri nodi non si muovono.
+    expect(riletto.nodi.filter((n) => n.tipo !== 'utenze')).toEqual(layoutMinimo().nodi)
+  })
+
+  it('una scritta lunga, che già allargava il riquadro oltre il pavimento, non si sposta', () => {
+    const etichetta = 'Utenze aria compressa reparto 2'
+    const vecchio: LayoutSalvato = { versione: 1, nodi: [terminale(480, 200, { etichetta })], archi: [] }
+    expect(deserializzaLayout(vecchio)!.nodi[0]).toMatchObject({ x: 480, y: 200 })
+  })
+
+  it('ciò che si scrive oggi porta il contrassegno, e riletto non si sposta una seconda volta', () => {
+    const layout: SchemaLayout = { ...layoutMinimo(), nodi: [...layoutMinimo().nodi, terminale(540, 200, { rotazione: 90 })] }
+    const salvato = serializzaLayout(layout)
+    expect(salvato.geometriaUtenze).toBe(2)
+    expect(deserializzaLayout(salvato)!.nodi).toEqual(layout.nodi)
+    // Due giri completi: la posizione resta quella.
+    expect(deserializzaLayout(serializzaLayout(deserializzaLayout(salvato)!))!.nodi).toEqual(layout.nodi)
+  })
+
+  it('la riconciliazione con la scheda conserva la rotazione scelta sulla tela', () => {
+    const scheda = makeScheda({ dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }) })
+    const modello = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    const generato = layoutSchema(modello)
+    const ruotato = { ...generato, nodi: generato.nodi.map((n) => (n.tipo === 'utenze' ? { ...n, rotazione: 180 as const } : n)) }
+    const { layout } = riconcilia(ruotato, modello)
+    expect(layout.nodi.find((n) => n.tipo === 'utenze')?.rotazione).toBe(180)
   })
 })

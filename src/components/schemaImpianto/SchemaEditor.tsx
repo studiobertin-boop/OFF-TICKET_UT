@@ -52,6 +52,7 @@ import {
   AlignVerticalCenter as AllineaCentroYIcon,
   AlignVerticalBottom as AllineaBassoIcon,
   Fullscreen as SchermoInteroIcon,
+  RotateRight as RuotaIcon,
   FullscreenExit as SchermoInteroEsciIcon,
 } from '@mui/icons-material'
 import toast from 'react-hot-toast'
@@ -61,10 +62,10 @@ import type { Asse, Bordo } from '@/services/schemaImpianto/allineamento'
 import { PASSO_GRIGLIA } from '@/services/schemaImpianto/griglia'
 import { quoteInstradamento } from '@/services/schemaImpianto/layout'
 import { TARATURA_NEUTRA, risolviLibreria, taraturaDi, type Tarature, type TaraturaSimbolo } from '@/services/schemaImpianto/libreria'
-import { renderSvg, varchiDelMuro } from '@/services/schemaImpianto/renderSvg'
+import { renderSvg, varchiDelMuro, varchiDelMuroOrizzontale } from '@/services/schemaImpianto/renderSvg'
 import { idAreaLibero } from '@/services/schemaImpianto/aree'
 import type { FrecciaPosata } from '@/services/schemaImpianto/selezione'
-import { ancoreDi, dimensioniDi } from '@/services/schemaImpianto/symbols'
+import { ancoreDi, dimensioniDi, DIMENSIONI_NODO } from '@/services/schemaImpianto/symbols'
 import { puntoSuTratto } from '@/services/schemaImpianto/tratti'
 import type {
   ChiaveSimbolo,
@@ -81,8 +82,10 @@ import { AreeImpianto } from './AreeImpianto'
 import { BarraTaratura, DialogoUscitaTaratura, ManiglieTaratura } from './BarraTaratura'
 import { DivisorioAnteprima } from './DivisorioAnteprima'
 import { ManigliaRidimensiona } from './ManigliaRidimensiona'
+import { MuroOrizzontale } from './MuroOrizzontale'
 import { MuroSeparazione } from './MuroSeparazione'
-import { sopraIlBordoSinistro } from './posaNuoviOggetti'
+import { sopraIlBordoSinistro, vicinoAlPuntoDiLavoro } from './posaNuoviOggetti'
+import { haTerminali, ruotaTerminali } from './ruotaTerminali'
 import { LARGHEZZA_MINIMA_ANTEPRIMA, type PreferenzeEditor } from './preferenzeEditor'
 import { SchemaEdgeTubazione, type SchemaEdgeData } from './SchemaEdgeTubazione'
 import { SchemaNodeSymbol, type SchemaNodeData } from './SchemaNodeSymbol'
@@ -102,7 +105,7 @@ import { useAree } from './useAree'
 import { useGomiti } from './useGomiti'
 import { useGuideAllineamento } from './useGuideAllineamento'
 import { useInserimentoTee } from './useInserimentoTee'
-import { ascissaProposta, useMuro } from './useMuro'
+import { ascissaProposta, ordinataProposta, useMuro, useMuroOrizzontale } from './useMuro'
 import { useSchemaHistory } from './useSchemaHistory'
 import { useSegniTubo } from './useSegniTubo'
 import { useAppunti } from './useAppunti'
@@ -182,6 +185,8 @@ interface StatoEditor {
   // di `layoutCorrente`. Tenerla anche qui sarebbe una seconda fonte, destinata a divergere al
   // primo nodo spostato — stessa ragione per cui `SchemaLayout.muro` salva solo `x`.
   muroX: number | null
+  // Lo stesso per il muro orizzontale: la sola ordinata.
+  muroY: number | null
 }
 
 export interface SchemaEditorProps {
@@ -291,7 +296,11 @@ function SchemaEditorInterno({
   // su `StatoEditor.muroX`), e senza questa lettura una pratica riaperta perderebbe in silenzio
   // il muro salvato — tornerebbe sempre a `null`, come prima che questo stato esistesse.
   const iniziale = useMemo(
-    () => ({ ...layoutAFlow(layout, libreria), muroX: layout.muro?.x ?? null }),
+    () => ({
+      ...layoutAFlow(layout, libreria),
+      muroX: layout.muro?.x ?? null,
+      muroY: layout.muroOrizzontale?.y ?? null,
+    }),
     [layout, libreria]
   )
   const storia = useSchemaHistory<StatoEditor>(iniziale)
@@ -369,8 +378,8 @@ function SchemaEditorInterno({
   // che dentro ognuno dei calcoli qui sotto, è quel che tiene quote, capi e anteprima sullo
   // STESSO layout: sono i tre ingressi della geometria condivisa con il documento.
   const layoutCorrente = useMemo(
-    () => flowALayout(stato.nodes, stato.edges, stato.testi, stato.aree, stato.muroX, libreriaEffettiva),
-    [stato.nodes, stato.edges, stato.testi, stato.aree, stato.muroX, libreriaEffettiva]
+    () => flowALayout(stato.nodes, stato.edges, stato.testi, stato.aree, stato.muroX, libreriaEffettiva, stato.muroY),
+    [stato.nodes, stato.edges, stato.testi, stato.aree, stato.muroX, stato.muroY, libreriaEffettiva]
   )
 
   // Quote a cui le tubazioni attraversano il muro: la STESSA `renderArchi` che disegna il
@@ -379,6 +388,10 @@ function SchemaEditorInterno({
   // comunque tutto l'instradamento per un risultato che poi non si disegna.
   const varchiMuro = useMemo(
     () => (layoutCorrente.muro ? varchiDelMuro(layoutCorrente, libreriaEffettiva) : []),
+    [layoutCorrente, libreriaEffettiva]
+  )
+  const varchiMuroOrizzontale = useMemo(
+    () => (layoutCorrente.muroOrizzontale ? varchiDelMuroOrizzontale(layoutCorrente, libreriaEffettiva) : []),
     [layoutCorrente, libreriaEffettiva]
   )
 
@@ -491,6 +504,10 @@ function SchemaEditorInterno({
   // useMuro.ts), stesso motivo di useGomiti.ts qui sopra. Come per le annotazioni, non riceve
   // `stato`: il muro si rende da `layoutCorrente.muro` qui sotto, nel portale della viewport.
   const { aggiungiMuro, spostaMuro } = useMuro<StatoEditor>(applica, aggiornaSenzaCronologia)
+  const { aggiungiMuroOrizzontale, spostaMuroOrizzontale } = useMuroOrizzontale<StatoEditor>(
+    applica,
+    aggiornaSenzaCronologia
+  )
 
   // La selezione multipla (testi, aree, frecce, muro accanto a quella di react-flow) e i gesti di
   // gruppo: logica in un hook suo (useSelezioneMultipla.ts). Sta QUI, prima di `edgesConGomiti`,
@@ -676,15 +693,40 @@ function SchemaEditorInterno({
     [applica]
   )
 
+  // L'ultimo punto premuto sulla tela, in unità del disegno, e la tela stessa: servono a far
+  // nascere un TEE accanto a dove si stava lavorando (`vicinoAlPuntoDiLavoro`).
+  const ultimoPuntoPremuto = useRef<{ x: number; y: number } | null>(null)
+  const tela = useRef<HTMLDivElement | null>(null)
+  const { screenToFlowPosition } = useReactFlow()
+
+  /** Ciò che la tela mostra adesso, in unità del disegno; `null` se la tela non è montata. */
+  const inquadratura = useCallback(() => {
+    const riquadro = tela.current?.getBoundingClientRect()
+    if (!riquadro || riquadro.width === 0 || riquadro.height === 0) return null
+    const opzioni = { snapToGrid: false }
+    const alto = screenToFlowPosition({ x: riquadro.left, y: riquadro.top }, opzioni)
+    const basso = screenToFlowPosition({ x: riquadro.right, y: riquadro.bottom }, opzioni)
+    return { x: alto.x, y: alto.y, larghezza: basso.x - alto.x, altezza: basso.y - alto.y }
+  }, [screenToFlowPosition])
+
   const aggiungiNodo = useCallback(
     (voce: (typeof PALETTE)[number]) => {
+      // Letta QUI e non dentro `applica`: interroga il DOM, e un aggiornatore di stato deve
+      // restare puro (React lo può eseguire due volte).
+      const vista = voce.tipo === 'giunzione' ? inquadratura() : null
       applica((s) => {
         const id = codiceLibero(voce.prefisso, s.nodes)
         // Accanto al bordo sinistro del disegno e sopra la sua cima, dove l'utente sta già
         // guardando: un punto fisso finirebbe sopra un'apparecchiatura già disegnata. Se sopra
         // non c'è spazio ripiega a destra del disegno, e per sapere dove il disegno finisce le
         // serve la libreria: l'ingombro di un simbolo dipende dalla sua taratura.
-        const posizione = sopraIlBordoSinistro(s.nodes, s.testi, libreriaEffettiva)
+        //
+        // Il TEE fa eccezione dal 10-11-2026: nasce accanto al punto in cui si stava lavorando.
+        // È un elemento di costruzione, serve in mezzo alla linea, e il committente lo doveva
+        // andare a prendere ogni volta dall'altra parte del disegno.
+        const posizione = vista
+          ? vicinoAlPuntoDiLavoro(ultimoPuntoPremuto.current, vista, DIMENSIONI_NODO.giunzione, s.nodes)
+          : sopraIlBordoSinistro(s.nodes, s.testi, libreriaEffettiva)
         const nodo = {
           id,
           tipo: voce.tipo,
@@ -712,8 +754,18 @@ function SchemaEditorInterno({
         }
       })
     },
-    [applica, libreriaEffettiva]
+    [applica, inquadratura, libreriaEffettiva]
   )
+
+  /**
+   * Ruota di 90° i terminali utenze selezionati, attorno al loro attacco (`ruotaTerminali`).
+   * Una voce di cronologia sola, come ogni altro gesto della barra.
+   */
+  const ruotaSelezione = useCallback(() => {
+    const ids = new Set(selezione.nodes.map((n) => n.id))
+    applica((s) => ({ ...s, nodes: ruotaTerminali(s.nodes, ids, libreriaEffettiva) }))
+  }, [applica, libreriaEffettiva, selezione.nodes])
+  const puoRuotare = haTerminali(selezione.nodes)
 
   const cambiaStile = useCallback(
     (stile: SchemaArcoStile) => {
@@ -1038,8 +1090,6 @@ function SchemaEditorInterno({
     setSelezione(s)
   }, [])
 
-  const { screenToFlowPosition } = useReactFlow()
-
   /** Le frecce di direzione con il punto in cui la tela le disegna, per il riquadro. */
   const frecceSullaTela = useCallback(
     (): FrecciaPosata[] =>
@@ -1156,6 +1206,12 @@ function SchemaEditorInterno({
         eliminaSelezione()
         return
       }
+      // R ruota i terminali utenze selezionati. Senza modificatori: Ctrl+R resta del browser.
+      if (e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.metaKey && !e.altKey && puoRuotare) {
+        e.preventDefault()
+        ruotaSelezione()
+        return
+      }
       const passo = PASSI[e.key]
       const qualcosaDaSpostare =
         selezione.nodes.length > 0 || libere.some((l) => l.tipo === 'testo' || l.tipo === 'area')
@@ -1168,6 +1224,8 @@ function SchemaEditorInterno({
     window.addEventListener('keydown', suTasto)
     return () => window.removeEventListener('keydown', suTasto)
   }, [
+    puoRuotare,
+    ruotaSelezione,
     annulla,
     copia,
     deselezionaReactFlow,
@@ -1462,6 +1520,14 @@ function SchemaEditorInterno({
           </Tooltip>
         ))}
 
+        <Tooltip title="Ruota di 90° il terminale «utenze» selezionato, attorno al suo attacco (R)">
+          <span>
+            <IconButton size="small" onClick={ruotaSelezione} disabled={!puoRuotare || modoTaratura}>
+              <RuotaIcon fontSize="small" />
+            </IconButton>
+          </span>
+        </Tooltip>
+
         <Divider orientation="vertical" flexItem />
 
         <Typography variant="caption" color="text.secondary">
@@ -1504,6 +1570,18 @@ function SchemaEditorInterno({
               disabled={stato.muroX !== null || modoTaratura}
             >
               Muro
+            </Button>
+          </span>
+        </Tooltip>
+        <Tooltip title="Un muro orizzontale: si trascina in verticale, si cancella col tasto Canc. I varchi si aprono da soli dove le tubazioni lo attraversano">
+          <span>
+            <Button
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => aggiungiMuroOrizzontale((s) => ordinataProposta(nodiDi(s), libreriaEffettiva))}
+              disabled={stato.muroY !== null || modoTaratura}
+            >
+              Muro orizz.
             </Button>
           </span>
         </Tooltip>
@@ -1569,6 +1647,7 @@ function SchemaEditorInterno({
           gli stati. #37414f rende ~10,25:1 su #fefefe (fondo a riposo) e ~9,40:1 su #f4f4f4
           (fondo in hover): in entrambi i casi ben oltre la soglia leggibile. */}
       <Box
+        ref={tela}
         sx={{
           flex: 1,
           minWidth: 0,
@@ -1585,6 +1664,8 @@ function SchemaEditorInterno({
         // Prima di react-flow (fase di cattura sul contenitore): cosa era selezionato e se Ctrl era
         // premuto, per decidere dopo se un nodo afferrato faceva parte del gruppo.
         onPointerDownCapture={(e) => {
+          // Dove si sta lavorando: lo legge `aggiungiNodo` per far nascere lì accanto un TEE.
+          ultimoPuntoPremuto.current = screenToFlowPosition({ x: e.clientX, y: e.clientY }, { snapToGrid: false })
           pressione.current = {
             nodi: new Set(stato.nodes.filter((n) => n.selected).map((n) => n.id)),
             archi: new Set(stato.edges.filter((a) => a.selected).map((a) => a.id)),
@@ -1725,6 +1806,16 @@ function SchemaEditorInterno({
                 selezionato={libere.some((l) => l.tipo === 'muro')}
                 onSposta={spostaMuro}
                 onSeleziona={(aggiungi) => premiLibero({ tipo: 'muro' }, aggiungi)}
+                bloccato={modoTaratura}
+              />
+            )}
+            {layoutCorrente.muroOrizzontale && (
+              <MuroOrizzontale
+                muro={layoutCorrente.muroOrizzontale}
+                varchi={varchiMuroOrizzontale}
+                selezionato={libere.some((l) => l.tipo === 'muro-orizzontale')}
+                onSposta={spostaMuroOrizzontale}
+                onSeleziona={(aggiungi) => premiLibero({ tipo: 'muro-orizzontale' }, aggiungi)}
                 bloccato={modoTaratura}
               />
             )}

@@ -14,6 +14,7 @@ import type { SchemaArea, SchemaTestoLibero } from './types'
 
 export type ElementoLibero =
   | { tipo: 'muro' }
+  | { tipo: 'muro-orizzontale' }
   | { tipo: 'testo'; id: string }
   | { tipo: 'area'; id: string }
   | { tipo: 'freccia'; arco: string; segno: string }
@@ -22,6 +23,8 @@ export function chiaveElemento(e: ElementoLibero): string {
   switch (e.tipo) {
     case 'muro':
       return 'muro'
+    case 'muro-orizzontale':
+      return 'muro-orizzontale'
     case 'freccia':
       return `freccia:${e.arco}:${e.segno}`
     default:

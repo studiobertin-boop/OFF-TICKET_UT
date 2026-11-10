@@ -13,6 +13,7 @@ import { buildSchemaModel } from '../buildSchemaModel'
 import {
   GIOCO_FRA_STADI,
   PASSO_GIUNZIONE,
+  PASSO_FRA_GIUNZIONI,
   PASSO_TERMINALE,
   PASSO_CORSIA_BYPASS,
   MARGINE_COLLETTORE_COMPRESSORI,
@@ -1284,7 +1285,7 @@ describe('il by-pass nel layout', () => {
   }
 
   it('la giunzione di valle cade sulla linea di processo, come gli stadi', () => {
-    const l = disegno()
+    const l = disegno([['F1', 'E1']])
     expect(posizioneAncora(nodo(l, 'BP1-OUT'), 'sx').y).toBe(posizioneAncora(nodo(l, 'F1'), 'sx').y)
   })
 
@@ -1385,7 +1386,7 @@ describe('il by-pass nel layout', () => {
     // E' su questo che contano i due ancoraggi seminati da `buildArchi` — meta' del tratto 0 e
     // vertice 1. Cambiare il numero di gomiti sposta le due valvole senza che nessun test del
     // modello se ne accorga: il legame fra le due cose sta qui.
-    const punti = polilineaPonte(disegno())
+    const punti = polilineaPonte(disegno([['F1', 'E1']]))
     expect(punti).toHaveLength(3)
     expect(punti[0].y).toBe(punti[1].y) // la corsa orizzontale, tratto 0
     expect(punti[1].x).toBe(punti[2].x) // la gamba che scende, tratto 1
@@ -1398,7 +1399,7 @@ describe('il by-pass nel layout', () => {
     // piega dipende dai LATI: prendendo il capo di monte dall'ancora `alto` (verticale su
     // entrambi i capi) la corsa cadrebbe a meta' fra le due quote — un ponte che non corre ne'
     // sulla quota del suo capo ne' su quella della linea.
-    const l = disegno()
+    const l = disegno([['F1', 'E1']])
     const quotaMonte = posizioneAncora(nodo(l, 'BP1-IN'), 'alto').y
     const quotaValle = posizioneAncora(nodo(l, 'BP1-OUT'), 'alto').y
     const dallAlto = instrada(
@@ -1428,7 +1429,7 @@ describe('il by-pass nel layout', () => {
     // Si misura sui PUNTI ricalcolati, non sulle `t`: una `t` giusta su una polilinea sbagliata
     // non e' una valvola al posto giusto. Dal Blocco 5 le tre valvole non stanno piu' tutte sul
     // ponte: quella di monte e' scesa sul montante, che e' un normale arco della catena.
-    const l = disegno()
+    const l = disegno([['F1', 'E1']])
     const punti = polilineaPonte(l)
     const segniPonte = ponteDi(l).segni!.map((s) => puntoSuTratto(punti, s.t).punto)
     // Centro: a meta' della corsa orizzontale, che ora e' il tratto 0.
@@ -1454,9 +1455,55 @@ describe('il by-pass nel layout', () => {
     })
   })
 
+  // 10-11-2026: il by-pass che chiude la linea (il `disegno()` di default, che scavalca tutti e
+  // tre gli stadi) porta il capo di valle in alto, e le utenze partono da lì.
+  describe('quando chiude la linea', () => {
+    it('il capo di valle sta alla quota del ponte, che gli arriva dritto', () => {
+      const l = disegno()
+      const monte = posizioneAncora(nodo(l, 'BP1-IN'), 'dx')
+      const valle = posizioneAncora(nodo(l, 'BP1-OUT'), 'sx')
+      expect(valle.y).toBe(monte.y)
+      expect(polilineaPonte(l)).toEqual([monte, valle])
+      expect(ponteDi(l).punti ?? []).toHaveLength(0)
+      expect(ponteDi(l)).not.toHaveProperty('forma')
+      // La valvola di mezzo sta a metà del ponte.
+      expect(puntoSuTratto(polilineaPonte(l), ponteDi(l).segni![0].t).punto).toEqual({
+        x: (monte.x + valle.x) / 2,
+        y: monte.y,
+      })
+    })
+
+    it('l’ultimo stadio sale sull’ascissa del TEE, con la valvola due passi sotto', () => {
+      const l = disegno()
+      const salita = l.archi.find((a) => a.da.nodo === 'F2' && a.a.nodo === 'BP1-OUT')!
+      const da = posizioneAncora(nodo(l, 'F2'), 'dx')
+      const a = posizioneAncora(nodo(l, 'BP1-OUT'), 'basso')
+      const punti = instrada(salita.stile, da, a, salita.punti, quoteInstradamento(l), {
+        da: latoImposto(nodo(l, 'F2'), 'dx'),
+        a: latoImposto(nodo(l, 'BP1-OUT'), 'basso'),
+      })
+      expect(punti).toEqual([da, { x: a.x, y: da.y }, a])
+      expect(a.x - da.x).toBe(PASSO_GIUNZIONE)
+      expect(puntoSuTratto(punti, salita.segni![0].t).punto).toEqual({ x: a.x, y: a.y + 20 })
+    })
+
+    it('il terminale utenze parte dalla quota del ponte, e sta tutto dentro il foglio', () => {
+      const l = disegno()
+      const utenze = l.nodi.find((n) => n.tipo === 'utenze')!
+      const attacco = posizioneAncora(utenze, 'in')
+      const valle = posizioneAncora(nodo(l, 'BP1-OUT'), 'dx')
+      expect(attacco.y).toBe(valle.y)
+      expect(attacco.x - valle.x).toBe(PASSO_TERMINALE)
+      expect(utenze.y).toBeGreaterThanOrEqual(0)
+      // E non sta più sopra il flessibile che sale dall'ultimo stadio: è il difetto che ha
+      // portato il capo di valle in alto.
+      expect(attacco.y).toBeLessThan(posizioneAncora(nodo(l, 'F2'), 'dx').y)
+    })
+  })
+
   it('nessun arco in uscita da layoutSchema porta ancora forma', () => {
     // Il contratto di sola andata, sullo stampo di quello gia' scritto per `ancoraggio`.
-    const l = disegno()
+    const l = disegno([['F1', 'E1']])
     expect(l.archi.some((a) => (a.punti ?? []).length > 0)).toBe(true) // o passerebbe a vuoto
     for (const arco of l.archi) expect(arco).not.toHaveProperty('forma')
   })
@@ -1624,25 +1671,34 @@ describe('by-pass annidati sopra un serbatoio', () => {
     const interno = layout.nodi.find((n) => n.id === 'BP2-IN')!
     const s1 = layout.nodi.find((n) => n.id === 'S1')!
 
+    // **Dal 10-11-2026 tutto il disegno scende di 190.** Il gruppo esterno chiude la linea, quindi
+    // il suo capo di valle sta in alto e il terminale utenze parte da lì: alto 170, sopra un ponte
+    // che correva sul bordo della pagina, sarebbe finito fuori dal foglio — e `layoutSchema` fa
+    // scendere tutto di quanto serve. Le distanze fra i livelli, che sono ciò che questo test
+    // misura, restano quelle del round 3; cambiano solo le ordinate assolute.
+    const discesa = 190
+
     // Numeri veri, dopo il round 3 (eseguiti, non calcolati a mano). Il livello interno non si
-    // muove: `interno.y = 80`, invariato dal round 2, sopra la cima di S1 (`s1.y = 110`).
-    expect(interno.y).toBe(80)
-    expect(s1.y).toBe(110)
+    // muove rispetto al serbatoio: `interno.y = 80`, sopra la cima di S1 (`s1.y = 110`).
+    expect(interno.y).toBe(80 + discesa)
+    expect(s1.y).toBe(110 + discesa)
 
     // Il livello esterno passa da `y = -130` (round 2, il difetto) a `y = -10`: la sottrazione
     // funziona, l'offset non somma più due volte l'altezza di S1. Non è ancora zero: `-10` è la
     // metà superiore del riquadro 20×20 della giunzione (il pallino del TEE, centrato sulla sua
     // ancora), non de «il ponte» — il PONTE VERO E PROPRIO è il tubo che parte dall'ancora, non
     // il riquadro decorativo del simbolo.
-    expect(esterno.y).toBe(-10)
+    expect(esterno.y).toBe(-10 + discesa)
 
     // **L'asserzione che conta**, quella richiesta esplicitamente: l'ancora da cui parte il ponte
     // — il tubo che deve comparire nel documento — sta esattamente sul bordo della pagina, non
     // sopra. `posizioneAncora` è la stessa funzione che `renderSvg` usa per tracciare la
     // polilinea: se questa è `>= 0`, il ponte (il tratto disegnato) è sulla tela.
     const puntoPonte = posizioneAncora(esterno, 'sx')
-    expect(puntoPonte.y).toBe(0)
+    expect(puntoPonte.y).toBe(0 + discesa)
     expect(puntoPonte.y).toBeGreaterThanOrEqual(0)
+    // E con la discesa nessun riquadro resta più sopra il bordo, nemmeno il pallino del TEE.
+    expect(Math.min(...layout.nodi.map((n) => n.y))).toBeGreaterThanOrEqual(0)
 
     // Il residuo di 10 unità resta sul solo RIQUADRO del simbolo (metà del pallino, non il tubo):
     // in questo scenario `quotaLinea` (300) coincide per coincidenza numerica con l'offset
@@ -1753,10 +1809,10 @@ describe('il by-pass che scavalca la testa della linea', () => {
     // il TEE di monte, non S1.
     const mandata = model.archi.find((a) => a.da.nodo === 'C1')!
     expect(mandata.a.nodo).toBe('BP1-IN')
-    // Nessuna ancora `sx-basso` su una giunzione (solo il serbatoio ce l'ha): il ripiego di
-    // `ancoraMandata` deve portarla su `sx`, non lasciarla `undefined` o farla cadere sul centro
-    // per un'ancora inesistente.
-    expect(mandata.a.ancora).toBe('sx')
+    // Dal 10-11-2026 la mandata prende il TEE dal BASSO, e chiede al layout la forma del
+    // collettore: su `sx`, com'era, il tubo usciva di fianco dal cielo del compressore.
+    expect(mandata.a.ancora).toBe('basso')
+    expect(mandata.forma).toBe('collettore')
 
     const layout = layoutSchema(model)
     const tee = nodo(layout, 'BP1-IN')
@@ -1776,17 +1832,32 @@ describe('il by-pass che scavalca la testa della linea', () => {
 
     // La mandata sale dal compressore fino al TEE: nessun tratto che scenda di nuovo verso il
     // basso a meta' strada, che sarebbe la firma di un incrocio.
-    const puntiMandata = instrada(
-      mandata.stile,
-      posizioneAncora(c1, mandata.da.ancora),
-      puntoTee,
-      mandata.punti,
-      quoteInstradamento(layout),
-      { da: latoImposto(c1, mandata.da.ancora), a: latoImposto(tee, mandata.a.ancora) }
-    )
+    // L'arco del LAYOUT, non quello del modello: è il layout a scrivergli i gomiti del collettore
+    // e a togliergli la `forma`.
+    const mandataDisposta = layout.archi.find((a) => a.da.nodo === 'C1')!
+    expect(mandataDisposta.forma).toBeUndefined()
+    const quote = quoteInstradamento(layout)
+    const partenza = posizioneAncora(c1, mandata.da.ancora)
+    const puntiMandata = instrada(mandata.stile, partenza, puntoTee, mandataDisposta.punti, quote, {
+      da: latoImposto(c1, mandata.da.ancora),
+      a: latoImposto(tee, mandata.a.ancora),
+    })
     for (let i = 0; i < puntiMandata.length - 1; i++) {
       expect(puntiMandata[i + 1].y).toBeLessThanOrEqual(puntiMandata[i].y)
     }
+    // Montante, collettore, risalita: il primo tratto sale dritto dal compressore fino alla quota
+    // del collettore, e l'ultimo entra nel TEE in verticale, sulla sua ascissa.
+    expect(puntiMandata).toEqual([
+      partenza,
+      { x: partenza.x, y: quote.yCollettore },
+      { x: puntoTee.x, y: quote.yCollettore },
+      puntoTee,
+    ])
+    // La valvola sta sul montante, due passi sotto il collettore — come sulla mandata ordinaria.
+    const valvola = mandataDisposta.segni![0]
+    const dove = puntoSuTratto(puntiMandata, valvola.t)
+    expect(dove.punto).toEqual({ x: partenza.x, y: quote.yCollettore + 20 })
+    expect(dove.orizzontale).toBe(false)
 
     // Il montante che scende dal TEE verso S1 (il ramo `dalCapoDiMonte` riusato in testa alla
     // linea, la stessa regola di un TEE in mezzo alla catena). Qui il TEE NON e' alla quota
@@ -1892,5 +1963,113 @@ describe('lo stacco finale della sequenza', () => {
     const tanica = layout.nodi.find((n) => n.tipo === 'tanica')!
 
     expect(tanica.x).toBe(s1.x + dimensioniDi(s1, {}).larghezza + STACCO_SERBATOI_LINEA)
+  })
+})
+
+describe('il by-pass di un serbatoio', () => {
+  // Il disegno corretto a mano dal committente il 10-11-2026: il serbatoio scavalcato si collega
+  // rigido, con una valvola sull'ingresso e una sull'uscita, e il capo di valle sta alla quota
+  // dell'uscita invece che sulla linea scesa di una corsia.
+  const scheda = makeScheda({
+    compressori: [makeCompressore({ codice: 'C1' })],
+    serbatoi: [makeSerbatoio({ codice: 'S1', ubicazione: 'SALA_COMPRESSORI' })],
+    filtri: [makeFiltro({ codice: 'F1' })],
+    essiccatori: [makeEssiccatore({ codice: 'E1' })],
+    dati_impianto: makeDatiImpianto({ raccolta_condense: 'Nessuna' }),
+  })
+  const genera = (bypass: { id: string; stadi: string[] }[]) => {
+    const model = buildSchemaModel({
+      scheda,
+      collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+      preferenze: preferenzeRisolteDaScheda(scheda, { ordineLinea: ['S1', 'E1', 'F1'], bypass }),
+    })
+    return { model, layout: layoutSchema(model) }
+  }
+  const polilinea = (layout: SchemaLayout, arco: SchemaArco) => {
+    const da = nodo(layout, arco.da.nodo)
+    const a = nodo(layout, arco.a.nodo)
+    return instrada(arco.stile, posizioneAncora(da, arco.da.ancora), posizioneAncora(a, arco.a.ancora), arco.punti, quoteInstradamento(layout), {
+      da: latoImposto(da, arco.da.ancora),
+      a: latoImposto(a, arco.a.ancora),
+    })
+  }
+
+  it('il capo di valle sta alla quota dell’uscita del serbatoio, e il tubo che li unisce è dritto', () => {
+    const { layout } = genera([{ id: 'bp1', stadi: ['S1'] }])
+    const uscita = posizioneAncora(nodo(layout, 'S1'), 'dx')
+    const valle = posizioneAncora(nodo(layout, 'BP1-OUT'), 'sx')
+    expect(valle.y).toBe(uscita.y)
+    const arco = layout.archi.find((a) => a.da.nodo === 'S1' && a.a.nodo === 'BP1-OUT')!
+    expect(polilinea(layout, arco)).toEqual([uscita, valle])
+    // Rigido, con la valvola a metà.
+    expect(arco.stile).toBe('standard')
+    expect(arco.segni).toHaveLength(1)
+    expect(arco.segni![0]).toMatchObject({ tipo: 'valvola_intercettazione', t: 0.5 })
+    expect(arco.segni![0].stileAValle).toBeUndefined()
+  })
+
+  it('l’ingresso scende rigido dal capo di monte, con la valvola sul tratto orizzontale davanti al serbatoio', () => {
+    const { layout } = genera([{ id: 'bp1', stadi: ['S1'] }])
+    const arco = layout.archi.find((a) => a.da.nodo === 'BP1-IN' && a.a.nodo === 'S1')!
+    expect(arco.a.ancora).toBe('sx-basso')
+    expect(arco.stile).toBe('standard')
+    const punti = polilinea(layout, arco)
+    const monte = posizioneAncora(nodo(layout, 'BP1-IN'), 'basso')
+    const attacco = posizioneAncora(nodo(layout, 'S1'), 'sx-basso')
+    expect(punti).toEqual([monte, { x: monte.x, y: attacco.y }, attacco])
+    expect(arco.segni).toHaveLength(1)
+    expect(arco.segni![0].stileAValle).toBeUndefined()
+    const dove = puntoSuTratto(punti, arco.segni![0].t)
+    expect(dove.orizzontale).toBe(true)
+    expect(dove.punto).toEqual({ x: (monte.x + attacco.x) / 2, y: attacco.y })
+  })
+
+  it('il ponte porta la sola valvola di mezzo, e scende rigido sul capo di valle', () => {
+    const { layout } = genera([{ id: 'bp1', stadi: ['S1'] }])
+    const ponte = layout.archi.find((a) => a.da.nodo === 'BP1-IN' && a.a.nodo === 'BP1-OUT')!
+    expect(ponte.stile).toBe('standard')
+    expect(ponte.segni).toHaveLength(1)
+    expect(ponte.segni![0].stileAValle).toBeUndefined()
+    const punti = polilinea(layout, ponte)
+    expect(punti).toHaveLength(3)
+    // La valvola sta sulla corsa orizzontale, sopra il serbatoio.
+    expect(puntoSuTratto(punti, ponte.segni![0].t).punto.y).toBe(punti[0].y)
+    expect(punti[0].y).toBeLessThan(nodo(layout, 'S1').y)
+  })
+
+  it('le valvole del by-pass restano tre', () => {
+    const { layout } = genera([{ id: 'bp1', stadi: ['S1'] }])
+    const delGruppo = layout.archi.filter((a) => [a.da.nodo, a.a.nodo].some((id) => id === 'BP1-IN' || id === 'BP1-OUT'))
+    const valvole = delGruppo
+      // La mandata del compressore arriva al TEE ma non è del by-pass: la sua valvola non conta.
+      .filter((a) => a.da.nodo !== 'C1' && a.da.nodo !== 'BP1-OUT')
+      .flatMap((a) => a.segni ?? [])
+      .filter((s) => s.tipo === 'valvola_intercettazione')
+    expect(valvole).toHaveLength(3)
+  })
+
+  it('uno stadio di trattamento scavalcato resta appeso al ponte con i due flessibili', () => {
+    const { layout } = genera([{ id: 'bp1', stadi: ['E1'] }])
+    const ingresso = layout.archi.find((a) => a.da.nodo === 'BP1-IN' && a.a.nodo === 'E1')!
+    expect(ingresso.segni![0].stileAValle).toBe('flessibile')
+    const ponte = layout.archi.find((a) => a.da.nodo === 'BP1-IN' && a.a.nodo === 'BP1-OUT')!
+    expect(ponte.segni).toHaveLength(2)
+    expect(ponte.segni![1].stileAValle).toBe('flessibile')
+    // E il suo capo di valle resta sulla linea, alla quota dello stadio.
+    expect(posizioneAncora(nodo(layout, 'BP1-OUT'), 'sx').y).toBe(posizioneAncora(nodo(layout, 'E1'), 'dx').y)
+  })
+
+  it('due by-pass di fila: fra il capo di valle del primo e quello di monte del secondo c’è spazio per il gradino', () => {
+    const { layout } = genera([
+      { id: 'bp1', stadi: ['S1'] },
+      { id: 'bp2', stadi: ['E1', 'F1'] },
+    ])
+    const valle = posizioneAncora(nodo(layout, 'BP1-OUT'), 'dx')
+    const monte = posizioneAncora(nodo(layout, 'BP2-IN'), 'sx')
+    expect(monte.x - valle.x).toBe(PASSO_FRA_GIUNZIONI)
+    // I due ponti corrono alla stessa quota.
+    expect(monte.y).toBe(posizioneAncora(nodo(layout, 'BP1-IN'), 'dx').y)
+    // Nessun nodo sopra il bordo del foglio.
+    expect(Math.min(...layout.nodi.map((n) => n.y))).toBeGreaterThanOrEqual(0)
   })
 })

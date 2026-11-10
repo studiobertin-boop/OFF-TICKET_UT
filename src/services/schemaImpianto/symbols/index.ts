@@ -211,9 +211,12 @@ const DIMENSIONI: Record<SchemaNodoTipo, { larghezza: number; altezza: number }>
   // Arrotondato a 120×120 come il compressore (Task 8, Blocco 3, stessa misura CAD, stesso
   // vincolo sull'ancora `dx`: y legge `altezza/2`, che vuole `altezza` multiplo di 20).
   pacco_bombole: { larghezza: 120, altezza: 120 },
-  // 200, non 190 (17-08-2026): l'ancora `in` sta a metà larghezza da quando la scritta è
-  // centrata sopra la punta, e 95 non cade sulla griglia.
-  utenze: { larghezza: 200, altezza: 120 },
+  // L'ingombro del terminale con la scritta di fabbrica («Utenze» / «aria») e la freccia in su:
+  // 80×170. Fino al 10-11-2026 era 200×120 e faceva da MINIMO — un riquadro largo due volte e
+  // mezza la scritta, che sulla tela copriva (e rendeva inafferrabile) ciò che gli stava dietro.
+  // Ora è solo il valore di registro: l'ingombro vero lo calcola `geometriaUtenze` sulla scritta
+  // e sulla rotazione del singolo nodo, senza pavimento.
+  utenze: { larghezza: 80, altezza: 170 },
   // 24 → 20 (Task 8, Blocco 3): le quattro ancore coincidono nel centro (`larghezza/2`), che
   // cade sulla griglia solo se `larghezza` è multiplo di 20. Non è una misura CAD (la giunzione
   // è un segnaposto, vedi `simboloGiunzione`): 20 resta ampiamente più largo del pallino
@@ -961,6 +964,18 @@ export function simboloGiunzione(_nodo: SchemaNodo): string {
 }
 
 /**
+ * La giunzione come la disegna il DOCUMENTO (anteprima e stampa): nessun pallino. Il TEE è un
+ * elemento di costruzione — serve a diramare una linea sulla tela — e sul disegno consegnato il
+ * committente non lo vuole vedere (10-11-2026): la T è già disegnata per intero dai tubi che vi
+ * convergono. Resta un punto largo quanto il tratto, che non si distingue dalla linea ma chiude
+ * lo spigolo dove due tubi a capo piatto si incontrano ad angolo.
+ */
+export function simboloGiunzioneNelDocumento(): string {
+  const { larghezza, altezza } = DIMENSIONI.giunzione
+  return `<circle cx="${larghezza / 2}" cy="${altezza / 2}" r="${TRATTO / 2}" fill="#000" />`
+}
+
+/**
  * Geometria del terminale utenze, condivisa fra chi lo disegna (`simboloUtenze`) e chi ne calcola
  * l'ingombro (`dimensioniDi`): sono la stessa cosa vista da due parti, e tenerle separate è
  * esattamente ciò che faceva uscire la scritta dal riquadro.
@@ -1020,51 +1035,134 @@ function quotaPuntaUtenze(etichetta: string): number {
   return UTENZE.margineSopra + altezzaScrittaUtenze(etichetta) + UTENZE.ariaSottoLaScritta
 }
 
-/**
- * Ingombro del terminale. Larghezza e altezza sono arrotondate per eccesso a multipli di
- * `PASSO_GRIGLIA * 2` e `PASSO_GRIGLIA`: l'ancora `in` sta a meta' larghezza e in fondo al
- * codolo, e deve cadere sulla griglia come ogni altra ancora di fabbrica (Blocco 3, Task 8).
- * Prima di questa rifinitura l'altezza dinamica non lo faceva — un terminale con l'etichetta su
- * piu' righe portava la propria ancora fuori griglia senza che nessuno se ne accorgesse.
- */
-function ingombroUtenze(etichetta: string): { larghezza: number; altezza: number } {
+/** Aria sopra e sotto la scritta quando il terminale è coricato (freccia a destra o a sinistra). */
+const MARGINE_SCRITTA_CORICATA = 4
+
+/** Dal vertice della punta alla fine del codolo: il tratteggio si ferma un'unità prima della base
+ *  del triangolo (13), così non spunta ai suoi lati. */
+const CODOLO_ALLA_PUNTA = 12
+
+export type RotazioneUtenze = 0 | 90 | 180 | 270
+
+/** La rotazione di un terminale, in senso orario, normalizzata: assente o estranea vale 0. */
+export function rotazioneUtenze(nodo: { rotazione?: number }): RotazioneUtenze {
+  const r = (((nodo.rotazione ?? 0) % 360) + 360) % 360
+  return r === 90 || r === 180 || r === 270 ? r : 0
+}
+
+function larghezzaScrittaUtenze(etichetta: string): number {
   const piuLunga = Math.max(...etichetta.split('\n').map((r) => r.length))
-  const scritta = piuLunga * UTENZE.dimensioneScritta * UTENZE.larghezzaCarattere
-  const larghezza = Math.max(
-    DIMENSIONI.utenze.larghezza,
-    Math.ceil((scritta + 2 * UTENZE.margineLaterale) / (PASSO_GRIGLIA * 2)) * (PASSO_GRIGLIA * 2)
-  )
-  const altezza = Math.max(
-    DIMENSIONI.utenze.altezza,
-    Math.ceil((quotaPuntaUtenze(etichetta) + 12 + UTENZE.lunghezzaCodolo) / PASSO_GRIGLIA) * PASSO_GRIGLIA
-  )
-  return { larghezza, altezza }
+  return piuLunga * UTENZE.dimensioneScritta * UTENZE.larghezzaCarattere
 }
 
 /**
- * Terminale «Alle utenze»: codolo tratteggiato che sale dall'ancora, punta di freccia e la
- * scritta accanto. Riproduce la forma del disegno di riferimento del committente
+ * Ingombro e attacco del terminale, per ognuna delle quattro giaciture. La freccia punta in su a
+ * 0° (la forma di sempre), poi ruota in senso orario: a destra (90°), in giù (180°), a sinistra
+ * (270°). La SCRITTA non ruota mai — resta orizzontale e leggibile — e sta sempre oltre la punta.
+ * L'attacco `in` sta in fondo al codolo, sul lato opposto alla punta.
+ *
+ * Tutto sui multipli della griglia: l'attacco sta a metà del lato corto, che quindi è multiplo di
+ * `PASSO_GRIGLIA * 2`; il lato lungo è multiplo di `PASSO_GRIGLIA`. È ciò che permette di ruotare
+ * il terminale attorno al proprio attacco senza portarlo fuori griglia.
+ *
+ * Nessun pavimento sulla larghezza (10-11-2026): il riquadro è largo quanto la scritta più la sua
+ * aria, non più i 200 di prima.
+ */
+function geometriaUtenze(
+  etichetta: string,
+  rotazione: RotazioneUtenze
+): { larghezza: number; altezza: number; ancora: { x: number; y: number } } {
+  const scritta = larghezzaScrittaUtenze(etichetta)
+  if (rotazione === 0 || rotazione === 180) {
+    const larghezza = Math.ceil((scritta + 2 * UTENZE.margineLaterale) / (PASSO_GRIGLIA * 2)) * (PASSO_GRIGLIA * 2)
+    const altezza =
+      Math.ceil((quotaPuntaUtenze(etichetta) + CODOLO_ALLA_PUNTA + UTENZE.lunghezzaCodolo) / PASSO_GRIGLIA) * PASSO_GRIGLIA
+    return { larghezza, altezza, ancora: { x: larghezza / 2, y: rotazione === 0 ? altezza : 0 } }
+  }
+  const larghezza =
+    Math.ceil(
+      (UTENZE.lunghezzaCodolo + CODOLO_ALLA_PUNTA + UTENZE.ariaSottoLaScritta + scritta + UTENZE.margineLaterale) /
+        PASSO_GRIGLIA
+    ) * PASSO_GRIGLIA
+  const altezza =
+    Math.ceil((altezzaScrittaUtenze(etichetta) + 2 * MARGINE_SCRITTA_CORICATA) / (PASSO_GRIGLIA * 2)) * (PASSO_GRIGLIA * 2)
+  return { larghezza, altezza, ancora: { x: rotazione === 90 ? 0 : larghezza, y: altezza / 2 } }
+}
+
+/**
+ * Dove stava l'attacco `in`, rispetto all'origine del nodo, nei layout salvati PRIMA del
+ * 10-11-2026 — quando il riquadro aveva un pavimento di 200×120 e la rotazione non esisteva. Serve
+ * a una cosa sola: `deserializzaLayout` (persistenza.ts) sposta i terminali di quei salvataggi
+ * della differenza fra questo attacco e quello di oggi, così restringere il riquadro non stacca
+ * la punta dalla tubazione che vi arriva né sposta il disegno già consegnato.
+ */
+export function ancoraUtenzePrimaDelRestringimento(etichetta: string): { x: number; y: number } {
+  const larghezza = Math.max(
+    200,
+    Math.ceil((larghezzaScrittaUtenze(etichetta) + 2 * UTENZE.margineLaterale) / (PASSO_GRIGLIA * 2)) * (PASSO_GRIGLIA * 2)
+  )
+  const altezza = Math.max(
+    120,
+    Math.ceil((quotaPuntaUtenze(etichetta) + CODOLO_ALLA_PUNTA + UTENZE.lunghezzaCodolo) / PASSO_GRIGLIA) * PASSO_GRIGLIA
+  )
+  return { x: larghezza / 2, y: altezza }
+}
+
+/**
+ * Terminale «Alle utenze»: codolo tratteggiato che parte dall'ancora, punta di freccia e la
+ * scritta oltre la punta. Riproduce la forma del disegno di riferimento del committente
  * (`DOCUMENTAZIONE/relazione/schema.png`), dove il tratteggio è corto e il tratto prima è
  * tubazione vera.
  *
  * La punta è disegnata come triangolo pieno, non come marker: nell'editor `SchemaNodeSymbol`
  * monta il simbolo in un `<svg>` suo, dove un marker dichiarato altrove non verrebbe disegnato.
  *
- * `dimensioniDi(nodo)` senza `libreria`, di proposito: il codolo si disegna in coordinate locali,
- * non tarate, e alla trasformazione pensa `simboloTrasformato` sul risultato. Con `libreria`
- * l'altezza sarebbe l'`inviluppo(...)` della taratura, già scalato, e la scala finirebbe applicata
- * due volte.
+ * Le quattro giaciture (`rotazioneUtenze`) condividono la geometria con chi ne calcola ingombro
+ * e attacco (`geometriaUtenze`): il codolo parte SEMPRE dall'ancora che quella dichiara.
  */
 export function simboloUtenze(nodo: SchemaNodo): string {
-  const { larghezza, altezza } = dimensioniDi(nodo)
-  const x = larghezza / 2
-  const yPunta = quotaPuntaUtenze(nodo.etichetta)
-  // `dominant-baseline="central"`: la y passata e' il centro della prima riga, non la sua base.
-  const yPrimaRiga = UTENZE.margineSopra + UTENZE.dimensioneScritta / 2
+  const rotazione = rotazioneUtenze(nodo)
+  const { altezza, ancora } = geometriaUtenze(nodo.etichetta, rotazione)
+  const dim = UTENZE.dimensioneScritta
+  const codolo = (d: string) =>
+    `<path d="${d}" fill="none" stroke="#000" stroke-width="${TRATTO}" stroke-dasharray="10 7" />`
+  const punta = (d: string) => `<path d="${d} Z" fill="#000" />`
+
+  if (rotazione === 0 || rotazione === 180) {
+    const x = ancora.x
+    // `verso`: +1 quando la punta sta sopra l'ancora (0°), −1 quando le sta sotto (180°). Le
+    // quote si misurano dall'orlo OPPOSTO all'ancora, dove sta la scritta.
+    const verso = rotazione === 0 ? 1 : -1
+    const orlo = rotazione === 0 ? 0 : altezza
+    const yPunta = orlo + verso * quotaPuntaUtenze(nodo.etichetta)
+    // `dominant-baseline="central"`: la y passata e' il centro della prima riga, non la sua base.
+    const yPrimaRiga =
+      rotazione === 0
+        ? UTENZE.margineSopra + dim / 2
+        : altezza - UTENZE.margineSopra - altezzaScrittaUtenze(nodo.etichetta) + dim / 2
+    return [
+      codolo(`M ${x} ${ancora.y} L ${x} ${yPunta + verso * CODOLO_ALLA_PUNTA}`),
+      punta(`M ${x - 6} ${yPunta + verso * 13} L ${x} ${yPunta} L ${x + 6} ${yPunta + verso * 13}`),
+      testoMultiRiga(x, yPrimaRiga, nodo.etichetta, dim, 'middle'),
+    ].join('')
+  }
+
+  const y = ancora.y
+  // `verso`: +1 quando la punta guarda a destra (90°), −1 a sinistra (270°).
+  const verso = rotazione === 90 ? 1 : -1
+  const xPunta = ancora.x + verso * (UTENZE.lunghezzaCodolo + CODOLO_ALLA_PUNTA)
+  const righe = nodo.etichetta.split('\n').length
+  const yPrimaRiga = y - ((righe - 1) * dim * INTERLINEA_TESTO) / 2
   return [
-    `<path d="M ${x} ${altezza} L ${x} ${yPunta + 12}" fill="none" stroke="#000" stroke-width="${TRATTO}" stroke-dasharray="10 7" />`,
-    `<path d="M ${x - 6} ${yPunta + 13} L ${x} ${yPunta} L ${x + 6} ${yPunta + 13} Z" fill="#000" />`,
-    testoMultiRiga(x, yPrimaRiga, nodo.etichetta, UTENZE.dimensioneScritta, 'middle'),
+    codolo(`M ${ancora.x} ${y} L ${xPunta - verso * CODOLO_ALLA_PUNTA} ${y}`),
+    punta(`M ${xPunta - verso * 13} ${y - 6} L ${xPunta} ${y} L ${xPunta - verso * 13} ${y + 6}`),
+    testoMultiRiga(
+      xPunta + verso * UTENZE.ariaSottoLaScritta,
+      yPrimaRiga,
+      nodo.etichetta,
+      dim,
+      rotazione === 90 ? 'start' : 'end'
+    ),
   ].join('')
 }
 
@@ -1254,9 +1352,9 @@ export const REGISTRO_SIMBOLI: Record<ChiaveSimbolo, DefinizioneSimbolo> = {
     dimensioni: DIMENSIONI.utenze,
     // Una sola: la linea aria ci arriva e finisce lì. Sta in fondo al codolo, dove il
     // tratteggio comincia, così la tubazione entrante e il codolo formano un tratto continuo.
-    // Questi due valori sono quelli del terminale più piccolo: `ancoreDi` li rifà entrambi
-    // sull'ingombro vero, che cresce con la scritta.
-    ancore: [{ id: 'in', x: 100, y: 120, accetta: ['aria'] }],
+    // Questi due valori sono quelli della scritta di fabbrica con la freccia in su: `ancoreDi` li
+    // rifà entrambi sull'ingombro vero, che segue la scritta e la rotazione del nodo.
+    ancore: [{ id: 'in', x: DIMENSIONI.utenze.larghezza / 2, y: DIMENSIONI.utenze.altezza, accetta: ['aria'] }],
     disegna: simboloUtenze,
   },
 }
@@ -1294,8 +1392,9 @@ export function ancoreDi(nodo: SchemaNodo, libreria: Tarature = {}): SchemaAncor
   // Segue l'ingombro su tutti e due gli assi: dal 17-08-2026 il codolo sta a metà larghezza (la
   // scritta gli sta sopra, centrata), e la larghezza cresce con la riga più lunga come già
   // faceva l'altezza col numero di righe.
-  const { larghezza, altezza } = dimensioniDi(nodo, libreria)
-  return ancore.map((a) => (a.id === 'in' ? { ...a, x: larghezza / 2, y: altezza } : a))
+  // Dal 10-11-2026 anche la ROTAZIONE: l'attacco sta in fondo al codolo, che gira col terminale.
+  const { ancora } = geometriaUtenze(nodo.etichetta, rotazioneUtenze(nodo))
+  return ancore.map((a) => (a.id === 'in' ? { ...a, x: ancora.x, y: ancora.y } : a))
 }
 
 export function ancoraDi(nodo: SchemaNodo, id: string, libreria: Tarature = {}): SchemaAncora | undefined {
@@ -1388,7 +1487,8 @@ export function riquadroDi(
   const dimensioni = definizioneDi(nodo, libreria).dimensioni
   if (nodo.tipo !== 'utenze') return { x: 0, y: 0, ...dimensioni }
 
-  return { x: 0, y: 0, ...ingombroUtenze(nodo.etichetta) }
+  const { larghezza, altezza } = geometriaUtenze(nodo.etichetta, rotazioneUtenze(nodo))
+  return { x: 0, y: 0, larghezza, altezza }
 }
 
 /** Ingombri per tipo, ricavati dal registro. Conserva la forma che `layout.ts` già usa. */
@@ -1459,6 +1559,50 @@ export function simboloMuro(x: number, yMin: number, yMax: number, varchi: numbe
     .flatMap(([a, b]) => {
       const righe: string[] = []
       for (let y = a; y + 12 < b; y += 12) righe.push(`M ${x} ${y + 12} L ${x + SPESSORE_MURO} ${y}`)
+      return righe
+    })
+    .join(' ')
+
+  return segmenti + `<path d="${tratti}" fill="none" stroke="#000" stroke-width="1" />`
+}
+
+/**
+ * Il muro orizzontale: la stessa muratura di `simboloMuro`, coricata. `varchi` sono ASCISSE, e
+ * le aperture si fondono con la stessa regola. Una funzione a sé e non `simboloMuro` con un
+ * parametro in più: quella è fissata byte per byte da un riferimento SVG, e i due disegni non
+ * condividono una sola coordinata.
+ */
+export function simboloMuroOrizzontale(y: number, xMin: number, xMax: number, varchi: number[]): string {
+  const larghezzaVarco = 44
+
+  const aperture: [number, number][] = []
+  for (const x of [...new Set(varchi)].sort((a, b) => a - b)) {
+    const inizio = x - larghezzaVarco / 2
+    const fine = x + larghezzaVarco / 2
+    const ultima = aperture[aperture.length - 1]
+    if (ultima && inizio <= ultima[1] + 20) ultima[1] = Math.max(ultima[1], fine)
+    else aperture.push([inizio, fine])
+  }
+
+  const tronconi: [number, number][] = []
+  let cursore = xMin
+  for (const [inizio, fine] of aperture) {
+    if (inizio > cursore) tronconi.push([cursore, inizio])
+    cursore = Math.max(cursore, fine)
+  }
+  if (cursore < xMax) tronconi.push([cursore, xMax])
+
+  const segmenti = tronconi
+    .map(
+      ([a, b]) =>
+        `<rect x="${a}" y="${y}" width="${b - a}" height="${SPESSORE_MURO}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
+    )
+    .join('')
+
+  const tratti = tronconi
+    .flatMap(([a, b]) => {
+      const righe: string[] = []
+      for (let x = a; x + 12 < b; x += 12) righe.push(`M ${x} ${y + SPESSORE_MURO} L ${x + 12} ${y}`)
       return righe
     })
     .join(' ')

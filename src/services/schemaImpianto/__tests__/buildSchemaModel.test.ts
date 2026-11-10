@@ -714,9 +714,11 @@ describe('il by-pass nel modello', () => {
     })
   }
 
-  /** Il nodo che l'arco d'aria raggiunge partendo da `id`, saltando il ponte. */
+  /** Il nodo che l'arco d'aria raggiunge partendo da `id`, saltando il ponte. Per `forma` e non
+   *  per stile: dal 10-11-2026 l'ultimo stadio di un by-pass che chiude la linea sale al capo di
+   *  valle con un flessibile. */
   const dopo = (m: ReturnType<typeof buildSchemaModel>, id: string) =>
-    m.archi.find((a) => a.da.nodo === id && a.stile === 'standard')!.a.nodo
+    m.archi.find((a) => a.da.nodo === id && a.stile !== 'condensa' && a.forma !== 'ponte')!.a.nodo
 
   it('mette due giunzioni nel modello, di origine scheda', () => {
     const m = conBypass(['F1', 'E1', 'F2'])
@@ -750,7 +752,7 @@ describe('il by-pass nel modello', () => {
     // valvola del gomito lo passa a flessibile per la sola gamba che scende. E parte dal FIANCO
     // del capo di monte: e' il lato imposto a dare la forma, e con l'ancora `alto` la corsa
     // cadrebbe a mezza quota (il test gemello sta in `layout.test.ts`).
-    const ponte = conBypass(['F1', 'E1', 'F2']).archi.filter((a) => a.forma === 'ponte')
+    const ponte = conBypass(['F1', 'E1']).archi.filter((a) => a.forma === 'ponte')
     expect(ponte).toHaveLength(1)
     expect(ponte[0]).toMatchObject({
       da: { nodo: 'BP1-IN', ancora: 'dx' },
@@ -764,7 +766,7 @@ describe('il by-pass nel modello', () => {
     // di monte. Gli scarti sono di DUE passi di griglia e non uno — il committente ha abbassato
     // le valvole della mandata il 18-08-2026, e le due misure devono restare uguali o due valvole
     // affiancate nel disegno starebbero a quote diverse.
-    const ponte = conBypass(['F1', 'E1', 'F2']).archi.find((a) => a.forma === 'ponte')!
+    const ponte = conBypass(['F1', 'E1']).archi.find((a) => a.forma === 'ponte')!
     expect(ponte.segni).toHaveLength(2)
     const [centro, valle] = ponte.segni!
     expect(centro.ancoraggio).toEqual({ tipo: 'meta', tratto: 0 })
@@ -794,7 +796,7 @@ describe('il by-pass nel modello', () => {
     // Il legame che il committente ha chiesto esplicitamente: se un giorno si ritocca uno dei due
     // numeri senza l'altro, questo test cade. Dal Blocco 5 il primo segno del ponte e' quello a
     // META' tratto, che uno scarto non ce l'ha: si pesca quello ancorato a un VERTICE.
-    const m = conBypass(['F1', 'E1', 'F2'])
+    const m = conBypass(['F1', 'E1'])
     const mandata = m.archi.find((a) => a.stile === 'flessibile' && a.forma !== 'ponte')!.segni![0]
     const ponte = m.archi
       .find((a) => a.forma === 'ponte')!
@@ -837,12 +839,69 @@ describe('il by-pass nel modello', () => {
     expect(dopo(m, 'S1')).toBe('F1')
   })
 
+  // 10-11-2026, dal disegno corretto a mano dal committente: quando dopo il by-pass ci sono solo
+  // le utenze, il capo di valle sta in ALTO sulla quota del ponte e la linea prosegue da lì.
+  describe('il by-pass che chiude la linea', () => {
+    it('il ponte arriva di fianco al capo di valle, con la sola valvola di mezzo', () => {
+      const ponte = conBypass(['F1', 'E1', 'F2']).archi.find((a) => a.forma === 'ponte')!
+      expect(ponte).toMatchObject({
+        da: { nodo: 'BP1-IN', ancora: 'dx' },
+        a: { nodo: 'BP1-OUT', ancora: 'sx' },
+        stile: 'standard',
+      })
+      expect(ponte.segni).toHaveLength(1)
+      expect(ponte.segni![0].ancoraggio).toEqual({ tipo: 'meta', tratto: 0 })
+    })
+
+    it('l’ultimo stadio sale al capo di valle col flessibile, e la valvola sta due passi sotto il TEE', () => {
+      const m = conBypass(['F1', 'E1', 'F2'])
+      const salita = m.archi.find((a) => a.da.nodo === 'F2' && a.a.nodo === 'BP1-OUT')!
+      expect(salita.da.ancora).toBe('dx')
+      expect(salita.a.ancora).toBe('basso')
+      expect(salita.stile).toBe('flessibile')
+      expect(salita.segni).toHaveLength(1)
+      // Lo specchio del montante di monte: rigido sopra la valvola, flessibile sotto.
+      expect(salita.segni![0].ancoraggio).toEqual({ tipo: 'vertice', vertice: 2, scarto: -20 })
+      expect(salita.segni![0].stileAValle).toBe('standard')
+      // Le valvole del by-pass restano tre: monte, mezzo, valle.
+      const monte = m.archi.find((a) => a.da.nodo === 'BP1-IN' && a.a.nodo === 'F1')!
+      const ponte = m.archi.find((a) => a.forma === 'ponte')!
+      expect([monte, ponte, salita].flatMap((a) => a.segni ?? [])).toHaveLength(3)
+    })
+
+    it('le utenze partono dal capo di valle', () => {
+      const m = conBypass(['F1', 'E1', 'F2'])
+      expect(m.archi.find((a) => a.a.nodo === ID_UTENZE)!.da).toEqual({ nodo: 'BP1-OUT', ancora: 'dx' })
+    })
+
+    it('un by-pass in mezzo alla linea resta com’era: capo di valle sulla linea, ponte che scende', () => {
+      const m = conBypass(['F1', 'E1'])
+      expect(m.archi.find((a) => a.forma === 'ponte')!.a.ancora).toBe('alto')
+      const uscita = m.archi.find((a) => a.da.nodo === 'E1' && a.a.nodo === 'BP1-OUT')!
+      expect(uscita).toMatchObject({ a: { ancora: 'sx' }, stile: 'standard' })
+    })
+
+    it('un by-pass che si chiude su un serbatoio non sale: il capo di valle sta alla sua uscita', () => {
+      const s = scheda()
+      const m = buildSchemaModel({
+        scheda: s,
+        collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+        preferenze: preferenzeRisolteDaScheda(s, {
+          ordineLinea: ['F1', 'E1', 'F2', 'S1'],
+          bypass: [{ id: 'bp1', stadi: ['S1'] }],
+        }),
+      })
+      expect(m.archi.find((a) => a.forma === 'ponte')!.a.ancora).toBe('alto')
+      expect(m.archi.find((a) => a.da.nodo === 'S1' && a.a.nodo === 'BP1-OUT')!.stile).toBe('standard')
+    })
+  })
+
   it('il ponte è rigido come gli archi di linea: senza `forma` non lo si distinguerebbe', () => {
     // Dal Blocco 5 il ponte non e' piu' flessibile come la mandata del compressore: e' `standard`
     // come la linea di processo, e chi filtra per stile lo raccoglie INSIEME AGLI ARCHI DI LINEA.
     // Serve `forma` per distinguerlo, ed e' il motivo per cui il campo esiste — la ragione e'
     // cambiata, il campo no.
-    const m = conBypass(['F1', 'E1', 'F2'])
+    const m = conBypass(['F1', 'E1'])
     expect(m.archi.filter((a) => a.stile === 'flessibile')).toHaveLength(1) // la sola mandata
     const standard = m.archi.filter((a) => a.stile === 'standard')
     expect(standard.filter((a) => a.forma === 'ponte')).toHaveLength(1)
@@ -872,6 +931,34 @@ describe('ordine libero della linea', () => {
     const mandata = model.archi.find((a) => a.stile === 'flessibile')
     expect(mandata?.da.nodo).toBe('C1')
     expect(mandata?.a.nodo).toBe('F1')
+  })
+
+  // 10-11-2026: il committente riattaccava a mano all'attacco basso ogni tubo che il generatore
+  // posava su quello alto di un serbatoio in mezzo alla linea. L'aria entra in basso ed esce in
+  // alto, dovunque il serbatoio stia nella sequenza.
+  it('un serbatoio in mezzo alla linea riceve in basso ed esce in alto', () => {
+    const model = buildSchemaModel({
+      scheda,
+      collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+      preferenze: preferenzeRisolteDaScheda(scheda, { ordineLinea: ['F1', 'S1', 'E1'] }),
+    })
+    const entrata = model.archi.find((a) => a.da.nodo === 'F1' && a.a.nodo === 'S1')
+    const uscita = model.archi.find((a) => a.da.nodo === 'S1' && a.a.nodo === 'E1')
+    expect(entrata?.a.ancora).toBe('sx-basso')
+    expect(uscita?.da.ancora).toBe('dx')
+    // Gli altri elementi ricevono su `sx`, la sola ancora d'ingresso che hanno.
+    expect(uscita?.a.ancora).toBe('sx')
+    expect(capoValido(model.nodi.find((n) => n.id === 'S1')!, 'sx-basso', 'standard')).toBe(true)
+  })
+
+  it('il serbatoio orizzontale, che un attacco basso non ce l’ha, riceve su sx', () => {
+    const orizzontale = { ...scheda, serbatoi: (scheda.serbatoi ?? []).map((s) => ({ ...s, orientamento: 'ORIZZONTALE' as const })) }
+    const model = buildSchemaModel({
+      scheda: orizzontale,
+      collegamentiCompressoriSerbatoi: { C1: ['S1'] },
+      preferenze: preferenzeRisolteDaScheda(orizzontale, { ordineLinea: ['F1', 'S1', 'E1'] }),
+    })
+    expect(model.archi.find((a) => a.da.nodo === 'F1' && a.a.nodo === 'S1')?.a.ancora).toBe('sx')
   })
 
   it('collega la sequenza in serie fino alle utenze', () => {

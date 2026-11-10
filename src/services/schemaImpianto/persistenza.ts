@@ -6,9 +6,9 @@
  * Del muro si salva la sola ascissa: l'altezza resta derivata dalle posizioni.
  */
 import { ancoraAmmette } from './agganci'
-import { layoutSchema, muroDaAscissa, DIMENSIONI_NODO, pozzoCondense } from './layout'
+import { layoutSchema, muroDaAscissa, muroOrizzontaleDaOrdinata, DIMENSIONI_NODO, pozzoCondense } from './layout'
 import type { Tarature } from './libreria'
-import { ancoraDi, ancoreDi, dimensioniDi } from './symbols'
+import { ancoraDi, ancoraUtenzePrimaDelRestringimento, ancoreDi, dimensioniDi } from './symbols'
 import type { SchemaArco, SchemaArea, SchemaCapo, SchemaLayout, SchemaModel, SchemaNodo, SchemaNodoPosizionato, SchemaTestoLibero } from './types'
 
 const VERSIONE = 1
@@ -31,6 +31,12 @@ export interface LayoutSalvato {
    * (`muroDaAscissa`, layout.ts).
    */
   muroX?: number
+  /**
+   * Ordinata del muro orizzontale (10-11-2026). Assente: nessuno. Come `muroX`: campo nuovo e
+   * opzionale, non alza `VERSIONE`, e se ne salva la sola ordinata — la lunghezza si ricava al
+   * disegno (`muroOrizzontaleDaOrdinata`, layout.ts).
+   */
+  muroY?: number
   /**
    * Taratura di pratica: vale solo per la pratica aperta, sopra la taratura permanente
    * (tabella `schema_simboli`, Task 9) e sotto nessuno — è l'ultimo strato che parla
@@ -60,6 +66,34 @@ export interface LayoutSalvato {
    * esistente.
    */
   preferenzeApplicate?: string
+  /**
+   * Generazione della geometria del terminale utenze con cui le posizioni dei nodi sono state
+   * scritte. Assente: prima del 10-11-2026, quando il riquadro del terminale aveva un pavimento
+   * di 200×120 e l'attacco `in` stava a 100 unità dall'origine del nodo; `2`: riquadro stretto
+   * sulla scritta. `deserializzaLayout` porta i primi alla forma di oggi spostando l'origine dei
+   * terminali, così l'attacco — e con lui punta, scritta e tubazione — resta dov'era.
+   *
+   * Un contrassegno e non `VERSIONE` alzata, per la ragione già decisa sugli altri campi: alzarla
+   * butterebbe via il layout salvato di ogni pratica esistente.
+   */
+  geometriaUtenze?: 2
+}
+
+const GEOMETRIA_UTENZE = 2
+
+/**
+ * Porta i terminali di un salvataggio scritto col riquadro largo alla geometria di oggi: l'origine
+ * si sposta di quanto si è spostato l'attacco dentro il riquadro, e l'attacco resta fermo sul
+ * foglio. La rotazione allora non esisteva, quindi il confronto è sempre con la freccia in su.
+ */
+function terminaliRistretti(nodi: SchemaNodoPosizionato[]): SchemaNodoPosizionato[] {
+  return nodi.map((n) => {
+    if (n.tipo !== 'utenze') return n
+    const prima = ancoraUtenzePrimaDelRestringimento(n.etichetta)
+    const ora = ancoraDi(n, 'in')
+    if (!ora) return n
+    return { ...n, x: n.x + prima.x - ora.x, y: n.y + prima.y - ora.y }
+  })
 }
 
 /**
@@ -78,6 +112,8 @@ export function serializzaLayout(
   // (che muta x/y in place sullo stesso oggetto) si propagherebbe dentro al "salvato".
   return {
     versione: VERSIONE,
+    // Sempre: chi scrive oggi scrive posizioni misurate sul riquadro stretto del terminale.
+    geometriaUtenze: GEOMETRIA_UTENZE,
     nodi: structuredClone(layout.nodi),
     archi: structuredClone(layout.archi),
     testi: structuredClone(layout.testi ?? []),
@@ -85,6 +121,7 @@ export function serializzaLayout(
     // scritto prima che il campo esistesse.
     ...(layout.aree && layout.aree.length > 0 ? { aree: structuredClone(layout.aree) } : {}),
     ...(layout.muro ? { muroX: layout.muro.x } : {}),
+    ...(layout.muroOrizzontale ? { muroY: layout.muroOrizzontale.y } : {}),
     // Omesso, non `{}`, quando non c'è nulla da tarare: un `simboli: {}` scritto sempre
     // renderebbe "assente" e "tarata a vuoto" indistinguibili nel salvato, come già per `muroX`.
     ...(simboli && Object.keys(simboli).length > 0 ? { simboli: structuredClone(simboli) } : {}),
@@ -113,10 +150,16 @@ export function deserializzaLayout(
 ): SchemaLayout | null {
   if (!salvato || salvato.versione !== VERSIONE) return null
   if (!contenutoRiconoscibile(salvato)) return null
+  const nodi = salvato.geometriaUtenze === GEOMETRIA_UTENZE ? salvato.nodi : terminaliRistretti(salvato.nodi)
   return {
-    nodi: salvato.nodi,
+    nodi,
     archi: salvato.archi,
-    muro: typeof salvato.muroX === 'number' ? muroDaAscissa(salvato.muroX, salvato.nodi, libreria) : null,
+    muro: typeof salvato.muroX === 'number' ? muroDaAscissa(salvato.muroX, nodi, libreria) : null,
+    // Omesso, non `null`, quando non c'è: un layout riletto senza muro orizzontale resta identico
+    // a uno riletto prima che il campo esistesse.
+    ...(typeof salvato.muroY === 'number'
+      ? { muroOrizzontale: muroOrizzontaleDaOrdinata(salvato.muroY, nodi, libreria) }
+      : {}),
     testi: salvato.testi ?? [],
     ...(salvato.aree ? { aree: salvato.aree } : {}),
   }
@@ -357,6 +400,7 @@ export function riconcilia(
   salvato: Pick<SchemaLayout, 'nodi' | 'archi'> & {
     testi?: SchemaTestoLibero[]
     muro?: SchemaLayout['muro']
+    muroOrizzontale?: SchemaLayout['muroOrizzontale']
     aree?: SchemaArea[]
   },
   modello: SchemaModel,
@@ -382,7 +426,10 @@ export function riconcilia(
       // cambiare (le altre vengono dalla scheda dati e vanno riscritte da lì): riscriverla
       // renderebbe inutile poterla cambiare.
       const etichetta = n.tipo === 'utenze' ? n.etichetta : daScheda.etichetta
-      return { ...daScheda, etichetta, x: n.x, y: n.y }
+      // E la rotazione, per la stessa ragione: è una scelta fatta sulla tela, e il nodo appena
+      // ricostruito dalla scheda non la porta.
+      const rotazione = n.tipo === 'utenze' && n.rotazione ? { rotazione: n.rotazione } : {}
+      return { ...daScheda, etichetta, ...rotazione, x: n.x, y: n.y }
     })
   // Le giunzioni restano fuori dagli avvisi come il terminale utenze (vedi `daAnnunciare`): non
   // sono apparecchiature, non vengono dalla scheda e non entrano in lista. Sciogliendo un
@@ -523,7 +570,17 @@ export function riconcilia(
 
   // Le aree, come i testi, sono manuali per definizione: la scheda non le conosce e le riporta intatte.
   return {
-    layout: { nodi, archi, muro, testi, ...(salvato.aree ? { aree: salvato.aree } : {}) },
+    layout: {
+      nodi,
+      archi,
+      muro,
+      testi,
+      ...(salvato.aree ? { aree: salvato.aree } : {}),
+      // Manuale come il verticale, e ricostruito sui nodi di ADESSO per la stessa ragione.
+      ...(salvato.muroOrizzontale
+        ? { muroOrizzontale: muroOrizzontaleDaOrdinata(salvato.muroOrizzontale.y, nodi, libreria) }
+        : {}),
+    },
     aggiunti,
     aggiuntiDaScheda,
     rimossi,

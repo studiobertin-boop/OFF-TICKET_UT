@@ -67,6 +67,12 @@ export interface SchemaNodo {
   etichetta: string
   /** Solo per tipo 'serbatoio'. */
   orientamento?: 'VERTICALE' | 'ORIZZONTALE'
+  /**
+   * Solo per tipo 'utenze': di quanti gradi, in senso orario, è ruotato il terminale. Assente
+   * vale 0 — la freccia in su, la forma di ogni terminale salvato prima del 10-11-2026. La
+   * scritta non ruota: resta orizzontale, oltre la punta (`geometriaUtenze`, symbols/index.ts).
+   */
+  rotazione?: 0 | 90 | 180 | 270
   /** Solo per tipo 'filtro': i prefiltri stanno a monte dell'essiccatore, gli altri a valle. */
   prefiltro?: boolean
   gruppo: SchemaGruppo
@@ -226,7 +232,16 @@ export interface SchemaSegnoTubo {
  * scrive i `punti` assoluti e la toglie. Non compare mai in un layout salvato — per questo il
  * formato su disco non cambia.
  */
-export type SchemaFormaArco = 'ponte'
+export type SchemaFormaArco =
+  | 'ponte'
+  /**
+   * La mandata di un compressore quando la testa della linea è il TEE di monte di un by-pass
+   * (10-11-2026): montante che sale dal compressore, collettore alla quota comune, e risalita
+   * sull'ascissa del TEE, che riceve dal basso. Senza gomiti, col TEE che imponeva il lato `sx`,
+   * `rottaImboccata` faceva uscire il tubo di FIANCO dal cielo del compressore e lo portava su
+   * fino alla quota del ponte: il montante con la valvola spariva.
+   */
+  | 'collettore'
 
 export interface SchemaArco {
   id: string
@@ -265,6 +280,18 @@ export interface SchemaMuroSeparazione {
   x: number
   yMin: number
   yMax: number
+}
+
+/**
+ * Muro ORIZZONTALE (10-11-2026): lo stesso oggetto del muro di separazione, coricato — per un
+ * impianto disposto su due piani, o con la sala compressori sopra o sotto la linea. Stesse
+ * logiche del verticale: lo aggiunge e lo sposta il committente, se ne salva la sola ordinata, la
+ * lunghezza si ricava dal disegno e i varchi dalle tubazioni che lo attraversano davvero.
+ */
+export interface SchemaMuroOrizzontale {
+  y: number
+  xMin: number
+  xMax: number
 }
 
 /**
@@ -309,6 +336,12 @@ export interface SchemaLayout {
   nodi: SchemaNodoPosizionato[]
   archi: SchemaArco[]
   muro: SchemaMuroSeparazione | null
+  /**
+   * Il muro orizzontale. Opzionale anche in memoria, come `aree` e per la stessa ragione: ogni
+   * lettore usa `?? null`, e renderlo obbligatorio romperebbe senza guadagno ogni `SchemaLayout`
+   * letterale. Assente e `null` sono la stessa cosa: nessun muro orizzontale.
+   */
+  muroOrizzontale?: SchemaMuroOrizzontale | null
   /**
    * Annotazioni libere. Obbligatorio: ogni produttore di `SchemaLayout` ne porta sempre una
    * lista, mai `undefined` (`layoutSchema`, `deserializzaLayout`, `riconcilia`, `flowALayout`

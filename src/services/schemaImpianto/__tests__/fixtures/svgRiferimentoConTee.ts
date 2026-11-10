@@ -201,6 +201,10 @@
  * (+40, il foglio si allunga) e le ordinate: la GIUNZIONE scende di 10 (sta a meta' del tubo
  * S1 → UTENZE, che nasce dall'ancora `dx` del serbatoio, scesa con il corpo), e con lei il
  * terminale e i due tratti che la toccano. Nessuna ascissa.
+ *
+ * Rigenerato il 10-11-2026: il riquadro del terminale utenze è stretto sulla scritta (stesso
+ * disegno sul foglio — l'origine del nodo si sposta di 60 e le coordinate locali di altrettanto)
+ * e la giunzione non porta più il pallino nel documento.
  */
 export const RIGHE_SVG_RIFERIMENTO_CON_TEE = [
   `<svg xmlns="http://www.w3.org/2000/svg" width="730" height="842" viewBox="0 0 730 842">`,
@@ -213,8 +217,8 @@ export const RIGHE_SVG_RIFERIMENTO_CON_TEE = [
   `<path d="M 570 370 L 580 370" fill="none" stroke="#000" stroke-width="2" />`,
   `<g transform="translate(40 330)"><rect x="0" y="0" width="120" height="120" fill="none" stroke="#000" stroke-width="2" /><circle cx="60" cy="60" r="30" fill="none" stroke="#000" stroke-width="2" /><path d="M 46.5 33.3 L 86.1 45" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M 46.5 86.7 L 86.1 75" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><text x="10" y="20" font-family="Arial, Helvetica, sans-serif" font-size="24" text-anchor="start" dominant-baseline="central" fill="#000">C1</text></g>`,
   `<g transform="translate(250 270)"><rect x="0" y="50" width="310" height="100" rx="50" ry="50" fill="none" stroke="#000" stroke-width="2" /><text x="192.2" y="100" font-family="Arial, Helvetica, sans-serif" font-size="24" text-anchor="middle" dominant-baseline="central" fill="#000">S1</text><path d="M 70 50 L 70 44" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><rect x="62.5" y="24" width="15" height="20" fill="none" stroke="#000" stroke-width="2" /><path d="M 62.5 29.4 L 77.5 29.4" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M 63.5 31.346666666666664 L 76.5 35.24 M 76.5 35.24 L 63.5 39.13333333333333 M 63.5 39.13333333333333 L 76.5 43.026666666666664" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><text x="70" y="12" font-family="Arial, Helvetica, sans-serif" font-size="14" text-anchor="middle" dominant-baseline="central" fill="#000">S1.1</text><path d="M 235.5 150 L 244.5 150 L 240 159 Z M 235.5 168 L 244.5 168 L 240 159 Z" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M 234.6 159 L 240 159" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M 234.6 156.525 L 234.6 161.475" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /><path d="M 240 168 L 240 180" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" /></g>`,
-  `<g transform="translate(480 200)"><path d="M 100 170 L 100 68.5" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="10 7" /><path d="M 94 69.5 L 100 56.5 L 106 69.5 Z" fill="#000" /><text xml:space="preserve" font-family="Arial, Helvetica, sans-serif" font-size="18" text-anchor="middle" dominant-baseline="central" fill="#000"><tspan x="100" y="19">Utenze</tspan><tspan x="100" y="41.5">aria</tspan></text></g>`,
-  `<g transform="translate(560 360)"><circle cx="10" cy="10" r="2.5" fill="#000" /></g>`,
+  `<g transform="translate(540 200)"><path d="M 40 170 L 40 68.5" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="10 7" /><path d="M 34 69.5 L 40 56.5 L 46 69.5 Z" fill="#000" /><text xml:space="preserve" font-family="Arial, Helvetica, sans-serif" font-size="18" text-anchor="middle" dominant-baseline="central" fill="#000"><tspan x="40" y="19">Utenze</tspan><tspan x="40" y="41.5">aria</tspan></text></g>`,
+  `<g transform="translate(560 360)"><circle cx="10" cy="10" r="1" fill="#000" /></g>`,
   `<rect x="40" y="530" width="650" height="34" fill="none" stroke="#000" stroke-width="2" />`,
   `<text x="365" y="547" font-family="Arial, Helvetica, sans-serif" font-size="20" text-anchor="middle" dominant-baseline="central" fill="#000">LISTA APPARECCHIATURE</text>`,
   `<rect x="40" y="564" width="650" height="34" fill="none" stroke="#000" stroke-width="1" />`,

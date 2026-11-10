@@ -17,7 +17,9 @@ import {
   latoImposto,
   riduttorePressione,
   simboloDi,
+  simboloGiunzioneNelDocumento,
   simboloMuro,
+  simboloMuroOrizzontale,
   simboloArea,
   testoMultiRiga,
   valvolaIntercettazione,
@@ -25,6 +27,7 @@ import {
   FONT,
   TESTO_LIBERO,
   TRATTO,
+  SPESSORE_MURO,
   TRATTEGGIO_CONDENSE,
   sfasamentoCondense,
 } from './symbols'
@@ -33,6 +36,7 @@ import {
   ondula,
   percorso,
   puntoSuTratto,
+  ascisseAttraversamento,
   quoteAttraversamento,
   tronconi,
   type Punto,
@@ -157,10 +161,12 @@ function renderArchi(
   layout: SchemaLayout,
   quote: QuoteInstradamento,
   libreria: Tarature = {}
-): { svg: string; varchi: number[] } {
+): { svg: string; varchi: number[]; varchiOrizzontali: number[] } {
   const indice = new Map(layout.nodi.map((n) => [n.id, n]))
   const parti: string[] = []
   const varchi: number[] = []
+  // Le ASCISSE a cui le tubazioni attraversano il muro orizzontale, se c'è.
+  const varchiOrizzontali: number[] = []
 
   for (const arco of layout.archi) {
     const da = indice.get(arco.da.nodo)
@@ -191,9 +197,12 @@ function renderArchi(
       parti.push(disegnaSegno(punto.x, punto.y, orizzontale ? 'orizzontale' : 'verticale'))
     }
     if (layout.muro) varchi.push(...quoteAttraversamento(reso.punti, layout.muro.x))
+    if (layout.muroOrizzontale) {
+      varchiOrizzontali.push(...ascisseAttraversamento(reso.punti, layout.muroOrizzontale.y))
+    }
   }
 
-  return { svg: parti.join(''), varchi }
+  return { svg: parti.join(''), varchi, varchiOrizzontali }
 }
 
 /**
@@ -410,7 +419,14 @@ export function renderSvg(layout: SchemaLayout, libreria: Tarature = {}, options
   const righe = [...righeLista(layout), ...righeLegenda(layout)]
 
   const aree = layout.aree ?? []
-  const foglio = foglioConAree(dimensioniDisegno, aree)
+  const muroOrizzontale = layout.muroOrizzontale ?? null
+  // Il muro orizzontale allarga il FOGLIO come un'area, e per la stessa ragione non entra in
+  // `dimensioniLayout`: quella alimenta le quote di instradamento, e posare un muro sotto il
+  // disegno sposterebbe la corsia delle condense.
+  const conAree = foglioConAree(dimensioniDisegno, aree)
+  const foglio = muroOrizzontale
+    ? { ...conAree, altezza: Math.max(conAree.altezza, muroOrizzontale.y + SPESSORE_MURO + MARGINE) }
+    : conAree
 
   const quote = quoteInstradamento(layout, libreria)
   const yNota = foglio.altezza + MARGINE
@@ -433,11 +449,22 @@ export function renderSvg(layout: SchemaLayout, libreria: Tarature = {}, options
     ...(note.length > 0 ? [nota.x + nota.larghezza + MARGINE] : [])
   )
 
+  // La giunzione non si disegna come sulla tela: il pallino del TEE è un aiuto alla costruzione,
+  // e nel documento non compare (vedi `simboloGiunzioneNelDocumento`). La tela continua a
+  // mostrarlo — passa da `simboloDi` in `SchemaNodeSymbol`, non da qui.
   const nodi = layout.nodi
-    .map((nodo) => `<g transform="translate(${nodo.x} ${nodo.y})">${simboloDi(nodo, libreria)}</g>`)
+    .map((nodo) => {
+      const simbolo = nodo.tipo === 'giunzione' ? simboloGiunzioneNelDocumento() : simboloDi(nodo, libreria)
+      return `<g transform="translate(${nodo.x} ${nodo.y})">${simbolo}</g>`
+    })
     .join('')
   const muro = layout.muro
     ? simboloMuro(layout.muro.x, layout.muro.yMin, layout.muro.yMax, archi.varchi)
+    : ''
+
+  // Stringa vuota senza muro orizzontale: il documento di chi non ne ha non cambia di un byte.
+  const muroCoricato = muroOrizzontale
+    ? simboloMuroOrizzontale(muroOrizzontale.y, muroOrizzontale.xMin, muroOrizzontale.xMax, archi.varchiOrizzontali)
     : ''
 
   return [
@@ -446,6 +473,7 @@ export function renderSvg(layout: SchemaLayout, libreria: Tarature = {}, options
     // Le aree per prime: delimitano, e tutto il resto va letto sopra di loro.
     aree.map(simboloArea).join(''),
     muro,
+    muroCoricato,
     archi.svg,
     nodi,
     renderTestiLiberi(layout.testi ?? []),
@@ -464,4 +492,9 @@ export function renderSvg(layout: SchemaLayout, libreria: Tarature = {}, options
  */
 export function varchiDelMuro(layout: SchemaLayout, libreria: Tarature = {}): number[] {
   return renderArchi(layout, quoteInstradamento(layout, libreria), libreria).varchi
+}
+
+/** Lo stesso per il muro orizzontale: le ascisse a cui le tubazioni lo attraversano. */
+export function varchiDelMuroOrizzontale(layout: SchemaLayout, libreria: Tarature = {}): number[] {
+  return renderArchi(layout, quoteInstradamento(layout, libreria), libreria).varchiOrizzontali
 }

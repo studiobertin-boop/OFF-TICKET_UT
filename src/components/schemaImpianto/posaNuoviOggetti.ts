@@ -5,6 +5,7 @@
  * `--max-warnings 0`.
  */
 import type { Node } from '@xyflow/react'
+import { SCARTO_INCOLLA } from '@/services/schemaImpianto/appunti'
 import { allineaAllaGriglia } from '@/services/schemaImpianto/griglia'
 import { estensioneOrizzontale } from '@/services/schemaImpianto/layout'
 import type { Tarature } from '@/services/schemaImpianto/libreria'
@@ -58,4 +59,60 @@ export function sopraIlBordoSinistro(
   }))
   const destra = estensioneOrizzontale(nodi, testi, null, libreria).destra
   return { x: allineaAllaGriglia(destra + STACCO_LATERALE), y: allineaAllaGriglia(cima) }
+}
+
+/** Un rettangolo della tela, in unità del disegno. */
+export interface RettangoloTela {
+  x: number
+  y: number
+  larghezza: number
+  altezza: number
+}
+
+/**
+ * Quanto il nuovo oggetto nasce scostato dal punto dell'ultimo clic: in alto a destra, tre passi
+ * di griglia. Esattamente sul punto finirebbe sopra ciò che si è appena cliccato — di solito il
+ * tubo o il simbolo a cui lo si vuole collegare — coprendone l'attacco.
+ */
+const SCARTO_DAL_PUNTO = 30
+
+/**
+ * Dove nasce un TEE preso dalla palette: accanto al punto in cui si stava lavorando (10-11-2026).
+ * Con `sopraIlBordoSinistro` nasceva sopra la cima del disegno, sul bordo sinistro: su uno schema
+ * largo, a un TEE che serve quasi sempre in mezzo alla linea toccava attraversare tutta la tela.
+ *
+ * «Dove si stava lavorando» è l'ULTIMO PUNTO PREMUTO sulla tela, finché è ancora inquadrato; se
+ * non c'è (editor appena aperto) o è uscito dall'inquadratura (si è scorso altrove dopo l'ultimo
+ * clic), è il centro di ciò che la tela mostra adesso — che è comunque dove si sta guardando.
+ *
+ * Mai sotto zero, per la stessa ragione di `sopraIlBordoSinistro`: il documento misura il disegno
+ * dal bordo in giù. E mai esattamente sopra un nodo che sta già lì: due TEE aggiunti di fila
+ * senza toccare la tela si impilerebbero in un pallino solo, e il secondo sembrerebbe non nato.
+ */
+export function vicinoAlPuntoDiLavoro(
+  ultimoPunto: { x: number; y: number } | null,
+  inquadratura: RettangoloTela,
+  dimensioni: { larghezza: number; altezza: number },
+  nodes: Node[]
+): { x: number; y: number } {
+  const inquadrato =
+    ultimoPunto !== null &&
+    ultimoPunto.x >= inquadratura.x &&
+    ultimoPunto.x <= inquadratura.x + inquadratura.larghezza &&
+    ultimoPunto.y >= inquadratura.y &&
+    ultimoPunto.y <= inquadratura.y + inquadratura.altezza
+  // Il CENTRO dell'oggetto, poi riportato al suo angolo: è il centro che deve stare vicino al
+  // punto, qualunque sia la misura del simbolo.
+  const centro =
+    inquadrato && ultimoPunto
+      ? { x: ultimoPunto.x + SCARTO_DAL_PUNTO, y: ultimoPunto.y - SCARTO_DAL_PUNTO }
+      : { x: inquadratura.x + inquadratura.larghezza / 2, y: inquadratura.y + inquadratura.altezza / 2 }
+  let x = Math.max(0, allineaAllaGriglia(centro.x - dimensioni.larghezza / 2))
+  let y = Math.max(0, allineaAllaGriglia(centro.y - dimensioni.altezza / 2))
+  const occupato = () => nodes.some((n) => n.position.x === x && n.position.y === y)
+  while (occupato()) {
+    x += SCARTO_INCOLLA
+    y += SCARTO_INCOLLA
+  }
+  return { x, y }
 }

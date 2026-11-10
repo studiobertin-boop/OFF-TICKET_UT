@@ -64,7 +64,14 @@ import type { SchemaArco, SchemaLatoAncora, SchemaLayout } from './types'
  * un layout riaperto vale lo stesso, e per la stessa ragione per cui prima le si ricalcolava: la
  * quota che conta è quella che il nodo ha ADESSO, spostato a mano o no.
  */
-export function risolviPonti(layout: SchemaLayout, libreria: Tarature = {}): SchemaLayout {
+export function risolviPonti(
+  layout: SchemaLayout,
+  libreria: Tarature = {},
+  /** La quota del collettore dei compressori (`quotaCollettore`, layout.ts): serve alle mandate
+   *  `forma: 'collettore'`. Arriva dal chiamante per la ragione scritta in testa al file. Assente:
+   *  quelle mandate restano senza gomiti, e la `forma` gli viene comunque tolta. */
+  yCollettore?: number
+): SchemaLayout {
   const perId = new Map(layout.nodi.map((n) => [n.id, n]))
   const capi = (arco: SchemaArco) => {
     const da = perId.get(arco.da.nodo)
@@ -87,12 +94,20 @@ export function risolviPonti(layout: SchemaLayout, libreria: Tarature = {}): Sch
     }
   }
 
-  const ponti = layout.archi
-    .map((arco, i) => ({ arco, i, punti: arco.forma === 'ponte' ? capi(arco) : null }))
-    .filter((v) => v.punti !== null)
-  if (ponti.length === 0) return layout
+  if (!layout.archi.some((arco) => arco.forma !== undefined)) return layout
 
   const archi = layout.archi.map((arco) => {
+    if (arco.forma === 'collettore') {
+      const risolto = { ...arco }
+      delete risolto.forma
+      const punti = capi(arco)
+      if (!punti || yCollettore === undefined) return risolto
+      // Montante fino al collettore, collettore fino all'ascissa del TEE: da lì il tubo sale (o
+      // scende) dritto nel TEE. Cinque... no: QUATTRO vertici, e il vertice 1 è il primo gomito —
+      // lo stesso su cui la mandata ordinaria ancora la sua valvola (`rottaFlessibile`), così la
+      // valvola sta due passi sotto il collettore in tutti e due i casi.
+      return { ...risolto, punti: [{ x: punti.da.x, y: yCollettore }, { x: punti.a.x, y: yCollettore }] }
+    }
     if (arco.forma !== 'ponte') return gradinoVersoIlTee(arco, capi(arco), lati(arco))
     const risolto = { ...arco }
     // La chiave si TOGLIE, non si mette a `undefined`: un layout che la portasse, anche vuota, non
@@ -107,6 +122,11 @@ export function risolviPonti(layout: SchemaLayout, libreria: Tarature = {}): Sch
     // Un gomito SOLO: il ponte parte dal capo di monte, che dal Blocco 5 è già alla sua quota,
     // corre orizzontale e scende sul capo di valle. Tre vertici, due tratti — ed è su quel conto
     // che si appoggiano i due ancoraggi delle valvole del ponte.
+    //
+    // Nessun gomito quando i due capi stanno già alla stessa quota — il by-pass che chiude la
+    // linea, col capo di valle in alto (`buildArchi`): il ponte è un segmento solo, e un gomito
+    // posato sul capo d'arrivo sarebbe un tratto di lunghezza nulla.
+    if (punti.da.y === punti.a.y) return risolto
     return { ...risolto, punti: [{ x: punti.a.x, y: punti.da.y }] }
   })
 

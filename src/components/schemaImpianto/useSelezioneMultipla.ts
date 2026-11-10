@@ -30,6 +30,9 @@ export interface StatoSelezionabile {
   testi: SchemaTestoLibero[]
   aree: SchemaArea[]
   muroX: number | null
+  /** Opzionale: assente vale «nessun muro orizzontale», come per ogni stato scritto prima del
+   *  10-11-2026. */
+  muroY?: number | null
 }
 
 type Aggiorna<T> = (prossimo: T | ((corrente: T) => T)) => void
@@ -90,6 +93,8 @@ export function statoSenzaSelezione<T extends StatoSelezionabile>(s: T, libere: 
     testi: s.testi.filter((t) => !testi.has(t.id)),
     aree: s.aree.filter((a) => !aree.has(a.id)),
     muroX: muro ? null : s.muroX,
+    // Scritto solo se lo stato lo porta: uno stato senza il campo resta senza.
+    ...(s.muroY === undefined ? {} : { muroY: libere.some((e) => e.tipo === 'muro-orizzontale') ? null : s.muroY }),
   }
 }
 
@@ -99,6 +104,8 @@ export function libereEsistenti(s: StatoSelezionabile, libere: ElementoLibero[])
     switch (e.tipo) {
       case 'muro':
         return s.muroX !== null
+      case 'muro-orizzontale':
+        return (s.muroY ?? null) !== null
       case 'testo':
         return s.testi.some((t) => t.id === e.id)
       case 'area':

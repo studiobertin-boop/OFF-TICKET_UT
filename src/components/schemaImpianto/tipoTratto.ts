@@ -16,6 +16,13 @@ import type { SchemaArcoStile, SchemaSegnoTubo } from '@/services/schemaImpianto
  * è lo stile dell'arco. Guardare l'indice invece della posizione scriverebbe sul segno sbagliato,
  * e il cambio comparirebbe dall'altra parte del disegno.
  *
+ * **Il segno su cui si agisce è sempre un confine** (10-11-2026). Cambiare il tratto «prima» non
+ * deve toccare quello «dopo»: se il segno non dichiarava ancora un tipo a valle, lo si fissa a
+ * quello che il tubo aveva lì un attimo prima del cambio. Senza, il cambio scritto sullo stile
+ * dell'arco (o sul segno precedente) correva oltre la valvola fino in fondo — il committente
+ * impostava «flessibile» fra valvola e compressore e si ritrovava flessibile anche il tratto fra
+ * valvola e serbatoio, da rimettere rigido a mano.
+ *
  * Non muta nulla: restituisce lo stile dell'arco e la lista dei segni come devono diventare.
  */
 export function cambioTipoTratto(
@@ -39,9 +46,15 @@ export function cambioTipoTratto(
     .filter(({ s }) => s.stileAValle && s.t < scelto.t)
     .sort((primo, secondo) => secondo.s.t - primo.s.t)[0]
 
-  if (!precedente) return { stileArco: stile, segni }
+  // Il tipo che il tubo ha ADESSO a valle del segno scelto: il suo, se lo dichiara, altrimenti
+  // quello del tratto in cui cade — cioè proprio quello che si sta per cambiare. Fissarlo sul
+  // segno è ciò che ferma il cambio alla valvola.
+  const aValleAdesso = scelto.stileAValle ?? precedente?.s.stileAValle ?? stileArco
+  const fermati = segni.map((s, i) => (i === indice ? { ...s, stileAValle: aValleAdesso } : s))
+
+  if (!precedente) return { stileArco: stile, segni: fermati }
   return {
     stileArco,
-    segni: segni.map((s, i) => (i === precedente.i ? { ...s, stileAValle: stile } : s)),
+    segni: fermati.map((s, i) => (i === precedente.i ? { ...s, stileAValle: stile } : s)),
   }
 }

@@ -234,6 +234,21 @@ export function quoteAttraversamento(punti: Punto[], x: number): number[] {
 }
 
 /**
+ * Ascisse alle quali una polilinea attraversa l'orizzontale `y`: il gemello di
+ * `quoteAttraversamento`, per i varchi del muro orizzontale. Contano i soli tratti VERTICALI —
+ * un tubo che corre lungo il muro alla sua stessa quota non lo attraversa.
+ */
+export function ascisseAttraversamento(punti: Punto[], y: number): number[] {
+  const ascisse: number[] = []
+  for (let i = 1; i < punti.length; i++) {
+    const a = punti[i - 1]
+    const b = punti[i]
+    if (a.x === b.x && Math.min(a.y, b.y) <= y && y <= Math.max(a.y, b.y)) ascisse.push(a.x)
+  }
+  return ascisse
+}
+
+/**
  * Punto lungo una polilinea GIÀ RISOLTA (compresi i gomiti automatici di
  * `polilineaConGomiti`) a una frazione `t` della lunghezza totale — non del numero di
  * segmenti, o un tratto lungo poco sposterebbe il segno quanto uno lungo molto. Ritorna anche
@@ -540,6 +555,13 @@ function rottaImboccata(pDa: Punto, pA: Punto, lati: LatiImposti): Punto[] {
 
   // Due capi su assi diversi: un angolo solo li soddisfa entrambi.
   if (vDa !== vA) return dedup([pDa, vDa ? { x: pDa.x, y: pA.y } : { x: pA.x, y: pDa.y }, pA])
+
+  // Due capi sullo stesso asse e GIÀ allineati su di esso: un segmento solo. Senza il caso
+  // esplicito la spezzata qui sotto lascerebbe un vertice collineare a metà strada — `dedup`
+  // toglie i coincidenti, non i collineari — cioè due tratti dove ce n'è uno. È la stessa trappola
+  // già scritta su `rottaLinea`, e qui è scattata il 10-11-2026: il ponte di un by-pass che chiude
+  // la linea è dritto fra due TEE, e la valvola «a metà del tratto 0» finiva a un quarto.
+  if (vDa ? pDa.x === pA.x : pDa.y === pA.y) return dedup([pDa, pA])
 
   // Due capi sullo stesso asse: servono due angoli, e la piega sta a metà — la scelta
   // simmetrica, l'unica che non privilegia un capo sull'altro.

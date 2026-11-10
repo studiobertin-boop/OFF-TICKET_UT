@@ -19,7 +19,30 @@ describe('cambioTipoTratto', () => {
   it('verso il capo di partenza, senza nessun segno prima, scrive sullo stile dell’arco', () => {
     const esito = cambioTipoTratto('flessibile', [segno('V1', 0.5)], 0, 'da', 'standard')
     expect(esito.stileArco).toBe('standard')
-    expect(esito.segni[0].stileAValle).toBeUndefined()
+    // Il tratto «dopo» resta com'era: la valvola lo fissa (vedi il test dedicato più sotto).
+    expect(esito.segni[0].stileAValle).toBe('flessibile')
+  })
+
+  // Il difetto segnalato il 10-11-2026: mandata rigida con una valvola, «flessibile» verso il
+  // compressore — e diventava flessibile tutto il tubo, anche fra valvola e serbatoio.
+  it('cambiare il tratto prima di una valvola non cambia quello dopo', () => {
+    const esito = cambioTipoTratto('standard', [segno('V1', 0.3)], 0, 'da', 'flessibile')
+    expect(esito.stileArco).toBe('flessibile')
+    expect(esito.segni[0].stileAValle).toBe('standard')
+  })
+
+  it('e viceversa: cambiare il tratto dopo non cambia quello prima', () => {
+    const esito = cambioTipoTratto('standard', [segno('V1', 0.3)], 0, 'a', 'flessibile')
+    expect(esito.stileArco).toBe('standard')
+    expect(esito.segni[0].stileAValle).toBe('flessibile')
+  })
+
+  it('con un segno dichiarato prima, il tratto dopo la valvola scelta resta quello di quel segno', () => {
+    const segni = [segno('V1', 0.2, 'flessibile'), segno('V2', 0.6)]
+    const esito = cambioTipoTratto('standard', segni, 1, 'da', 'condensa')
+    expect(esito.segni.find((s) => s.id === 'V1')!.stileAValle).toBe('condensa')
+    expect(esito.segni.find((s) => s.id === 'V2')!.stileAValle).toBe('flessibile')
+    expect(esito.stileArco).toBe('standard')
   })
 
   it('verso il capo di partenza scrive sul segno che precede LUNGO IL TUBO', () => {
@@ -38,7 +61,9 @@ describe('cambioTipoTratto', () => {
     const segni = [segno('V0', 0.1), segno('V1', 0.5)]
     const esito = cambioTipoTratto('flessibile', segni, 1, 'da', 'standard')
     expect(esito.stileArco).toBe('standard')
-    expect(esito.segni.every((s) => s.stileAValle === undefined)).toBe(true)
+    expect(esito.segni.find((s) => s.id === 'V0')!.stileAValle).toBeUndefined()
+    // Il segno scelto invece diventa un confine: a valle resta il tipo di prima.
+    expect(esito.segni.find((s) => s.id === 'V1')!.stileAValle).toBe('flessibile')
   })
 
   it('non tocca gli altri campi del segno', () => {

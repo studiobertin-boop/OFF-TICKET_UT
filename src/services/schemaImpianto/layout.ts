@@ -6,7 +6,7 @@
  * di trattamento (essiccatori/filtri) intrecciati nell'ordine che gli archi dichiarano — e il
  * pozzo di raccolta condense in basso a destra. Funzione pura: nessun DOM, testabile in Node.
  */
-import { assegnaCorsie, capoDiValleDi, eCapoDiMonte } from './bypass'
+import { assegnaCorsie, capoDiValleDi, eCapoDiMonte, ultimoScavalcato } from './bypass'
 import { risolviPonti, risolviSegniAncorati } from './segniAncorati'
 import type { Tarature } from './libreria'
 import {
@@ -24,6 +24,7 @@ import type { QuoteInstradamento } from './tratti'
 import type {
   SchemaLayout,
   SchemaModel,
+  SchemaMuroOrizzontale,
   SchemaMuroSeparazione,
   SchemaNodo,
   SchemaNodoPosizionato,
@@ -236,6 +237,15 @@ export const PASSO_TERMINALE = 20
  */
 export const PASSO_CORSIA_BYPASS = 90
 
+/**
+ * Spazio fra due giunzioni di by-pass consecutive — il capo di valle di un gruppo e quello di
+ * monte del successivo. Più di `PASSO_GIUNZIONE`: i due TEE stanno quasi sempre a quote DIVERSE
+ * (il primo sulla linea o sull'uscita del serbatoio, il secondo sulla corsia del ponte), e il tubo
+ * che li unisce fa un gradino a metà strada. A 20 unità quel gradino correva a 10 da ciascun
+ * pallino, e i due montanti si leggevano come uno solo (10-11-2026).
+ */
+export const PASSO_FRA_GIUNZIONI = 60
+
 function posiziona(nodo: SchemaNodo, x: number, y: number): SchemaNodoPosizionato {
   return { ...nodo, x, y }
 }
@@ -315,6 +325,42 @@ export function muroDaAscissa(
 ): SchemaMuroSeparazione | null {
   const inviluppo = inviluppoVerticale(nodi, libreria)
   return inviluppo ? { x, ...inviluppo } : null
+}
+
+/**
+ * Quanto il muro orizzontale sporge oltre le apparecchiature, per parte. Meno di `MARGINE` (40),
+ * di proposito: il foglio finisce a `MARGINE` dal bordo destro del disegno (`dimensioniLayout`),
+ * e un muro che sporgesse di più verrebbe tagliato dal documento.
+ */
+const SPORGENZA_MURO_ORIZZONTALE = 30
+
+/**
+ * Il muro orizzontale dalla sola ordinata salvata: il gemello di `muroDaAscissa`. La lunghezza
+ * segue le apparecchiature (il terminale utenze non conta, come per il verticale) e non scende
+ * sotto zero a sinistra, dove il foglio comincia.
+ */
+export function muroOrizzontaleDaOrdinata(
+  y: number,
+  nodi: SchemaNodoPosizionato[],
+  libreria: Tarature = {}
+): SchemaMuroOrizzontale | null {
+  const rilevanti = nodi.filter((n) => n.tipo !== 'utenze')
+  if (rilevanti.length === 0) return null
+  return {
+    y,
+    xMin: Math.max(0, Math.min(...rilevanti.map((n) => n.x)) - SPORGENZA_MURO_ORIZZONTALE),
+    xMax: Math.max(...rilevanti.map((n) => n.x + dimensioniDi(n, libreria).larghezza)) + SPORGENZA_MURO_ORIZZONTALE,
+  }
+}
+
+/**
+ * Ordinata proposta per un muro orizzontale appena aggiunto: sotto tutte le apparecchiature, a
+ * un passo dal disegno — dove non copre nulla e si vede subito, pronto da trascinare al suo posto.
+ */
+export function ordinataPropostaMuroOrizzontale(nodi: SchemaNodoPosizionato[], libreria: Tarature = {}): number {
+  const rilevanti = nodi.filter((n) => n.tipo !== 'utenze')
+  if (rilevanti.length === 0) return MARGINE
+  return Math.max(...rilevanti.map((n) => n.y + dimensioniDi(n, libreria).altezza)) + PASSO_ORIZZONTALE
 }
 
 /**
@@ -510,7 +556,10 @@ function disponiSequenza(
   xIniziale: number,
   quotaLinea: number,
   yBase: number,
-  libreria: Tarature = {}
+  libreria: Tarature = {},
+  /** I capi di valle che stanno alla quota del proprio ponte invece che sulla linea: quelli a
+   *  cui il ponte arriva di fianco (`buildArchi`, il by-pass che chiude la linea). */
+  valleSulPonte: Set<string> = new Set()
 ): { posizionati: SchemaNodoPosizionato[]; xFinale: number } {
   // Fra due elementi vale `PASSO_GIUNZIONE` se uno dei due e' un TEE, `PASSO_SERBATOI` fra due
   // serbatoi, `STACCO_SERBATOI_LINEA` quando si passa da un serbatoio a uno stadio o viceversa
@@ -535,6 +584,7 @@ function disponiSequenza(
   const gioco = (a: SchemaNodo, b: SchemaNodo) => {
     if (a.tipo === 'serbatoio' && b.tipo === 'serbatoio') return PASSO_SERBATOI
     if (a.tipo === 'serbatoio' || b.tipo === 'serbatoio') return STACCO_SERBATOI_LINEA
+    if (a.tipo === 'giunzione' && b.tipo === 'giunzione') return PASSO_FRA_GIUNZIONI
     if (a.tipo === 'giunzione' || b.tipo === 'giunzione') return PASSO_GIUNZIONE
     return GIOCO_FRA_STADI
   }
@@ -543,9 +593,23 @@ function disponiSequenza(
   // serve a scavalcare cio' che il suo ponte contiene (`offsetDeiCapiDiMonte`), non piu' di una
   // corsia fissa.
   const offsetDiCorsia = offsetDeiCapiDiMonte(nodi, quotaLinea, yBase, libreria)
-  const quotaDi = (nodo: SchemaNodo) => {
-    const offset = offsetDiCorsia.get(nodo.id)
-    return offset === undefined ? quotaLinea : quotaLinea - offset
+  // **Il capo di VALLE di un by-pass che si chiude su un serbatoio sta alla quota della sua
+  // uscita** (10-11-2026), non sulla linea: il serbatoio non si dispone per ancora — resta
+  // appoggiato a `yBase` — e con la linea scesa di una corsia il tubo dalla sua uscita al TEE
+  // faceva un gradino in giù a ridosso della pancia. Alla stessa quota quel tubo è dritto, e ci
+  // sta la valvola (`buildArchi`). Il ponte scende comunque sul TEE dall'alto.
+  const quotaUscitaSerbatoio = (indice: number): number | undefined => {
+    const scavalcato = ultimoScavalcato(nodi, indice)
+    if (scavalcato?.tipo !== 'serbatoio') return undefined
+    const dx = ancoraDi(scavalcato, 'dx', libreria)
+    return dx ? yBase - dimensioniDi(scavalcato, libreria).altezza + dx.y : undefined
+  }
+  const quotaDi = (nodo: SchemaNodo, indice: number) => {
+    const offset =
+      offsetDiCorsia.get(nodo.id) ??
+      (valleSulPonte.has(nodo.id) ? offsetDiCorsia.get(nodo.id.replace(/-OUT$/, '-IN')) : undefined)
+    if (offset !== undefined) return quotaLinea - offset
+    return quotaUscitaSerbatoio(indice) ?? quotaLinea
   }
 
   let xAncora = xIniziale
@@ -557,7 +621,7 @@ function disponiSequenza(
     // disporli per ancora come i rombi li staccherebbe da terra, perche' verticale e orizzontale
     // hanno l'ancora `sx` alla stessa quota relativa ma riquadri di altezza diversa. Gli altri si
     // allineano per ancora sulla linea (convenzioni 3 e 4).
-    const y = nodo.tipo === 'serbatoio' ? yBase - dim.altezza : quotaDi(nodo) - (sx?.y ?? dim.altezza / 2)
+    const y = nodo.tipo === 'serbatoio' ? yBase - dim.altezza : quotaDi(nodo, i) - (sx?.y ?? dim.altezza / 2)
     const collocato = posiziona(nodo, xAncora - (sx?.x ?? 0), y)
     const prossimo = nodi[i + 1]
     xAncora = collocato.x + (dx?.x ?? dim.larghezza) + (prossimo ? gioco(nodo, prossimo) : 0)
@@ -726,12 +790,18 @@ export function layoutSchema(model: SchemaModel, libreria: Tarature = {}): Schem
   // serbatoi, che non esiste piu'), prima di disporre: vedi `quotaLineaProcesso`.
   const primoSerbatoio = sequenza.find((n) => n.tipo === 'serbatoio')
   const quotaLinea = quotaLineaProcesso(primoSerbatoio, yBase, yCentroSerbatoi, libreria, sequenza)
+  // Si legge dagli ARCHI, come la sequenza: è il ponte che arriva di fianco a dire che il suo
+  // capo di valle sta in alto, e così modello e layout non possono dare due risposte diverse.
+  const valleSulPonte = new Set(
+    model.archi.filter((a) => a.forma === 'ponte' && a.a.ancora === 'sx').map((a) => a.a.nodo)
+  )
   const rigaLinea = disponiSequenza(
     sequenza,
     rigaCompressori.xFinale + STACCO_COMPRESSORI_SERBATOI,
     quotaLinea,
     yBase,
-    libreria
+    libreria,
+    valleSulPonte
   )
 
   const yCondense = yBase + CORSIA_CONDENSE
@@ -768,15 +838,24 @@ export function layoutSchema(model: SchemaModel, libreria: Tarature = {}): Schem
       partenza && ancoraPartenza
         ? partenza.x + ancoraPartenza.x + PASSO_TERMINALE - larghezza / 2
         : rigaLinea.xFinale
-    return posiziona(n, bordoSinistro, quotaLinea - dimensioniDi(n, libreria).altezza)
+    // Alla quota dell'attacco da cui parte, non a `quotaLinea` (10-11-2026): le due coincidono
+    // quasi sempre, ma non quando la linea finisce su un capo di valle che sta in alto o
+    // sull'uscita di un serbatoio — e lì il tubo faceva un gradino solo per raggiungere il terminale.
+    const quota = partenza && ancoraPartenza ? partenza.y + ancoraPartenza.y : quotaLinea
+    return posiziona(n, bordoSinistro, quota - dimensioniDi(n, libreria).altezza)
   })
 
+  // Il terminale che parte dalla quota di un ponte finirebbe sopra il bordo del foglio (il ponte
+  // corre a ridosso della cima del disegno, e il terminale è alto 170): in quel caso scende tutto
+  // il disegno di quanto serve. Il documento comincia a zero e non disegna ciò che sta sopra.
+  const cima = Math.min(0, ...posizionatiUtenze.map((n) => n.y))
+  const discesa = cima < 0 ? Math.ceil((MARGINE / 2 - cima) / 10) * 10 : 0
   const nodi = [
     ...rigaCompressori.posizionati,
     ...rigaLinea.posizionati,
     ...rigaRaccolta.posizionati,
     ...posizionatiUtenze,
-  ]
+  ].map((n) => (discesa > 0 ? { ...n, y: n.y + discesa } : n))
 
   // `testi` è sempre presente, mai assente: `deserializzaLayout` e `riconcilia` (persistenza.ts)
   // normalizzano allo stesso modo un layout riletto o riconciliato, e l'auto-layout non fa
@@ -797,7 +876,7 @@ export function layoutSchema(model: SchemaModel, libreria: Tarature = {}): Schem
   // I ponti PRIMA degli ancoraggi, e non e' indifferente: le tre valvole del ponte sono ancorate
   // ai suoi vertici, che esistono solo dopo che i gomiti sono scritti. Al contrario si
   // troverebbero i due soli capi, e cadrebbero tutte sul ripiego a meta' tubo.
-  const conPonti = risolviPonti(layout, libreria)
+  const conPonti = risolviPonti(layout, libreria, quotaCollettore(layout, libreria))
   return risolviSegniAncorati(conPonti, quoteInstradamento(conPonti, libreria), libreria)
 }
 

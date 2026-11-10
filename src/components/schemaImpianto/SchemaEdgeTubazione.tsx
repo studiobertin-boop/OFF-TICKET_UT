@@ -484,6 +484,31 @@ function SchemaSegno({
   )
 }
 
+/**
+ * La polilinea accorciata ai due capi di `quanto` unità (mai più di un terzo del tratto di capo).
+ * Serve all'area di presa di un arco che sta SOPRA il proprio nodo (`LIVELLO_ARCO_SUL_PROPRIO_NODO`,
+ * conversioneFlow.ts): intera, coprirebbe i due attacchi da cui parte e arriva, e da quegli attacchi
+ * non si potrebbe più tracciare un'altra tubazione — il puntatore troverebbe il tubo, non il pallino.
+ */
+function accorciataAiCapi(grezza: Punto[], quanto: number): Punto[] {
+  // Via i punti ripetuti: la rotta può portare un vertice doppio sul capo (un gomito che coincide
+  // con l'ancora), e un primo tratto di lunghezza nulla non lascerebbe nulla da accorciare.
+  const polilinea = grezza.filter((p, i) => i === 0 || p.x !== grezza[i - 1].x || p.y !== grezza[i - 1].y)
+  if (polilinea.length < 2) return grezza
+  const verso = (da: Punto, a: Punto): Punto => {
+    const lunghezza = Math.hypot(a.x - da.x, a.y - da.y)
+    if (lunghezza === 0) return da
+    const passo = Math.min(quanto, lunghezza / 3) / lunghezza
+    return { x: da.x + (a.x - da.x) * passo, y: da.y + (a.y - da.y) * passo }
+  }
+  const ultimo = polilinea.length - 1
+  return [
+    verso(polilinea[0], polilinea[1]),
+    ...polilinea.slice(1, ultimo),
+    verso(polilinea[ultimo], polilinea[ultimo - 1]),
+  ]
+}
+
 export function SchemaEdgeTubazione({
   id,
   source,
@@ -552,7 +577,17 @@ export function SchemaEdgeTubazione({
         // `BaseEdge` solo per il primo: porta l'`id` con cui react-flow riconosce l'arco, e due
         // elementi con lo stesso id ne farebbero rendere uno solo.
         return i === 0 ? (
-          <BaseEdge key={i} id={id} path={d} markerEnd={markerEnd} style={tratto} />
+          <BaseEdge
+            key={i}
+            id={id}
+            path={d}
+            markerEnd={markerEnd}
+            style={tratto}
+            // Sopra il proprio nodo l’area di presa di react-flow (20px, da capo a capo) si spegne:
+            // coprirebbe i due attacchi. La presa resta quella accorciata qui sotto, che è figlia
+            // dello stesso gruppo dell’arco e quindi lo seleziona allo stesso modo.
+            {...(source === target ? { interactionWidth: 0 } : {})}
+          />
         ) : (
           <path key={i} d={d} fill="none" style={tratto} />
         )
@@ -573,7 +608,10 @@ export function SchemaEdgeTubazione({
        * lo stesso tubo, e il committente lo ha chiesto esplicitamente.
        */}
       <path
-        d={percorso(polilinea)}
+        // Accorciata ai capi quando l'arco sta sopra il proprio nodo: lì l'area di presa
+        // coprirebbe gli attacchi (vedi `accorciataAiCapi`). `indiceTrattoPiuVicino` qui sotto
+        // resta sulla polilinea intera: accorciare non cambia né il numero né l'ordine dei tratti.
+        d={percorso(source === target ? accorciataAiCapi(polilinea, 12) : polilinea)}
         fill="none"
         stroke="transparent"
         strokeWidth={16}

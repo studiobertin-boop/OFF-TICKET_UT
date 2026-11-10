@@ -318,18 +318,91 @@ describe('simbolo «Alle utenze»', () => {
     // Il path completo (non il solo `fill="#000"`, che compare già sul <text> della scritta e
     // quindi non discriminerebbe un'implementazione priva del triangolo) prova che il
     // triangolo esiste davvero, con la geometria attesa.
-    // Centrata sul riquadro (100 = 200/2) e abbassata sotto la scritta, che dal 17-08-2026 le
-    // sta sopra: la punta non è più a quota fissa 14 sull'ascissa 10 del bordo sinistro.
-    expect(svg).toContain('<path d="M 94 47 L 100 34 L 106 47 Z" fill="#000" />')
+    // Centrata sul riquadro (70 = 140/2, la larghezza di «Utenze aria» dal 10-11-2026: prima il
+    // riquadro non scendeva sotto 200) e abbassata sotto la scritta, che dal 17-08-2026 le sta
+    // sopra: la punta non è più a quota fissa 14 sull'ascissa 10 del bordo sinistro.
+    expect(svg).toContain('<path d="M 64 47 L 70 34 L 76 47 Z" fill="#000" />')
     expect(svg).not.toContain('marker-end')
   })
 
   it('dichiara una sola ancora, in basso al codolo, che accetta aria', () => {
     const def = definizioneDi(utenze)
-    // I valori del registro sono quelli del terminale più piccolo: `ancoreDi` rifà x e y
-    // sull'ingombro vero, che cresce con la scritta. x=100 è metà della larghezza minima.
-    expect(def.ancore).toEqual([{ id: 'in', x: 100, y: 120, accetta: ['aria'] }])
-    expect(def.dimensioni).toEqual({ larghezza: 200, altezza: 120 })
+    // I valori del registro sono quelli della scritta di fabbrica («Utenze» / «aria») con la
+    // freccia in su: `ancoreDi` rifà x e y sull'ingombro vero, che segue scritta e rotazione.
+    expect(def.ancore).toEqual([{ id: 'in', x: 40, y: 170, accetta: ['aria'] }])
+    expect(def.dimensioni).toEqual({ larghezza: 80, altezza: 170 })
+    expect(dimensioniDi({ ...utenze, etichetta: 'Utenze\naria' })).toEqual(def.dimensioni)
+  })
+
+  // 10-11-2026: il riquadro largo 200 copriva ciò che gli stava dietro sulla tela, e nulla di
+  // ciò che copriva si poteva più afferrare. Ora è largo quanto la scritta, più la sua aria.
+  it('il riquadro è stretto sulla scritta, senza pavimento', () => {
+    const fabbrica = dimensioniDi({ ...utenze, etichetta: 'Utenze\naria' })
+    // «Utenze»: 6 caratteri × 9 = 54, più 12 di aria per lato = 78, al multiplo di 20 → 80.
+    expect(fabbrica.larghezza).toBe(80)
+    expect(dimensioniDi({ ...utenze, etichetta: 'N2' }).larghezza).toBe(60)
+  })
+
+  describe('rotazione', () => {
+    const fabbrica = { ...utenze, etichetta: 'Utenze\naria' }
+    const ruotato = (rotazione: 0 | 90 | 180 | 270) => ({ ...fabbrica, rotazione })
+
+    it('senza rotazione il terminale è quello di sempre', () => {
+      expect(simboloDi(ruotato(0))).toBe(simboloDi(fabbrica))
+      expect(ancoreDi(ruotato(0))).toEqual(ancoreDi(fabbrica))
+    })
+
+    it('l\'attacco sta sempre in fondo al codolo, sul lato opposto alla punta, e sulla griglia', () => {
+      for (const rotazione of [0, 90, 180, 270] as const) {
+        const nodo = ruotato(rotazione)
+        const { larghezza, altezza } = dimensioniDi(nodo)
+        const [ancora] = ancoreDi(nodo)
+        const atteso = {
+          0: { x: larghezza / 2, y: altezza },
+          90: { x: 0, y: altezza / 2 },
+          180: { x: larghezza / 2, y: 0 },
+          270: { x: larghezza, y: altezza / 2 },
+        }[rotazione]
+        expect({ x: ancora.x, y: ancora.y }, String(rotazione)).toEqual(atteso)
+        expect(ancora.x % 10, String(rotazione)).toBe(0)
+        expect(ancora.y % 10, String(rotazione)).toBe(0)
+        // Il codolo parte dall'attacco: è il primo punto del suo tracciato.
+        expect(simboloDi(nodo), String(rotazione)).toContain(`<path d="M ${ancora.x} ${ancora.y} L `)
+      }
+    })
+
+    it('coricato, il riquadro è largo e basso, e la scritta resta orizzontale oltre la punta', () => {
+      const dritto = dimensioniDi(ruotato(0))
+      const destra = dimensioniDi(ruotato(90))
+      expect(destra.larghezza).toBeGreaterThan(destra.altezza)
+      expect(dritto.altezza).toBeGreaterThan(dritto.larghezza)
+      expect(dimensioniDi(ruotato(270))).toEqual(destra)
+      expect(dimensioniDi(ruotato(180))).toEqual(dritto)
+      // Nessuna rotazione applicata al testo: si legge sempre da sinistra a destra.
+      for (const rotazione of [90, 180, 270] as const) {
+        expect(simboloDi(ruotato(rotazione))).not.toContain('rotate(')
+      }
+      expect(simboloDi(ruotato(90))).toContain('text-anchor="start"')
+      expect(simboloDi(ruotato(270))).toContain('text-anchor="end"')
+    })
+
+    it('tutto il disegno sta dentro il riquadro, in ogni giacitura', () => {
+      for (const rotazione of [0, 90, 180, 270] as const) {
+        const nodo = ruotato(rotazione)
+        const { larghezza, altezza } = dimensioniDi(nodo)
+        const svg = simboloDi(nodo)
+        const coppie = [...svg.matchAll(/[ML] (-?[\d.]+) (-?[\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])])
+        expect(coppie.length).toBeGreaterThan(4)
+        for (const [x, y] of coppie) {
+          expect(x >= 0 && x <= larghezza, `${rotazione}: x=${x}`).toBe(true)
+          expect(y >= 0 && y <= altezza, `${rotazione}: y=${y}`).toBe(true)
+        }
+        for (const m of svg.matchAll(/<tspan x="(-?[\d.]+)" y="(-?[\d.]+)"/g)) {
+          expect(Number(m[1]) >= 0 && Number(m[1]) <= larghezza, `${rotazione}: scritta x`).toBe(true)
+          expect(Number(m[2]) - 9 >= 0 && Number(m[2]) + 9 <= altezza, `${rotazione}: scritta y`).toBe(true)
+        }
+      }
+    })
   })
 
   // La spec promette «ingombro largo abbastanza da contenere la scritta, così `dimensioniLayout`
@@ -341,8 +414,8 @@ describe('simbolo «Alle utenze»', () => {
     const lunga = dimensioniDi({ ...utenze, etichetta: 'Utenze aria compressa reparto 2' })
     const piuLunga = dimensioniDi({ ...utenze, etichetta: 'Utenze aria compressa reparto 2 e 3' })
 
-    // Una scritta breve non stringe il riquadro sotto il minimo del registro.
-    expect(corta.larghezza).toBe(200)
+    // Una scritta breve dà un riquadro breve: 11 caratteri × 9 + 24 = 123, al multiplo di 20.
+    expect(corta.larghezza).toBe(140)
     // Una lunga lo allarga, e la scritta ci sta dentro per intero.
     expect(lunga.larghezza).toBeGreaterThan(200)
     expect(simboloDi({ ...utenze, etichetta: 'Utenze aria compressa reparto 2' })).toContain(
@@ -430,12 +503,12 @@ describe('terminale utenze su più righe', () => {
     // (231, come `unaRigaLunga` sotto) o sommando la lunghezza delle due righe (222, una
     // mutazione plausibile di «riga più lunga») il risultato è comunque minore di 231, quindi il
     // confronto passerebbe con entrambe le implementazioni sbagliate. La riga più lunga di
-    // «Utenze aria» / «reparto 2» è 11 caratteri, sotto quanto serve a superare il minimo del
-    // registro: fissare il valore atteso a 200 (quel minimo) è l'unico modo che scopre la
+    // «Utenze aria» / «reparto 2» è 11 caratteri: fissare il valore atteso a 140 (la larghezza di
+    // 11 caratteri; era 200, il vecchio minimo, fino al 10-11-2026) è l'unico modo che scopre la
     // differenza.
     const dueRigheCorte = dimensioniDi(terminale('Utenze aria\nreparto 2'))
     const unaRigaLunga = dimensioniDi(terminale('Utenze aria reparto 2'))
-    expect(dueRigheCorte.larghezza).toBe(200)
+    expect(dueRigheCorte.larghezza).toBe(140)
     expect(dueRigheCorte.larghezza).toBeLessThan(unaRigaLunga.larghezza)
   })
 

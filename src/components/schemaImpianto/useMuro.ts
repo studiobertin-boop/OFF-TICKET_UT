@@ -8,7 +8,7 @@
  * (`muroDaAscissa`, layout.ts) e non va tenuta da nessuna parte.
  */
 import { useCallback, useRef } from 'react'
-import { calcolaMuro } from '@/services/schemaImpianto/layout'
+import { calcolaMuro, ordinataPropostaMuroOrizzontale } from '@/services/schemaImpianto/layout'
 import type { Tarature } from '@/services/schemaImpianto/libreria'
 import { dimensioniDi } from '@/services/schemaImpianto/symbols'
 import { allineaAllaGriglia } from '@/services/schemaImpianto/griglia'
@@ -80,4 +80,50 @@ export function useMuro<T extends StatoConMuro>(applica: Aggiorna<T>, aggiornaSe
   )
 
   return { aggiungiMuro, spostaMuro }
+}
+
+/** Lo stato che porta l'ordinata del muro orizzontale: il gemello di `StatoConMuro`. */
+export interface StatoConMuroOrizzontale {
+  muroY: number | null
+}
+
+/** Dove nasce un muro orizzontale appena aggiunto: sotto il disegno, sulla griglia. */
+export function ordinataProposta(nodi: SchemaNodoPosizionato[], libreria: Tarature = {}): number {
+  return allineaAllaGriglia(ordinataPropostaMuroOrizzontale(nodi, libreria))
+}
+
+/** Mai sopra il bordo del foglio: il documento comincia a zero. */
+export function ordinataSpostata(y: number): number {
+  return Math.max(0, allineaAllaGriglia(y))
+}
+
+/**
+ * Il muro orizzontale sulla tela: stesse due operazioni di `useMuro`, sull'ordinata. Un hook suo e
+ * non `useMuro` con un parametro: i due muri convivono nello stesso disegno, e ognuno ha il
+ * proprio gesto di trascinamento in corso.
+ */
+export function useMuroOrizzontale<T extends StatoConMuroOrizzontale>(
+  applica: Aggiorna<T>,
+  aggiornaSenzaCronologia: Aggiorna<T>
+) {
+  const aggiungiMuroOrizzontale = useCallback(
+    (proposta: (corrente: T) => number) => {
+      applica((s) => ({ ...s, muroY: proposta(s) }))
+    },
+    [applica]
+  )
+
+  const trascinamentoAvviato = useRef(false)
+
+  const spostaMuroOrizzontale = useCallback(
+    (y: number, concluso: boolean) => {
+      const primoEventoDelGesto = !trascinamentoAvviato.current
+      trascinamentoAvviato.current = !concluso
+      const aggiorna = primoEventoDelGesto ? applica : aggiornaSenzaCronologia
+      aggiorna((s) => ({ ...s, muroY: ordinataSpostata(y) }))
+    },
+    [applica, aggiornaSenzaCronologia]
+  )
+
+  return { aggiungiMuroOrizzontale, spostaMuroOrizzontale }
 }
