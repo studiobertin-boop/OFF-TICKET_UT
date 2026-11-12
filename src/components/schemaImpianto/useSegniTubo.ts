@@ -111,6 +111,29 @@ export function useSegniTubo<T extends StatoConNodiEdArchi>(
     [applica]
   )
 
+  // Un gesto solo (una voce di menu), in cronologia: gira il verso di una valvola di non ritorno
+  // o di un riduttore. `inverso` torna ASSENTE al secondo giro, così un segno girato due volte è
+  // indistinguibile nel salvato da uno mai toccato.
+  const invertiSegno = useCallback(
+    (arcoId: string, indice: number) => {
+      applica((s) => ({
+        ...s,
+        edges: s.edges.map((e) => {
+          if (e.id !== arcoId) return e
+          const dati = e.data as SchemaEdgeData
+          const segni = (dati.segni ?? []).map((segno, i) => {
+            if (i !== indice) return segno
+            const girato = { ...segno, inverso: true }
+            if (segno.inverso) delete (girato as SchemaSegnoTubo).inverso
+            return girato as SchemaSegnoTubo
+          })
+          return { ...e, data: { ...dati, segni } satisfies SchemaEdgeData }
+        }),
+      }))
+    },
+    [applica]
+  )
+
   // Gli archi passati alla tela portano anche le callback dei segni, legate al proprio id:
   // `SchemaEdgeTubazione` non conosce la cronologia, sa solo chiamare "sposta questo" o
   // "togli questo". La conversione punto->t la fa SchemaEdgeTubazione (conosce la polilinea
@@ -125,10 +148,11 @@ export function useSegniTubo<T extends StatoConNodiEdArchi>(
           onRimuoviSegno: (indice: number) => rimuoviSegno(e.id, indice),
           onCambiaTipoTratto: (indice: number, lato: 'da' | 'a', stile: SchemaArcoStile) =>
             cambiaTipoTratto(e.id, indice, lato, stile),
+          onInvertiSegno: (indice: number) => invertiSegno(e.id, indice),
         } satisfies SchemaEdgeData,
       })),
-    [stato.edges, spostaSegno, rimuoviSegno, cambiaTipoTratto]
+    [stato.edges, spostaSegno, rimuoviSegno, cambiaTipoTratto, invertiSegno]
   )
 
-  return { aggiungiSegno, cambiaTipoTratto, edgesConSegni }
+  return { aggiungiSegno, cambiaTipoTratto, invertiSegno, edgesConSegni }
 }

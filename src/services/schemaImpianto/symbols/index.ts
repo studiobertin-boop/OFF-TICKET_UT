@@ -16,7 +16,7 @@
 import { arrotonda, ondula } from '../tratti'
 import type { Punto } from '../tratti'
 import { PASSO_GRIGLIA } from '../griglia'
-import type { SchemaArcoStile, SchemaNodoTipo, SchemaNodo, SchemaAncora, SchemaLatoAncora, ChiaveSimbolo, SchemaArea } from '../types'
+import type { SchemaArcoStile, SchemaNodoTipo, SchemaNodo, SchemaAncora, SchemaLatoAncora, ChiaveSimbolo, SchemaArea, SchemaSegnoTuboTipo } from '../types'
 import { chiaveSimbolo } from '../types'
 import { accessoriDi, codiceVisibile } from '../codici'
 import type { Tarature, TaraturaSimbolo } from '../libreria'
@@ -394,13 +394,30 @@ export function valvolaIntercettazione(
 export function riduttorePressione(
   x: number,
   y: number,
-  orientamento: 'orizzontale' | 'verticale' = 'orizzontale'
+  orientamento: 'orizzontale' | 'verticale' = 'orizzontale',
+  /** Ala grande a destra/in basso invece che a sinistra/in alto (12-11-2026): il riduttore deve
+   *  poter indicare il verso in cui la pressione scende. Falso: il disegno di sempre. */
+  invertito = false
 ): string {
   const lGrande = 9 // stessa `l` della valvola di intercettazione (vedi il suo commento)
   const hGrande = lGrande / RAPPORTO_ALA_FARFALLA
   const SCALA_ALA_PICCOLA = 0.6 // 3,36/5,64 ≈ 0,596, misurato sul blocco CAD «riduttore»
   const lPiccola = lGrande * SCALA_ALA_PICCOLA
   const hPiccola = hGrande * SCALA_ALA_PICCOLA
+
+  // Invertito è lo specchio rispetto al centro: stesse due ali, lati scambiati.
+  if (invertito) {
+    const d =
+      orientamento === 'orizzontale'
+        ? `M ${x - lPiccola} ${y - hPiccola} L ${x - lPiccola} ${y + hPiccola} L ${x} ${y} Z ` +
+          `M ${x + lGrande} ${y - hGrande} L ${x + lGrande} ${y + hGrande} L ${x} ${y} Z`
+        : `M ${x - hPiccola} ${y - lPiccola} L ${x + hPiccola} ${y - lPiccola} L ${x} ${y} Z ` +
+          `M ${x - hGrande} ${y + lGrande} L ${x + hGrande} ${y + lGrande} L ${x} ${y} Z`
+    const [xMeno, xPiu, yMeno, yPiu] =
+      orientamento === 'orizzontale' ? [lPiccola, lGrande, hGrande, hGrande] : [hGrande, hGrande, lPiccola, lGrande]
+    const copertura = `<rect x="${x - xMeno}" y="${y - yMeno}" width="${xMeno + xPiu}" height="${yMeno + yPiu}" fill="#fff" stroke="none" />`
+    return copertura + traccia(d)
+  }
 
   const d =
     orientamento === 'orizzontale'
@@ -421,6 +438,80 @@ export function riduttorePressione(
       : [hGrande, hGrande, lGrande, lPiccola]
   const copertura = `<rect x="${x - xMeno}" y="${y - yMeno}" width="${xMeno + xPiu}" height="${yMeno + yPiu}" fill="#fff" stroke="none" />`
   return copertura + traccia(d)
+}
+
+/**
+ * La freccetta della valvola di non ritorno, in unità del disegno: sta di fianco alla farfalla,
+ * parallela al tubo. Misure approvate dal committente sul bozzetto del 12-11-2026 (lì ingrandite
+ * quattro volte): asta sottile lunga quanto un'ala e mezza, punta piena.
+ */
+const FRECCETTA_NON_RITORNO = {
+  /** Dall'asse del tubo all'asse della freccetta: mezza farfalla (4,5) più l'aria. */
+  scostamento: 8,
+  /** Da dove parte l'asta e dove finisce la punta, misurati dal centro lungo il verso del flusso. */
+  coda: -7,
+  punta: 7.5,
+  /** Lunghezza e mezza larghezza della punta piena. */
+  lunghezzaPunta: 3.5,
+  semiLarghezzaPunta: 1.5,
+  spessoreAsta: 1,
+}
+
+/**
+ * Valvola di non ritorno: la STESSA farfalla della valvola di intercettazione, più la freccetta
+ * del verso obbligato del flusso.
+ *
+ * Prende la direzione e non un orientamento, come `frecciaDirezione` e per la stessa ragione: i
+ * due versi della stessa giacitura sono due disegni diversi. La farfalla si allinea all'asse
+ * dominante della direzione; la freccetta sta SOPRA la farfalla sui tratti orizzontali e alla sua
+ * DESTRA su quelli verticali, sempre dalla stessa parte qualunque sia il verso — così invertire il
+ * verso gira la punta e non fa saltare la freccetta dall'altra parte del tubo.
+ */
+export function valvolaNonRitorno(x: number, y: number, direzione: { x: number; y: number }): string {
+  const orizzontale = Math.abs(direzione.x) >= Math.abs(direzione.y)
+  const verso = (orizzontale ? direzione.x : direzione.y) < 0 ? -1 : 1
+  const f = FRECCETTA_NON_RITORNO
+  // `lungo` è la coordinata lungo il tubo, `fianco` quella perpendicolare: si proiettano sul
+  // foglio una volta sola, qui, invece di scrivere due volte lo stesso disegno coi due assi scambiati.
+  const p = (lungo: number, fianco: number) =>
+    orizzontale ? `${arrotonda(x + lungo)} ${arrotonda(y + fianco)}` : `${arrotonda(x - fianco)} ${arrotonda(y + lungo)}`
+  const lato = -f.scostamento
+  const base = verso * (f.punta - f.lunghezzaPunta)
+  const asta = `<path d="M ${p(verso * f.coda, lato)} L ${p(base, lato)}" fill="none" stroke="#000" stroke-width="${f.spessoreAsta}" />`
+  const punta = `<path d="M ${p(verso * f.punta, lato)} L ${p(base, lato - f.semiLarghezzaPunta)} L ${p(base, lato + f.semiLarghezzaPunta)} Z" fill="#000" />`
+  return valvolaIntercettazione(x, y, orizzontale ? 'orizzontale' : 'verticale') + asta + punta
+}
+
+/**
+ * Il disegno di un segno posato sul tubo, qualunque sia il suo tipo. L'unico punto che sceglie la
+ * funzione giusta: lo chiamano il documento (`renderArchi`, renderSvg.ts) e la tela
+ * (`SchemaSegno`, SchemaEdgeTubazione.tsx), che prima ripetevano ognuno la propria scelta — e con
+ * quattro tipi e un verso due scelte uguali non restano uguali a lungo.
+ *
+ * `direzione` è quella in cui il tubo è percorso nel punto del segno (`puntoSuTratto`, tratti.ts).
+ */
+export function simboloSegno(
+  segno: { tipo: SchemaSegnoTuboTipo; inverso?: boolean },
+  x: number,
+  y: number,
+  giacitura: { orizzontale: boolean; direzione: { x: number; y: number } }
+): string {
+  const { orizzontale, direzione } = giacitura
+  switch (segno.tipo) {
+    case 'freccia_direzione':
+      return frecciaDirezione(x, y, direzione)
+    case 'valvola_non_ritorno':
+      // Un vettore nullo (ramo degenere di `puntoSuTratto`) ripiega sull'orizzontale verso destra.
+      return valvolaNonRitorno(
+        x,
+        y,
+        segno.inverso ? { x: -direzione.x || 0, y: -direzione.y || 0 } : direzione
+      )
+    case 'riduttore_pressione':
+      return riduttorePressione(x, y, orizzontale ? 'orizzontale' : 'verticale', segno.inverso === true)
+    default:
+      return valvolaIntercettazione(x, y, orizzontale ? 'orizzontale' : 'verticale')
+  }
 }
 
 /**

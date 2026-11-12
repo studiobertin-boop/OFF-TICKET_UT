@@ -1480,6 +1480,17 @@ function SchemaEditorInterno({
         >
           + Riduttore
         </Button>
+        <Tooltip title="Valvola di non ritorno: come la valvola, con la freccetta del verso obbligato. Il verso si gira dal suo menu">
+          <span>
+            <Button
+              size="small"
+              onClick={() => selezione.edges[0] && aggiungiSegno(selezione.edges[0].id, 'valvola_non_ritorno')}
+              disabled={selezione.edges.length !== 1 || modoTaratura}
+            >
+              + Non ritorno
+            </Button>
+          </span>
+        </Tooltip>
         <Button
           size="small"
           onClick={() => selezione.edges[0] && aggiungiSegno(selezione.edges[0].id, 'freccia_direzione')}

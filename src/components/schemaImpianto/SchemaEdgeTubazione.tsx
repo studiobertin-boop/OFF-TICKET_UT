@@ -13,10 +13,10 @@
 import { useCallback, useState } from 'react'
 import { BaseEdge, EdgeLabelRenderer, useReactFlow, type EdgeProps } from '@xyflow/react'
 import { Divider, ListItemText, Menu, MenuItem, Typography } from '@mui/material'
-import { frecciaDirezione, riduttorePressione, valvolaIntercettazione, TRATTEGGIO_CONDENSE, sfasamentoCondense } from '@/services/schemaImpianto/symbols'
+import { simboloSegno, TRATTEGGIO_CONDENSE, sfasamentoCondense } from '@/services/schemaImpianto/symbols'
 import { codiceVisibile } from '@/services/schemaImpianto/codici'
 import {
-  ondula,
+  tracciato,
   tronconi,
   percorso,
   puntoSuTratto,
@@ -64,6 +64,13 @@ export interface SchemaEdgeData extends Record<string, unknown> {
    * `capiDellArco`, che senza capi ripiega proprio sulle coordinate degli handle.
    */
   capi?: CapiArco
+  /**
+   * I punti in cui questo arco scavalca un altro tubo con un ponticello (`sormontiDelDisegno`,
+   * tratti.ts). Li calcola `fondiDatiArchi` sul disegno intero: un arco non vede gli altri.
+   */
+  sormonti?: Punto[]
+  /** Gira il verso di una valvola di non ritorno o di un riduttore (`useSegniTubo.ts`). */
+  onInvertiSegno?: (indice: number) => void
   /**
    * Vero mentre un TEE trascinato sta sorvolando QUESTO tubo: al rilascio si spezzerà qui
    * (`useInserimentoTee.ts`). Lo infila `fondiDatiArchi` (conversioneFlow.ts) insieme a quote
@@ -261,6 +268,10 @@ interface SchemaSegnoProps {
   /** Il tipo di ciascuno dei due tratti attorno al segno, per la spunta nel menu. */
   tipiAttorno: { da: SchemaArcoStile; a: SchemaArcoStile }
   onCambiaTipo?: (lato: 'da' | 'a', stile: SchemaArcoStile) => void
+  /** Il segno guarda nel verso opposto a quello di default (`SchemaSegnoTubo.inverso`). */
+  inverso?: boolean
+  /** Gira il verso: solo per i segni che ne hanno uno (non ritorno e riduttore). */
+  onInverti?: () => void
   /** Vero se questa freccia fa parte della selezione dell'editor (le altre due specie di segno non si selezionano). */
   selezionato?: boolean
   /** Clic sulla freccia: l'argomento è vero con Ctrl/Cmd premuto (aggiunta alla selezione). */
@@ -330,6 +341,8 @@ function SchemaSegno({
   capi,
   tipiAttorno,
   onCambiaTipo,
+  inverso,
+  onInverti,
   selezionato,
   onSeleziona,
 }: SchemaSegnoProps) {
@@ -409,10 +422,10 @@ function SchemaSegno({
     [onSeleziona, suInizio, tipo]
   )
 
-  const markup =
-    tipo === 'freccia_direzione'
-      ? frecciaDirezione(0, 0, direzione)
-      : (tipo === 'riduttore_pressione' ? riduttorePressione : valvolaIntercettazione)(0, 0, orientamento)
+  // Lo stesso disegno del documento, scelto dalla stessa funzione (`simboloSegno`).
+  const markup = simboloSegno({ tipo, inverso }, 0, 0, { orizzontale: orientamento === 'orizzontale', direzione })
+  // I due segni che hanno un verso: la freccetta della non ritorno e l'ala grande del riduttore.
+  const haVerso = tipo === 'valvola_non_ritorno' || tipo === 'riduttore_pressione'
 
   return (
     <>
@@ -470,6 +483,16 @@ function SchemaSegno({
             )),
           ])}
           <Divider />
+          {haVerso && (
+            <MenuItem
+              onClick={() => {
+                setMenu(null)
+                onInverti?.()
+              }}
+            >
+              <ListItemText primary="Inverti verso" />
+            </MenuItem>
+          )}
           <MenuItem
             onClick={() => {
               setMenu(null)
@@ -566,7 +589,9 @@ export function SchemaEdgeTubazione({
   return (
     <>
       {pezzi.map((pezzo, i) => {
-        const d = pezzo.stile === 'flessibile' ? ondula(pezzo.punti) : percorso(pezzo.punti)
+        // `tracciato` e non `percorso`/`ondula` nudi: aggiunge i ponticelli dei sormonti, con la
+        // stessa funzione del documento. L'area di presa più sotto resta sulla polilinea dritta.
+        const d = tracciato(pezzo.punti, pezzo.stile, edgeData?.sormonti)
         const tratto = {
           ...coloreTratto,
           strokeDasharray: pezzo.stile === 'condensa' ? TRATTEGGIO_CONDENSE : undefined,
@@ -676,6 +701,8 @@ export function SchemaEdgeTubazione({
               capi={nomiDeiCapi}
               tipiAttorno={tipiAttorno(pezzi, segno.t)}
               onCambiaTipo={(lato, tipo) => edgeData?.onCambiaTipoTratto?.(indice, lato, tipo)}
+              inverso={segno.inverso}
+              onInverti={() => edgeData?.onInvertiSegno?.(indice)}
               selezionato={edgeData?.frecceSelezionate?.includes(segno.id) ?? false}
               onSeleziona={(aggiungi) => edgeData?.onSelezionaFreccia?.(id, segno.id, aggiungi)}
             />

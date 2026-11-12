@@ -56,6 +56,101 @@ export function percorso(punti: Punto[]): string {
 }
 
 /**
+ * Raggio del sormonto, il ponticello ad arco con cui un tratto orizzontale scavalca un tubo che
+ * incrocia senza unirsi: tre volte lo spessore del tratto, approvato dal committente sul bozzetto
+ * del 12-11-2026.
+ */
+export const RAGGIO_SORMONTO = 6
+
+/**
+ * I punti in cui ogni polilinea del disegno deve fare un sormonto: dove un suo tratto ORIZZONTALE
+ * incrocia un tratto VERTICALE — suo o di un'altra — senza che nessuno dei due finisca lì. È
+ * sempre l'orizzontale a scavalcare, e il verticale resta dritto (deciso col committente).
+ *
+ * «Senza che nessuno dei due finisca lì» è ciò che distingue un incrocio da un'unione: su un TEE,
+ * su un attacco, su un gomito i tubi si toccano con un capo di tratto, e lì non si scavalca nulla.
+ * Il confronto è quindi STRETTO su tutti e quattro gli estremi.
+ *
+ * Restituisce una lista per polilinea, nello stesso ordine in cui sono arrivate. Due verticali
+ * sovrapposti (due tubi sulla stessa ascissa) danno un punto solo.
+ */
+export function sormontiDelDisegno(polilinee: Punto[][]): Punto[][] {
+  const verticali: { x: number; yMin: number; yMax: number }[] = []
+  for (const punti of polilinee) {
+    for (let i = 1; i < punti.length; i++) {
+      const a = punti[i - 1]
+      const b = punti[i]
+      if (a.x === b.x && a.y !== b.y) verticali.push({ x: a.x, yMin: Math.min(a.y, b.y), yMax: Math.max(a.y, b.y) })
+    }
+  }
+  return polilinee.map((punti) => {
+    const trovati = new Map<string, Punto>()
+    for (let i = 1; i < punti.length; i++) {
+      const a = punti[i - 1]
+      const b = punti[i]
+      if (a.y !== b.y || a.x === b.x) continue
+      const xMin = Math.min(a.x, b.x)
+      const xMax = Math.max(a.x, b.x)
+      for (const v of verticali) {
+        if (v.x > xMin && v.x < xMax && a.y > v.yMin && a.y < v.yMax) trovati.set(`${v.x}:${a.y}`, { x: v.x, y: a.y })
+      }
+    }
+    return [...trovati.values()]
+  })
+}
+
+/**
+ * Il tracciato SVG di un tratto di tubo del suo tipo — dritto (`percorso`) od ondulato
+ * (`ondula`) — coi ponticelli dei sormonti che gli cadono sopra.
+ *
+ * **Senza sormonti restituisce esattamente `percorso`/`ondula`**: è ciò che lascia identico, byte
+ * per byte, il documento di ogni disegno in cui nessun tubo ne incrocia un altro.
+ *
+ * Riceve i sormonti dell'arco INTERO e tiene i soli che cadono su un suo tratto orizzontale, con
+ * spazio per l'arco da entrambe le parti: un troncone (`tronconi`) è un pezzo del tubo, e chi lo
+ * disegna non deve sapere quali sormonti sono suoi. Uno troppo vicino al capo del tratto, o al
+ * sormonto precedente, si salta — un arco a metà sarebbe peggio di nessun arco.
+ *
+ * Il ponticello sale sempre verso l'ALTO del foglio, in qualunque verso il tratto sia percorso.
+ */
+export function tracciato(punti: Punto[], stile: SchemaArcoStile, sormonti: Punto[] = []): string {
+  const disegna = stile === 'flessibile' ? ondula : percorso
+  if (sormonti.length === 0 || punti.length < 2) return disegna(punti)
+
+  const r = RAGGIO_SORMONTO
+  const pezzi: string[] = []
+  let corrente: Punto[] = [punti[0]]
+  for (let i = 1; i < punti.length; i++) {
+    const a = punti[i - 1]
+    const b = punti[i]
+    if (a.y === b.y && a.x !== b.x) {
+      const verso = b.x > a.x ? 1 : -1
+      const xMin = Math.min(a.x, b.x)
+      const xMax = Math.max(a.x, b.x)
+      const suQuesto = sormonti
+        .filter((s) => s.y === a.y && s.x - r > xMin && s.x + r < xMax)
+        .sort((primo, secondo) => (primo.x - secondo.x) * verso)
+      let ultimo: number | null = null
+      for (const s of suQuesto) {
+        if (ultimo !== null && Math.abs(s.x - ultimo) < 2 * r) continue
+        ultimo = s.x
+        corrente.push({ x: s.x - verso * r, y: a.y })
+        pezzi.push(disegna(corrente))
+        // `sweep` 1 andando verso destra, 0 verso sinistra: in entrambi i casi l'arco passa sopra.
+        pezzi.push(`A ${r} ${r} 0 0 ${verso > 0 ? 1 : 0} ${s.x + verso * r} ${a.y}`)
+        corrente = [{ x: s.x + verso * r, y: a.y }]
+      }
+    }
+    corrente.push(b)
+  }
+  if (pezzi.length === 0) return disegna(punti)
+  pezzi.push(disegna(corrente))
+  // Un tracciato solo: i pezzi dopo il primo ripartono dal punto in cui l'arco è appena finito,
+  // e il loro `M` iniziale spezzerebbe la linea in sottotracciati (e il tratteggio con lei).
+  return pezzi.map((pezzo, i) => (i === 0 ? pezzo : pezzo.replace(/^M \S+ \S+ ?/, ''))).filter(Boolean).join(' ')
+}
+
+/**
  * Raccordo che preserva l'asse del tratto trascinato: il gomito nuovo (se serve) sta sulla
  * coordinata di `fisso` lungo l'asse perpendicolare al tratto e su quella di `daPreservare`
  * lungo l'asse del tratto — così il tratto appena spostato resta esattamente dov'è stato

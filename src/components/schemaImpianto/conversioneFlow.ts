@@ -11,6 +11,7 @@ import { latoImposto } from '@/services/schemaImpianto/symbols'
 import {
   instrada,
   polilineaConGomiti,
+  sormontiDelDisegno,
   type LatiImposti,
   type Punto,
   type QuoteInstradamento,
@@ -238,6 +239,15 @@ export function fondiDatiArchi(
   bloccato = false,
   frecce?: FrecceDegliArchi
 ): Edge[] {
+  // I sormonti di ogni arco, dalle STESSE polilinee che la tela disegna (`polilineaDellArco`) e
+  // con la stessa funzione del documento (`sormontiDelDisegno`, tratti.ts): un arco non conosce
+  // gli altri, quindi glieli si porta qui, come le quote e i capi.
+  const polilinee = edgesConGomitiBase.map((e) => {
+    const capiArco = capiPerArco.get(e.id)
+    return capiArco ? polilineaDellArco(capiArco, { ...(e.data as SchemaEdgeData), quote }) : []
+  })
+  const sormonti = sormontiDelDisegno(polilinee)
+
   return edgesConGomitiBase.map((e, i) => ({
     ...e,
     // Sopra il proprio nodo, e senza le ancore di riaggancio di react-flow: stanno sui due capi
@@ -251,6 +261,7 @@ export function fondiDatiArchi(
       ...edgesConTrascinamento[i]?.data,
       quote,
       capi: capiPerArco.get(e.id),
+      sormonti: sormonti[i],
       evidenziato: e.id === arcoEvidenziato,
       bloccato,
       // Solo se l'editor le passa: i test e i chiamanti che non selezionano frecce restano identici.

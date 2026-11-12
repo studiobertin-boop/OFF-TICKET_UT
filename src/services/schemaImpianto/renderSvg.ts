@@ -16,6 +16,8 @@ import {
   frecciaDirezione,
   latoImposto,
   riduttorePressione,
+  simboloSegno,
+  valvolaNonRitorno,
   simboloDi,
   simboloGiunzioneNelDocumento,
   simboloMuro,
@@ -33,11 +35,11 @@ import {
 } from './symbols'
 import {
   instrada,
-  ondula,
-  percorso,
   puntoSuTratto,
   ascisseAttraversamento,
   quoteAttraversamento,
+  sormontiDelDisegno,
+  tracciato,
   tronconi,
   type Punto,
   type QuoteInstradamento,
@@ -130,16 +132,20 @@ function renderArco(
     da: latoImposto(da, ancoraDa, libreria),
     a: latoImposto(a, ancoraA, libreria),
   })
-  const svg = tronconi(punti, stile, segni)
-    .map((tratto) => trattoSvg(tratto.punti, tratto.stile))
+  return { svg: '', punti }
+}
+
+/** I tronconi di un arco già instradato, ognuno col proprio tratto e coi sormonti che gli cadono sopra. */
+function arcoSvg(punti: Punto[], stile: SchemaArcoStile, segni: SchemaSegnoTubo[], sormonti: Punto[]): string {
+  return tronconi(punti, stile, segni)
+    .map((tratto) => trattoSvg(tratto.punti, tratto.stile, sormonti))
     .join('')
-  return { svg, punti }
 }
 
 /** Il tracciato di un troncone, col tratto del suo tipo. */
-function trattoSvg(punti: Punto[], stile: SchemaArcoStile): string {
+function trattoSvg(punti: Punto[], stile: SchemaArcoStile, sormonti: Punto[] = []): string {
   if (stile === 'flessibile') {
-    return `<path d="${ondula(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
+    return `<path d="${tracciato(punti, stile, sormonti)}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`
   }
   // La condensa porta anche una FASE: senza, le linee che corrono sulla corsia comune riempirebbero
   // i vuoti l'una dell'altra e sembrerebbero una riga continua (`sfasamentoCondense`, symbols).
@@ -147,7 +153,7 @@ function trattoSvg(punti: Punto[], stile: SchemaArcoStile): string {
     stile === 'condensa'
       ? ` stroke-dasharray="${TRATTEGGIO_CONDENSE}" stroke-dashoffset="${sfasamentoCondense(punti)}"`
       : ''
-  return `<path d="${percorso(punti)}" fill="none" stroke="#000" stroke-width="${TRATTO}"${tratteggio} />`
+  return `<path d="${tracciato(punti, stile, sormonti)}" fill="none" stroke="#000" stroke-width="${TRATTO}"${tratteggio} />`
 }
 
 /**
@@ -168,33 +174,26 @@ function renderArchi(
   // Le ASCISSE a cui le tubazioni attraversano il muro orizzontale, se c'è.
   const varchiOrizzontali: number[] = []
 
-  for (const arco of layout.archi) {
+  // Due passate dal 12-11-2026: prima si instradano TUTTI gli archi, poi si disegnano. Il
+  // sormonto di un tubo dipende da dove passano gli altri (`sormontiDelDisegno`, tratti.ts), e
+  // disegnando un arco alla volta quelli non ancora instradati non si conoscerebbero.
+  const instradati = layout.archi.flatMap((arco) => {
     const da = indice.get(arco.da.nodo)
     const a = indice.get(arco.a.nodo)
-    if (!da || !a) continue
+    if (!da || !a) return []
+    const { punti } = renderArco(da, arco.da.ancora, a, arco.a.ancora, arco.stile, quote, arco.punti, arco.segni ?? [], libreria)
+    return [{ arco, punti }]
+  })
+  const sormonti = sormontiDelDisegno(instradati.map((v) => v.punti))
 
-    const reso = renderArco(
-      da,
-      arco.da.ancora,
-      a,
-      arco.a.ancora,
-      arco.stile,
-      quote,
-      arco.punti,
-      arco.segni ?? [],
-      libreria
-    )
+  for (const [i, { arco, punti }] of instradati.entries()) {
+    const reso = { svg: arcoSvg(punti, arco.stile, arco.segni ?? [], sormonti[i]), punti }
 
     parti.push(reso.svg)
     for (const segno of arco.segni ?? []) {
+      // `simboloSegno` sceglie il disegno dal tipo, e dal verso per i segni che ne hanno uno.
       const { punto, orizzontale, direzione } = puntoSuTratto(reso.punti, segno.t)
-      // La freccia prende la direzione: le serve il verso, che `orizzontale` non porta.
-      if (segno.tipo === 'freccia_direzione') {
-        parti.push(frecciaDirezione(punto.x, punto.y, direzione))
-        continue
-      }
-      const disegnaSegno = segno.tipo === 'riduttore_pressione' ? riduttorePressione : valvolaIntercettazione
-      parti.push(disegnaSegno(punto.x, punto.y, orizzontale ? 'orizzontale' : 'verticale'))
+      parti.push(simboloSegno(segno, punto.x, punto.y, { orizzontale, direzione }))
     }
     if (layout.muro) varchi.push(...quoteAttraversamento(reso.punti, layout.muro.x))
     if (layout.muroOrizzontale) {
@@ -272,6 +271,11 @@ export function righeLegenda(layout: SchemaLayout): RigaTabella[] {
   // indirettamente, tramite il segno che `buildSchemaModel` semina (Task 5).
   if (segni.some((s) => s.tipo === 'valvola_intercettazione')) {
     righe.push({ sinistra: { simbolo: valvolaIntercettazione(0, 0) }, descrizione: 'Valvola di intercettazione' })
+  }
+  if (segni.some((s) => s.tipo === 'valvola_non_ritorno')) {
+    // Il campione guarda a destra, come quello della freccia di direzione più sotto. Abbassato di
+    // 4: la freccetta sta sopra la farfalla, e centrando la farfalla il simbolo penderebbe in alto.
+    righe.push({ sinistra: { simbolo: valvolaNonRitorno(0, 4, { x: 1, y: 0 }) }, descrizione: 'Valvola di non ritorno' })
   }
   if (segni.some((s) => s.tipo === 'riduttore_pressione')) {
     righe.push({ sinistra: { simbolo: riduttorePressione(0, 0) }, descrizione: 'Riduttore di pressione' })

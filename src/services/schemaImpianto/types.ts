@@ -166,7 +166,16 @@ export function chiaveSimbolo(nodo: { tipo: SchemaNodoTipo; orientamento?: 'VERT
 
 export type SchemaArcoStile = 'standard' | 'flessibile' | 'condensa'
 
-export type SchemaSegnoTuboTipo = 'valvola_intercettazione' | 'riduttore_pressione' | 'freccia_direzione'
+export type SchemaSegnoTuboTipo =
+  | 'valvola_intercettazione'
+  | 'riduttore_pressione'
+  | 'freccia_direzione'
+  /**
+   * Valvola di non ritorno (12-11-2026): la farfalla della valvola di intercettazione con la
+   * freccetta del verso obbligato. Sulla linea si comporta come lei — si trascina, apre il menu
+   * del tipo di tubo, può dichiarare uno `stileAValle` — e in più ha un verso (`inverso`).
+   */
+  | 'valvola_non_ritorno'
 
 /**
  * Regola geometrica con cui il LAYOUT calcola la `t` di un segno appena generato. Le convenzioni
@@ -199,6 +208,14 @@ export interface SchemaSegnoTubo {
   tipo: SchemaSegnoTuboTipo
   /** Posizione lungo la polilinea del tratto: 0 = capo Da, 1 = capo A. */
   t: number
+  /**
+   * Il segno guarda nel verso OPPOSTO a quello di default (12-11-2026). Vale per i due segni che
+   * un verso ce l'hanno: la valvola di non ritorno, la cui freccetta segue di default il percorso
+   * del tubo (dal capo di partenza a quello d'arrivo), e il riduttore di pressione, che di default
+   * tiene l'ala grande a sinistra o in alto. Assente: il verso di default — il caso di ogni
+   * riduttore posato prima di questa data.
+   */
+  inverso?: boolean
   /**
    * Tipo di tubazione che comincia da questo segno e vale fino al segno successivo che ne dichiara
    * uno, o fino al capo dell'arco. Assente: qui il tubo non cambia tipo — è il caso di ogni segno
