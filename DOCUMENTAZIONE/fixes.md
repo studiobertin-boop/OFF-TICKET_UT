@@ -9,6 +9,8 @@ _Nessun fix in attesa._
 
 | DATA | DESCRIZIONE |
 | --- | --- |
+| 2026-11-12 | Schema d’impianto: nuova valvola di non ritorno («+ Non ritorno»), con la freccetta del verso obbligato; il verso suo e quello del riduttore di pressione si girano con «Inverti verso» dal menu del segno. |
+| 2026-11-12 | Schema d’impianto: dove due linee si incrociano senza unirsi il tratto orizzontale scavalca quello verticale con un ponticello ad arco, in anteprima, stampa ed editor. Vale anche sugli schemi già salvati. |
 | 2026-11-10 | Schema d’impianto, editor: il terminale «utenze» ha un riquadro stretto e si ruota di 90° (pulsante o tasto R); un tubo fra due attacchi dello stesso filtro sta davanti al simbolo e si trascina; il TEE nuovo nasce accanto all’ultimo clic e in stampa non porta più il pallino. |
 | 2026-11-10 | Schema d’impianto, generazione: i serbatoi ricevono dall’attacco basso; con un by-pass in testa la mandata sale col montante e il collettore; il by-pass di un serbatoio è rigido con una valvola per parte; il by-pass che chiude la linea porta le utenze in alto, sulla quota del ponte. |
 | 2026-11-10 | Schema d’impianto: nuovo muro orizzontale («Muro orizz.»), con i varchi dove passano i tubi. Cambiare il tipo di linea da un lato di una valvola non cambia più l’altro lato. |
