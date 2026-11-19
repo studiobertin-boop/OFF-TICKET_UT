@@ -28,6 +28,14 @@ export type SchemaNodoTipo =
   | 'tanica'
   | 'pacco_bombole'
   /**
+   * Generatore di azoto (N1, N2, N3): riquadro col codice dentro, dal blocco CAD `Generatore_N2`
+   * di `N2.dxf`. Aria in ingresso in alto a sinistra, azoto in uscita in alto a destra, scarico
+   * condense in basso. Non è uno stadio della catena dell'aria e non entra in `ordineLinea`
+   * (spec del generatore, decisioni 9 e 11). I suoi serbatoi interni (NS) gli viaggiano come
+   * accessori `nonDisegnato`.
+   */
+  | 'generatore_azoto'
+  /**
    * Terminale della linea aria: non è un'apparecchiatura di scheda, non ha codice e non entra
    * nella lista. Porta la scritta modificabile («Utenze aria», «Utenze azoto», …) e l'ancora
    * su cui si innesta la tubazione finale, che prima del 12-08-2026 era una freccia disegnata
@@ -49,11 +57,23 @@ export interface SchemaValvolaSicurezza {
   etichetta: string
 }
 
-/** Disoleatore (su compressore), scambiatore (su essiccatore) o recipiente (su filtro). */
+/**
+ * Disoleatore (su compressore), scambiatore (su essiccatore), recipiente (su filtro) o serbatoio
+ * interno (su generatore di azoto, non disegnato: vedi `nonDisegnato`).
+ */
 export interface SchemaAccessorioDipendente {
   codice: string
   etichetta: string
   valvoleSicurezza: SchemaValvolaSicurezza[]
+  /**
+   * L'accessorio esiste nel modello ma il simbolo del genitore non lo disegna: è il caso dei
+   * serbatoi interni di un generatore di azoto, che il blocco CAD `Generatore_N2` non
+   * rappresenta. Il solo genitore che lo porta è il generatore, il cui simbolo
+   * (`simboloGeneratoreAzoto`) non disegna accessori: compressore ed essiccatore/filtro non
+   * leggono il campo, e chi lo mettesse su un loro accessorio lo vedrebbe disegnato lo stesso.
+   * Assente vale `false`.
+   */
+  nonDisegnato?: boolean
 }
 
 export interface SchemaNodo {

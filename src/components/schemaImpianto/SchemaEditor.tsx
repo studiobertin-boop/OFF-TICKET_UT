@@ -125,6 +125,7 @@ const PALETTE: { tipo: SchemaNodoTipo; etichetta: string; prefisso: string }[] =
   { tipo: 'separatore', etichetta: 'Separatore', prefisso: 'SEP' },
   { tipo: 'tanica', etichetta: 'Raccolta condense', prefisso: 'T' },
   { tipo: 'pacco_bombole', etichetta: 'Pacco bombole', prefisso: 'PB' },
+  { tipo: 'generatore_azoto', etichetta: 'Generatore di azoto', prefisso: 'N' },
   { tipo: 'giunzione', etichetta: 'Giunzione (TEE)', prefisso: 'G' },
 ]
 

@@ -128,4 +128,28 @@ describe('banco del Blocco 3', () => {
     expect(serbatoioInTesta.layout.nodi).not.toEqual(filtroInTesta.layout.nodi)
     expect(serbatoioInTesta.svg).not.toBe(filtroInTesta.svg)
   })
+
+  // Simbolo del generatore di azoto (Task 8 del generatore): cambia il DISEGNO, quindi il banco
+  // parte dal layout (vedi la memoria «banco di confronto»). Il modello non produce ancora il nodo
+  // (lo posa il Task 9): qui lo si aggiunge al layout come fa la palette dell'editor, nodo
+  // manuale in una posizione libera, e si guarda che il documento lo disegni davvero là — il
+  // riquadro 60×120 dentro la traslazione del nodo — e che senza di lui il documento non cambi.
+  it('DISCRIMINA: un generatore posato sul layout si disegna col suo riquadro, senza toccare il resto', () => {
+    const { layout, svg: senza } = costruisci(scheda)
+    const generatore = {
+      id: 'M-N1',
+      tipo: 'generatore_azoto' as const,
+      etichetta: 'Generatore di azoto',
+      gruppo: 'ALTRO' as const,
+      valvoleSicurezza: [],
+      origine: 'manuale' as const,
+      x: 40,
+      y: 40,
+    }
+    const con = renderSvg({ ...layout, nodi: [...layout.nodi, generatore] })
+
+    expect(con).not.toBe(senza)
+    expect(con).toContain('<g transform="translate(40 40)"><rect x="0" y="0" width="60" height="120"')
+    expect(catena(scheda)).toBe(senza)
+  })
 })

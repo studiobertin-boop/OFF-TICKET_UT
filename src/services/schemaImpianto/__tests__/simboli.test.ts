@@ -916,6 +916,7 @@ describe('il codice disegnato dentro il simbolo', () => {
     'separatore',
     'tanica',
     'pacco_bombole',
+    'generatore_azoto',
   ]
 
   for (const tipo of tipi) {
@@ -982,5 +983,69 @@ describe('sfasamentoCondense — i tratteggi delle condense cadono sulla stessa 
     for (const x of [300, 500, 777]) {
       expect((faseSinistra(x) + fase(destra, x)) % PERIODO).toBeCloseTo(TRATTINO % PERIODO, 6)
     }
+  })
+})
+
+// Blocco `Generatore_N2` di `N2.dxf`: un solo rettangolo chiuso 9,6×20 con l'origine al centro del
+// lato inferiore, l'attributo `ID` dentro in alto, sette pallini di aggancio (due in alto, uno in
+// basso al centro, due per fianco a quota 2,39 e 4,21).
+describe('generatore di azoto', () => {
+  const generatore = (extra: Partial<SchemaNodo> = {}): SchemaNodo => ({
+    id: 'N1',
+    tipo: 'generatore_azoto',
+    etichetta: 'Generatore di azoto',
+    gruppo: 'SALA_COMPRESSORI',
+    valvoleSicurezza: [],
+    origine: 'scheda',
+    ...extra,
+  })
+
+  it('ha il riquadro 60×120 del blocco 9,6×20', () => {
+    expect(definizioneDi({ tipo: 'generatore_azoto' }).dimensioni).toEqual({ larghezza: 60, altezza: 120 })
+  })
+
+  it('dichiara le sette ancore del blocco CAD, alle quote riportate su 120 e arrotondate alla griglia', () => {
+    const ancore = Object.fromEntries(
+      REGISTRO_SIMBOLI.generatore_azoto.ancore.map((a) => [a.id, { x: a.x, y: a.y, accetta: a.accetta }])
+    )
+    expect(Object.keys(ancore).sort()).toEqual(['basso-out', 'dx-1', 'dx-2', 'in-alto', 'out-alto', 'sx-1', 'sx-2'])
+    // Ingresso aria (-1,6; 20) e uscita azoto (+1,6; 20): 30 ∓ 1,6×60/9,6 = 20 e 40, sull'orlo alto.
+    expect(ancore['in-alto']).toMatchObject({ x: 20, y: 0 })
+    expect(ancore['out-alto']).toMatchObject({ x: 40, y: 0 })
+    // Scarico condense (0; 0): centro dell'orlo basso.
+    expect(ancore['basso-out']).toEqual({ x: 30, y: 120, accetta: ['condensa'] })
+    // Fianchi: 2,39/20 → 14,3 dal basso → y 105,7 → 110; 4,21/20 → 25,3 dal basso → y 94,7 → 90.
+    expect(ancore['sx-1']).toMatchObject({ x: 0, y: 110 })
+    expect(ancore['sx-2']).toMatchObject({ x: 0, y: 90 })
+    expect(ancore['dx-1']).toMatchObject({ x: 60, y: 110 })
+    expect(ancore['dx-2']).toMatchObject({ x: 60, y: 90 })
+    expect(ancore['in-alto'].accetta).toContain('aria')
+    expect(ancore['out-alto'].accetta).toContain('aria')
+  })
+
+  it('disegna il rettangolo 60×120 e il codice dentro, in alto', () => {
+    const svg = simboloDi(generatore())
+    expect(svg).toContain('<rect x="0" y="0" width="60" height="120"')
+    expect(svg).toContain('>N1<')
+    const quota = svg.match(/<text x="([\d.]+)" y="([\d.]+)"[^>]*>N1</)
+    expect(quota).not.toBeNull()
+    // Centrato in larghezza e nel terzo alto del riquadro, come l'attributo `ID` del blocco.
+    expect(Number(quota![1])).toBe(30)
+    expect(Number(quota![2])).toBeLessThan(40)
+  })
+
+  it('non disegna la descrizione sopra il riquadro: nessun simbolo disegna la propria', () => {
+    expect(simboloDi(generatore())).not.toContain('Generatore')
+  })
+
+  it('ignora gli accessori marcati come non disegnati', () => {
+    const serbatoio = (codice: string) => ({
+      codice,
+      etichetta: 'Serbatoio interno generatore di azoto N1',
+      valvoleSicurezza: [{ codice: `${codice}.1`, etichetta: '' }],
+      nonDisegnato: true,
+    })
+    const conAccessori = generatore({ accessorio: serbatoio('NS1'), accessoriAggiuntivi: [serbatoio('NS2')] })
+    expect(simboloDi(conAccessori)).toBe(simboloDi(generatore()))
   })
 })

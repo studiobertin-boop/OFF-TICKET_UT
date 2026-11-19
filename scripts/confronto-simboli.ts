@@ -29,6 +29,8 @@ const CASI: [nome: string, chiave: string, codice: string, accessorio: Accessori
   ['separatore', 'separatore', 'SEP', undefined],
   ['tanica', 'tanica', 'RC', undefined],
   ['pacco-bombole', 'pacco_bombole', 'PB1', undefined],
+  // Dal blocco `Generatore_N2` di `N2.dxf`, non da `Blocchi.pdf`: `blocchi-cad.py` non lo vede.
+  ['generatore-azoto', 'generatore_azoto', 'N1', undefined],
 ]
 
 for (const [nome, chiave, codice, accessorio] of CASI) {

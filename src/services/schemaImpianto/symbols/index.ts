@@ -211,6 +211,13 @@ const DIMENSIONI: Record<SchemaNodoTipo, { larghezza: number; altezza: number }>
   // Arrotondato a 120×120 come il compressore (Task 8, Blocco 3, stessa misura CAD, stesso
   // vincolo sull'ancora `dx`: y legge `altezza/2`, che vuole `altezza` multiplo di 20).
   pacco_bombole: { larghezza: 120, altezza: 120 },
+  // Blocco CAD `Generatore_N2` (`N2.dxf`, non `Blocchi.pdf`): un solo rettangolo chiuso da
+  // (−4,8; 0) a (4,8; 20), cioè 9,6×20 unità CAD con l'origine al centro del lato inferiore
+  // (rapporto 0,48). Riportato all'altezza di compressore e pacco bombole, 120: la scala è 6 e la
+  // larghezza esatta sarebbe 57,6, arrotondata a 60 — multiplo di 20, perché l'ancora dello
+  // scarico condense legge `larghezza/2` e deve cadere sulla griglia (rapporto 0,5 contro 0,48,
+  // scarto del 4%). Le ancore sono in `ANCORE_GENERATORE_AZOTO`.
+  generatore_azoto: { larghezza: 60, altezza: 120 },
   // L'ingombro del terminale con la scritta di fabbrica («Utenze» / «aria») e la freccia in su:
   // 80×170. Fino al 10-11-2026 era 200×120 e faceva da MINIMO — un riquadro largo due volte e
   // mezza la scritta, che sulla tela copriva (e rendeva inafferrabile) ciò che gli stava dietro.
@@ -1030,6 +1037,37 @@ export function simboloPaccoBombole(nodo: SchemaNodo): string {
 }
 
 /**
+ * Generatore di azoto: il rettangolo del blocco CAD `Generatore_N2` col codice dentro, in alto.
+ *
+ * Cosa contiene il blocco, oltre al rettangolo (vedi `DIMENSIONI.generatore_azoto`): due
+ * attributi, `ID` («N») dentro il riquadro, inserito a (−2,02; 14,04) con altezza 4, e
+ * `DESCRIZIONE` («Generatore di Azoto») sopra il riquadro, inserito a (−4,8; 25,57) con altezza
+ * 4. Si disegna solo il primo:
+ * - il codice sta dove sta l'`ID`: corpo 24, cioè l'altezza 4 su 20 riportata su 120 e usata come
+ *   corpo del carattere (lo stesso del codice del compressore; nel CAD l'altezza misura le
+ *   maiuscole, quindi la `N` del blocco è un po' più grande); quota 24 dal bordo alto, la
+ *   mezzeria fra 14,04 e 14,04 + 4 riportata su 120 (120 − 16,04×6 ≈ 24) — cioè leggendo il punto
+ *   d'inserimento come linea di base, l'allineamento di default degli attributi. Centrato
+ *   in larghezza e non a sinistra dell'asse come l'inserimento CAD: il codice cambia lunghezza
+ *   (N1, N2, o uno scritto a mano), e centrarlo è ciò che lo tiene dentro un riquadro largo 60;
+ * - la descrizione no: nessun altro simbolo di questo file disegna la propria (compressore,
+ *   serbatoi, rombi, tanica e pacco bombole disegnano solo il codice; il terminale utenze
+ *   disegna la sua scritta, ma quella è il terminale stesso, non una descrizione), e la
+ *   descrizione sta nella lista apparecchiature. Il nodo la porta in `etichetta`.
+ *
+ * Gli accessori del nodo non si guardano affatto: il blocco non disegna nulla oltre al riquadro,
+ * e la spec del generatore (sezione «Il modello») appende al nodo come accessori i soli serbatoi
+ * interni, marcati `nonDisegnato`. Compaiono nella lista, non qui.
+ */
+export function simboloGeneratoreAzoto(nodo: SchemaNodo): string {
+  const { larghezza, altezza } = DIMENSIONI.generatore_azoto
+  return [
+    `<rect x="0" y="0" width="${larghezza}" height="${altezza}" fill="none" stroke="#000" stroke-width="${TRATTO}" />`,
+    testo(larghezza / 2, 24, codiceVisibile(nodo), 24),
+  ].join('')
+}
+
+/**
  * Diametro del pallino della giunzione. Fino al 17-08-2026 era lo stesso dei punti di ancoraggio
  * delle apparecchiature sulla tela (`LATO_HANDLE`, SchemaNodeSymbol.tsx); il committente lo ha
  * poi chiesto dimezzato, e i due valori non sono più legati — gli attacchi restano dove sono,
@@ -1305,6 +1343,30 @@ const ANCORE_SEPARATORE: SchemaAncora[] = [
 ]
 
 /**
+ * Ancore del generatore di azoto: i sette pallini di aggancio del blocco CAD `Generatore_N2`, in
+ * coordinate CAD con l'origine al centro del lato inferiore del rettangolo 9,6×20, riportati sul
+ * riquadro 60×120 (x: 30 + xCAD×60/9,6; y: 120 − yCAD×6) e arrotondati alla griglia:
+ * - (−1,6; 20) ingresso aria → (20, 0), esatto;
+ * - (+1,6; 20) uscita azoto → (40, 0), esatto. Accetta `aria` perché il modello non ha un tipo di
+ *   aggancio per l'azoto: la tubazione che ne esce si disegna con gli stessi stili;
+ * - (0; 0) scarico condense → (30, 120), esatto;
+ * - sui fianchi (x = ±4,8 → 0 e 60), quota 2,39 → 14,3 dal fondo → y 105,7 → 110 (`sx-1`/`dx-1`)
+ *   e quota 4,21 → 25,3 dal fondo → y 94,7 → 90 (`sx-2`/`dx-2`). Arrotondate di 4,3 e 4,7 unità:
+ *   le due quote CAD distano 1,82 (10,9 unità qui), e la griglia di 10 le tiene distinte di un
+ *   passo. La generazione automatica non le usa; si dichiarano perché l'editor le offra ai
+ *   collegamenti a mano. Il CAD non dice a cosa servano, quindi accettano sia aria sia condensa.
+ */
+const ANCORE_GENERATORE_AZOTO: SchemaAncora[] = [
+  { id: 'in-alto', x: 20, y: 0, accetta: ['aria'] },
+  { id: 'out-alto', x: 40, y: 0, accetta: ['aria'] },
+  { id: 'basso-out', x: 30, y: 120, accetta: ['condensa'] },
+  { id: 'sx-1', x: 0, y: 110, accetta: ['aria', 'condensa'] },
+  { id: 'sx-2', x: 0, y: 90, accetta: ['aria', 'condensa'] },
+  { id: 'dx-1', x: 60, y: 110, accetta: ['aria', 'condensa'] },
+  { id: 'dx-2', x: 60, y: 90, accetta: ['aria', 'condensa'] },
+]
+
+/**
  * Registro dei simboli: unisce per ogni variante grafica l'ingombro, i punti di aggancio
  * delle tubazioni e la funzione di disegno, così i tre non possono più andare fuori sincrono
  * come accadeva quando vivevano in file separati (`DIMENSIONI_NODO` in `layout.ts`, disegno
@@ -1412,6 +1474,11 @@ export const REGISTRO_SIMBOLI: Record<ChiaveSimbolo, DefinizioneSimbolo> = {
     // Task 8, Blocco 3, perché 129/2 = 64,5 non cadeva sulla griglia), a metà altezza (120/2 = 60).
     ancore: [{ id: 'dx', x: 120, y: 60, accetta: ['aria'] }],
     disegna: simboloPaccoBombole,
+  },
+  generatore_azoto: {
+    dimensioni: DIMENSIONI.generatore_azoto,
+    ancore: ANCORE_GENERATORE_AZOTO,
+    disegna: simboloGeneratoreAzoto,
   },
   giunzione: {
     dimensioni: DIMENSIONI.giunzione,
@@ -1591,6 +1658,7 @@ export const DIMENSIONI_NODO: Record<SchemaNodoTipo, { larghezza: number; altezz
   separatore: REGISTRO_SIMBOLI.separatore.dimensioni,
   tanica: REGISTRO_SIMBOLI.tanica.dimensioni,
   pacco_bombole: REGISTRO_SIMBOLI.pacco_bombole.dimensioni,
+  generatore_azoto: REGISTRO_SIMBOLI.generatore_azoto.dimensioni,
   giunzione: REGISTRO_SIMBOLI.giunzione.dimensioni,
   utenze: REGISTRO_SIMBOLI.utenze.dimensioni,
 }
