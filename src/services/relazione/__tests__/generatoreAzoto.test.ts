@@ -71,6 +71,13 @@ describe('buildEsiti — generatore di azoto', () => {
     expect(n1[0].esito).toBeNull()
     expect(n1[0].recipiente).toBe(false)
   })
+
+  test('senza serbatoi interni il generatore è escluso: non contiene recipienti', () => {
+    const rows = buildEsiti(schedaConGeneratore({ serbatoi_generatore: [] }), info)
+    const n1 = rows.find((r) => r.pos === 'N1')!
+    expect(n1.adempimento).toBe('Escluso')
+    expect(n1.riferimento).toBe('art. 2 comma i D.M. 329/2004')
+  })
 })
 
 describe('buildValvole — serbatoi interni', () => {
@@ -124,11 +131,19 @@ describe('preflight — valvole dei serbatoi interni', () => {
     expect(avviso?.posizioni ?? []).not.toContain('NS2.1')
   })
 
-  test('senza compressori le valvole NS ricevono l’avviso, come i serbatoi', () => {
-    const avviso = segnalazioni(schedaConGeneratore({ compressori: [] })).find(
-      (s) => s.codice === 'valvola-senza-compressori'
+  test('senza compressori le valvole NS hanno un avviso loro, senza invito a dichiarare', () => {
+    const tutte = segnalazioni(
+      schedaConGeneratore({ compressori: [], serbatoi: [makeSerbatoio()] })
     )
-    expect(avviso?.posizioni).toEqual(expect.arrayContaining(['NS1.1', 'NS2.1']))
+    const ns = tutte.find((s) => s.codice === 'valvola-generatore-senza-compressori')!
+    expect(ns.livello).toBe('avviso')
+    expect(ns.posizioni).toEqual(['NS1.1', 'NS2.1'])
+    expect(ns.messaggio).not.toContain('va dichiarato qui sopra')
+    expect(ns.messaggio).toContain('compressori')
+    // Il serbatoio S1 conserva l'avviso di prima, testo compreso.
+    const s = tutte.find((x) => x.codice === 'valvola-senza-compressori')!
+    expect(s.posizioni).toEqual(['S1.1'])
+    expect(s.messaggio).toContain('va dichiarato qui sopra')
   })
 })
 
@@ -184,6 +199,13 @@ describe('buildFluidi — generatore di azoto', () => {
     expect(azoto[0].provenienza).toBe('Produzione in sito')
   })
 
+  test('con generatori_azoto vuoto nessuna riga Azoto', () => {
+    const { righe } = buildFluidi(
+      schedaConGeneratore({ generatori_azoto: [], serbatoi_generatore: [] })
+    )
+    expect(righe.filter((r) => r.fluido === 'Azoto')).toHaveLength(0)
+  })
+
   test('con anche un serbatoio di azoto la riga resta una sola', () => {
     const { righe } = buildFluidi(
       schedaConGeneratore({ serbatoi: [makeSerbatoio({ fluido: 'AZOTO' })] })
@@ -199,7 +221,7 @@ describe('fraseGeneratoriAzoto', () => {
 
   test('un generatore', () => {
     expect(fraseGeneratoriAzoto([makeGeneratore()])).toBe(
-      "A valle della linea di trattamento è installato un generatore di azoto (N1) che produce azoto in sito a partire dall'aria compressa."
+      "A valle della linea di trattamento è installato un generatore di azoto (N1) che produce azoto in sito a partire dall'aria compressa"
     )
   })
 
@@ -207,7 +229,7 @@ describe('fraseGeneratoriAzoto', () => {
     expect(
       fraseGeneratoriAzoto([makeGeneratore(), makeGeneratore({ codice: 'N2' })])
     ).toBe(
-      "A valle della linea di trattamento sono installati due generatori di azoto (N1, N2) che producono azoto in sito a partire dall'aria compressa."
+      "A valle della linea di trattamento sono installati due generatori di azoto (N1, N2) che producono azoto in sito a partire dall'aria compressa"
     )
   })
 
@@ -219,7 +241,26 @@ describe('fraseGeneratoriAzoto', () => {
         makeGeneratore({ codice: 'N3' }),
       ])
     ).toBe(
-      "A valle della linea di trattamento sono installati tre generatori di azoto (N1, N2, N3) che producono azoto in sito a partire dall'aria compressa."
+      "A valle della linea di trattamento sono installati tre generatori di azoto (N1, N2, N3) che producono azoto in sito a partire dall'aria compressa"
+    )
+  })
+
+  test('senza sezione di trattamento: a valle dei compressori, al singolare e al plurale', () => {
+    expect(fraseGeneratoriAzoto([makeGeneratore()], false)).toBe(
+      "A valle dei compressori è installato un generatore di azoto (N1) che produce azoto in sito a partire dall'aria compressa"
+    )
+    expect(
+      fraseGeneratoriAzoto([makeGeneratore(), makeGeneratore({ codice: 'N2' })], false)
+    ).toBe(
+      "A valle dei compressori sono installati due generatori di azoto (N1, N2) che producono azoto in sito a partire dall'aria compressa"
+    )
+    expect(
+      fraseGeneratoriAzoto(
+        [makeGeneratore(), makeGeneratore({ codice: 'N2' }), makeGeneratore({ codice: 'N3' })],
+        false
+      )
+    ).toBe(
+      "A valle dei compressori sono installati tre generatori di azoto (N1, N2, N3) che producono azoto in sito a partire dall'aria compressa"
     )
   })
 })
@@ -229,7 +270,28 @@ describe('buildDescrizioneGenerale — generatore di azoto', () => {
     const { sezioni } = buildDescrizioneGenerale(schedaConGeneratore(), info)
     const iTrattamento = sezioni.findIndex((s) => s.startsWith('Sezione trattamento aria'))
     expect(iTrattamento).toBeGreaterThanOrEqual(0)
-    expect(sezioni[iTrattamento + 1]).toBe(fraseGeneratoriAzoto([makeGeneratore()]))
+    expect(sezioni[iTrattamento + 1]).toBe(
+      "A valle della linea di trattamento è installato un generatore di azoto (N1) che produce azoto in sito a partire dall'aria compressa"
+    )
+  })
+
+  test('senza essiccatori né filtri la frase dice «a valle dei compressori»', () => {
+    const { sezioni } = buildDescrizioneGenerale(
+      schedaConGeneratore({ essiccatori: [], scambiatori: [], filtri: [] }),
+      info
+    )
+    expect(sezioni.some((s) => s.startsWith('Sezione trattamento aria'))).toBe(false)
+    expect(sezioni).toContain(
+      "A valle dei compressori è installato un generatore di azoto (N1) che produce azoto in sito a partire dall'aria compressa"
+    )
+  })
+
+  test('con generatori_azoto vuoto nessuna frase', () => {
+    const { sezioni } = buildDescrizioneGenerale(
+      schedaConGeneratore({ generatori_azoto: [], serbatoi_generatore: [] }),
+      info
+    )
+    expect(sezioni.some((s) => s.includes('generator'))).toBe(false)
   })
 })
 

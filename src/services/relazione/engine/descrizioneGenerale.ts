@@ -193,16 +193,24 @@ function sezioneTrattamento(scheda: SchedaDatiCompleta): string {
 /**
  * La frase sui generatori di azoto, approvata nel testo (decisione 14 del progetto): al
  * singolare con un generatore, al plurale con più. Senza generatori nessuna frase.
+ *
+ * È una voce dell'elenco di §2.1, quindi senza punto finale come le altre. Senza sezione di
+ * trattamento (`conTrattamento` falso) il generatore sta a valle dei compressori, e la frase
+ * lo dice invece di nominare una linea di trattamento che non c'è.
  */
-export function fraseGeneratoriAzoto(generatori: GeneratoreAzoto[]): string {
+export function fraseGeneratoriAzoto(
+  generatori: GeneratoreAzoto[],
+  conTrattamento = true
+): string {
   const n = generatori.length
   if (n === 0) return ''
   const codici = generatori.map((g) => g.codice).join(', ')
+  const aValle = conTrattamento ? 'A valle della linea di trattamento' : 'A valle dei compressori'
   return n === 1
-    ? `A valle della linea di trattamento è installato un generatore di azoto (${codici}) ` +
-        "che produce azoto in sito a partire dall'aria compressa."
-    : `A valle della linea di trattamento sono installati ${numeroInLettere(n)} generatori ` +
-        `di azoto (${codici}) che producono azoto in sito a partire dall'aria compressa.`
+    ? `${aValle} è installato un generatore di azoto (${codici}) ` +
+        "che produce azoto in sito a partire dall'aria compressa"
+    : `${aValle} sono installati ${numeroInLettere(n)} generatori ` +
+        `di azoto (${codici}) che producono azoto in sito a partire dall'aria compressa`
 }
 
 // ---------------------------------------------------------------------------
@@ -243,13 +251,15 @@ export function buildDescrizioneGenerale(
     sezioni.push(descrizioneAccumulo(perFluido.get(etichetta)!, etichetta))
   }
 
-  if ((scheda.essiccatori?.length ?? 0) > 0 || (scheda.filtri?.length ?? 0) > 0) {
+  const conTrattamento =
+    (scheda.essiccatori?.length ?? 0) > 0 || (scheda.filtri?.length ?? 0) > 0
+  if (conTrattamento) {
     sezioni.push(sezioneTrattamento(scheda))
   }
 
   // Il generatore sta in fondo alla linea, dopo il trattamento: la frase segue quella sezione,
   // come voce dello stesso elenco. Senza generatori la stringa è vuota e non entra.
-  const fraseGeneratori = fraseGeneratoriAzoto(scheda.generatori_azoto ?? [])
+  const fraseGeneratori = fraseGeneratoriAzoto(scheda.generatori_azoto ?? [], conTrattamento)
   if (fraseGeneratori) sezioni.push(fraseGeneratori)
 
   if ((scheda.separatori?.length ?? 0) > 0) {

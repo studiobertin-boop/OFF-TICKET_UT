@@ -18,6 +18,11 @@
 import { comportaAdempimento } from '@/utils/dm329Classification'
 import type { RelazioneModel, Segnalazione } from './types'
 
+/** Valvola di un serbatoio interno di generatore di azoto (NS1.1, NS2.2…). */
+function eValvolaSerbatoioGeneratore(pos: string): boolean {
+  return pos.startsWith('NS')
+}
+
 /** Aggiunge una segnalazione se ci sono posizioni interessate. */
 function perPosizioni(
   out: Segnalazione[],
@@ -142,11 +147,30 @@ export function validateRelazione(model: RelazioneModel): Segnalazione[] {
     out,
     'avviso',
     'valvola-senza-compressori',
-    valvole.portata.filter((r) => !r.applicabile).map((r) => r.posValvola),
+    valvole.portata
+      .filter((r) => !r.applicabile && !eValvolaSerbatoioGeneratore(r.posValvola))
+      .map((r) => r.posValvola),
     (n) =>
       `${n === 1 ? 'Una valvola non ha' : `${n} valvole non hanno`} compressori collegati: ` +
       'la verifica di portata non è definita e la tabella riporterà «n.a.». ' +
       'Se il collegamento esiste, va dichiarato qui sopra.'
+  )
+
+  // Le valvole dei serbatoi interni dei generatori si verificano su tutti i compressori della
+  // scheda, senza collegamenti da dichiarare: l'invito a dichiararli qui non le riguarda.
+  perPosizioni(
+    out,
+    'avviso',
+    'valvola-generatore-senza-compressori',
+    valvole.portata
+      .filter((r) => !r.applicabile && eValvolaSerbatoioGeneratore(r.posValvola))
+      .map((r) => r.posValvola),
+    (n) =>
+      `${n === 1 ? 'Una valvola dei serbatoi interni' : `${n} valvole dei serbatoi interni`} ` +
+      'dei generatori di azoto non ' +
+      `${n === 1 ? 'è verificabile' : 'sono verificabili'} in portata: la verifica si fa sulla ` +
+      'portata di tutti i compressori dell’impianto, e la scheda non ne ha. ' +
+      'La tabella riporterà «n.a.».'
   )
 
   // --- Tubazioni (A4) ---------------------------------------------------------------
