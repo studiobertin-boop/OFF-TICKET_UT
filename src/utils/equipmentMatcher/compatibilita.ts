@@ -27,7 +27,7 @@ export interface ConfrontoSpec {
  */
 const CAMPI_CONFRONTABILI: Record<
   EquipmentKind,
-  { campo: string; etichetta: string; da: 'volume' | 'pressione_max'; tolleranza: number }[]
+  { campo: string; etichetta: string; da: 'volume' | 'pressione_max' | 'portata_aria'; tolleranza: number }[]
 > = {
   serbatoio: [
     { campo: 'volume', etichetta: 'Volume', da: 'volume', tolleranza: 0 },
@@ -62,11 +62,11 @@ const CAMPI_CONFRONTABILI: Record<
     { campo: 'ps', etichetta: 'PS', da: 'pressione_max', tolleranza: TOLLERANZA_PRESSIONE },
   ],
   // Marca e modello li confronta già il matcher, e TS non si legge (vedi sopra): restano PS e
-  // portata d'aria di alimentazione, che `applyOcr` riceve in `volume` come la capacità di
-  // ogni tipo. Se l'estrazione non la restituisce il confronto vale `non_letto`, non esclude.
+  // portata d'aria di alimentazione, che l'estrazione restituisce in `portata_aria` (l/min) e
+  // non in `volume`. Se la targa non la riporta il confronto vale `non_letto`, non esclude.
   generatore: [
     { campo: 'ps', etichetta: 'PS', da: 'pressione_max', tolleranza: TOLLERANZA_PRESSIONE },
-    { campo: 'portata', etichetta: 'Aria alim.', da: 'volume', tolleranza: 0 },
+    { campo: 'portata', etichetta: 'Aria alim.', da: 'portata_aria', tolleranza: 0 },
   ],
 }
 
@@ -99,7 +99,10 @@ export function confrontaSpecs(
   const def = EQUIPMENT_DEFS[kind]
   return CAMPI_CONFRONTABILI[kind].map(({ campo, etichetta, da, tolleranza }) => {
     const valoreCatalogo = readSpec(def.catalogType, riga.specs ?? {}, campo)
-    const valoreLetto = da === 'volume' ? (datiOcr.volume ?? null) : pressioneLetta(kind, datiOcr)
+    const valoreLetto =
+      da === 'volume' ? (datiOcr.volume ?? null)
+      : da === 'portata_aria' ? (datiOcr.portata_aria ?? null)
+      : pressioneLetta(kind, datiOcr)
 
     if (valoreLetto === null || valoreCatalogo === null || valoreCatalogo === '') {
       return { campo, etichetta, valoreCatalogo, valoreLetto, esito: 'non_letto' as const }

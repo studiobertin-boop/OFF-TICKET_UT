@@ -20,6 +20,8 @@ const EQUIPMENT_FIELDS: Partial<Record<EquipmentCatalogType, string[]>> = {
   'Scambiatori': ['marca', 'modello', 'n_fabbrica', 'anno'],
   'Filtri': ['marca', 'modello', 'n_fabbrica', 'anno'],
   'Separatori': ['marca', 'modello', 'n_fabbrica', 'anno'],
+  'Generatori azoto': ['marca', 'modello', 'n_fabbrica', 'anno'],
+  'Serbatoi generatore azoto': ['marca', 'modello', 'n_fabbrica', 'anno'],
   'Valvole di sicurezza': ['marca', 'modello', 'n_fabbrica', 'anno'],
   'Altro': ['tipo_apparecchio', 'marca', 'modello', 'n_fabbrica', 'anno']
 }
@@ -101,7 +103,10 @@ function getEquipmentData(
 ): any {
   if (!formData) return null
 
-  const typeLowercase = equipmentType.toLowerCase()
+  // I tipi con nome composto hanno l'array con i trattini bassi
+  const typeLowercase = equipmentType === 'Generatori azoto' ? 'generatori_azoto'
+    : equipmentType === 'Serbatoi generatore azoto' ? 'serbatoi_generatore'
+    : equipmentType.toLowerCase()
 
   // Caso 1: Disoleatori (nested in compressori)
   if (equipmentType === 'Disoleatori' && parentIndex !== undefined) {

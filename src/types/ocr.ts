@@ -16,6 +16,8 @@ export type EquipmentType =
   | 'filtro'
   | 'separatore'
   | 'valvola' // Solo valvola di sicurezza
+  | 'generatore' // Generatore di azoto (N1…)
+  | 'serbatoio_generatore' // Serbatoio interno del generatore (NS1…): per la targhetta è un disoleatore
 
 // ============================================================================
 // OCR REQUEST/RESPONSE
@@ -51,6 +53,10 @@ export interface OCRExtractedData {
   // Campi specifici per tipo
   pressione_max?: number // bar
   volume?: number // litri
+  /** Solo generatori di azoto: portata d'ARIA di alimentazione in l/min (non l'azoto prodotto). */
+  portata_aria?: number
+  /** Solo generatori di azoto: temperatura di progetto TS in °C, come scritta in targa. */
+  ts?: string
   materiale_n?: string // Solo compressori
   diametro_pressione?: string // Solo valvole (quando tipo OCR = 'valvola')
 

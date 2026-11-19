@@ -48,7 +48,9 @@ const CATALOG_TO_OCR_TYPE_MAP: Partial<Record<EquipmentCatalogType, EquipmentTyp
   'Essiccatori': 'essiccatore',
   'Scambiatori': 'scambiatore',
   'Filtri': 'filtro',
-  'Separatori': 'separatore'
+  'Separatori': 'separatore',
+  'Generatori azoto': 'generatore',
+  'Serbatoi generatore azoto': 'serbatoio_generatore'
 }
 
 /**
@@ -309,9 +311,10 @@ export const BatchOCRDialog = ({ open, onClose, onComplete }: BatchOCRDialogProp
             <Typography variant="body2" component="div">
               1. Seleziona più foto di targhette o PDF di schede tecniche<br />
               2. I PDF multi-pagina verranno convertiti automaticamente in immagini<br />
-              3. Rinomina i file immagine secondo la convenzione: <strong>S1.jpg, C2.jpg, E1.jpg, F1.jpg, SEP1.jpg</strong><br />
+              3. Rinomina i file immagine secondo la convenzione: <strong>S1.jpg, C2.jpg, E1.jpg, F1.jpg, SEP1.jpg, N1.jpg</strong><br />
               4. Per apparecchiature nested usa: <strong>C1.1.jpg</strong> (Disoleatore), <strong>E1.1.jpg</strong> (Scambiatore)<br />
               5. Per componenti usa: <strong>S1.1.jpg</strong> (Valvola di sicurezza del serbatoio 1)<br />
+              &nbsp;&nbsp;&nbsp;Serbatoi interni dei generatori di azoto: <strong>NS1.jpg</strong>, e <strong>NS1.1.jpg</strong> per la loro valvola<br />
               6. L'OCR riconoscerà automaticamente marca, modello e altri dati
             </Typography>
           </Alert>
@@ -481,7 +484,9 @@ function generateEquipmentCodeFromParsed(item: BatchOCRItem): string {
     'Essiccatori': 'E',
     'Scambiatori': 'SC',
     'Filtri': 'F',
-    'Separatori': 'SEP'
+    'Separatori': 'SEP',
+    'Generatori azoto': 'N',
+    'Serbatoi generatore azoto': 'NS'
   }
 
   const prefix = prefixMap[item.parsedType]

@@ -138,8 +138,12 @@ const applyOcr = (def: EquipmentTypeDef, base: string, data: OCRExtractedData, s
   if (data.modello) setValue(`${base}.modello`, data.modello)
   if (data.n_fabbrica) setValue(`${base}.n_fabbrica`, data.n_fabbrica)
   if (data.anno) setValue(`${base}.anno`, data.anno)
-  if (def.capacitaField && data.volume != null) setValue(`${base}.${def.capacitaField}`, data.volume)
+  // La capacità del generatore di azoto è la portata d'aria in l/min, che l'estrazione restituisce
+  // a parte: `volume` è la capacità in litri dei recipienti.
+  const capacita = def.kind === 'generatore' ? data.portata_aria : data.volume
+  if (def.capacitaField && capacita != null) setValue(`${base}.${def.capacitaField}`, capacita)
   if (def.pressioneField && data.pressione_max != null) setValue(`${base}.${def.pressioneField}`, data.pressione_max)
+  if (data.ts && def.kind === 'generatore') setValue(`${base}.ts`, data.ts)
   if (data.materiale_n && def.extra.some((e) => e.name === 'materiale_n')) setValue(`${base}.materiale_n`, data.materiale_n)
   // Il diametro fa parte della chiave di variante: quel che la targhetta dice va ricondotto
   // alla scala canonica, altrimenti la lettura reintroduce le grafie che non distinguono.

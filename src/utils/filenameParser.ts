@@ -25,13 +25,36 @@ export interface ParsedFilename {
  * - E1.1, E1.2, E2.1 → Scambiatori (dell'essiccatore N; fino a due per essiccatore)
  * - F1, F2 → Filtri
  * - SEP1, SEP2 → Separatori
+ * - N1, N2, N3 → Generatori di azoto
+ * - NS1, NS2… → Serbatoi interni dei generatori (codice proprio, non derivato dal generatore)
+ * - NS1.1 → Valvola di sicurezza principale del serbatoio interno NS1
  */
 const FILENAME_PREFIX_MAP: Record<string, EquipmentCatalogType> = {
   'S': 'Serbatoi',
   'C': 'Compressori',
   'E': 'Essiccatori',
   'F': 'Filtri',
-  'SEP': 'Separatori'
+  'SEP': 'Separatori',
+  'N': 'Generatori azoto',
+  'NS': 'Serbatoi generatore azoto'
+}
+
+/** Prefissi validi, nell'ordine in cui compaiono nei messaggi d'errore. */
+const PREFISSI_VALIDI = 'S, C, E, F, SEP, N, NS'
+
+/**
+ * Nome con cui il tipo compare nei messaggi, e prefisso dei codici. Il troncamento della «s»
+ * finale vale solo per i tipi semplici: «Generatori azoto» non è un plurale regolare.
+ */
+const ETICHETTA_TIPO: Partial<Record<EquipmentCatalogType, { singolare: string; prefisso: string }>> = {
+  'Generatori azoto': { singolare: 'Generatore di azoto', prefisso: 'N' },
+  'Serbatoi generatore azoto': { singolare: 'Serbatoio interno', prefisso: 'NS' }
+}
+
+/** Array della scheda dei tipi il cui nome non coincide con quello minuscolo del tipo. */
+const ARRAY_PER_TIPO: Partial<Record<EquipmentCatalogType, string>> = {
+  'Generatori azoto': 'generatori_azoto',
+  'Serbatoi generatore azoto': 'serbatoi_generatore'
 }
 
 /**
@@ -75,7 +98,7 @@ export function parseEquipmentFilename(filename: string): ParsedFilename {
       equipmentType: null,
       index: -1,
       isValid: false,
-      error: `Formato non valido: "${baseName}". Usa formato S1, C2, C1.1, E2, E1.1, F1, SEP1, etc.`,
+      error: `Formato non valido: "${baseName}". Usa formato S1, C2, C1.1, E2, E1.1, F1, SEP1, N1, NS1, NS1.1, etc.`,
       rawPrefix: baseName
     }
   }
@@ -97,7 +120,7 @@ export function parseEquipmentFilename(filename: string): ParsedFilename {
       equipmentType: null,
       index: -1,
       isValid: false,
-      error: `Prefisso sconosciuto: "${prefix}". Prefissi validi: S, C, E, F, SEP`,
+      error: `Prefisso sconosciuto: "${prefix}". Prefissi validi: ${PREFISSI_VALIDI}`,
       rawPrefix: baseName
     }
   }
@@ -155,6 +178,28 @@ function parseNestedFormat(
     }
   }
 
+  // NS1.1 → Valvola di sicurezza principale del serbatoio interno NS1 (stessa regola dei serbatoi)
+  if (prefix === 'NS') {
+    return {
+      equipmentType: 'Serbatoi generatore azoto',
+      index: parentIndex,
+      componentType: 'valvola_sicurezza',
+      isValid: true,
+      rawPrefix
+    }
+  }
+
+  // N1.1 → il generatore non ha figure annidate: il suo serbatoio ha un prefisso proprio
+  if (prefix === 'N') {
+    return {
+      equipmentType: null,
+      index: -1,
+      isValid: false,
+      error: `Il generatore di azoto non supporta formato annidato: il serbatoio interno si chiama NS${parentIndex + 1} e la sua valvola NS${parentIndex + 1}.1`,
+      rawPrefix
+    }
+  }
+
   // Altri prefissi non supportano formato annidato
   return {
     equipmentType: null,
@@ -194,8 +239,8 @@ export function getFormPath(
   index: number,
   parentIndex?: number
 ): string {
-  // Lowercase tipo per form path
-  const basePath = equipmentType.toLowerCase()
+  // Lowercase tipo per form path (i tipi con nome composto hanno il proprio array)
+  const basePath = ARRAY_PER_TIPO[equipmentType] ?? equipmentType.toLowerCase()
 
   // Disoleatori e Scambiatori sono nested
   if (equipmentType === 'Disoleatori' && parentIndex !== undefined) {
@@ -222,16 +267,18 @@ export function formatParsedFilename(parsed: ParsedFilename): string {
     return 'Tipo sconosciuto'
   }
 
-  const singularType = parsed.equipmentType.slice(0, -1) // Rimuovi 's' finale
+  const etichetta = ETICHETTA_TIPO[parsed.equipmentType]
+  const singularType = etichetta?.singolare ?? parsed.equipmentType.slice(0, -1) // Rimuovi 's' finale
+  const codicePrefisso = etichetta?.prefisso ?? singularType.charAt(0)
   const displayIndex = parsed.index + 1 // Convert to 1-based
 
   // Componente nested (es: "Valvola di Sicurezza S1")
   if (parsed.componentType === 'valvola_sicurezza') {
-    return `Valvola di Sicurezza ${singularType.charAt(0)}${displayIndex}`
+    return `Valvola di Sicurezza ${codicePrefisso}${displayIndex}`
   }
 
   if (parsed.componentType === 'manometro') {
-    return `Manometro ${singularType.charAt(0)}${displayIndex}`
+    return `Manometro ${codicePrefisso}${displayIndex}`
   }
 
   if (parsed.parentIndex !== undefined) {

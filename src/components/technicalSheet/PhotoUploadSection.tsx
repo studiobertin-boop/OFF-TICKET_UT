@@ -58,6 +58,8 @@ export const PhotoUploadSection = ({
     { value: 'scambiatore', label: 'Scambiatore' },
     { value: 'filtro', label: 'Filtro' },
     { value: 'separatore', label: 'Separatore' },
+    { value: 'generatore', label: 'Generatore di azoto' },
+    { value: 'serbatoio_generatore', label: 'Serbatoio interno generatore' },
   ]
 
   /**

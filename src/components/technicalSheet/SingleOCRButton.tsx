@@ -33,6 +33,8 @@ const CATALOG_TO_OCR_TYPE_MAP: Partial<Record<EquipmentCatalogType, EquipmentTyp
   'Scambiatori': 'scambiatore',
   'Filtri': 'filtro',
   'Separatori': 'separatore',
+  'Generatori azoto': 'generatore',
+  'Serbatoi generatore azoto': 'serbatoio_generatore',
   'Recipienti filtro': 'serbatoio' // Usa tipo serbatoio per similitudine (recipiente pressurizzato)
 }
 
@@ -46,7 +48,9 @@ const EQUIPMENT_CODE_PREFIX: Partial<Record<EquipmentCatalogType, string>> = {
   'Essiccatori': 'E',
   'Scambiatori': 'SC',
   'Filtri': 'F',
-  'Separatori': 'SEP'
+  'Separatori': 'SEP',
+  'Generatori azoto': 'N',
+  'Serbatoi generatore azoto': 'NS'
 }
 
 /**

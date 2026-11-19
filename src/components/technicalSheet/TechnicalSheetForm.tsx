@@ -543,6 +543,19 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
         materiale_n: data.materiale_n || undefined,
       }
 
+      // Generatore di azoto e serbatoio interno: capacità e pressione vanno nei campi che la loro
+      // definizione dichiara (`portata`/`ps_pressione_max`), non nei `volume`/`pressione_max` generici.
+      // Per il generatore la capacità è la portata d'aria in l/min, non il volume.
+      if (kind === 'generatore' || kind === 'serbatoio_generatore') {
+        const def = EQUIPMENT_DEFS[kind]
+        delete newEquipment.volume
+        delete newEquipment.pressione_max
+        const capacita = kind === 'generatore' ? data.portata_aria : data.volume
+        if (def.capacitaField) newEquipment[def.capacitaField] = capacita || undefined
+        if (def.pressioneField) newEquipment[def.pressioneField] = data.pressione_max || undefined
+        if (kind === 'generatore' && data.ts) newEquipment.ts = data.ts
+      }
+
       // Aggiungi dati specifici per serbatoi
       if (equipmentType === 'Serbatoi') {
         newEquipment.valvola_sicurezza = data.valvola_sicurezza || {}

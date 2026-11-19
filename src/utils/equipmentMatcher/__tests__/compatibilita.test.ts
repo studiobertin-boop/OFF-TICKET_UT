@@ -72,3 +72,22 @@ describe('confrontaSpecs — filtro', () => {
     expect(haConferme(c)).toBe(false)
   })
 })
+
+describe('confrontaSpecs — generatore di azoto', () => {
+  const riga: any = {
+    id: 'gen-1', marca: 'X', modello: 'Y', type: 'Generatori azoto',
+    specs: { ps: 10, portata: 1200 },
+  }
+
+  test('la portata d\'aria letta in portata_aria si confronta con la portata a catalogo', () => {
+    const ok = confrontaSpecs('generatore', { pressione_max: 10, portata_aria: 1200 }, riga)
+    expect(ok.find((x) => x.campo === 'portata')?.esito).toBe('conferma')
+    const ko = confrontaSpecs('generatore', { pressione_max: 10, portata_aria: 900 }, riga)
+    expect(ko.find((x) => x.campo === 'portata')?.esito).toBe('diverge')
+  })
+
+  test('il volume letto non è la portata d\'aria', () => {
+    const c = confrontaSpecs('generatore', { pressione_max: 10, volume: 500 }, riga)
+    expect(c.find((x) => x.campo === 'portata')?.esito).toBe('non_letto')
+  })
+})

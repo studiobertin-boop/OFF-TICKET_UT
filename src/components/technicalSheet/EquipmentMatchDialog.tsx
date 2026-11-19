@@ -122,6 +122,7 @@ export const EquipmentMatchDialog = ({
   const letto = [
     datiOcr.marca, datiOcr.modello,
     datiOcr.volume != null ? `${datiOcr.volume} L` : null,
+    datiOcr.portata_aria != null ? `${datiOcr.portata_aria} l/min (aria)` : null,
     datiOcr.pressione_max != null ? `${datiOcr.pressione_max} bar` : null,
     datiOcr.n_fabbrica ? `matr. ${datiOcr.n_fabbrica}` : null,
     datiOcr.anno ? String(datiOcr.anno) : null,

@@ -266,10 +266,21 @@ function campiSpecifici(equipmentType: string): Record<string, unknown> {
         pressione_max: opzionale('number', 'pressione massima in bar'),
       }
     case 'disoleatore':
+    case 'serbatoio_generatore': // il serbatoio interno del generatore, per la targhetta, è un disoleatore
       return {
         volume: opzionale('integer', 'volume in litri'),
         pressione_max: opzionale('number', 'pressione massima PS in bar'),
         valvola_sicurezza: VALVOLA_SCHEMA,
+      }
+    case 'generatore':
+      // PS, TS e portata d'ARIA di alimentazione.
+      return {
+        pressione_max: opzionale('number', 'pressione massima PS in bar'),
+        ts: opzionale('string', 'temperatura di progetto TS in °C come scritta in targa, es. «-10/+60» o «60»'),
+        portata_aria: opzionale(
+          'number',
+          "portata dell'aria di alimentazione in l/min (convertita da Nm3/h se la targa la dà così: 1 Nm3/h = 16,67 l/min); NON la portata di azoto prodotto"
+        ),
       }
     case 'essiccatore':
       return { pressione_max: opzionale('number', 'pressione massima in bar') }
@@ -327,7 +338,15 @@ function promptPerTipo(equipmentType: string): string {
     filtro: 'un filtro',
     separatore: 'un separatore',
     valvola: 'una valvola di sicurezza',
+    generatore: 'un generatore di azoto (PSA o a membrana)',
+    serbatoio_generatore: 'un serbatoio interno di un generatore di azoto (recipiente a pressione, trattato come un disoleatore)',
   }
+
+  // Sul generatore la targa riporta più portate: va letta solo quella dell'aria che entra.
+  const regolaGeneratore = equipmentType === 'generatore'
+    ? `
+- Per portata_aria riporta la portata dell'ARIA DI ALIMENTAZIONE (aria compressa in ingresso) in l/min. Se la targa la dà in Nm3/h, convertila (1 Nm3/h = 16,67 l/min). Non confonderla con la portata di azoto prodotto, né con la purezza o il punto di rugiada: se la targa riporta solo l'azoto prodotto usa null.`
+    : ''
 
   return `Leggi i dati di targa di ${nome[equipmentType] ?? 'un’apparecchiatura'} da questa immagine o da questo documento.
 
@@ -337,14 +356,14 @@ REGOLE
 - Usa null per ogni dato che non riesci a leggere con certezza: meglio un campo vuoto di un valore indovinato.
 - Riporta i numeri senza unità di misura ("13", non "13 bar") e usa il punto come separatore decimale.
 - Trascrivi marca e modello esattamente come sono scritti.
-- In raw_text riporta solo il testo della targa o del riquadro dei dati tecnici, non l'intero documento, e comunque non più di 600 caratteri.`
+- In raw_text riporta solo il testo della targa o del riquadro dei dati tecnici, non l'intero documento, e comunque non più di 600 caratteri.${regolaGeneratore}`
 }
 
 /**
  * Calcola confidence score basato su quanti campi sono stati estratti
  */
 function calculateConfidenceScore(data: any): number {
-  const fields = ['marca', 'modello', 'n_fabbrica', 'anno', 'pressione_max', 'volume']
+  const fields = ['marca', 'modello', 'n_fabbrica', 'anno', 'pressione_max', 'volume', 'portata_aria']
   const extractedCount = fields.filter(field => data[field] !== null && data[field] !== undefined).length
   return Math.round((extractedCount / fields.length) * 100)
 }
