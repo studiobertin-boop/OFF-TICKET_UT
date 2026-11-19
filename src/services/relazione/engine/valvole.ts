@@ -11,7 +11,7 @@
  * Tabella pressione: "Adeguato" se pressione di taratura ≤ PS del recipiente associato.
  */
 import type { SchedaDatiCompleta } from '@/types/technicalSheet'
-import { serbatoiDelGeneratore } from '@/types/technicalSheet'
+import { generatoriInOrdine, serbatoiDelGeneratore } from '@/types/technicalSheet'
 import type {
   AdditionalInfo,
   EngineOptions,
@@ -144,7 +144,7 @@ export function buildValvole(
   // da dichiarare in additional_info.
   const addendiTutti = compressori.map((c) => c.volume_aria_prodotto ?? 0)
   const portataTutti = addendiTutti.reduce((sum, q) => sum + q, 0)
-  for (const gen of scheda.generatori_azoto ?? []) {
+  for (const gen of generatoriInOrdine(scheda)) {
     for (const s of serbatoiDelGeneratore(scheda, gen.codice)) {
       const posV = codiceValvolaSerbatoio(s.codice)
       const v = s.valvola_sicurezza

@@ -319,3 +319,43 @@ describe('integrazione template — generatore di azoto', () => {
     expect(testo).toContain('NS1.1')
   })
 })
+
+describe('ordine di codice con array fuori ordine', () => {
+  // Cancellato NS2 e riaggiunto: l'array è [NS1, NS3, NS2]; i generatori sono [N2, N1].
+  const fuoriOrdine = () =>
+    schedaConGeneratore({
+      generatori_azoto: [makeGeneratore({ codice: 'N2' }), makeGeneratore({ codice: 'N1' })],
+      serbatoi_generatore: [
+        makeSerbatoioGeneratore({ codice: 'NS4', generatore_associato: 'N2', n_fabbrica: 'CMS-4' }),
+        makeSerbatoioGeneratore({ codice: 'NS1', n_fabbrica: 'CMS-1' }),
+        makeSerbatoioGeneratore({ codice: 'NS3', n_fabbrica: 'CMS-3' }),
+        makeSerbatoioGeneratore({ codice: 'NS2', n_fabbrica: 'CMS-2' }),
+      ],
+    })
+  const attesoPos = ['N1', 'NS1', 'NS1.1', 'NS2', 'NS2.1', 'NS3', 'NS3.1', 'N2', 'NS4', 'NS4.1']
+
+  test('esiti', () => {
+    const pos = buildEsiti(fuoriOrdine(), info).map((r) => r.pos)
+    expect(pos.slice(pos.indexOf('N1'))).toEqual(attesoPos)
+  })
+
+  test('caratteristiche', () => {
+    const pos = buildCaratteristiche(fuoriOrdine()).map((r) => r.pos)
+    expect(pos.slice(pos.indexOf('N1'))).toEqual(attesoPos)
+  })
+
+  test('protezioni', () => {
+    const scheda = fuoriOrdine()
+    const { altre } = buildProtezioni(scheda, buildEsiti(scheda, info))
+    expect(altre.map((r) => r.pos).filter((p) => p.startsWith('NS'))).toEqual([
+      'NS1', 'NS2', 'NS3', 'NS4',
+    ])
+  })
+
+  test('valvole', () => {
+    const { portata } = buildValvole(fuoriOrdine(), info)
+    expect(portata.map((r) => r.posValvola).filter((p) => p.startsWith('NS'))).toEqual([
+      'NS1.1', 'NS2.1', 'NS3.1', 'NS4.1',
+    ])
+  })
+})

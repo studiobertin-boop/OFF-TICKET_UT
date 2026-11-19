@@ -70,7 +70,9 @@ export function elencaValvole(scheda: SchedaDatiCompleta): ValvolaImpianto[] {
   // e non si scorre `generatori_azoto`, così l'elenco non dipende dalla presenza del padre.
   const numeroGeneratore = (codice: string) => parseCode(codice)?.num ?? 0
   const interni = [...(scheda.serbatoi_generatore ?? [])].sort(
-    (a, b) => numeroGeneratore(a.generatore_associato) - numeroGeneratore(b.generatore_associato)
+    (a, b) =>
+      numeroGeneratore(a.generatore_associato) - numeroGeneratore(b.generatore_associato) ||
+      numeroGeneratore(a.codice) - numeroGeneratore(b.codice)
   )
   for (const s of interni) {
     const valvole = valvoleDi(s.valvola_sicurezza, s.valvole_aggiuntive)

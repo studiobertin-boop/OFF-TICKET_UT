@@ -38,3 +38,17 @@ describe('elencaValvole con i serbatoi interni del generatore', () => {
     expect(out.map((v) => v.pos)).toEqual(['S1.1'])
   })
 })
+
+describe('elencaValvole: serbatoi interni fuori ordine', () => {
+  test('a parità di generatore si ordina per numero NS', () => {
+    const out = elencaValvole({
+      serbatoi_generatore: [
+        { codice: 'NS4', generatore_associato: 'N2', valvola_sicurezza: valvola('d') },
+        { codice: 'NS1', generatore_associato: 'N1', valvola_sicurezza: valvola('a') },
+        { codice: 'NS3', generatore_associato: 'N1', valvola_sicurezza: valvola('c') },
+        { codice: 'NS2', generatore_associato: 'N1', valvola_sicurezza: valvola('b') },
+      ],
+    } as any)
+    expect(out.map((v) => v.pos)).toEqual(['NS1.1', 'NS2.1', 'NS3.1', 'NS4.1'])
+  })
+})

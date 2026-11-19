@@ -23,7 +23,7 @@ import type {
   ProtezioniModel,
   ValvolaProtezione,
 } from '../types'
-import { serbatoiDelGeneratore } from '@/types/technicalSheet'
+import { generatoriInOrdine, serbatoiDelGeneratore } from '@/types/technicalSheet'
 import {
   codiciValvoleSerbatoio,
   descrizioneSerbatoio,
@@ -148,7 +148,7 @@ export function buildProtezioni(
 
   // Serbatoi interni dei generatori di azoto: come i disoleatori, portano valvole proprie e
   // il manometro sta sulla macchina.
-  for (const gen of scheda.generatori_azoto ?? []) {
+  for (const gen of generatoriInOrdine(scheda)) {
     for (const s of serbatoiDelGeneratore(scheda, gen.codice)) {
       if (!soggette.has(s.codice)) continue
       const valvole = valvoleDi(s.valvola_sicurezza, s.valvole_aggiuntive)

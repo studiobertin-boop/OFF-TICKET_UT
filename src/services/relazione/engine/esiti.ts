@@ -16,7 +16,7 @@
  * Le decisioni giuridiche vengono da `utils/dm329Classification`: qui si formatta soltanto.
  */
 import type { SchedaDatiCompleta, ValvolaSicurezza, CategoriaPED } from '@/types/technicalSheet'
-import { serbatoiDelGeneratore } from '@/types/technicalSheet'
+import { generatoriInOrdine, serbatoiDelGeneratore } from '@/types/technicalSheet'
 import type { AdditionalInfo, EngineOptions, EsitoRow } from '../types'
 import type { EsitoDM329 } from '@/utils/dm329Classification'
 import { classificaRecipiente, comportaAdempimento } from '@/utils/dm329Classification'
@@ -411,7 +411,7 @@ export function buildEsiti(
   // --- Generatori di azoto (+ serbatoi interni + valvole) -------------------
   // In coda a tutto, come nella scheda. Una scheda senza generatori (`undefined`) non entra
   // nel ciclo: le righe di prima restano identiche.
-  for (const gen of scheda.generatori_azoto ?? []) {
+  for (const gen of generatoriInOrdine(scheda)) {
     const righe = serbatoiDelGeneratore(scheda, gen.codice).map((s) => {
       const { row, esito } = rigaRecipiente({
         pos: s.codice,

@@ -165,7 +165,9 @@ export const CIVAApparecchioColumn = ({
   const badgeColor = apparecchio.tipoPratica === 'DICHIARAZIONE' ? 'info' : 'warning'
 
   const identificazione = [
-    apparecchio.tipo,
+    // La descrizione, quando c'è, sostituisce il tipo: altrimenti «Serbatoio generatore · Serbatoio
+    // interno generatore di azoto N1» ripeterebbe due volte lo stesso apparecchio.
+    apparecchio.descrizione ? '' : apparecchio.tipo,
     apparecchio.descrizione,
     [apparecchio.marca, apparecchio.modello].filter(Boolean).join(' '),
     apparecchio.n_fabbrica ? `N. fabbrica ${apparecchio.n_fabbrica}` : ''

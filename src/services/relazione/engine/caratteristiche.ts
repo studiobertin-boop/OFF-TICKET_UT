@@ -14,7 +14,7 @@
  * modificabile dal tecnico; vedi formatTemperatura per la resa.
  */
 import type { SchedaDatiCompleta, ValvolaSicurezza } from '@/types/technicalSheet'
-import { serbatoiDelGeneratore } from '@/types/technicalSheet'
+import { generatoriInOrdine, serbatoiDelGeneratore } from '@/types/technicalSheet'
 import type { CaratteristicheRow, EngineOptions } from '../types'
 import {
   codiciValvoleDisoleatore,
@@ -191,7 +191,7 @@ export function buildCaratteristiche(
   }
 
   // Generatori di azoto (+ serbatoi interni + valvole), in coda come in scheda
-  for (const gen of scheda.generatori_azoto ?? []) {
+  for (const gen of generatoriInOrdine(scheda)) {
     const portata = formatNumberIT(gen.portata)
     rows.push({
       ...base(gen.codice, 'Generatore di azoto', gen.marca, gen.modello, gen.anno, gen.n_fabbrica),

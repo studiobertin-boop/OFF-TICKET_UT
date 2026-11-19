@@ -2,6 +2,8 @@
  * Types per SCHEDA DATI DM329
  * Struttura dati per form raccolta informazioni sala compressori
  */
+// Da codiciScheda (non importa nulla): nessun ciclo.
+import { parseCode } from '@/services/fascicolo/codiciScheda'
 
 // ============================================================================
 // SEZIONE 1: DATI GENERALI
@@ -428,12 +430,27 @@ export const ARRAY_RECIPIENTI = [
   'serbatoi_generatore',
 ] as const
 
-/** Serbatoi interni del generatore dato, nell'ordine della scheda. */
+/**
+ * Serbatoi interni del generatore dato, in ordine di codice (NS1, NS2, NS3): non l'ordine
+ * dell'array, che dopo una cancellazione e una nuova aggiunta diverge da quello della tabella
+ * e dello schema. Il sort è stabile: a parità di numero resta l'ordine della scheda.
+ */
 export function serbatoiDelGeneratore(
   scheda: Pick<SchedaDatiCompleta, 'serbatoi_generatore'>,
   codiceGeneratore: string
 ): SerbatoioGeneratore[] {
-  return (scheda.serbatoi_generatore ?? []).filter((s) => s.generatore_associato === codiceGeneratore)
+  return (scheda.serbatoi_generatore ?? [])
+    .filter((s) => s.generatore_associato === codiceGeneratore)
+    .sort((a, b) => (parseCode(a.codice)?.num ?? 0) - (parseCode(b.codice)?.num ?? 0))
+}
+
+/** Generatori di azoto in ordine di codice (N1, N2, N3), non nell'ordine dell'array. */
+export function generatoriInOrdine(
+  scheda: Pick<SchedaDatiCompleta, 'generatori_azoto'>
+): GeneratoreAzoto[] {
+  return [...(scheda.generatori_azoto ?? [])].sort(
+    (a, b) => (parseCode(a.codice)?.num ?? 0) - (parseCode(b.codice)?.num ?? 0)
+  )
 }
 
 /** Falso se il generatore ha già 8 serbatoi interni o la scheda ne ha già 24 in tutto. */
