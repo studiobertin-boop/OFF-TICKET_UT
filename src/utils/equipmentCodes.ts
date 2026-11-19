@@ -15,6 +15,7 @@ import {
   collectCodes,
   PARENT_ARRAYS,
   CHILD_ARRAYS,
+  LINKED_ARRAYS,
   type ParsedCode,
 } from '@/services/fascicolo/codiciScheda'
 
@@ -233,6 +234,20 @@ export function pruneSchedaRefs<T extends Record<string, any>>(
     const parentCodes = new Set(
       (Array.isArray(out[parentArray]) ? out[parentArray] : []).map((p: any) => p?.codice)
     )
+    const next = items.filter((item: any) => parentCodes.has(item?.[ref]))
+    if (next.length !== items.length) {
+      out[array] = next
+      changed = true
+    }
+  }
+
+  // 1b. Serbatoi interni orfani: il generatore non esiste più. Stessa logica del passo 1, ma il
+  // padre si ricava da LINKED_ARRAYS e non c'è alcun flag da riallineare.
+  for (const { array, ref, parent } of LINKED_ARRAYS) {
+    const items = out[array]
+    if (!Array.isArray(items) || items.length === 0) continue
+
+    const parentCodes = new Set((Array.isArray(out[parent]) ? out[parent] : []).map((p: any) => p?.codice))
     const next = items.filter((item: any) => parentCodes.has(item?.[ref]))
     if (next.length !== items.length) {
       out[array] = next

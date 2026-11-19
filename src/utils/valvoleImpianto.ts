@@ -10,6 +10,8 @@
  * - disoleatore `Cx.1` → valvole `Cx.2`, `Cx.3`, … (il .1 è occupato dal disoleatore)
  */
 import type { SchedaDatiCompleta, ValvolaSicurezza } from '@/types/technicalSheet'
+// Da codiciScheda e non da equipmentCodes: quest'ultimo importa questo modulo (ciclo).
+import { parseCode } from '@/services/fascicolo/codiciScheda'
 
 /** Codici di tutte le valvole di un serbatoio: S1 → ['S1.1', 'S1.2', …]. */
 export function codiciValvoleSerbatoio(serbatoioCodice: string, count: number): string[] {
@@ -40,7 +42,8 @@ export interface ValvolaImpianto {
 
 /**
  * Tutte le valvole censite nella scheda, in ordine di impianto: prima quelle dei
- * disoleatori, poi quelle dei serbatoi. È l'elenco da cui scegliere nel selettore
+ * disoleatori, poi quelle dei serbatoi, poi quelle dei serbatoi interni dei generatori di azoto.
+ * È l'elenco da cui scegliere nel selettore
  * «protetto dalla valvola» e con cui risolvere i riferimenti in relazione.
  */
 export function elencaValvole(scheda: SchedaDatiCompleta): ValvolaImpianto[] {
@@ -56,6 +59,20 @@ export function elencaValvole(scheda: SchedaDatiCompleta): ValvolaImpianto[] {
   }
 
   for (const s of scheda.serbatoi ?? []) {
+    const valvole = valvoleDi(s.valvola_sicurezza, s.valvole_aggiuntive)
+    codiciValvoleSerbatoio(s.codice, valvole.length).forEach((pos, i) => {
+      out.push({ pos, recipiente: s.codice, valvola: valvole[i] })
+    })
+  }
+
+  // Serbatoi interni dei generatori, raggruppati per generatore nell'ordine N1, N2, N3 (a parità
+  // di generatore resta l'ordine della scheda: l'ordinamento è stabile). Si ordina sul riferimento
+  // e non si scorre `generatori_azoto`, così l'elenco non dipende dalla presenza del padre.
+  const numeroGeneratore = (codice: string) => parseCode(codice)?.num ?? 0
+  const interni = [...(scheda.serbatoi_generatore ?? [])].sort(
+    (a, b) => numeroGeneratore(a.generatore_associato) - numeroGeneratore(b.generatore_associato)
+  )
+  for (const s of interni) {
     const valvole = valvoleDi(s.valvola_sicurezza, s.valvole_aggiuntive)
     codiciValvoleSerbatoio(s.codice, valvole.length).forEach((pos, i) => {
       out.push({ pos, recipiente: s.codice, valvola: valvole[i] })

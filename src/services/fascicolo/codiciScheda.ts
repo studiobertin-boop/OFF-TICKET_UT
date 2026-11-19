@@ -29,7 +29,15 @@ export function parseCode(code: unknown): ParsedCode | null {
 }
 
 /** Array principali della scheda: prefisso e massimo vengono da EQUIPMENT_LIMITS (lato client). */
-export const PARENT_ARRAYS = ['serbatoi', 'compressori', 'essiccatori', 'filtri', 'separatori'] as const
+export const PARENT_ARRAYS = [
+  'serbatoi',
+  'compressori',
+  'essiccatori',
+  'filtri',
+  'separatori',
+  'generatori_azoto',
+  'serbatoi_generatore',
+] as const
 
 /**
  * Array dipendenti: il codice si deriva dal padre tramite il campo di riferimento.
@@ -43,6 +51,15 @@ export const CHILD_ARRAYS = [
   { array: 'disoleatori', ref: 'compressore_associato', figliMax: 1 },
   { array: 'scambiatori', ref: 'essiccatore_associato', figliMax: 2 },
   { array: 'recipienti_filtro', ref: 'filtro_associato', figliMax: 1 },
+] as const
+
+/**
+ * Array collegati a un padre da un riferimento, ma con codice PROPRIO (NS1, NS2…), non derivato
+ * dal padre: per questo stanno in `PARENT_ARRAYS` e non in `CHILD_ARRAYS`. Se il padre sparisce
+ * il record non ha più senso e `pruneSchedaRefs` lo scarta; nessun flag sul padre.
+ */
+export const LINKED_ARRAYS = [
+  { array: 'serbatoi_generatore', ref: 'generatore_associato', parent: 'generatori_azoto' },
 ] as const
 
 /** Tutti i codici validi presenti nella scheda, per validare i riferimenti. */

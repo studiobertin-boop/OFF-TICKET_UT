@@ -312,6 +312,50 @@ export interface Separatore {
 }
 
 // ============================================================================
+// SEZIONE 9B: GENERATORI DI AZOTO (N1-N3) E SERBATOI INTERNI (NS1-NS24)
+// ============================================================================
+
+export interface GeneratoreAzoto {
+  codice: string // N1, N2, N3
+  marca?: string
+  modello?: string
+  n_fabbrica?: string
+  anno?: number // intero (min 1980, max 2100)
+  ps_pressione_max?: number // PS (bar)
+  ts_temperatura?: number // TS (°C) legacy
+  ts?: string // TS libero (valore singolo o intervallo)
+  portata?: number // l/min — portata d'ARIA in ingresso al generatore
+  note?: string
+  foto_targhetta?: string
+}
+
+/**
+ * Serbatoio interno di un generatore di azoto: stessi campi del disoleatore, ma agganciato
+ * al generatore (`generatore_associato`) invece che al compressore. La valvola di sicurezza
+ * principale è obbligatoria, come per ogni recipiente.
+ */
+export interface SerbatoioGeneratore extends CampiRecipiente {
+  codice: string // NS1, NS2, ... NS24
+  generatore_associato: string // N1, N2, N3
+  marca?: string
+  modello?: string
+  n_fabbrica?: string
+  anno?: number
+  volume?: number // litri
+  ps_pressione_max?: number
+  pressione_max?: number // DEPRECATED
+  ts_temperatura?: number
+  ts?: string
+  categoria_ped?: CategoriaPED
+  note?: string
+  gia_denunciato?: boolean
+  matricola_inail?: string
+  valvola_sicurezza: ValvolaSicurezza // OBBLIGATORIA
+  valvole_aggiuntive?: ValvolaSicurezza[]
+  foto_targhetta?: string
+}
+
+// ============================================================================
 // SEZIONE 10: ALTRI APPARECCHI
 // ============================================================================
 
@@ -346,6 +390,9 @@ export interface SchedaDatiCompleta {
   filtri: Filtro[] // max 8
   recipienti_filtro: RecipienteFiltro[] // max 8 (dipendenti da filtri)
   separatori: Separatore[] // max 3
+  // Facoltativi: le schede precedenti al generatore di azoto non li hanno (`undefined`, non `[]`).
+  generatori_azoto?: GeneratoreAzoto[] // max 3
+  serbatoi_generatore?: SerbatoioGeneratore[] // max 8 per generatore, 24 in tutto
   altri_apparecchi?: AltriApparecchi
 }
 
@@ -364,7 +411,49 @@ export const EQUIPMENT_LIMITS = {
   filtri: { min: 1, max: 8, prefix: 'F' },
   recipienti_filtro: { min: 0, max: 8, prefix: 'F', suffix: '.1' }, // Dipendenti da filtri
   separatori: { min: 1, max: 3, prefix: 'SEP' },
+  generatori_azoto: { min: 0, max: 3, prefix: 'N' },
+  // Dipendenti dal generatore, ma con codice proprio (NS1..NS24), non derivato dal padre.
+  serbatoi_generatore: { min: 0, max: 24, prefix: 'NS' },
 } as const
+
+/** Serbatoi interni ammessi per ogni generatore (il totale è `EQUIPMENT_LIMITS.serbatoi_generatore.max`). */
+export const MAX_SERBATOI_PER_GENERATORE = 8
+
+/** Gli array della scheda che contengono recipienti a pressione: l'unica lista, da importare. */
+export const ARRAY_RECIPIENTI = [
+  'serbatoi',
+  'disoleatori',
+  'scambiatori',
+  'recipienti_filtro',
+  'serbatoi_generatore',
+] as const
+
+/** Serbatoi interni del generatore dato, nell'ordine della scheda. */
+export function serbatoiDelGeneratore(
+  scheda: Pick<SchedaDatiCompleta, 'serbatoi_generatore'>,
+  codiceGeneratore: string
+): SerbatoioGeneratore[] {
+  return (scheda.serbatoi_generatore ?? []).filter((s) => s.generatore_associato === codiceGeneratore)
+}
+
+/** Falso se il generatore ha già 8 serbatoi interni o la scheda ne ha già 24 in tutto. */
+export function puoAggiungereSerbatoioGeneratore(
+  scheda: Pick<SchedaDatiCompleta, 'serbatoi_generatore'>,
+  codiceGeneratore: string
+): boolean {
+  return (
+    serbatoiDelGeneratore(scheda, codiceGeneratore).length < MAX_SERBATOI_PER_GENERATORE &&
+    (scheda.serbatoi_generatore ?? []).length < EQUIPMENT_LIMITS.serbatoi_generatore.max
+  )
+}
+
+/**
+ * Descrizione del serbatoio interno in ogni documento. È l'unico punto in cui la stringa viene
+ * composta: non va riscritta altrove.
+ */
+export function descrizioneSerbatoioGeneratore(s: SerbatoioGeneratore): string {
+  return `Serbatoio interno generatore di azoto ${s.generatore_associato}`
+}
 
 // ============================================================================
 // HELPER TYPES PER VALIDAZIONE

@@ -589,3 +589,68 @@ describe('pruneAdditionalInfo — schemaPreferenze', () => {
     expect(info.schemaPreferenze).toBeUndefined()
   })
 })
+
+describe('generatore di azoto e serbatoi interni', () => {
+  const scheda = () => ({
+    generatori_azoto: [{ codice: 'N1' }],
+    serbatoi_generatore: [{ codice: 'NS1', generatore_associato: 'N1' }],
+  })
+
+  test('collectCodes include N1 e NS1', () => {
+    const codes = collectCodes(scheda())
+    expect(codes.has('N1')).toBe(true)
+    expect(codes.has('NS1')).toBe(true)
+  })
+
+  test('pruneSchedaRefs scarta il serbatoio interno del generatore eliminato, una volta sola', () => {
+    const base: any = { ...scheda(), generatori_azoto: [] }
+    const first = pruneSchedaRefs(base)
+    expect(first.changed).toBe(true)
+    expect(first.scheda.serbatoi_generatore).toEqual([])
+    expect(pruneSchedaRefs(first.scheda).changed).toBe(false)
+  })
+
+  test('pruneSchedaRefs scarta un NS che punta a un generatore inesistente', () => {
+    const { scheda: out, changed } = pruneSchedaRefs({
+      generatori_azoto: [{ codice: 'N1' }],
+      serbatoi_generatore: [
+        { codice: 'NS1', generatore_associato: 'N1' },
+        { codice: 'NS2', generatore_associato: 'N9' },
+      ],
+    } as any)
+    expect(changed).toBe(true)
+    expect(out.serbatoi_generatore.map((s: any) => s.codice)).toEqual(['NS1'])
+  })
+
+  test('pruneSchedaRefs non tocca una scheda senza i due array', () => {
+    const input = { serbatoi: [{ codice: 'S1' }] }
+    const { scheda: out, changed } = pruneSchedaRefs(input as any)
+    expect(changed).toBe(false)
+    expect(out).toEqual(input)
+  })
+
+  test('nextFreeCode con NS2 e NS3 presenti dà NS1; normalizeSchedaCodes li lascia invariati', () => {
+    expect(nextFreeCode('NS', ['NS2', 'NS3'], 24)).toBe('NS1')
+    const { scheda: out, changed } = normalizeSchedaCodes({
+      serbatoi_generatore: [
+        { codice: 'NS2', generatore_associato: 'N1' },
+        { codice: 'NS3', generatore_associato: 'N1' },
+      ],
+    } as any)
+    expect(changed).toBe(false)
+    expect(out.serbatoi_generatore.map((s: any) => s.codice)).toEqual(['NS2', 'NS3'])
+  })
+
+  test('normalizeSchedaCodes assegna N1 e NS1 ai record senza codice', () => {
+    const { scheda: out } = normalizeSchedaCodes({
+      generatori_azoto: [{}],
+      serbatoi_generatore: [{ generatore_associato: 'N1' }],
+    } as any)
+    expect(out.generatori_azoto[0].codice).toBe('N1')
+    expect(out.serbatoi_generatore[0].codice).toBe('NS1')
+  })
+
+  test('compareCodes raggruppa N, NS e S per prefisso', () => {
+    expect(['S1', 'NS2', 'N1', 'NS1'].sort(compareCodes)).toEqual(['N1', 'NS1', 'NS2', 'S1'])
+  })
+})
