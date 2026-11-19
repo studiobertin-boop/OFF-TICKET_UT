@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'vitest'
 import type { SchedaDatiCompleta, ValvolaSicurezza } from '@/types/technicalSheet'
+import { descrizioneSerbatoioGeneratore } from '@/types/technicalSheet'
 import { raggruppaApparecchiatureInstallatore } from '../raggruppa'
 
 const valvola: ValvolaSicurezza = {}
@@ -190,6 +191,69 @@ describe('raggruppaApparecchiatureInstallatore', () => {
 
     expect(righe).toHaveLength(1)
     expect(righe[0].principale).toBeNull()
+  })
+
+  test('un serbatoio interno di generatore di azoto è abbinato al suo generatore', () => {
+    const righe = raggruppaApparecchiatureInstallatore(
+      scheda({
+        generatori_azoto: [{ codice: 'N1', marca: 'PARKER', modello: 'NG-100', n_fabbrica: 'GN-1' }],
+        serbatoi_generatore: [
+          { codice: 'NS1', generatore_associato: 'N1', marca: 'M1', modello: 'D1', n_fabbrica: 'NF1', volume: 100, ps_pressione_max: 11, valvola_sicurezza: valvola },
+          { codice: 'NS2', generatore_associato: 'N1', marca: 'M2', modello: 'D2', n_fabbrica: 'NF2', volume: 100, ps_pressione_max: 11, valvola_sicurezza: valvola },
+        ],
+      })
+    )
+
+    expect(righe.map((r) => r.codiceOrdinamento)).toEqual(['NS1', 'NS2'])
+    expect(righe[0].principale).toEqual({ tipo: 'Generatore di azoto', marca: 'PARKER', modello: 'NG-100', n_fabbrica: 'GN-1' })
+    expect(righe[0].dipendente).toEqual({
+      tipo: descrizioneSerbatoioGeneratore({ codice: 'NS1', generatore_associato: 'N1', valvola_sicurezza: valvola }),
+      marca: 'M1',
+      modello: 'D1',
+      n_fabbrica: 'NF1',
+    })
+    expect(righe[0].dipendente.tipo).toBe('Serbatoio interno generatore di azoto N1')
+  })
+
+  test('i serbatoi interni seguono le stesse esclusioni (soglia DM329, già denunciato)', () => {
+    const righe = raggruppaApparecchiatureInstallatore(
+      scheda({
+        generatori_azoto: [{ codice: 'N1', marca: 'P' }],
+        serbatoi_generatore: [
+          { codice: 'NS1', generatore_associato: 'N1', volume: 10, ps_pressione_max: 11, valvola_sicurezza: valvola },
+          { codice: 'NS2', generatore_associato: 'N1', volume: 100, ps_pressione_max: 11, gia_denunciato: true, valvola_sicurezza: valvola },
+          { codice: 'NS3', generatore_associato: 'N1', volume: 100, ps_pressione_max: 11, valvola_sicurezza: valvola },
+        ],
+      })
+    )
+    expect(righe.map((r) => r.codiceOrdinamento)).toEqual(['NS3'])
+  })
+
+  test('serbatoio interno con generatore non trovato compare con principale null, e si ordina con gli altri', () => {
+    const righe = raggruppaApparecchiatureInstallatore(
+      scheda({
+        serbatoi: [{ codice: 'S1', marca: 'X', volume: 60, ps_pressione_max: 11, valvola_sicurezza: valvola }],
+        serbatoi_generatore: [
+          { codice: 'NS1', generatore_associato: 'N9', volume: 100, ps_pressione_max: 11, valvola_sicurezza: valvola },
+        ],
+      })
+    )
+    expect(righe.map((r) => r.codiceOrdinamento)).toEqual(['NS1', 'S1'])
+    expect(righe[0].principale).toBeNull()
+  })
+
+  test('senza gli array del generatore (undefined) il risultato è quello di sempre', () => {
+    const base = scheda({
+      compressori: [{ codice: 'C1', marca: 'K', modello: 'M', n_fabbrica: '1' }],
+      disoleatori: [{ codice: 'C1.1', compressore_associato: 'C1', marca: 'A', volume: 65, ps_pressione_max: 11, valvola_sicurezza: valvola }],
+      serbatoi: [{ codice: 'S1', marca: 'X', volume: 60, ps_pressione_max: 11, valvola_sicurezza: valvola }],
+    })
+    expect(base.generatori_azoto).toBeUndefined()
+    expect(base.serbatoi_generatore).toBeUndefined()
+    const senza = raggruppaApparecchiatureInstallatore(base)
+    const conVuoti = raggruppaApparecchiatureInstallatore({ ...base, generatori_azoto: [], serbatoi_generatore: [] })
+    expect(senza.map((r) => r.codiceOrdinamento)).toEqual(['C1.1', 'S1'])
+    expect(conVuoti).toEqual(senza)
   })
 
   test('ordina le righe secondo l’ordinamento naturale del codice del dipendente', () => {

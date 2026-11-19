@@ -12,7 +12,8 @@
  * Alla soglia DM329 si aggiunge un secondo filtro, che `filterCIVAEquipment` non ha: le
  * apparecchiature marcate «già denunciato» restano fuori — vedi `daDichiarare`.
  */
-import type { Compressore, Essiccatore, Filtro, SchedaDatiCompleta } from '@/types/technicalSheet'
+import { descrizioneSerbatoioGeneratore } from '@/types/technicalSheet'
+import type { Compressore, Essiccatore, Filtro, GeneratoreAzoto, SchedaDatiCompleta } from '@/types/technicalSheet'
 import { classificaRecipiente, comportaAdempimento } from '@/utils/dm329Classification'
 import { naturalSortComparator } from '@/utils/naturalSort'
 
@@ -45,7 +46,7 @@ const daDichiarare = (riga: {
   !riga.gia_denunciato && comportaAdempimento(classificaRecipiente(riga.volume, riga.ps_pressione_max))
 
 const principaleDi = (
-  apparecchio: Compressore | Essiccatore | Filtro | undefined,
+  apparecchio: Compressore | Essiccatore | Filtro | GeneratoreAzoto | undefined,
   tipo: string
 ): ApparecchiaturaRiga | null =>
   apparecchio ? { tipo, marca: apparecchio.marca, modello: apparecchio.modello, n_fabbrica: apparecchio.n_fabbrica } : null
@@ -60,6 +61,18 @@ export function raggruppaApparecchiatureInstallatore(scheda: SchedaDatiCompleta)
       principale: principaleDi(compressore, 'Compressore'),
       dipendente: { tipo: 'Serbatoio disoleatore', marca: d.marca, modello: d.modello, n_fabbrica: d.n_fabbrica },
       codiceOrdinamento: d.codice,
+    })
+  }
+
+  // Serbatoi interni dei generatori di azoto: stesso schema dei disoleatori, il generatore
+  // fa da principale. La descrizione viene solo da `descrizioneSerbatoioGeneratore`.
+  for (const s of scheda.serbatoi_generatore ?? []) {
+    if (!daDichiarare(s)) continue
+    const generatore = scheda.generatori_azoto?.find((g) => g.codice === s.generatore_associato)
+    righe.push({
+      principale: principaleDi(generatore, 'Generatore di azoto'),
+      dipendente: { tipo: descrizioneSerbatoioGeneratore(s), marca: s.marca, modello: s.modello, n_fabbrica: s.n_fabbrica },
+      codiceOrdinamento: s.codice,
     })
   }
 
