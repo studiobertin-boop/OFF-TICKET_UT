@@ -1057,7 +1057,7 @@ export function simboloPaccoBombole(nodo: SchemaNodo): string {
  *
  * Gli accessori del nodo non si guardano affatto: il blocco non disegna nulla oltre al riquadro,
  * e la spec del generatore (sezione «Il modello») appende al nodo come accessori i soli serbatoi
- * interni, marcati `nonDisegnato`. Compaiono nella lista, non qui.
+ * interni. Compaiono nella lista apparecchiature (`righeLista` elenca ogni accessorio), non qui.
  */
 export function simboloGeneratoreAzoto(nodo: SchemaNodo): string {
   const { larghezza, altezza } = DIMENSIONI.generatore_azoto

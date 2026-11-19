@@ -1038,14 +1038,23 @@ describe('generatore di azoto', () => {
     expect(simboloDi(generatore())).not.toContain('Generatore')
   })
 
-  it('ignora gli accessori marcati come non disegnati', () => {
+  // Il blocco non disegna i serbatoi interni: stanno solo nella lista. Si confronta l'SVG con e
+  // senza accessori (due serbatoi con le loro valvole), e si controlla che nessuna delle loro
+  // sigle compaia — un simbolo che cominciasse a disegnarli cambierebbe l'SVG e scriverebbe NS1.
+  it('il simbolo del generatore non disegna mai i suoi accessori', () => {
     const serbatoio = (codice: string) => ({
       codice,
       etichetta: 'Serbatoio interno generatore di azoto N1',
-      valvoleSicurezza: [{ codice: `${codice}.1`, etichetta: '' }],
-      nonDisegnato: true,
+      valvoleSicurezza: [
+        { codice: `${codice}.1`, etichetta: 'Valvola di sicurezza' },
+        { codice: `${codice}.2`, etichetta: 'Valvola di sicurezza' },
+      ],
     })
-    const conAccessori = generatore({ accessorio: serbatoio('NS1'), accessoriAggiuntivi: [serbatoio('NS2')] })
-    expect(simboloDi(conAccessori)).toBe(simboloDi(generatore()))
+    const senza = simboloDi(generatore())
+    const soloPrimo = simboloDi(generatore({ accessorio: serbatoio('NS1') }))
+    const entrambi = simboloDi(generatore({ accessorio: serbatoio('NS1'), accessoriAggiuntivi: [serbatoio('NS2')] }))
+    expect(soloPrimo).toBe(senza)
+    expect(entrambi).toBe(senza)
+    expect(entrambi).not.toMatch(/NS\d/)
   })
 })
