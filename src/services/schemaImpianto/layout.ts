@@ -298,7 +298,13 @@ export function calcolaMuro(nodi: SchemaNodoPosizionato[], libreria: Tarature = 
   // `righeLista`). Un impianto con un solo compressore e un solo serbatoio in sala, senza altro
   // in linea, non ha muro nel disegno di riferimento del committente pur avendo il terminale
   // «Utenze aria»: contarlo qui produrrebbe un muro che quel riferimento smentisce.
-  const inSala = nodi.filter((n) => n.gruppo === 'SALA_COMPRESSORI' && n.tipo !== 'utenze')
+  //
+  // Il generatore di azoto, per una ragione vicina: sta in fondo a tutto, a destra della linea, e
+  // contarlo in sala porterebbe il muro proposto oltre i generatori — cioè oltre l'ultima cosa del
+  // disegno, dove non separa niente.
+  const inSala = nodi.filter(
+    (n) => n.gruppo === 'SALA_COMPRESSORI' && n.tipo !== 'utenze' && n.tipo !== 'generatore_azoto'
+  )
   const inLinea = nodi.filter((n) => n.gruppo === 'LINEA_DISTRIBUZIONE' && n.tipo !== 'utenze')
   if (inSala.length === 0 || inLinea.length === 0) return null
 
@@ -888,8 +894,18 @@ function disponiTerminaleAzoto(
  *
  * Le quote si rileggono dai nodi e non si ricalcolano: e' cio' che li tiene giusti anche dopo la
  * discesa del disegno, che sposta i nodi ma non saprebbe dei gomiti.
+ *
+ * Esportata per la riapertura di un disegno salvato (`riconcilia`, persistenza.ts): gli archi del
+ * ramo che entrano in un layout salvato vengono dal layout automatico, coi gomiti alle quote di
+ * quello, e vanno riscritti sulle posizioni riconciliate. `daRifare` dice quali: gli archi salvati
+ * no, perche' i loro gomiti sono gia' quelli che l'operatore ha visto (e forse spostato).
  */
-function gomitiDerivazione(archi: SchemaArco[], nodi: SchemaNodoPosizionato[], libreria: Tarature): SchemaArco[] {
+export function gomitiDerivazione(
+  archi: SchemaArco[],
+  nodi: SchemaNodoPosizionato[],
+  libreria: Tarature = {},
+  daRifare: (arco: SchemaArco) => boolean = () => true
+): SchemaArco[] {
   const perId = new Map(nodi.map((n) => [n.id, n]))
   const generatori = nodi.filter((n) => n.tipo === 'generatore_azoto')
   const tee = perId.get(ID_DERIVAZIONE_AZOTO)
@@ -898,6 +914,7 @@ function gomitiDerivazione(archi: SchemaArco[], nodi: SchemaNodoPosizionato[], l
   const quotaAria = Math.min(...generatori.map((g) => g.y)) - PASSO_DERIVAZIONE
   const quotaAzoto = terminale ? ancoraAssoluta(terminale, 'in', libreria).y : quotaAria - PASSO_DERIVAZIONE
   return archi.map((arco) => {
+    if (!daRifare(arco)) return arco
     const generatore = (id: string) => perId.get(id)?.tipo === 'generatore_azoto'
     if (tee && arco.da.nodo === tee.id && generatore(arco.a.nodo)) {
       const discesa = ancoraAssoluta(tee, arco.da.ancora, libreria).x

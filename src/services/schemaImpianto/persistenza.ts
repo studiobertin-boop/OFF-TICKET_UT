@@ -6,7 +6,15 @@
  * Del muro si salva la sola ascissa: l'altezza resta derivata dalle posizioni.
  */
 import { ancoraAmmette } from './agganci'
-import { layoutSchema, muroDaAscissa, muroOrizzontaleDaOrdinata, DIMENSIONI_NODO, pozzoCondense } from './layout'
+import { ID_DERIVAZIONE_AZOTO, ID_UTENZE, ID_UTENZE_AZOTO, eDerivazioneAzoto } from './buildSchemaModel'
+import {
+  gomitiDerivazione,
+  layoutSchema,
+  muroDaAscissa,
+  muroOrizzontaleDaOrdinata,
+  DIMENSIONI_NODO,
+  pozzoCondense,
+} from './layout'
 import type { Tarature } from './libreria'
 import { ancoraDi, ancoraUtenzePrimaDelRestringimento, ancoreDi, dimensioniDi } from './symbols'
 import type { SchemaArco, SchemaArea, SchemaCapo, SchemaLayout, SchemaModel, SchemaNodo, SchemaNodoPosizionato, SchemaTestoLibero } from './types'
@@ -382,6 +390,88 @@ function capoRiattaccato(
 }
 
 /**
+ * La derivazione dell'azoto che entra in un disegno salvato: il TEE, i generatori e il terminale
+ * dell'azoto NUOVI si posano tutti con UNA traslazione sola rispetto al layout automatico, così
+ * restano fra loro come l'auto-layout li ha pensati — ramo, collettori e terminale si tengono — e
+ * cadono sulla linea SALVATA invece che sotto il disegno (`piede`), dove i gomiti del ramo,
+ * scritti alle quote dell'automatico, attraverserebbero tutto il foglio.
+ *
+ * La traslazione si misura su un nodo che c'è in entrambi: il TEE, se il disegno salvato lo ha
+ * già (si aggiunge solo un generatore); altrimenti il nodo da cui la linea arriva al TEE — l'ultimo
+ * stadio, o il capo di valle di un by-pass — che il TEE deve seguire ovunque l'operatore l'abbia
+ * messo. Quando il TEE è nuovo anche il terminale dell'aria si riposa: la sua tubazione ora parte
+ * dal TEE, che nell'automatico gli sta un passo davanti, e lasciato dov'era si troverebbe il TEE
+ * sopra il proprio attacco. Si posa per ATTACCO, non per angolo: conserva la rotazione salvata.
+ *
+ * Senza un nodo di riferimento (non capita: il TEE nasce solo da una linea) si lascia tutto com'è.
+ */
+function riallineaDerivazione(
+  nodi: SchemaNodoPosizionato[],
+  aggiunti: Set<string>,
+  automatico: SchemaLayout,
+  modello: SchemaModel,
+  libreria: Tarature
+): SchemaNodoPosizionato[] {
+  const delBlocco = (n: SchemaNodo) =>
+    n.origine !== 'manuale' && (eDerivazioneAzoto(n.id) || n.tipo === 'generatore_azoto' || n.id === ID_UTENZE_AZOTO)
+  if (!nodi.some((n) => aggiunti.has(n.id) && delBlocco(n))) return nodi
+
+  const perId = new Map(nodi.map((n) => [n.id, n]))
+  const automaticiPerId = new Map(automatico.nodi.map((n) => [n.id, n]))
+  const teeNuovo = aggiunti.has(ID_DERIVAZIONE_AZOTO)
+  const riferimento = teeNuovo
+    ? modello.archi.find((a) => a.a.nodo === ID_DERIVAZIONE_AZOTO)?.da.nodo
+    : perId.has(ID_DERIVAZIONE_AZOTO)
+      ? ID_DERIVAZIONE_AZOTO
+      : undefined
+  const qui = riferimento ? perId.get(riferimento) : undefined
+  const la = riferimento ? automaticiPerId.get(riferimento) : undefined
+  if (!qui || !la) return nodi
+  const dx = qui.x - la.x
+  const dy = qui.y - la.y
+
+  return nodi.map((n) => {
+    const proposto = automaticiPerId.get(n.id)
+    if (!proposto) return n
+    if (aggiunti.has(n.id) && delBlocco(n)) return { ...n, x: proposto.x + dx, y: proposto.y + dy }
+    if (teeNuovo && n.id === ID_UTENZE && n.origine !== 'manuale') {
+      const attaccoProposto = ancoraDi(proposto, 'in', libreria)
+      const attacco = ancoraDi(n, 'in', libreria)
+      if (!attaccoProposto || !attacco) return n
+      return {
+        ...n,
+        x: proposto.x + attaccoProposto.x + dx - attacco.x,
+        y: proposto.y + attaccoProposto.y + dy - attacco.y,
+      }
+    }
+    return n
+  })
+}
+
+/**
+ * Id unici fra gli archi: il primo che porta un id lo tiene, i successivi prendono un suffisso.
+ * Gli archi salvati vengono prima, quindi sono loro a tenere il proprio. Il contatore di
+ * `buildArchi` ricomincia a ogni costruzione, e un arco nuovo pescato dal layout automatico può
+ * portare lo stesso id di uno salvato che è un altro tubo (`ut-8` era F1 → UTENZE nel salvato e
+ * F1 → DER-AZOTO nel modello col generatore): due archi con lo stesso id l'editor li confonde.
+ * Senza doppioni la lista esce identica, oggetti compresi.
+ */
+function idArchiUnici(archi: SchemaArco[]): SchemaArco[] {
+  const usati = new Set<string>()
+  return archi.map((arco) => {
+    if (!usati.has(arco.id)) {
+      usati.add(arco.id)
+      return arco
+    }
+    let k = 2
+    while (usati.has(`${arco.id}-${k}`)) k++
+    const id = `${arco.id}-${k}`
+    usati.add(id)
+    return { ...arco, id }
+  })
+}
+
+/**
  * Riceve ciò che restituisce `deserializzaLayout` — un `SchemaLayout`, con `muro` e non
  * `muroX` — perché è quello che le passa davvero `layoutIniziale`, l'unica strada che la
  * produzione percorre. Prima della revisione finale il parametro dichiarava `muroX?: number`
@@ -449,14 +539,17 @@ export function riconcilia(
   const aggiuntiDaScheda = nuovi.filter(daAnnunciare).map((n) => n.id)
   const posizionati = nuovi.map((n) => {
     const proposto = automatico.nodi.find((p) => p.id === n.id)!
-    if (n.tipo === 'utenze') {
+    // Solo il terminale dell'aria: quello dell'azoto si posa con la sua derivazione
+    // (`riallineaDerivazione`), e la regola «a destra dell'ultimo stadio» lo metterebbe addosso
+    // all'altro.
+    if (n.tipo === 'utenze' && n.id !== ID_UTENZE_AZOTO) {
       const dedicata = posizioneTerminale(n, superstiti, modello.archi, libreria)
       if (dedicata) return { ...proposto, ...dedicata }
     }
     return { ...proposto, y: proposto.y + piede }
   })
 
-  const nodi = [...superstiti, ...posizionati]
+  const nodi = riallineaDerivazione([...superstiti, ...posizionati], new Set(aggiunti), automatico, modello, libreria)
   const idNodi = new Set(nodi.map((n) => n.id))
 
   // Gli archi salvati restano per default; per le apparecchiature nuove si aggiungono quelli
@@ -464,13 +557,25 @@ export function riconcilia(
   // già fra i salvati. L'invariante "nessun capo su un nodo assente" si impone una sola volta,
   // alla fine, sull'unione: qui sopra gli elenchi possono ancora contenere un arco salvato che
   // puntava a un nodo appena rimosso, o un arco nuovo verso un nodo che poi risulta scartato.
-  const archiSalvati = salvato.archi
+  //
+  // Con un TEE della derivazione NUOVO, l'arco salvato che lo stesso nodo mandava al terminale
+  // dell'aria non vale più: quel tubo ora passa dal TEE. Tenerlo darebbe all'ultimo stadio due
+  // uscite dallo stesso attacco, due valvole di riserva, e il TEE appeso accanto. Si toglie solo
+  // quello — un arco al terminale tracciato a mano da un altro nodo resta.
+  const teeNuovo = aggiunti.includes(ID_DERIVAZIONE_AZOTO)
+  const sorgenteTee = modello.archi.find((a) => a.a.nodo === ID_DERIVAZIONE_AZOTO)?.da.nodo
+  const archiSalvati = teeNuovo
+    ? salvato.archi.filter((a) => !(a.da.nodo === sorgenteTee && a.a.nodo === ID_UTENZE))
+    : salvato.archi
   const identitaSalvate = new Set(archiSalvati.map(identitaArco))
   // Il terminale VERO, non la prima utenza dell'elenco: dal 17-09-2026 le utenze si incollano, e
   // una copia manuale posata davanti nell'elenco rubava al terminale la riparazione della sua
   // tubazione qui sotto (e lasciava passare fra gli `archiNuovi` quella che doveva escludere).
   // Le copie sono di origine 'manuale', come ogni nodo nato in editor.
-  const idTerminale = nodi.find((n) => n.tipo === 'utenze' && n.origine !== 'manuale')?.id
+  // Quello dell'AZOTO no: il terminale di cui si parla qui è quello dell'aria.
+  const idTerminale = nodi.find(
+    (n) => n.tipo === 'utenze' && n.origine !== 'manuale' && n.id !== ID_UTENZE_AZOTO
+  )?.id
   // Gli archi che si RIPESCANO vengono dal layout automatico, non dal modello: stessi id e stessa
   // identita', ma con le `t` dei segni gia' risolte e coi gomiti del ponte scritti. Presi dal
   // modello entrerebbero nel salvataggio con la valvola a meta' tubo (la `t: 0.5` di ripiego) e
@@ -485,7 +590,10 @@ export function riconcilia(
       // strada generica basta che uno dei capi sia fra gli `aggiunti`, e aggiungendo uno stadio
       // alla catena di uno schema già salvato quel criterio ne creava una seconda (E1→UTENZE)
       // accanto a quella salvata (S1→UTENZE), entrambe convergenti sul codolo.
-      a.a.nodo !== idTerminale
+      //
+      // Eccezione: col TEE della derivazione nuovo la tubazione del terminale È quella che parte
+      // dal TEE, e la salvata è stata appena tolta (vedi `archiSalvati`).
+      (a.a.nodo !== idTerminale || (teeNuovo && a.da.nodo === ID_DERIVAZIONE_AZOTO))
   )
   // Nodo esistente non basta più: se una taratura ha tolto l'ancora che l'arco cita, il capo
   // va riattaccato (o l'arco scartato, se non c'è dove) prima di restituire il layout — vedi
@@ -554,6 +662,12 @@ export function riconcilia(
     if (proposto) archi.push(proposto)
   }
 
+  // Gli archi del ramo dell'azoto che NON vengono dal salvato portano i gomiti del layout
+  // automatico, a quote che i nodi riconciliati non hanno più: si riscrivono sulle posizioni di
+  // adesso. Poi gli id unici, sull'elenco finale (archi ripescati dagli invarianti compresi).
+  const salvatiTenuti = new Set(archiSalvati)
+  const archiFinali = idArchiUnici(gomitiDerivazione(archi, nodi, libreria, (a) => !salvatiTenuti.has(a)))
+
   // I testi liberi sopravvivono sempre, senza confronto col modello: sono manuali per
   // definizione (nessun codice di scheda li produce, nessuna riga di scheda li nomina), quindi
   // stanno nella stessa categoria dei nodi di origine 'manuale' sopra — la scheda dati non li
@@ -572,7 +686,7 @@ export function riconcilia(
   return {
     layout: {
       nodi,
-      archi,
+      archi: archiFinali,
       muro,
       testi,
       ...(salvato.aree ? { aree: salvato.aree } : {}),

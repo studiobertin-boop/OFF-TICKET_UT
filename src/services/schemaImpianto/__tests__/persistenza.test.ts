@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { makeCompressore, makeDatiImpianto, makeEssiccatore, makeScheda, makeSeparatore, makeSerbatoio, makeValvola } from '@/services/relazione/__tests__/fixtures'
-import { buildSchemaModel } from '../buildSchemaModel'
+import { makeCompressore, makeDatiImpianto, makeEssiccatore, makeGeneratore, makeScheda, makeSeparatore, makeSerbatoio, makeValvola, schedaConGeneratore } from '@/services/relazione/__tests__/fixtures'
+import { buildSchemaModel, ID_DERIVAZIONE_AZOTO, ID_UTENZE, ID_UTENZE_AZOTO } from '../buildSchemaModel'
 import { preferenzeRisolteDaScheda } from '../preferenze'
 import { layoutSchema, muroDaAscissa, DIMENSIONI_NODO } from '../layout'
 import { serializzaLayout, deserializzaLayout, riconcilia, layoutIniziale, layoutDaPersistere } from '../persistenza'
@@ -1163,5 +1163,109 @@ describe('il terminale utenze dopo il restringimento del riquadro', () => {
     const ruotato = { ...generato, nodi: generato.nodi.map((n) => (n.tipo === 'utenze' ? { ...n, rotazione: 180 as const } : n)) }
     const { layout } = riconcilia(ruotato, modello)
     expect(layout.nodi.find((n) => n.tipo === 'utenze')?.rotazione).toBe(180)
+  })
+})
+
+describe('riapertura di un disegno salvato e generatori di azoto', () => {
+  const collegamenti = { C1: ['S1'], C2: ['S1'] }
+  const conGeneratori = (codici: string[]) =>
+    schedaConGeneratore({ generatori_azoto: codici.map((codice) => makeGeneratore({ codice })) })
+  const senzaGeneratori = () => schedaConGeneratore({ generatori_azoto: undefined, serbatoi_generatore: undefined })
+  const salvatoDa = (scheda: ReturnType<typeof schedaConGeneratore>) =>
+    serializzaLayout(layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: collegamenti })))
+  const riapri = (salvato: LayoutSalvato, scheda: ReturnType<typeof schedaConGeneratore>) =>
+    layoutIniziale(salvato, buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: collegamenti }))
+
+  /** I punti che il documento disegna per l'arco: capi e gomiti, nell'ordine. */
+  const puntiDi = (layout: SchemaLayout, arco: SchemaLayout['archi'][number]) => {
+    const capo = (id: string, ancora: string) => {
+      const n = layout.nodi.find((m) => m.id === id)!
+      const a = ancoraDi(n, ancora)!
+      return { x: n.x + a.x, y: n.y + a.y }
+    }
+    return [capo(arco.da.nodo, arco.da.ancora), ...(arco.punti ?? []), capo(arco.a.nodo, arco.a.ancora)]
+  }
+  const riquadro = (layout: SchemaLayout, id: string) => {
+    const n = layout.nodi.find((m) => m.id === id)!
+    const d = dimensioniDi(n)
+    return { x1: n.x, x2: n.x + d.larghezza, y1: n.y, y2: n.y + d.altezza }
+  }
+
+  for (const codici of [['N1'], ['N1', 'N2', 'N3']]) {
+    it(`un disegno salvato senza generatori, riaperto con ${codici.join(', ')}, resta coerente`, () => {
+      const salvato = salvatoDa(senzaGeneratori())
+      const { layout, aggiuntiDaScheda } = riapri(salvato, conGeneratori(codici))
+      expect(aggiuntiDaScheda).toEqual(codici)
+
+      // Il TEE ha UNA tubazione d'aria in ingresso (dall'ultimo stadio) e il terminale dell'aria
+      // ne riceve una sola, dal TEE: l'arco salvato F1 → UTENZE non sopravvive accanto al nuovo.
+      const aria = layout.archi.filter((a) => a.stile !== 'condensa')
+      expect(aria.filter((a) => a.a.nodo === ID_DERIVAZIONE_AZOTO).map((a) => a.da.nodo)).toEqual(['F1'])
+      expect(aria.filter((a) => a.a.nodo === ID_UTENZE).map((a) => a.da.nodo)).toEqual([ID_DERIVAZIONE_AZOTO])
+      expect(aria.filter((a) => a.da.nodo === 'F1').map((a) => a.a.nodo)).toEqual([ID_DERIVAZIONE_AZOTO])
+      expect(aria.filter((a) => a.da.nodo === ID_DERIVAZIONE_AZOTO && a.a.nodo === ID_UTENZE)).toHaveLength(1)
+      expect(aria.filter((a) => a.da.nodo === ID_DERIVAZIONE_AZOTO && a.a.ancora === 'in-alto')).toHaveLength(codici.length)
+
+      // Il TEE sta sulla linea SALVATA, a un passo di giunzione dall'uscita di F1.
+      const f1 = layout.nodi.find((n) => n.id === 'F1')!
+      const tee = layout.nodi.find((n) => n.id === ID_DERIVAZIONE_AZOTO)!
+      expect(tee.y + ancoraDi(tee, 'sx')!.y).toBe(f1.y + ancoraDi(f1, 'dx')!.y)
+
+      // I due terminali non si toccano.
+      const ut = riquadro(layout, ID_UTENZE)
+      const az = riquadro(layout, ID_UTENZE_AZOTO)
+      expect(az.x1 >= ut.x2 || az.x2 <= ut.x1 || az.y1 >= ut.y2 || az.y2 <= ut.y1).toBe(true)
+
+      // Ogni gomito sta fra le quote dei suoi capi, e niente sopra il foglio.
+      for (const arco of layout.archi) {
+        const punti = puntiDi(layout, arco)
+        const ys = [punti[0].y, punti[punti.length - 1].y]
+        for (const g of arco.punti ?? []) {
+          expect(g.y, arco.id).toBeGreaterThanOrEqual(Math.min(...ys))
+          expect(g.y, arco.id).toBeLessThanOrEqual(Math.max(...ys))
+        }
+        for (const p of punti) expect(p.y, arco.id).toBeGreaterThanOrEqual(0)
+      }
+      for (const n of layout.nodi) expect(n.y, n.id).toBeGreaterThanOrEqual(0)
+
+      // Nessun id doppio fra gli archi.
+      const ids = layout.archi.map((a) => a.id)
+      expect(new Set(ids).size).toBe(ids.length)
+    })
+  }
+
+  it('un arco nuovo con lo stesso id di uno salvato prende un id suo, e il salvato tiene il proprio', () => {
+    // Il contatore di `buildArchi` riparte a ogni costruzione: l'id che il modello di oggi dà alla
+    // condensa di N1 può essere quello di un tubo diverso nel disegno salvato.
+    const modello = buildSchemaModel({ scheda: conGeneratori(['N1']), collegamentiCompressoriSerbatoi: collegamenti })
+    const idNuovo = modello.archi.find((a) => a.da.nodo === 'N1' && a.stile === 'condensa')!.id
+    const salvato = salvatoDa(senzaGeneratori())
+    const condensaF1 = salvato.archi.find((a) => a.da.nodo === 'F1' && a.stile === 'condensa')!
+    condensaF1.id = idNuovo
+    const { layout } = layoutIniziale(salvato, modello)
+    const ids = layout.archi.map((a) => a.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(layout.archi.find((a) => a.id === idNuovo)?.da.nodo).toBe('F1')
+    expect(layout.archi.some((a) => a.da.nodo === 'N1' && a.stile === 'condensa')).toBe(true)
+  })
+
+  it('un disegno salvato col generatore, riaperto dopo averlo tolto dalla scheda, non lascia TEE né terminale appesi', () => {
+    const salvato = salvatoDa(conGeneratori(['N1']))
+    const { layout, rimossi } = riapri(salvato, senzaGeneratori())
+    expect(rimossi).toEqual(['N1'])
+    expect(layout.nodi.map((n) => n.id)).not.toEqual(
+      expect.arrayContaining([ID_DERIVAZIONE_AZOTO])
+    )
+    expect(layout.nodi.some((n) => n.id === ID_UTENZE_AZOTO || n.id === ID_DERIVAZIONE_AZOTO)).toBe(false)
+    expect(layout.archi.some((a) => [a.da.nodo, a.a.nodo].some((id) => id === ID_DERIVAZIONE_AZOTO || id === ID_UTENZE_AZOTO || id === 'N1'))).toBe(false)
+    // La linea torna a chiudersi sul terminale dell'aria.
+    expect(layout.archi.filter((a) => a.a.nodo === ID_UTENZE).map((a) => a.da.nodo)).toEqual(['F1'])
+  })
+
+  it('un disegno salvato col generatore e riaperto senza cambi resta identico', () => {
+    const salvato = salvatoDa(conGeneratori(['N1', 'N2']))
+    const { layout } = riapri(salvato, conGeneratori(['N1', 'N2']))
+    expect(serializzaLayout(layout).nodi).toEqual(salvato.nodi)
+    expect(serializzaLayout(layout).archi).toEqual(salvato.archi)
   })
 })

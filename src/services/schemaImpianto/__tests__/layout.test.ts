@@ -2215,6 +2215,18 @@ describe('derivazione dei generatori di azoto nel layout', () => {
     }
   })
 
+  it('i generatori non spostano il muro proposto', () => {
+    // Stanno in sala compressori ma in fondo a tutto: contati, il muro finirebbe oltre di loro.
+    const con = layoutDi(tre())
+    const senza = layoutSchema(
+      buildSchemaModel({
+        scheda: schedaConGeneratore({ generatori_azoto: undefined, serbatoi_generatore: undefined }),
+        collegamentiCompressoriSerbatoi: collegamenti,
+      })
+    )
+    expect(calcolaMuro(con.nodi)?.x).toBe(calcolaMuro(senza.nodi)?.x)
+  })
+
   it('senza generatori la linea non cambia: il TEE della derivazione non fa scendere niente', () => {
     // Discrimina: col TEE scambiato per una giunzione di by-pass la linea scenderebbe di una
     // corsia (`quotaLineaProcesso`) anche nella pratica con generatore.
