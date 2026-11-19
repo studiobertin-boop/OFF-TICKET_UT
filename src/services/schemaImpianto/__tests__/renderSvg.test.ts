@@ -9,6 +9,8 @@ import {
   makeSeparatore,
   makeSerbatoio,
   makeValvola,
+  makeGeneratore,
+  schedaConGeneratore,
 } from '@/services/relazione/__tests__/fixtures'
 import { buildSchemaModel } from '../buildSchemaModel'
 import { calcolaMuro, layoutSchema, quoteInstradamento } from '../layout'
@@ -992,6 +994,46 @@ describe('righeLista', () => {
       'E1',
       'SEP1',
     ])
+  })
+
+  it('elenca il generatore dopo la linea, coi suoi serbatoi interni e le loro valvole', () => {
+    const scheda = schedaConGeneratore({
+      generatori_azoto: [makeGeneratore({ codice: 'N2' }), makeGeneratore({ codice: 'N1' })],
+    })
+    const layout = layoutSchema(
+      buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: { C1: ['S1'], C2: ['S1'] } })
+    )
+
+    // Né il TEE della derivazione né il terminale dell'azoto: sono raccordi, come UTENZE.
+    expect(righeLista(layout).map((r) => (r.sinistra as { codice: string }).codice)).toEqual([
+      'C1',
+      'C2',
+      'S1',
+      'S1.1',
+      'E1',
+      'E1.1',
+      'F1',
+      'N1',
+      'NS1',
+      'NS1.1',
+      'NS2',
+      'NS2.1',
+      'NS2.2',
+      'N2',
+      'T',
+    ])
+    const ns1 = righeLista(layout).find((r) => 'codice' in r.sinistra && r.sinistra.codice === 'NS1')
+    expect(ns1?.descrizione).toBe('Serbatoio interno generatore di azoto N1 PARKER HANNIFIN Mod. COLONNA CMS')
+  })
+
+  it('il documento con un generatore disegna il terminale «Utenze azoto» e non esce dal foglio', () => {
+    const layout = layoutSchema(
+      buildSchemaModel({ scheda: schedaConGeneratore(), collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    )
+    const svg = renderSvg(layout)
+    expect(svg).toContain('>azoto<')
+    // Il foglio comincia a zero: le quote non negative le controlla `layout.test.ts`, sui tubi.
+    expect(svg).toMatch(/viewBox="0 0 \d+ \d+"/)
   })
 })
 

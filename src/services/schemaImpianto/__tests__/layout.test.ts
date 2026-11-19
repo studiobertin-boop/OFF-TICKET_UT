@@ -8,8 +8,10 @@ import {
   makeScheda,
   makeSeparatore,
   makeSerbatoio,
+  makeGeneratore,
+  schedaConGeneratore,
 } from '@/services/relazione/__tests__/fixtures'
-import { buildSchemaModel } from '../buildSchemaModel'
+import { buildSchemaModel, ID_DERIVAZIONE_AZOTO, ID_UTENZE, ID_UTENZE_AZOTO } from '../buildSchemaModel'
 import {
   GIOCO_FRA_STADI,
   PASSO_GIUNZIONE,
@@ -2071,5 +2073,160 @@ describe('il by-pass di un serbatoio', () => {
     expect(monte.y).toBe(posizioneAncora(nodo(layout, 'BP1-IN'), 'dx').y)
     // Nessun nodo sopra il bordo del foglio.
     expect(Math.min(...layout.nodi.map((n) => n.y))).toBeGreaterThanOrEqual(0)
+  })
+})
+
+describe('derivazione dei generatori di azoto nel layout', () => {
+  const collegamenti = { C1: ['S1'], C2: ['S1'] }
+  const tre = (altro: Partial<Parameters<typeof schedaConGeneratore>[0]> = {}) =>
+    schedaConGeneratore({
+      generatori_azoto: [makeGeneratore({ codice: 'N1' }), makeGeneratore({ codice: 'N2' }), makeGeneratore({ codice: 'N3' })],
+      ...altro,
+    })
+  const conBypassInFondo = (scheda: ReturnType<typeof schedaConGeneratore>) =>
+    layoutSchema(
+      buildSchemaModel({
+        scheda,
+        collegamentiCompressoriSerbatoi: collegamenti,
+        preferenze: preferenzeRisolteDaScheda(scheda, { bypass: [{ id: 'bp1', stadi: ['F1'] }] }),
+      })
+    )
+  const layoutDi = (scheda: ReturnType<typeof schedaConGeneratore>) =>
+    layoutSchema(buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: collegamenti }))
+
+  /** La polilinea che il documento disegna per l'arco: la stessa chiamata di `renderArco`. */
+  const polilinea = (layout: SchemaLayout, arco: SchemaArco) => {
+    const da = nodo(layout, arco.da.nodo)
+    const a = nodo(layout, arco.a.nodo)
+    return instrada(
+      arco.stile,
+      posizioneAncora(da, arco.da.ancora),
+      posizioneAncora(a, arco.a.ancora),
+      arco.punti,
+      quoteInstradamento(layout),
+      { da: latoImposto(da, arco.da.ancora), a: latoImposto(a, arco.a.ancora) }
+    )
+  }
+
+  it('i tre generatori stanno affiancati alla stessa quota, nell’ordine N1, N2, N3', () => {
+    const layout = layoutDi(tre())
+    const [n1, n2, n3] = ['N1', 'N2', 'N3'].map((id) => nodo(layout, id))
+    expect(n2.y).toBe(n1.y)
+    expect(n3.y).toBe(n1.y)
+    expect(n1.x).toBeLessThan(n2.x)
+    expect(n2.x).toBeLessThan(n3.x)
+    // Affiancati, non sovrapposti.
+    expect(n2.x).toBeGreaterThanOrEqual(n1.x + DIMENSIONI_NODO.generatore_azoto.larghezza)
+  })
+
+  it('il TEE sta sulla linea, a un passo di giunzione dall’uscita dell’ultimo stadio, e le utenze aria un passo dopo', () => {
+    const layout = layoutDi(schedaConGeneratore())
+    const uscita = posizioneAncora(nodo(layout, 'F1'), 'dx')
+    const tee = posizioneAncora(nodo(layout, ID_DERIVAZIONE_AZOTO), 'sx')
+    expect(tee).toEqual({ x: uscita.x + PASSO_GIUNZIONE, y: uscita.y })
+    expect(posizioneAncora(nodo(layout, ID_UTENZE), 'in')).toEqual({ x: tee.x + PASSO_TERMINALE, y: tee.y })
+  })
+
+  it('i generatori stanno sotto la linea, e il ramo scende negli ingressi in alto', () => {
+    for (const scheda of [schedaConGeneratore(), tre()]) {
+      const layout = layoutDi(scheda)
+      const tee = posizioneAncora(nodo(layout, ID_DERIVAZIONE_AZOTO), 'sx')
+      for (const arco of layout.archi.filter((a) => a.a.ancora === 'in-alto')) {
+        expect(nodo(layout, arco.a.nodo).y).toBeGreaterThan(tee.y)
+        const punti = polilinea(layout, arco)
+        const [penultimo, ultimo] = punti.slice(-2)
+        // Entra dall'ALTO: l'ultimo tratto è verticale e scende sull'attacco.
+        expect(penultimo.x).toBe(ultimo.x)
+        expect(penultimo.y).toBeLessThan(ultimo.y)
+        // Ed esce dal TEE dal basso.
+        expect(punti[1].x).toBe(punti[0].x)
+        expect(punti[1].y).toBeGreaterThan(punti[0].y)
+      }
+      for (const arco of layout.archi.filter((a) => a.da.ancora === 'out-alto')) {
+        const [primo, secondo] = polilinea(layout, arco)
+        // L'azoto esce dall'alto e risale al collettore.
+        expect(secondo.x).toBe(primo.x)
+        expect(secondo.y).toBeLessThan(primo.y)
+      }
+    }
+  })
+
+  it('nessun tubo attraversa un generatore o un terminale', () => {
+    // Un tratto (orizzontale o verticale) che passa dentro il riquadro, non sul bordo: sul bordo
+    // ci sono gli attacchi, ed è lì che un tubo deve fermarsi.
+    const attraversa = (p: { x: number; y: number }, q: { x: number; y: number }, r: { x: number; y: number; larghezza: number; altezza: number }) => {
+      const dentroX = (x: number) => x > r.x && x < r.x + r.larghezza
+      const dentroY = (y: number) => y > r.y && y < r.y + r.altezza
+      if (p.x === q.x) return dentroX(p.x) && Math.max(p.y, q.y) > r.y && Math.min(p.y, q.y) < r.y + r.altezza
+      return dentroY(p.y) && Math.max(p.x, q.x) > r.x && Math.min(p.x, q.x) < r.x + r.larghezza
+    }
+    for (const layout of [layoutDi(schedaConGeneratore()), layoutDi(tre()), conBypassInFondo(tre())]) {
+      const ostacoli = layout.nodi.filter((n) => n.tipo === 'generatore_azoto' || n.tipo === 'utenze')
+      for (const arco of layout.archi) {
+        const punti = polilinea(layout, arco)
+        for (let i = 1; i < punti.length; i++) {
+          for (const o of ostacoli) {
+            expect(attraversa(punti[i - 1], punti[i], corpoNodo(o)), `${arco.id} dentro ${o.id}`).toBe(false)
+          }
+        }
+      }
+    }
+  })
+
+  it('il terminale «Utenze azoto» sta a destra di quello dell’aria, sul collettore, senza toccarlo', () => {
+    for (const scheda of [schedaConGeneratore(), tre()]) {
+      const layout = layoutDi(scheda)
+      const aria = nodo(layout, ID_UTENZE)
+      const azoto = nodo(layout, ID_UTENZE_AZOTO)
+      expect(azoto.x).toBeGreaterThan(aria.x + dimensioniDi(aria).larghezza)
+      const ultimo = nodo(layout, scheda.generatori_azoto![scheda.generatori_azoto!.length - 1].codice)
+      expect(azoto.x).toBeGreaterThan(ultimo.x + DIMENSIONI_NODO.generatore_azoto.larghezza)
+      // Il collettore arriva dritto sull'attacco: l'ultimo tratto è orizzontale.
+      for (const arco of layout.archi.filter((a) => a.a.nodo === ID_UTENZE_AZOTO)) {
+        const [penultimo, ultimoPunto] = polilinea(layout, arco).slice(-2)
+        expect(penultimo.y).toBe(ultimoPunto.y)
+      }
+    }
+  })
+
+  it('nessuna quota negativa, nemmeno col by-pass che chiude la linea in alto', () => {
+    // `renderSvg` fissa il viewBox a partire da zero: tutto ciò che sta sopra sparisce dal .docx.
+    for (const layout of [layoutDi(schedaConGeneratore()), layoutDi(tre()), conBypassInFondo(tre())]) {
+      for (const n of layout.nodi) expect(n.y, n.id).toBeGreaterThanOrEqual(0)
+      for (const arco of layout.archi) {
+        for (const p of polilinea(layout, arco)) expect(p.y, arco.id).toBeGreaterThanOrEqual(0)
+      }
+    }
+  })
+
+  it('col by-pass sull’ultimo elemento il TEE sta a valle del capo di uscita', () => {
+    const layout = conBypassInFondo(schedaConGeneratore())
+    const capo = posizioneAncora(nodo(layout, 'BP1-OUT'), 'dx')
+    expect(posizioneAncora(nodo(layout, ID_DERIVAZIONE_AZOTO), 'sx')).toEqual({ x: capo.x + PASSO_GIUNZIONE, y: capo.y })
+  })
+
+  it('la corsia condense resta sotto i generatori anche quando la linea scende per un by-pass', () => {
+    for (const layout of [layoutDi(tre()), conBypassInFondo(tre())]) {
+      expect(layout.nodi.filter((n) => n.tipo === 'generatore_azoto')).toHaveLength(3)
+      const fondo = Math.max(
+        ...layout.nodi.filter((n) => n.tipo === 'generatore_azoto').map((n) => n.y + DIMENSIONI_NODO.generatore_azoto.altezza)
+      )
+      expect(quoteInstradamento(layout).yCorsiaCondense).toBeGreaterThan(fondo)
+    }
+  })
+
+  it('senza generatori la linea non cambia: il TEE della derivazione non fa scendere niente', () => {
+    // Discrimina: col TEE scambiato per una giunzione di by-pass la linea scenderebbe di una
+    // corsia (`quotaLineaProcesso`) anche nella pratica con generatore.
+    const con = layoutDi(schedaConGeneratore())
+    const senza = layoutSchema(
+      buildSchemaModel({
+        scheda: schedaConGeneratore({ generatori_azoto: undefined, serbatoi_generatore: undefined }),
+        collegamentiCompressoriSerbatoi: collegamenti,
+      })
+    )
+    for (const id of ['C1', 'C2', 'S1', 'E1', 'F1', 'UTENZE']) {
+      expect(nodo(con, id).y, id).toBe(nodo(senza, id).y)
+    }
   })
 })

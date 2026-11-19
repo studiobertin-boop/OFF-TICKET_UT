@@ -10,17 +10,23 @@ import {
   makeSeparatore,
   makeSerbatoio,
   makeValvola,
+  makeGeneratore,
+  makeSerbatoioGeneratore,
+  schedaConGeneratore,
 } from '@/services/relazione/__tests__/fixtures'
 import {
+  buildGeneratoreNodo,
   buildSchemaModel,
+  ID_DERIVAZIONE_AZOTO,
   ID_UTENZE,
+  ID_UTENZE_AZOTO,
   notaTubazioni,
   ordinaCatenaTrattamento,
   puoGenerareSchema,
 } from '../buildSchemaModel'
 import { capoValido } from '../agganci'
 import { preferenzeRisolteDaScheda } from '../preferenze'
-import { pozzoCondense } from '../layout'
+import { catenaDagliArchi, pozzoCondense } from '../layout'
 import type { SchemaModel } from '../types'
 
 describe('buildSchemaModel', () => {
@@ -1000,5 +1006,137 @@ describe('ordine libero della linea', () => {
     const ponte = model.archi.find((a) => a.forma === 'ponte')
     expect(ponte?.da.nodo).toBe('BP1-IN')
     expect(ponte?.a.nodo).toBe('BP1-OUT')
+  })
+})
+
+describe('derivazione dei generatori di azoto', () => {
+  const collegamenti = { C1: ['S1'], C2: ['S1'] }
+  const tre = () =>
+    schedaConGeneratore({
+      generatori_azoto: [
+        makeGeneratore({ codice: 'N3' }),
+        makeGeneratore({ codice: 'N1' }),
+        makeGeneratore({ codice: 'N2' }),
+      ],
+    })
+  const arco = (model: SchemaModel, da: string, a: string) =>
+    model.archi.find((x) => x.da.nodo === da && x.a.nodo === a)
+
+  it('con N1 posa il TEE sull’arco verso le utenze, alimenta N1 dall’alto e porta l’azoto al suo terminale', () => {
+    const model = buildSchemaModel({ scheda: schedaConGeneratore(), collegamentiCompressoriSerbatoi: collegamenti })
+
+    const tee = model.nodi.find((n) => n.id === ID_DERIVAZIONE_AZOTO)
+    expect(tee?.tipo).toBe('giunzione')
+    // Il TEE spezza l’arco «ultimo elemento → UTENZE»: l’ultimo elemento (F1) non arriva più
+    // direttamente al terminale dell’aria.
+    expect(arco(model, 'F1', ID_UTENZE)).toBeUndefined()
+    expect(arco(model, 'F1', ID_DERIVAZIONE_AZOTO)?.a.ancora).toBe('sx')
+    expect(arco(model, ID_DERIVAZIONE_AZOTO, ID_UTENZE)?.da.ancora).toBe('dx')
+
+    expect(arco(model, ID_DERIVAZIONE_AZOTO, 'N1')).toMatchObject({
+      da: { ancora: 'basso' },
+      a: { ancora: 'in-alto' },
+      stile: 'standard',
+    })
+    expect(arco(model, 'N1', ID_UTENZE_AZOTO)).toMatchObject({ da: { ancora: 'out-alto' }, a: { ancora: 'in' } })
+    const terminale = model.nodi.find((n) => n.id === ID_UTENZE_AZOTO)
+    expect(terminale).toMatchObject({ tipo: 'utenze', etichetta: 'Utenze\nazoto', origine: 'scheda' })
+
+    // La linea condense dal connettore in basso, verso il pozzo (la scheda ha la tanica).
+    expect(model.archi.find((a) => a.da.nodo === 'N1' && a.stile === 'condensa')).toMatchObject({
+      da: { ancora: 'basso-out' },
+      a: { nodo: 'T' },
+    })
+  })
+
+  it('le condense del generatore partono anche quando il pannello delle preferenze è stato aperto', () => {
+    // Il generatore non è fra le famiglie del pannello: il flag per apparecchiatura non lo nomina
+    // mai, e leggerlo da lì lo lascerebbe senza scarico per sempre.
+    const scheda = schedaConGeneratore()
+    const model = buildSchemaModel({
+      scheda,
+      collegamentiCompressoriSerbatoi: collegamenti,
+      preferenze: preferenzeRisolteDaScheda(scheda, undefined),
+    })
+    expect(model.archi.some((a) => a.da.nodo === 'N1' && a.stile === 'condensa')).toBe(true)
+  })
+
+  it('con N1, N2 e N3 i generatori sono alimentati in parallelo dallo stesso TEE, nell’ordine dei codici', () => {
+    const model = buildSchemaModel({ scheda: tre(), collegamentiCompressoriSerbatoi: collegamenti })
+    const alimentazioni = model.archi.filter((a) => a.da.nodo === ID_DERIVAZIONE_AZOTO && a.a.ancora === 'in-alto')
+    expect(alimentazioni.map((a) => a.a.nodo)).toEqual(['N1', 'N2', 'N3'])
+    const uscite = model.archi.filter((a) => a.a.nodo === ID_UTENZE_AZOTO)
+    expect(uscite.map((a) => a.da.nodo)).toEqual(['N1', 'N2', 'N3'])
+    // In parallelo, non in serie: nessun tubo da un generatore all’altro.
+    const generatori = new Set(['N1', 'N2', 'N3'])
+    expect(model.archi.some((a) => generatori.has(a.da.nodo) && generatori.has(a.a.nodo))).toBe(false)
+    // Un terminale solo per tutti.
+    expect(model.nodi.filter((n) => n.id === ID_UTENZE_AZOTO)).toHaveLength(1)
+    expect(model.nodi.filter((n) => n.tipo === 'generatore_azoto').map((n) => n.id)).toEqual(['N1', 'N2', 'N3'])
+  })
+
+  it('il generatore non è uno stadio: né in ordineLinea, né nella catena di trattamento, né in quella degli archi', () => {
+    const scheda = tre()
+    const preferenze = preferenzeRisolteDaScheda(scheda, undefined)
+    expect(preferenze.ordineLinea.some((id) => id.startsWith('N'))).toBe(false)
+
+    const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: collegamenti, preferenze })
+    const pozzo = pozzoCondense(model.nodi, model)
+    expect(ordinaCatenaTrattamento(model.nodi, pozzo).map((n) => n.id)).toEqual(['E1', 'F1'])
+    // Nemmeno il TEE della derivazione: in catena farebbe scendere la linea di una corsia, come
+    // fa la giunzione di un by-pass (`quotaLineaProcesso`).
+    expect(catenaDagliArchi(model, pozzo).map((n) => n.id)).toEqual(['S1', 'E1', 'F1'])
+  })
+
+  it('con un separatore in fondo alla linea il TEE sta dopo il separatore', () => {
+    const scheda = schedaConGeneratore({ separatori: [makeSeparatore()] })
+    const model = buildSchemaModel({ scheda, collegamentiCompressoriSerbatoi: collegamenti })
+    expect(arco(model, 'SEP1', ID_DERIVAZIONE_AZOTO)).toBeDefined()
+    expect(arco(model, 'SEP1', ID_UTENZE)).toBeUndefined()
+  })
+
+  it('con un by-pass sull’ultimo elemento la derivazione resta a valle del capo di uscita', () => {
+    const scheda = schedaConGeneratore()
+    const model = buildSchemaModel({
+      scheda,
+      collegamentiCompressoriSerbatoi: collegamenti,
+      preferenze: preferenzeRisolteDaScheda(scheda, { bypass: [{ id: 'bp1', stadi: ['F1'] }] }),
+    })
+    expect(arco(model, 'BP1-OUT', ID_DERIVAZIONE_AZOTO)).toBeDefined()
+    expect(arco(model, ID_DERIVAZIONE_AZOTO, ID_UTENZE)).toBeDefined()
+    expect(arco(model, ID_DERIVAZIONE_AZOTO, 'N1')).toBeDefined()
+    // Il ponte resta quello del by-pass: il TEE della derivazione non è un suo capo.
+    expect(model.archi.filter((a) => a.forma === 'ponte').map((a) => [a.da.nodo, a.a.nodo])).toEqual([
+      ['BP1-IN', 'BP1-OUT'],
+    ])
+  })
+
+  it('senza generatori nessun TEE, nessun terminale azoto, e lo stesso modello con gli array vuoti', () => {
+    const senza = makeScheda()
+    const conVuoti = makeScheda({ generatori_azoto: [], serbatoi_generatore: [] })
+    const model = buildSchemaModel({ scheda: senza, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })
+    expect(model.nodi.some((n) => n.id === ID_DERIVAZIONE_AZOTO || n.id === ID_UTENZE_AZOTO)).toBe(false)
+    expect(buildSchemaModel({ scheda: conVuoti, collegamentiCompressoriSerbatoi: { C1: ['S1'] } })).toEqual(model)
+  })
+
+  it('i serbatoi interni sono accessori del generatore, con le loro valvole', () => {
+    const scheda = schedaConGeneratore()
+    const n1 = buildGeneratoreNodo(scheda.generatori_azoto![0], scheda)
+    expect(n1).toMatchObject({ id: 'N1', tipo: 'generatore_azoto', origine: 'scheda' })
+    expect(n1.etichetta).toBe('Generatore di azoto PARKER HANNIFIN Mod. NITROSOURCE N2-35P')
+    expect(n1.accessorio?.codice).toBe('NS1')
+    expect(n1.accessorio?.etichetta).toBe('Serbatoio interno generatore di azoto N1 PARKER HANNIFIN Mod. COLONNA CMS')
+    expect(n1.accessorio?.valvoleSicurezza.map((v) => v.codice)).toEqual(['NS1.1'])
+    expect(n1.accessoriAggiuntivi?.map((a) => a.codice)).toEqual(['NS2'])
+    expect(n1.accessoriAggiuntivi?.[0].valvoleSicurezza.map((v) => v.codice)).toEqual(['NS2.1', 'NS2.2'])
+  })
+
+  it('un generatore senza serbatoi interni non porta accessori', () => {
+    const scheda = schedaConGeneratore({
+      serbatoi_generatore: [makeSerbatoioGeneratore({ generatore_associato: 'N2' })],
+    })
+    const n1 = buildGeneratoreNodo(makeGeneratore(), scheda)
+    expect(n1.accessorio).toBeUndefined()
+    expect(n1).not.toHaveProperty('accessoriAggiuntivi')
   })
 })

@@ -7,6 +7,7 @@
  * pozzo di raccolta condense in basso a destra. Funzione pura: nessun DOM, testabile in Node.
  */
 import { assegnaCorsie, capoDiValleDi, eCapoDiMonte, ultimoScavalcato } from './bypass'
+import { ID_DERIVAZIONE_AZOTO, ID_UTENZE_AZOTO, eDerivazioneAzoto } from './buildSchemaModel'
 import { risolviPonti, risolviSegniAncorati } from './segniAncorati'
 import type { Tarature } from './libreria'
 import {
@@ -22,6 +23,7 @@ import {
 } from './symbols'
 import type { QuoteInstradamento } from './tratti'
 import type {
+  SchemaArco,
   SchemaLayout,
   SchemaModel,
   SchemaMuroOrizzontale,
@@ -697,8 +699,14 @@ export function catenaDagliArchi(model: SchemaModel, pozzo: SchemaNodo | null): 
   const perId = new Map(model.nodi.map((n) => [n.id, n]))
   // Dal 20-08-2026 il serbatoio e' un elemento di linea come gli altri: puo' stare in mezzo alla
   // catena, con uno stadio prima e uno dopo.
+  //
+  // Il TEE della derivazione dell'azoto e' una giunzione ma NON un elemento di linea: la linea ci
+  // arriva, e da li' partono il terminale dell'aria e il ramo dei generatori. In catena sarebbe
+  // disposto come un capo di by-pass e — peggio — farebbe scendere tutta la linea di una corsia
+  // (`quotaLineaProcesso` guarda le giunzioni della catena). Lo dispone `disponiDerivazione`.
   const inLinea = (n: SchemaNodo): boolean =>
     n.id !== pozzo?.id &&
+    !eDerivazioneAzoto(n.id) &&
     (n.tipo === 'serbatoio' ||
       n.tipo === 'essiccatore' ||
       n.tipo === 'filtro' ||
@@ -758,6 +766,152 @@ export function catenaDagliArchi(model: SchemaModel, pozzo: SchemaNodo | null): 
   return [...catena, ...orfani]
 }
 
+/**
+ * Il passo fra le quote della derivazione dell'azoto: due passi di giunzione. Dalla linea in giù
+ * si incontrano, a un passo l'una dall'altra, il collettore dell'azoto, quello dell'aria che
+ * alimenta i generatori, e la cima dei generatori.
+ *
+ * Non e' una misura presa su un disegno — il committente non ne ha ancora fornito uno con un
+ * generatore — ma due volte l'unita' che il modulo usa per «due elementi vicini»
+ * (`PASSO_GIUNZIONE`): a un passo solo il montante dell'azoto, che attraversa il collettore
+ * dell'aria col suo sormonto (raggio 6), resterebbe lungo 20 unita' sopra e sotto, e le tre
+ * orizzontali si leggerebbero come un fascio unico.
+ *
+ * Con la linea alla quota di sempre (impianto senza by-pass) i generatori finiscono appoggiati
+ * esattamente sulla quota di base di compressori e serbatoi: tre passi da 40 sotto la linea, piu'
+ * i 120 dell'altezza, fanno i 240 che separano l'uscita del serbatoio dalla sua base.
+ */
+const PASSO_DERIVAZIONE = 2 * PASSO_GIUNZIONE
+
+/** Posizione assoluta di un'ancora, col ripiego sul centro del riquadro. `posizioneAncora` vive in
+ *  `renderSvg.ts`, che importa questo modulo: richiamarla di qui aggiungerebbe un anello. */
+function ancoraAssoluta(nodo: SchemaNodoPosizionato, id: string, libreria: Tarature): { x: number; y: number } {
+  const ancora = ancoraDi(nodo, id, libreria)
+  const dim = dimensioniDi(nodo, libreria)
+  return { x: nodo.x + (ancora?.x ?? dim.larghezza / 2), y: nodo.y + (ancora?.y ?? dim.altezza / 2) }
+}
+
+/**
+ * Il TEE della derivazione dell'azoto e i generatori che ne pendono (decisioni 9–11).
+ *
+ * Il TEE sta sulla linea, a `PASSO_GIUNZIONE` dall'attacco da cui la linea gli arriva — l'ultimo
+ * elemento, o il capo di valle di un by-pass che lo scavalca — e alla sua stessa quota: e' la
+ * stessa regola con cui `disponiSequenza` posa le giunzioni dei by-pass, e con cui il terminale
+ * utenze si posa a `PASSO_TERMINALE` dal TEE subito dopo.
+ *
+ * I generatori stanno **sotto la linea, affiancati alla stessa quota**, a cominciare un passo di
+ * giunzione a destra del TEE: il ramo scende dal TEE, corre orizzontale sopra di loro e cala negli
+ * ingressi in alto (`gomitiDerivazione`). Sotto e non sopra perche' sopra la linea c'e' gia' il
+ * terminale dell'aria, alto 170, e un ramo che lo scavalcasse finirebbe a ridosso del bordo del
+ * foglio. Il passo fra due generatori e' quello dei compressori, l'altra famiglia di
+ * apparecchiature affiancate a pari quota.
+ *
+ * La quota si misura dalla linea di processo, o dal TEE se sta piu' in basso: il TEE puo' stare
+ * PIU' IN ALTO della linea (il by-pass che chiude la linea porta il suo capo di valle sulla quota
+ * del ponte), e misurare da li' porterebbe i generatori dentro la linea.
+ *
+ * Senza TEE (una scheda che ha generatori ma nessuna linea da cui derivarli: non capita, perche'
+ * `puoGenerareSchema` vuole almeno un serbatoio) i generatori si posano comunque, a destra della
+ * linea, invece di sparire dal disegno.
+ */
+function disponiDerivazione(
+  model: SchemaModel,
+  linea: SchemaNodoPosizionato[],
+  xRipiego: number,
+  quotaLinea: number,
+  libreria: Tarature
+): { posizionati: SchemaNodoPosizionato[]; fondo: number | null } {
+  const generatori = model.nodi.filter((n) => n.tipo === 'generatore_azoto')
+  if (generatori.length === 0) return { posizionati: [], fondo: null }
+
+  let tee: SchemaNodoPosizionato | undefined
+  const nodoTee = model.nodi.find((n) => n.id === ID_DERIVAZIONE_AZOTO)
+  const arcoEntrante = model.archi.find((a) => a.a.nodo === ID_DERIVAZIONE_AZOTO)
+  const partenza = arcoEntrante ? linea.find((n) => n.id === arcoEntrante.da.nodo) : undefined
+  if (nodoTee && arcoEntrante && partenza) {
+    const attacco = ancoraAssoluta(partenza, arcoEntrante.da.ancora, libreria)
+    const sx = ancoraDi(nodoTee, 'sx', libreria) ?? { x: 0, y: 0 }
+    tee = posiziona(nodoTee, attacco.x + PASSO_GIUNZIONE - sx.x, attacco.y - sx.y)
+  }
+
+  const centroTee = tee ? ancoraAssoluta(tee, 'sx', libreria) : undefined
+  const xIniziale = centroTee ? centroTee.x + PASSO_GIUNZIONE : xRipiego
+  const cima = Math.max(quotaLinea, centroTee?.y ?? quotaLinea) + 3 * PASSO_DERIVAZIONE
+  // Allineati per la CIMA e non per il centro (`disponiInRiga` non lo sa fare): e' sulla cima che
+  // stanno gli attacchi, e le tre quote del ramo si contano da li'.
+  const posizionati: SchemaNodoPosizionato[] = []
+  let x = xIniziale
+  for (const g of generatori) {
+    posizionati.push(posiziona(g, x, cima))
+    x += dimensioniDi(g, libreria).larghezza + PASSO_COMPRESSORI
+  }
+  return {
+    posizionati: tee ? [tee, ...posizionati] : posizionati,
+    fondo: Math.max(...posizionati.map((g) => g.y + dimensioniDi(g, libreria).altezza)),
+  }
+}
+
+/**
+ * Il terminale «Utenze azoto»: sul collettore dell'azoto — un passo di derivazione sopra quello
+ * dell'aria, due sopra la cima dei generatori — e a destra di tutto cio' che gli sta accanto,
+ * l'ultimo generatore e il terminale dell'aria, di un `PASSO_TERMINALE`. Il secondo vincolo conta
+ * con un generatore solo: il terminale dell'aria sta sopra la linea, a cavallo del TEE, e il
+ * collettore dell'azoto comincia appena a destra di lui — senza, le due scritte si toccherebbero.
+ */
+function disponiTerminaleAzoto(
+  nodo: SchemaNodo,
+  generatori: SchemaNodoPosizionato[],
+  vicini: SchemaNodoPosizionato[],
+  libreria: Tarature
+): SchemaNodoPosizionato {
+  const dim = dimensioniDi(nodo, libreria)
+  const attacco = ancoraDi(nodo, 'in', libreria) ?? { x: dim.larghezza / 2, y: dim.altezza }
+  const bordo = Math.max(...[...generatori, ...vicini].map((n) => n.x + dimensioniDi(n, libreria).larghezza))
+  const quota = Math.min(...generatori.map((g) => g.y)) - 2 * PASSO_DERIVAZIONE
+  return posiziona(nodo, bordo + PASSO_TERMINALE, quota - attacco.y)
+}
+
+/**
+ * I gomiti del ramo dell'azoto, scritti sugli archi a posizioni definitive (dopo l'eventuale
+ * discesa del disegno). Senza, le rotte di `instrada` sbaglierebbero tutte e due in modo plausibile:
+ * il ramo che esce dal basso del TEE piegherebbe alla quota dei generatori e correrebbe RASENTE la
+ * loro cima, e la spezzata a meta' strada dell'uscita dell'azoto farebbe lo stesso. Con i gomiti:
+ *
+ * - TEE → generatore: giu' dal TEE fino al collettore dell'aria, orizzontale fino all'ascissa
+ *   dell'ingresso, giu' nell'ingresso. Gli archi dei generatori si sovrappongono sul collettore
+ *   — lo stesso modo in cui i montanti dei compressori condividono la dorsale — e dove un ramo
+ *   cala dal collettore il tratto verticale COMINCIA li': `sormontiDelDisegno` lo legge come
+ *   un'unione, non come un incrocio.
+ * - generatore → terminale: su dall'uscita fino al collettore dell'azoto, e orizzontale fino al
+ *   terminale. Il montante attraversa il collettore dell'aria, e li' si' c'e' il sormonto: due
+ *   reti che si incrociano senza unirsi, ed e' l'unico incrocio che il ramo produce.
+ *
+ * Le quote si rileggono dai nodi e non si ricalcolano: e' cio' che li tiene giusti anche dopo la
+ * discesa del disegno, che sposta i nodi ma non saprebbe dei gomiti.
+ */
+function gomitiDerivazione(archi: SchemaArco[], nodi: SchemaNodoPosizionato[], libreria: Tarature): SchemaArco[] {
+  const perId = new Map(nodi.map((n) => [n.id, n]))
+  const generatori = nodi.filter((n) => n.tipo === 'generatore_azoto')
+  const tee = perId.get(ID_DERIVAZIONE_AZOTO)
+  const terminale = perId.get(ID_UTENZE_AZOTO)
+  if (generatori.length === 0) return archi
+  const quotaAria = Math.min(...generatori.map((g) => g.y)) - PASSO_DERIVAZIONE
+  const quotaAzoto = terminale ? ancoraAssoluta(terminale, 'in', libreria).y : quotaAria - PASSO_DERIVAZIONE
+  return archi.map((arco) => {
+    const generatore = (id: string) => perId.get(id)?.tipo === 'generatore_azoto'
+    if (tee && arco.da.nodo === tee.id && generatore(arco.a.nodo)) {
+      const discesa = ancoraAssoluta(tee, arco.da.ancora, libreria).x
+      const ingresso = ancoraAssoluta(perId.get(arco.a.nodo), arco.a.ancora, libreria).x
+      return { ...arco, punti: [{ x: discesa, y: quotaAria }, { x: ingresso, y: quotaAria }] }
+    }
+    if (terminale && arco.a.nodo === terminale.id && generatore(arco.da.nodo)) {
+      const uscita = ancoraAssoluta(perId.get(arco.da.nodo), arco.da.ancora, libreria).x
+      return { ...arco, punti: [{ x: uscita, y: quotaAzoto }] }
+    }
+    return arco
+  })
+}
+
 export function layoutSchema(model: SchemaModel, libreria: Tarature = {}): SchemaLayout {
   const compressori = model.nodi.filter((n) => n.tipo === 'compressore')
   // Il pozzo di raccolta condense sta nella corsia bassa: è la tanica, oppure il separatore
@@ -804,7 +958,16 @@ export function layoutSchema(model: SchemaModel, libreria: Tarature = {}): Schem
     valleSulPonte
   )
 
-  const yCondense = yBase + CORSIA_CONDENSE
+  // La derivazione dell'azoto, se c'e': il TEE prima del terminale dell'aria, che si posa a partire
+  // da lui (l'arco verso UTENZE parte dal TEE), e i generatori sotto la linea.
+  const derivazione = disponiDerivazione(model, rigaLinea.posizionati, rigaLinea.xFinale, quotaLinea, libreria)
+
+  // La corsia condense sta di norma sotto la quota di base; i generatori possono scendere oltre —
+  // quando un by-pass abbassa la linea, loro la seguono — e allora il pozzo scende con loro, della
+  // stessa misura, così la corsia resta alla distanza di sempre dal fondo più basso. Senza
+  // generatori lo sfondamento è zero e il pozzo non si muove.
+  const sfondamento = derivazione.fondo === null ? 0 : Math.max(0, derivazione.fondo - yBase)
+  const yCondense = yBase + CORSIA_CONDENSE + sfondamento
   const rigaRaccolta = disponiInRiga(raccolta, Math.max(rigaLinea.xFinale, MARGINE), yCondense, 'centro', libreria)
 
   // Il terminale utenze non sta in nessuna riga: si appoggia a destra di tutto ciò che lo
@@ -820,10 +983,15 @@ export function layoutSchema(model: SchemaModel, libreria: Tarature = {}): Schem
   // famiglia nuova. Si cerca invece l'arco che arriva a lui (ce n'è al più uno: è lo stesso la cui
   // esistenza ha fatto nascere il nodo, in `buildSchemaModel`) e si parte dalla SUA ancora — così
   // vale anche col by-pass, dove la sorgente è il capo di valle e non un elemento della catena.
-  const utenze = model.nodi.filter((n) => n.tipo === 'utenze')
+  //
+  // Il terminale dell'azoto non passa di qui: il suo arco viene da un generatore, e la regola «a un
+  // passo dall'attacco di partenza» lo metterebbe sopra il generatore. Lo posa
+  // `disponiTerminaleAzoto`, qui sotto.
+  const utenze = model.nodi.filter((n) => n.tipo === 'utenze' && n.id !== ID_UTENZE_AZOTO)
   const nodiPrimaDelTerminale = [
     ...rigaCompressori.posizionati,
     ...rigaLinea.posizionati,
+    ...derivazione.posizionati,
     ...rigaRaccolta.posizionati,
   ]
   const posizionatiUtenze = utenze.map((n) => {
@@ -845,16 +1013,29 @@ export function layoutSchema(model: SchemaModel, libreria: Tarature = {}): Schem
     return posiziona(n, bordoSinistro, quota - dimensioniDi(n, libreria).altezza)
   })
 
+  const generatoriPosizionati = derivazione.posizionati.filter((n) => n.tipo === 'generatore_azoto')
+  const nodoAzoto = model.nodi.find((n) => n.id === ID_UTENZE_AZOTO)
+  const terminaleAzoto =
+    nodoAzoto && generatoriPosizionati.length > 0
+      ? [disponiTerminaleAzoto(nodoAzoto, generatoriPosizionati, posizionatiUtenze, libreria)]
+      : []
+
   // Il terminale che parte dalla quota di un ponte finirebbe sopra il bordo del foglio (il ponte
   // corre a ridosso della cima del disegno, e il terminale è alto 170): in quel caso scende tutto
-  // il disegno di quanto serve. Il documento comincia a zero e non disegna ciò che sta sopra.
-  const cima = Math.min(0, ...posizionatiUtenze.map((n) => n.y))
+  // il disegno di quanto serve. Il documento comincia a zero e non disegna ciò che sta sopra. Vale
+  // anche per il terminale dell'azoto, che sta sul collettore sotto la linea ma è alto quanto
+  // l'altro.
+  const cima = Math.min(0, ...posizionatiUtenze.map((n) => n.y), ...terminaleAzoto.map((n) => n.y))
   const discesa = cima < 0 ? Math.ceil((MARGINE / 2 - cima) / 10) * 10 : 0
+  // I generatori dopo la linea e prima del pozzo: è l'ordine del flusso, e `righeLista` legge le
+  // righe della tabella proprio da qui.
   const nodi = [
     ...rigaCompressori.posizionati,
     ...rigaLinea.posizionati,
+    ...derivazione.posizionati,
     ...rigaRaccolta.posizionati,
     ...posizionatiUtenze,
+    ...terminaleAzoto,
   ].map((n) => (discesa > 0 ? { ...n, y: n.y + discesa } : n))
 
   // `testi` è sempre presente, mai assente: `deserializzaLayout` e `riconcilia` (persistenza.ts)
@@ -867,7 +1048,10 @@ export function layoutSchema(model: SchemaModel, libreria: Tarature = {}): Schem
   //
   // Dal Blocco D4 il muro e' un oggetto del committente, non un derivato: nasce solo quando lo
   // aggiunge dalla barra.
-  const layout: SchemaLayout = { nodi, archi: model.archi, muro: null, testi: [] }
+  //
+  // Gli archi si toccano solo se c'è una derivazione: senza, restano proprio quelli del modello.
+  const archi = derivazione.posizionati.length > 0 ? gomitiDerivazione(model.archi, nodi, libreria) : model.archi
+  const layout: SchemaLayout = { nodi, archi, muro: null, testi: [] }
 
   // Ultimo passo, non uno dei primi: le istruzioni di sola andata si risolvono sulla geometria
   // VERA, che esiste solo dopo che ogni nodo ha la sua posizione. Da qui in poi nessun arco porta
@@ -940,6 +1124,12 @@ export function corpoNodo(
 
   // La tanica non ha più un caso a sé (fix round 1, Task 4): il rettangolo disegnato è il
   // riquadro stesso, non più rientrato di 6 unità — coincide col ramo generico qui sotto.
+  //
+  // Il generatore di azoto è il terzo caso di corpo, dopo la capsula del serbatoio e il rombo: un
+  // rettangolo alto che riempie il riquadro (`simboloGeneratoreAzoto` lo disegna da 0,0 a 60×120,
+  // senza margini per valvole né scritte fuori), e gli attacchi stanno sui suoi lati. È il ramo
+  // generico, quindi non ha bisogno di un `if` suo: sta scritto perché chi cerca il generatore qui
+  // non lo trovi assente per dimenticanza.
   return { x: nodo.x, y: nodo.y, larghezza: dim.larghezza, altezza: dim.altezza }
 }
 

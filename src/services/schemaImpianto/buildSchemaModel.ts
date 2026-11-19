@@ -11,9 +11,11 @@ import type {
   Compressore,
   Essiccatore,
   Filtro,
+  GeneratoreAzoto,
   SchedaDatiCompleta,
   Separatore,
 } from '@/types/technicalSheet'
+import { descrizioneSerbatoioGeneratore } from '@/types/technicalSheet'
 import { elencaValvole } from '@/utils/valvoleImpianto'
 import { compareCodes } from '@/utils/equipmentCodes'
 import { eCapoDiMonte, eTeeBypass, linearizzaConBypass, nodoGiunzioneBypass, ultimoScavalcato } from './bypass'
@@ -181,6 +183,47 @@ function buildSeparatoreNodo(sep: Separatore): SchemaNodo {
 }
 
 /**
+ * Il generatore di azoto, coi suoi serbatoi interni come accessori: `accessorio` il primo,
+ * `accessoriAggiuntivi` gli altri, nell'ordine dei codici — la stessa forma dello scambiatore
+ * sull'essiccatore, che è dove `righeLista` (renderSvg.ts) e `codiciOccupati` li cercano già.
+ *
+ * **Il simbolo non li disegna** (Ruling 6: nessun flag, `simboloGeneratoreAzoto` ignora gli
+ * accessori per costruzione): fino a otto recipienti non stanno in un rettangolo 60×120, e il
+ * disegno CAD di riferimento non li mostra. Stanno nella lista, ciascuno con le sue valvole.
+ *
+ * La descrizione del serbatoio interno viene da `descrizioneSerbatoioGeneratore` e da nessun altro
+ * posto: è la stessa stringa in relazione, dichiarazioni e schema.
+ *
+ * `valvoleImpianto` si può passare (come fa `buildSchemaModel`, che l'ha già) o lasciare al
+ * default: con al più tre generatori ricalcolarla costa nulla, e la firma resta quella del piano.
+ */
+export function buildGeneratoreNodo(
+  g: GeneratoreAzoto,
+  scheda: SchedaDatiCompleta,
+  valvoleImpianto: ReturnType<typeof elencaValvole> = elencaValvole(scheda)
+): SchemaNodo {
+  const accessori: SchemaAccessorioDipendente[] = (scheda.serbatoi_generatore ?? [])
+    .filter((s) => s.generatore_associato === g.codice)
+    .sort((a, b) => compareCodes(a.codice, b.codice))
+    .map((s) => ({
+      codice: s.codice,
+      etichetta: etichetta(descrizioneSerbatoioGeneratore(s), s.marca, s.modello),
+      valvoleSicurezza: valvoleDiRecipiente(valvoleImpianto, s.codice),
+    }))
+  return {
+    id: g.codice,
+    tipo: 'generatore_azoto',
+    etichetta: etichetta('Generatore di azoto', g.marca, g.modello),
+    // Stessa ragione dell'essiccatore (vedi lì): solo il serbatoio può stare fuori sala.
+    gruppo: 'SALA_COMPRESSORI',
+    valvoleSicurezza: [],
+    accessorio: accessori[0],
+    ...(accessori.length > 1 ? { accessoriAggiuntivi: accessori.slice(1) } : {}),
+    origine: 'scheda',
+  }
+}
+
+/**
  * Nodo pozzo di raccolta condense, unico per l'intero impianto (`dati_impianto.raccolta_condense`
  * non è per-serbatoio). `null` se non c'è raccolta (niente rete di linee condense da disegnare).
  */
@@ -244,7 +287,12 @@ function buildNodoRaccoltaCondense(scheda: SchedaDatiCompleta): SchemaNodo | nul
  */
 export function scaricaCondensa(nodo: SchemaNodo): boolean {
   if (nodo.tipo === 'compressore') return Boolean(nodo.accessorio)
-  return nodo.tipo === 'serbatoio' || nodo.tipo === 'essiccatore' || nodo.tipo === 'filtro'
+  // Il generatore di azoto scarica dal connettore in basso (`basso-out`, Task 8). Il pannello delle
+  // preferenze non lo elenca — non è fra le famiglie di `famiglieDaScheda` — quindi per lui questa
+  // regola non è solo il default: è la risposta (vedi le condense in `buildArchi`).
+  return (
+    nodo.tipo === 'serbatoio' || nodo.tipo === 'essiccatore' || nodo.tipo === 'filtro' || nodo.tipo === 'generatore_azoto'
+  )
 }
 
 /**
@@ -302,6 +350,35 @@ function nodoUtenze(): SchemaNodo {
     // riapertura, ed è la conseguenza accettata dal committente.
     origine: 'scheda',
   }
+}
+
+/**
+ * Gli id della derivazione dei generatori di azoto (decisioni 9–11 del progetto): il terminale
+ * dell'azoto e il TEE da cui il ramo parte. Come `UTENZE`, nessun codice di scheda li può
+ * produrre — i prefissi di scheda sono lettere seguite da un numero (`N1`, `NS1`, `S1`…), e il
+ * trattino non compare in nessuno; il `M-` dei nodi manuali comincia con un'altra lettera.
+ *
+ * Il TEE è una `'giunzione'`, la stessa dei by-pass (`nodoGiunzioneBypass`), ma **non** ne porta
+ * la forma d'id (`BP1-IN`): `eTeeBypass` non deve riconoscerlo, o `quotaLineaProcesso`
+ * abbasserebbe la linea, `gradinoVersoIlTee` gli piegherebbe i tubi e la riconciliazione lo
+ * tratterebbe da capo di un ponte. Se un giorno il ramo avesse bisogno di altri TEE (collettori),
+ * si chiamerebbero `DER-AZOTO-<n>`: `eDerivazioneAzoto` li riconosce già.
+ */
+export const ID_UTENZE_AZOTO = 'UTENZE-AZOTO'
+export const ID_DERIVAZIONE_AZOTO = 'DER-AZOTO'
+
+/** Vero per il TEE della derivazione dell'azoto (`DER-AZOTO`, `DER-AZOTO-<n>`). */
+export function eDerivazioneAzoto(id: string): boolean {
+  return id === ID_DERIVAZIONE_AZOTO || /^DER-AZOTO-\d+$/.test(id)
+}
+
+/**
+ * Il terminale dell'azoto: uno solo, comunque siano i generatori (decisione 10: in parallelo, le
+ * uscite raccolte da un collettore). Stesso simbolo e stessa origine di `nodoUtenze`, con
+ * l'etichetta propria su due righe come «Utenze / aria».
+ */
+function nodoUtenzeAzoto(): SchemaNodo {
+  return { ...nodoUtenze(), id: ID_UTENZE_AZOTO, etichetta: 'Utenze\nazoto' }
 }
 
 /**
@@ -525,15 +602,57 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
 
   // Tubazione finale verso le utenze. Il nodo esiste solo se ha da chi partire, quindi qui si
   // decide anche se `buildSchemaModel` deve aggiungerlo (vedi `sorgente`, sotto).
+  //
+  // **Con i generatori di azoto quell'arco si spezza su un TEE** (decisioni 9–11): la linea
+  // dell'aria prosegue verso le utenze, e dal TEE parte il ramo che alimenta i generatori in
+  // PARALLELO — un arco per generatore, tutti dallo stesso TEE, sull'ingresso in alto — e le loro
+  // uscite convergono su un solo terminale «Utenze azoto». I generatori non sono elementi della
+  // sequenza (non stanno in `ordineLinea`): è per questo che una pratica senza generatori non vede
+  // né TEE né ramo, e i suoi archi restano quelli di sempre, id compresi.
+  //
+  // Il TEE sta su questo arco e non altrove perché la derivazione è «in fondo a tutto»
+  // (decisione 11): dopo l'ultimo elemento, e quindi anche dopo il capo di valle di un by-pass
+  // che scavalca l'ultimo elemento — è lui, in quel caso, `ultimo`.
+  //
+  // La valvola di riserva resta sul primo tratto, quello che parte dall'ultimo elemento: è la
+  // stessa che c'era prima del TEE, e isola l'impianto a valle — aria e azoto insieme.
   const ultimo = sequenza[sequenza.length - 1]
+  const generatori = nodi.filter((n) => n.tipo === 'generatore_azoto')
   if (ultimo) {
+    const derivazione = generatori.length > 0
     archi.push({
       id: prossimoId('ut'),
       da: { nodo: ultimo.id, ancora: 'dx' },
-      a: { nodo: ID_UTENZE, ancora: 'in' },
+      a: derivazione ? { nodo: ID_DERIVAZIONE_AZOTO, ancora: 'sx' } : { nodo: ID_UTENZE, ancora: 'in' },
       stile: 'standard',
       ...(capoDiTee(ultimo) ? {} : { segni: valvolaDiRiserva() }),
     })
+    if (derivazione) {
+      archi.push({
+        id: prossimoId('ut'),
+        da: { nodo: ID_DERIVAZIONE_AZOTO, ancora: 'dx' },
+        a: { nodo: ID_UTENZE, ancora: 'in' },
+        stile: 'standard',
+      })
+      // Il ramo esce dal BASSO del TEE: i generatori stanno sotto la linea (`disponiDerivazione`,
+      // layout.ts), e il lato imposto è ciò che fa imboccare il TEE in verticale.
+      for (const g of generatori) {
+        archi.push({
+          id: prossimoId('der'),
+          da: { nodo: ID_DERIVAZIONE_AZOTO, ancora: 'basso' },
+          a: { nodo: g.id, ancora: 'in-alto' },
+          stile: 'standard',
+        })
+      }
+      for (const g of generatori) {
+        archi.push({
+          id: prossimoId('az'),
+          da: { nodo: g.id, ancora: 'out-alto' },
+          a: { nodo: ID_UTENZE_AZOTO, ancora: 'in' },
+          stile: 'standard',
+        })
+      }
+    }
   }
 
   // I ponti DOPO tutti gli archi della linea, e non e' indifferente: da una giunzione di by-pass
@@ -584,7 +703,12 @@ function buildArchi(nodi: SchemaNodo[], input: BuildSchemaModelInput, raccoltaCo
       if (nodo.id === raccoltaCondense.id) continue
       // Il flag per apparecchiatura, col default per tipo gia' applicato da `risolviPreferenze`:
       // dal 18-08-2026 la selezione non e' piu' per tipo (convenzione 7).
-      if (input.preferenze ? input.preferenze.condense.has(nodo.id) : scaricaCondensa(nodo)) {
+      //
+      // Il generatore di azoto fa eccezione: il pannello non lo elenca, quindi le preferenze non
+      // lo nominano mai e chiederlo a loro lo lascerebbe senza scarico appena l'operatore apre il
+      // pannello una volta. Per lui vale sempre la regola per tipo.
+      const daPreferenze = input.preferenze && nodo.tipo !== 'generatore_azoto'
+      if (daPreferenze ? input.preferenze.condense.has(nodo.id) : scaricaCondensa(nodo)) {
         archi.push({
           id: prossimoId('cond'),
           da: { nodo: nodo.id, ancora: 'basso-out' },
@@ -630,6 +754,12 @@ export function buildSchemaModel(input: BuildSchemaModelInput): SchemaModel {
       ...(scheda.filtri ?? []).map((f) => buildFiltroNodo(f, scheda)),
       ...(scheda.separatori ?? []).map(buildSeparatoreNodo),
     ]),
+    // I generatori di azoto FUORI da `perElenco(ordineLinea)`: non sono elementi della linea, ma
+    // un ramo appeso in fondo (decisioni 9–11). Nell'ordine dei codici, che è quello in cui il
+    // layout li affianca e la lista li elenca — dopo la linea, prima del pozzo di raccolta.
+    ...[...(scheda.generatori_azoto ?? [])]
+      .sort((a, b) => compareCodes(a.codice, b.codice))
+      .map((g) => buildGeneratoreNodo(g, scheda, valvoleImpianto)),
   ]
 
   const raccoltaCondense = buildNodoRaccoltaCondense(scheda)
@@ -642,13 +772,19 @@ export function buildSchemaModel(input: BuildSchemaModelInput): SchemaModel {
   // incoerenti. Si decide guardando gli archi appena costruiti, unica fonte.
   const archi = buildArchi(nodi, input, raccoltaCondense)
   if (archi.some((a) => a.a.nodo === ID_UTENZE)) nodi.push(nodoUtenze())
+  // Il terminale dell'azoto con la stessa regola: esiste se un'uscita di generatore ci arriva.
+  if (archi.some((a) => a.a.nodo === ID_UTENZE_AZOTO)) nodi.push(nodoUtenzeAzoto())
 
   // Le giunzioni dei by-pass entrano come il terminale: guardando gli ARCHI appena costruiti,
   // unica fonte. Un gruppo caduto in `linearizzaConBypass` non ha lasciato archi, e cosi' non
   // lascia nemmeno due TEE appesi nel vuoto. L'ordine nell'array non conta per loro — non stanno
   // in nessuna riga di `layoutSchema`, ci arrivano da `catenaDagliArchi` — ma resta deterministico
   // perche' segue quello degli archi.
-  for (const id of new Set(archi.flatMap((a) => [a.da.nodo, a.a.nodo]).filter(eTeeBypass))) {
+  //
+  // Il TEE della derivazione dell'azoto passa di qui anche lui: stesso nodo, stessa ragione. Lo
+  // dispone pero' `disponiDerivazione` (layout.ts), non `catenaDagliArchi`, che lo esclude.
+  const giunzione = (id: string) => eTeeBypass(id) || eDerivazioneAzoto(id)
+  for (const id of new Set(archi.flatMap((a) => [a.da.nodo, a.a.nodo]).filter(giunzione))) {
     nodi.push(nodoGiunzioneBypass(id))
   }
 
