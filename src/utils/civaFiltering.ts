@@ -258,7 +258,7 @@ function extractRecipientiFiltro(
  * Estrae apparecchiature CIVA dai serbatoi interni dei generatori di azoto.
  *
  * Sono recipienti a pressione come gli altri (`ARRAY_RECIPIENTI`): ogni array ha il suo
- * estrattore perché la CIVA espone campi diversi per tipo. Il costruttore è quello del
+ * estrattore perchÃ© la CIVA espone campi diversi per tipo. Il costruttore Ã¨ quello del
  * serbatoio; la descrizione viene da `descrizioneSerbatoioGeneratore`.
  */
 function extractSerbatoiGeneratore(

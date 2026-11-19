@@ -12,7 +12,7 @@ import type { SchedaDatiCompleta } from '@/types/technicalSheet'
 export function codiciSpessimetrica(scheda: SchedaDatiCompleta): string[] {
   const recipienti: { codice: string; spessimetrica?: boolean }[] = []
   // I disoleatori vengono per primi, come prima dell'introduzione di `ARRAY_RECIPIENTI`: l'ordine
-  // dell'elenco è osservabile nei documenti e per le schede esistenti non deve cambiare.
+  // dell'elenco Ã¨ osservabile nei documenti e per le schede esistenti non deve cambiare.
   const ordine = ['disoleatori', ...ARRAY_RECIPIENTI.filter((a) => a !== 'disoleatori')] as (typeof ARRAY_RECIPIENTI)[number][]
   for (const array of ordine) recipienti.push(...((scheda[array] as typeof recipienti | undefined) ?? []))
   return recipienti
