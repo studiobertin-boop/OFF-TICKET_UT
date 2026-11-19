@@ -9,6 +9,8 @@ _Nessun fix in attesa._
 
 | DATA | DESCRIZIONE |
 | --- | --- |
+| 2026-11-19 | DM329: nuova apparecchiatura «Generatore di azoto» (N1–N3) con fino a 8 serbatoi interni (NS1, NS2…, valvole NS1.1…), in scheda, catalogo, OCR, classificazione/CIVA, relazione e dichiarazioni. Le valvole dei serbatoi interni si verificano sulla portata di tutti i compressori. |
+| 2026-11-19 | Schema d’impianto: il generatore di azoto si stacca con un TEE in fondo alla linea, più generatori affiancati in parallelo, uscite riunite in «Utenze azoto»; i serbatoi interni compaiono solo nella lista. Funziona anche riaprendo uno schema già salvato. |
 | 2026-11-12 | Schema d’impianto: nuova valvola di non ritorno («+ Non ritorno»), con la freccetta del verso obbligato; il verso suo e quello del riduttore di pressione si girano con «Inverti verso» dal menu del segno. |
 | 2026-11-12 | Schema d’impianto: dove due linee si incrociano senza unirsi il tratto orizzontale scavalca quello verticale con un ponticello ad arco, in anteprima, stampa ed editor. Vale anche sugli schemi già salvati. |
 | 2026-11-10 | Schema d’impianto, editor: il terminale «utenze» ha un riquadro stretto e si ruota di 90° (pulsante o tasto R); un tubo fra due attacchi dello stesso filtro sta davanti al simbolo e si trascina; il TEE nuovo nasce accanto all’ultimo clic e in stampa non porta più il pallino. |

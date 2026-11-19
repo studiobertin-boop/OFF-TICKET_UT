@@ -249,3 +249,14 @@
   - `npx supabase functions deploy pulisci-fascicoli-scaduti` e `npx supabase functions deploy analyze-equipment-nameplate`.
   La funzione dei fascicoli va ridistribuita **subito** dopo il push: prima che giri la passata notturna.
 - [ ] **Step 5:** verificare che il deploy Vercel sia READY e che il bundle servito contenga le stringhe nuove (es. `Generatore di azoto`, `UTENZE-AZOTO`). Aggiornare `DOCUMENTAZIONE/fixes.md` e scrivere in coda a questo piano il paragrafo «cosa è andato diversamente».
+
+## Cosa è andato diversamente (19-11-2026)
+
+- **Pubblicato** il 19-11-2026: fast-forward `ffd44f8..6c6d14a`, deploy Vercel READY verificato sul bundle servito; Edge Function `pulisci-fascicoli-scaduti` v8 e `analyze-equipment-nameplate` v14 distribuite **prima** del push (dal ramo), per non lasciare la pulizia notturna vecchia a cancellare documenti N/NS.
+- Il flag `nonDisegnato` previsto dai Task 8/9 è stato **tolto**: non aveva lettori e il suo test era vuoto per costruzione. Il simbolo del generatore non disegna mai gli accessori; la lista li elenca come ogni accessorio.
+- La spec diceva che `persistenza.ts` «segue da sé»: falso. Riaprire uno schema salvato dopo aver aggiunto un generatore dava terminali sovrapposti, TEE fuori linea e id duplicati; corretto in `riconcilia` dentro il Task 9 (`riallineaDerivazione`, `idArchiUnici`).
+- `descrizioneSerbatoioGeneratore` è nata nel Task 1 (non nel 6) perché la usava già il Task 3 (CIVA).
+- Decisioni del committente arrivate durante il lavoro: la frase del §2.1 è senza punto finale e, senza sezione di trattamento, comincia «A valle dei compressori…».
+- La revisione finale ha trovato l'ordine NS/N diverso fra relazione e tabella/schema con array fuori ordine: ora tutto segue l'ordine di codice (`generatoriInOrdine`).
+- Due incidenti di codifica (cp1252 da script Python): ogni file toccato è stato riverificato UTF-8 stretto.
+- Prova in pagina su `002 test`: tutto conforme. Nota: la finestra SC (keepMounted) riconcilia solo al caricamento pagina — comportamento preesistente, vale per ogni apparecchiatura aggiunta in sessione.
