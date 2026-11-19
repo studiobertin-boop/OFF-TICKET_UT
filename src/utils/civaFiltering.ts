@@ -10,11 +10,13 @@ import type {
   Scambiatore,
   Disoleatore,
   RecipienteFiltro,
+  SerbatoioGeneratore,
   Manufacturer
 } from '@/types'
 import type { CIVAApparecchio, CIVASummaryData, TipoPraticaCIVA } from '@/types/civa'
 import { classificaRecipiente, esitoToTipoPratica } from './dm329Classification'
 import { naturalSortComparator } from './naturalSort'
+import { ARRAY_RECIPIENTI, descrizioneSerbatoioGeneratore } from '@/types/technicalSheet'
 
 export { naturalSortComparator }
 
@@ -253,9 +255,60 @@ function extractRecipientiFiltro(
 }
 
 /**
+ * Estrae apparecchiature CIVA dai serbatoi interni dei generatori di azoto.
+ *
+ * Sono recipienti a pressione come gli altri (`ARRAY_RECIPIENTI`): ogni array ha il suo
+ * estrattore perché la CIVA espone campi diversi per tipo. Il costruttore è quello del
+ * serbatoio; la descrizione viene da `descrizioneSerbatoioGeneratore`.
+ */
+function extractSerbatoiGeneratore(
+  serbatoi: SerbatoioGeneratore[],
+  manufacturers: Map<string, Manufacturer>
+): CIVAApparecchio[] {
+  const result: CIVAApparecchio[] = []
+
+  for (const serbatoio of serbatoi) {
+    if (!serbatoio.volume || !serbatoio.ps_pressione_max) {
+      continue
+    }
+
+    const tipoPratica = determineTipoPratica(serbatoio.volume, serbatoio.ps_pressione_max)
+    if (tipoPratica === 'NESSUNA') {
+      continue
+    }
+
+    const manufacturer = manufacturers.get(serbatoio.marca || '')
+    if (!manufacturer) {
+      continue
+    }
+
+    result.push({
+      codice: serbatoio.codice,
+      tipo: 'Serbatoio generatore',
+      marca: serbatoio.marca || '',
+      modello: serbatoio.modello || '',
+      descrizione: descrizioneSerbatoioGeneratore(serbatoio),
+      n_fabbrica: serbatoio.n_fabbrica || '',
+      anno: serbatoio.anno,
+      volume: serbatoio.volume,
+      ps_pressione_max: serbatoio.ps_pressione_max,
+      ts_temperatura: tsScheda(serbatoio.ts, serbatoio.ts_temperatura),
+      categoria_ped: serbatoio.categoria_ped,
+      certificazione: serbatoio.certificazione ?? undefined,
+      spessimetrica: serbatoio.spessimetrica === true,
+      tipoPratica,
+      manufacturer,
+      parentCodice: serbatoio.generatore_associato
+    })
+  }
+
+  return result
+}
+
+/**
  * Filtra e classifica tutte le apparecchiature per CIVA
  *
- * Estrae: Serbatoi, Scambiatori, Disoleatori, Recipienti Filtro
+ * Estrae: Serbatoi, Scambiatori, Disoleatori, Recipienti Filtro, Serbatoi del generatore
  * Esclude: Compressori, Valvole, Filtri, Separatori
  *
  * @param equipmentData Scheda dati completa
@@ -273,6 +326,7 @@ export function filterCIVAEquipment(
   allApparecchi.push(...extractScambiatori(equipmentData.scambiatori || [], manufacturers))
   allApparecchi.push(...extractDisoleatori(equipmentData.disoleatori || [], manufacturers))
   allApparecchi.push(...extractRecipientiFiltro(equipmentData.recipienti_filtro || [], manufacturers))
+  allApparecchi.push(...extractSerbatoiGeneratore(equipmentData.serbatoi_generatore || [], manufacturers))
 
   // Ordina: primary by tipoPratica (DICHIARAZIONE < VERIFICA), secondary by codice (natural sort)
   allApparecchi.sort((a, b) => {
@@ -301,25 +355,13 @@ export function filterCIVAEquipment(
 export function extractManufacturerNames(equipmentData: SchedaDatiCompleta): string[] {
   const names = new Set<string>()
 
-  // Serbatoi
-  equipmentData.serbatoi?.forEach(s => {
-    if (s.marca) names.add(s.marca)
-  })
-
-  // Scambiatori
-  equipmentData.scambiatori?.forEach(s => {
-    if (s.marca) names.add(s.marca)
-  })
-
-  // Disoleatori
-  equipmentData.disoleatori?.forEach(d => {
-    if (d.marca) names.add(d.marca)
-  })
-
-  // Recipienti Filtro
-  equipmentData.recipienti_filtro?.forEach(r => {
-    if (r.marca) names.add(r.marca)
-  })
+  // Tutti gli array di recipienti (serbatoi, scambiatori, disoleatori, recipienti filtro,
+  // serbatoi del generatore): stessa forma, un ciclo sulla lista unica.
+  for (const array of ARRAY_RECIPIENTI) {
+    for (const r of equipmentData[array] ?? []) {
+      if (r.marca) names.add(r.marca)
+    }
+  }
 
   return Array.from(names)
 }

@@ -55,3 +55,10 @@ describe('countApparecchiCIVA', () => {
     expect(countApparecchiCIVA(scheda)).toBe(4)
   })
 })
+
+describe('countApparecchiCIVA: serbatoi interni del generatore', () => {
+  test('NS1 (270 l, 11 bar) conta come un recipiente', () => {
+    const scheda = { serbatoi_generatore: [serbatoio(270, 11)] } as unknown as SchedaDatiCompleta
+    expect(countApparecchiCIVA(scheda)).toBe(1)
+  })
+})

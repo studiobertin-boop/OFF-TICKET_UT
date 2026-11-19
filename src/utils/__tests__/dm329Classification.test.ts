@@ -197,3 +197,24 @@ describe('codiciConAdempimento', () => {
     expect(codici).toEqual(['S2'])
   })
 })
+
+describe('calcolaEsitiPerCodice: serbatoi interni del generatore', () => {
+  it('NS1 (270 l, 11 bar) produce la stessa riga di un disoleatore con quei dati', () => {
+    const [ns] = calcolaEsitiPerCodice({
+      serbatoi_generatore: [{ codice: 'NS1', volume: 270, ps_pressione_max: 11 } as any],
+    })
+    const [dis] = calcolaEsitiPerCodice({
+      disoleatori: [{ codice: 'NS1', volume: 270, ps_pressione_max: 11 } as any],
+    })
+    expect(ns).toEqual(dis)
+    expect(ns.esito).not.toBeNull()
+  })
+
+  it('con gli array del generatore assenti (undefined) restituisce le righe di oggi', () => {
+    const base = { serbatoi: [{ codice: 'S1', volume: 100, ps_pressione_max: 15 } as any] }
+    expect(calcolaEsitiPerCodice({ ...base, serbatoi_generatore: undefined })).toEqual(
+      calcolaEsitiPerCodice(base)
+    )
+    expect(calcolaEsitiPerCodice(base)).toEqual([{ codice: 'S1', esito: 'VERIFICA', giaDenunciato: false }])
+  })
+})

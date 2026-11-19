@@ -1,3 +1,4 @@
+import { ARRAY_RECIPIENTI } from '@/types/technicalSheet'
 import type { SchedaDatiCompleta } from '@/types/technicalSheet'
 
 /**
@@ -9,12 +10,12 @@ import type { SchedaDatiCompleta } from '@/types/technicalSheet'
  * relazione â€” un elenco a parte che non seguiva l'apparecchiatura quando la si rinumerava.
  */
 export function codiciSpessimetrica(scheda: SchedaDatiCompleta): string[] {
-  return [
-    ...(scheda.disoleatori ?? []),
-    ...(scheda.serbatoi ?? []),
-    ...(scheda.scambiatori ?? []),
-    ...(scheda.recipienti_filtro ?? []),
-  ]
+  const recipienti: { codice: string; spessimetrica?: boolean }[] = []
+  // I disoleatori vengono per primi, come prima dell'introduzione di `ARRAY_RECIPIENTI`: l'ordine
+  // dell'elenco è osservabile nei documenti e per le schede esistenti non deve cambiare.
+  const ordine = ['disoleatori', ...ARRAY_RECIPIENTI.filter((a) => a !== 'disoleatori')] as (typeof ARRAY_RECIPIENTI)[number][]
+  for (const array of ordine) recipienti.push(...((scheda[array] as typeof recipienti | undefined) ?? []))
+  return recipienti
     .filter((r) => r?.spessimetrica === true && r.codice)
     .map((r) => r.codice)
 }

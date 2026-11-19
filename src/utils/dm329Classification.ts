@@ -9,7 +9,15 @@
  * `determineTipoPratica` (CIVA) è un adattatore su questa logica: il comportamento
  * osservabile per i chiamanti CIVA è invariato.
  */
-import type { CategoriaPED, Disoleatore, RecipienteFiltro, Scambiatore, Serbatoio } from '@/types/technicalSheet'
+import { ARRAY_RECIPIENTI } from '@/types/technicalSheet'
+import type {
+  CategoriaPED,
+  Disoleatore,
+  RecipienteFiltro,
+  Scambiatore,
+  Serbatoio,
+  SerbatoioGeneratore,
+} from '@/types/technicalSheet'
 import type { TipoPraticaCIVA } from '@/types/civa'
 
 export type EsitoDM329 =
@@ -128,7 +136,7 @@ export interface RigaConEsito {
  * Esito DM329 per ogni codice apparecchiatura della scheda, senza passare per tutto
  * l'apparato di formattazione della relazione (celle, gruppi, etichette italiane).
  *
- * Solo i quattro tipi che possono essere recipienti in pressione: compressori, essiccatori
+ * Solo gli array di `ARRAY_RECIPIENTI`, i tipi che possono essere recipienti in pressione: compressori, essiccatori
  * e filtri non hanno mai un esito che comporti adempimento in quanto tali (vedi
  * `classificaCompressore`, sempre esclusa, e i tipi senza recipiente associato in
  * `esiti.ts`), quindi non serve includerli qui.
@@ -138,6 +146,7 @@ export function calcolaEsitiPerCodice(scheda: {
   disoleatori?: Pick<Disoleatore, 'codice' | 'volume' | 'ps_pressione_max' | 'gia_denunciato'>[]
   scambiatori?: Pick<Scambiatore, 'codice' | 'volume' | 'ps_pressione_max' | 'gia_denunciato'>[]
   recipienti_filtro?: Pick<RecipienteFiltro, 'codice' | 'volume' | 'ps_pressione_max' | 'gia_denunciato'>[]
+  serbatoi_generatore?: Pick<SerbatoioGeneratore, 'codice' | 'volume' | 'ps_pressione_max' | 'gia_denunciato'>[]
 }): RigaConEsito[] {
   const righe: RigaConEsito[] = []
   const aggiungi = (elementi: { codice: string; volume?: number; ps_pressione_max?: number; gia_denunciato?: boolean }[] | undefined) => {
@@ -149,10 +158,8 @@ export function calcolaEsitiPerCodice(scheda: {
       })
     }
   }
-  aggiungi(scheda.serbatoi)
-  aggiungi(scheda.disoleatori)
-  aggiungi(scheda.scambiatori)
-  aggiungi(scheda.recipienti_filtro)
+  // Un array assente (`undefined`) non produce righe: le schede senza generatore restano identiche.
+  for (const array of ARRAY_RECIPIENTI) aggiungi(scheda[array])
   return righe
 }
 

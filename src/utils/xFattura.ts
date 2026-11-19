@@ -8,17 +8,14 @@
  */
 
 import type { SchedaDatiCompleta } from '@/types'
+import { ARRAY_RECIPIENTI } from '@/types/technicalSheet'
 import { determineTipoPratica } from './civaFiltering'
 
 export function countApparecchiCIVA(equipmentData: SchedaDatiCompleta | null | undefined): number {
   if (!equipmentData) return 0
 
-  const tutti = [
-    ...(equipmentData.serbatoi ?? []),
-    ...(equipmentData.scambiatori ?? []),
-    ...(equipmentData.disoleatori ?? []),
-    ...(equipmentData.recipienti_filtro ?? [])
-  ]
+  const tutti: { volume?: number; ps_pressione_max?: number }[] = []
+  for (const array of ARRAY_RECIPIENTI) tutti.push(...((equipmentData[array] as typeof tutti | undefined) ?? []))
 
   return tutti.filter(
     apparecchio =>

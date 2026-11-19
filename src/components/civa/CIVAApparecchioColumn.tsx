@@ -166,6 +166,7 @@ export const CIVAApparecchioColumn = ({
 
   const identificazione = [
     apparecchio.tipo,
+    apparecchio.descrizione,
     [apparecchio.marca, apparecchio.modello].filter(Boolean).join(' '),
     apparecchio.n_fabbrica ? `N. fabbrica ${apparecchio.n_fabbrica}` : ''
   ]

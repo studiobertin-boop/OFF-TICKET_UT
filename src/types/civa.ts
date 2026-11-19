@@ -26,6 +26,7 @@ export type TipoApparecchiaturaCIVA =
   | 'Scambiatore'
   | 'Disoleatore'
   | 'Recipiente Filtro'
+  | 'Serbatoio generatore'
 
 /**
  * Apparecchiatura eligibile per caricamento CIVA
@@ -38,6 +39,8 @@ export interface CIVAApparecchio {
   // Equipment data (from technical sheet)
   marca: string
   modello: string
+  /** Descrizione a testo libero, dove il tipo non basta (es. serbatoio interno del generatore di azoto). */
+  descrizione?: string
   n_fabbrica: string
   anno?: number
   volume: number // liters
