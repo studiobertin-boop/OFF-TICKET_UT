@@ -23,6 +23,7 @@ import type {
 } from '@/types/technicalSheet'
 import type { AdditionalInfo, DescrizioneGeneraleModel, TipoGiri } from '../types'
 import { joinConLaE, numeroInLettere, plurale } from '../helpers'
+import { generatoriInOrdine } from '@/types/technicalSheet'
 
 // ---------------------------------------------------------------------------
 // Sezione di pompaggio
@@ -259,7 +260,7 @@ export function buildDescrizioneGenerale(
 
   // Il generatore sta in fondo alla linea, dopo il trattamento: la frase segue quella sezione,
   // come voce dello stesso elenco. Senza generatori la stringa è vuota e non entra.
-  const fraseGeneratori = fraseGeneratoriAzoto(scheda.generatori_azoto ?? [], conTrattamento)
+  const fraseGeneratori = fraseGeneratoriAzoto(generatoriInOrdine(scheda), conTrattamento)
   if (fraseGeneratori) sezioni.push(fraseGeneratori)
 
   if ((scheda.separatori?.length ?? 0) > 0) {

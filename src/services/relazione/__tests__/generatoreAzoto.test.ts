@@ -352,6 +352,11 @@ describe('ordine di codice con array fuori ordine', () => {
     ])
   })
 
+  test('descrizione generale: la frase dei generatori elenca N1, N2', () => {
+    const { sezioni } = buildDescrizioneGenerale(fuoriOrdine(), info)
+    expect(sezioni.some((s) => s.includes('(N1, N2)'))).toBe(true)
+  })
+
   test('valvole', () => {
     const { portata } = buildValvole(fuoriOrdine(), info)
     expect(portata.map((r) => r.posValvola).filter((p) => p.startsWith('NS'))).toEqual([
