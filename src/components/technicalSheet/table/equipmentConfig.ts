@@ -17,6 +17,7 @@ import {
 export type EquipmentKind =
   | 'serbatoio' | 'compressore' | 'disoleatore' | 'essiccatore'
   | 'scambiatore' | 'filtro' | 'recipiente' | 'separatore' | 'valvola'
+  | 'generatore' | 'serbatoio_generatore'
 
 export interface ExtraFieldDef {
   name: string // path relativo alla base della riga
@@ -190,6 +191,32 @@ export const EQUIPMENT_DEFS: Record<EquipmentKind, EquipmentTypeDef> = {
     specsMap: { volume: 'volume', ps: 'ps_pressione_max', ts: 'ts', categoria_ped: 'categoria_ped' },
     roleHidden: true,
   },
+  /**
+   * Generatore di azoto. La «capacità» è la portata d'ARIA di alimentazione in l/min, come la
+   * FAD dei compressori: è il dato che il costruttore dichiara in targa. PS/TS/portata nascosti
+   * a tecnicoDM329 come PS/portata dell'essiccatore. Non è un recipiente: niente categoria PED.
+   */
+  generatore: {
+    kind: 'generatore', label: 'Generatore di azoto', prefix: 'N', catalogType: 'Generatori azoto',
+    capacitaField: 'portata', pressioneField: 'ps_pressione_max', ts: true, cat: false, autoPed: false,
+    extra: [NOTE_EXTRA],
+    specsMap: { portata: 'portata', ps: 'ps_pressione_max', ts: 'ts' },
+    childKind: 'serbatoio_generatore',
+    adv: ['capacita', 'pressione', 'ts'],
+  },
+  /**
+   * Serbatoio interno del generatore di azoto: stessa definizione del disoleatore — valvola di
+   * sicurezza obbligatoria, campi del recipiente, denuncia. Codice proprio (NS1…) e non
+   * derivato dal padre; si aggiunge solo dalla riga del generatore, non dal menu generale.
+   */
+  serbatoio_generatore: {
+    kind: 'serbatoio_generatore', label: 'Serbatoio interno', prefix: 'NS', catalogType: 'Serbatoi generatore azoto',
+    capacitaField: 'volume', pressioneField: 'ps_pressione_max', ts: true, cat: 'edit', autoPed: false,
+    extra: [...RECIPIENTE_EXTRA, NOTE_EXTRA, ...DENUNCIA_EXTRA],
+    specsMap: { volume: 'volume', ps: 'ps_pressione_max', ts: 'ts', categoria_ped: 'categoria_ped' },
+    mandatoryValvola: true,
+    adv: ['pressione', 'ts', 'cat'],
+  },
   separatore: {
     kind: 'separatore', label: 'Separatore', prefix: 'SEP', catalogType: 'Separatori',
     ts: false, cat: false, autoPed: false,
@@ -276,7 +303,7 @@ export const nuovaRiga = (
 
 /** Tipi selezionabili dal pulsante "Nuova apparecchiatura". */
 export const NEW_EQUIPMENT_KINDS = [
-  'serbatoio', 'compressore', 'essiccatore', 'filtro', 'separatore',
+  'serbatoio', 'compressore', 'essiccatore', 'filtro', 'separatore', 'generatore',
 ] as const satisfies readonly EquipmentKind[]
 
 /** Solo i tipi creabili: chi ne indicizza l'insieme deve coprirli tutti, verificato dal compilatore. */
@@ -290,4 +317,5 @@ export const KIND_ARRAY: Record<EquipmentKind, string> = {
   serbatoio: 'serbatoi', compressore: 'compressori', disoleatore: 'disoleatori',
   essiccatore: 'essiccatori', scambiatore: 'scambiatori', filtro: 'filtri',
   recipiente: 'recipienti_filtro', separatore: 'separatori', valvola: '',
+  generatore: 'generatori_azoto', serbatoio_generatore: 'serbatoi_generatore',
 }

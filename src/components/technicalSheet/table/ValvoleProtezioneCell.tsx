@@ -27,12 +27,12 @@ const etichetta = (pos: string, marca?: string, modello?: string, ptar?: number)
 }
 
 export const ValvoleProtezioneCell = ({ control, name }: ValvoleProtezioneCellProps) => {
-  const [serbatoi, compressori, disoleatori, selezionate] = useWatch({
+  const [serbatoi, compressori, disoleatori, serbatoi_generatore, selezionate] = useWatch({
     control,
-    name: ['serbatoi', 'compressori', 'disoleatori', name],
+    name: ['serbatoi', 'compressori', 'disoleatori', 'serbatoi_generatore', name],
   })
 
-  const valvole = elencaValvole({ serbatoi, compressori, disoleatori } as SchedaDatiCompleta)
+  const valvole = elencaValvole({ serbatoi, compressori, disoleatori, serbatoi_generatore } as SchedaDatiCompleta)
   const options = valvole.map((v) => ({
     value: v.pos,
     label: etichetta(v.pos, v.valvola?.marca, v.valvola?.modello, v.valvola?.pressione_taratura),

@@ -16,7 +16,7 @@ import { calcolaEsitiPerCodice, codiciConAdempimento } from '@/utils/dm329Classi
 import { fascicoloDocumentiApi } from '@/services/api/fascicoloDocumenti'
 import { codiceDelFascicolo } from '@/services/fascicolo/fascicoloDiRiferimento'
 import { useAperturaApparecchiatura } from './AperturaApparecchiatura'
-import type { SchedaDatiCompleta } from '@/types/technicalSheet'
+import { ARRAY_RECIPIENTI, type SchedaDatiCompleta } from '@/types/technicalSheet'
 
 /**
  * Altezza della barra agganciata, pubblicata come variabile CSS.
@@ -120,21 +120,20 @@ export const TechnicalSheetHeader = ({
   // quali fra questi hanno già un fascicolo composto (letto dal database). Il pulsante
   // "Scarica documentazione completa" resta disabilitato finché anche uno solo manca.
   const { control } = useFormContext<SchedaDatiCompleta>()
-  const perAdempimento = useWatch({
-    control,
-    name: ['serbatoi', 'disoleatori', 'scambiatori', 'recipienti_filtro'],
-  })
-  const codiciRichiesti = useMemo(
+  // Tutti i recipienti a pressione, serbatoi interni dei generatori compresi: la lista è una
+  // sola (`ARRAY_RECIPIENTI`) e il suo ordine è quello in cui i codici escono qui.
+  const perAdempimento = useWatch({ control, name: ARRAY_RECIPIENTI })
+  const recipienti = useMemo(
     () =>
-      codiciConAdempimento(
-        calcolaEsitiPerCodice({
-          serbatoi: perAdempimento[0] ?? [],
-          disoleatori: perAdempimento[1] ?? [],
-          scambiatori: perAdempimento[2] ?? [],
-          recipienti_filtro: perAdempimento[3] ?? [],
-        })
-      ),
+      Object.fromEntries(ARRAY_RECIPIENTI.map((a, k) => [a, perAdempimento[k] ?? []])) as Pick<
+        SchedaDatiCompleta,
+        (typeof ARRAY_RECIPIENTI)[number]
+      >,
     [perAdempimento]
+  )
+  const codiciRichiesti = useMemo(
+    () => codiciConAdempimento(calcolaEsitiPerCodice(recipienti)),
+    [recipienti]
   )
   const { data: codiciConFascicoloPronto } = useQuery({
     queryKey: ['fascicolo-codici-pronti', requestId],
@@ -147,9 +146,9 @@ export const TechnicalSheetHeader = ({
   const fascicoloDi = (codice: string): string | null =>
     codiciConFascicoloPronto
       ? codiceDelFascicolo(codice, codiciConFascicoloPronto, {
-          disoleatori: perAdempimento[1] ?? [],
-          scambiatori: perAdempimento[2] ?? [],
-          recipienti_filtro: perAdempimento[3] ?? [],
+          disoleatori: recipienti.disoleatori,
+          scambiatori: recipienti.scambiatori,
+          recipienti_filtro: recipienti.recipienti_filtro,
         })
       : null
   const fascicoliMancanti = codiciRichiesti.filter((c) => fascicoloDi(c) === null)

@@ -28,6 +28,10 @@ const ARRAY_KINDS: ReadonlyArray<readonly [string, EquipmentKind]> = [
   ['filtri', 'filtro'],
   ['recipienti_filtro', 'recipiente'],
   ['separatori', 'separatore'],
+  // In coda: una scheda senza generatori (array assenti) si appiattisce come prima. Le valvole
+  // dei serbatoi interni seguono la regola dei serbatoi (NS1 → NS1.1, NS1.2…).
+  ['generatori_azoto', 'generatore'],
+  ['serbatoi_generatore', 'serbatoio_generatore'],
 ]
 
 function asRecord(v: unknown): Record<string, unknown> | null {

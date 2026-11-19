@@ -5,6 +5,7 @@ import {
   completezzaDatiImpianto,
   eCompleta,
   percentuale,
+  righeComplete,
   somma,
 } from '../schedaCompleteness'
 import { EQUIPMENT_DEFS } from '@/components/technicalSheet/table/equipmentConfig'
@@ -217,5 +218,66 @@ describe('aggregazione', () => {
     const vuota = { compilati: 0, previsti: 0, valorizzati: 0, mancanti: [] }
     expect(percentuale(vuota)).toBe(100)
     expect(eCompleta(vuota)).toBe(true)
+  })
+})
+
+describe('generatori di azoto e serbatoi interni', () => {
+  /** Valvola di sicurezza compilata in ogni campo previsto. */
+  const valvolaCompleta = {
+    ...targhetta,
+    pressione_taratura: 11,
+    volume_aria_scaricato: 1200,
+    ts: '-10/+80',
+  }
+  /** Serbatoio interno compilato in ogni campo previsto, valvola compresa. */
+  const serbatoioInterno = {
+    ...targhetta,
+    codice: 'NS1',
+    generatore_associato: 'N1',
+    volume: 24,
+    ps_pressione_max: 11,
+    ts: '-10/+50',
+    categoria_ped: 'I',
+    gia_denunciato: false,
+    valvola_sicurezza: valvolaCompleta,
+    valvole_aggiuntive: [],
+  }
+  const generatoreCompleto = {
+    ...targhetta,
+    codice: 'N1',
+    ps_pressione_max: 13,
+    ts: '+5/+50',
+    portata: 1500,
+  }
+
+  it('conta il serbatoio interno e la sua valvola fra le righe della tabella', () => {
+    expect(righeComplete({ serbatoi_generatore: [serbatoioInterno] })).toEqual({ complete: 2, totali: 2 })
+  })
+
+  it('dà per incompleto un serbatoio interno senza volume', () => {
+    const senzaVolume = { ...serbatoioInterno, volume: undefined }
+    expect(righeComplete({ serbatoi_generatore: [senzaVolume] })).toEqual({ complete: 1, totali: 2 })
+    expect(completezzaRiga(EQUIPMENT_DEFS.serbatoio_generatore, senzaVolume).mancanti).toEqual(['Capacità'])
+  })
+
+  it('dà per incompleto un serbatoio interno con la valvola principale vuota', () => {
+    const r = righeComplete({ serbatoi_generatore: [{ ...serbatoioInterno, valvola_sicurezza: {} }] })
+    expect(r).toEqual({ complete: 1, totali: 2 })
+  })
+
+  it('dà per incompleto un generatore senza PS', () => {
+    const senzaPs = { ...generatoreCompleto, ps_pressione_max: undefined }
+    const c = completezzaRiga(EQUIPMENT_DEFS.generatore, senzaPs)
+    expect(eCompleta(c)).toBe(false)
+    expect(c.mancanti).toEqual(['PS'])
+  })
+
+  it('dà per completo un generatore con marca, modello, n° fabbrica, anno, PS, TS e portata', () => {
+    expect(eCompleta(completezzaRiga(EQUIPMENT_DEFS.generatore, generatoreCompleto))).toBe(true)
+    expect(righeComplete({ generatori_azoto: [generatoreCompleto] })).toEqual({ complete: 1, totali: 1 })
+  })
+
+  it('lascia invariato il conteggio di una scheda senza i due array', () => {
+    expect(righeComplete({ serbatoi: [], compressori: [] })).toEqual({ complete: 0, totali: 0 })
   })
 })

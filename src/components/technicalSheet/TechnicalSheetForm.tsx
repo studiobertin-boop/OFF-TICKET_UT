@@ -216,6 +216,8 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
       scambiatori: [],
       filtri: [],
       separatori: [],
+      generatori_azoto: [],
+      serbatoi_generatore: [],
       altri_apparecchi: {},
       ...defaultValues,
     },
@@ -287,7 +289,7 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
   /** Righe principali: le valvole non si contano, sono un componente del recipiente. */
   const principali = [
     watchedData?.serbatoi, watchedData?.compressori, watchedData?.essiccatori,
-    watchedData?.filtri, watchedData?.separatori,
+    watchedData?.filtri, watchedData?.separatori, watchedData?.generatori_azoto,
   ].reduce((n, a) => n + (a?.length ?? 0), 0)
 
   /** Riepilogo del contesto nella testata della sua sezione: la dice anche da chiusa. */
@@ -547,8 +549,8 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
         newEquipment.manometro = data.manometro || {}
       }
 
-      // Aggiungi dati specifici per disoleatori
-      if (equipmentType === 'Disoleatori') {
+      // Aggiungi dati specifici per disoleatori (e serbatoi interni, che ne sono la copia)
+      if (equipmentType === 'Disoleatori' || equipmentType === 'Serbatoi generatore azoto') {
         newEquipment.valvola_sicurezza = data.valvola_sicurezza || {}
       }
 
@@ -627,6 +629,13 @@ export const TechnicalSheetForm = forwardRef<TechnicalSheetFormRef, TechnicalShe
         : targetCode !== undefined
           ? newArray.findIndex((r: any) => r?.codice === targetCode)
           : -1
+      // Un serbatoio interno non si crea dal nome del file: «NS3.jpg» dice il suo codice ma non
+      // a quale generatore appartiene, e senza `generatore_associato` nascerebbe orfano — la
+      // tabella non lo mostra e la potatura dei riferimenti lo cancella. Si aggiorna solo se c'è.
+      if (fieldName === 'serbatoi_generatore' && existing < 0) {
+        skipped.push(`${item.filename}: ${targetCode} non è presente nella scheda (i serbatoi interni si aggiungono dalla riga del generatore)`)
+        return
+      }
       if (existing >= 0) newArray[existing] = mergeOcrData(newArray[existing], newEquipment)
       else newArray.push(newEquipment)
       console.log(`💾 Salvando in ${fieldName} ${targetCode ?? '(senza codice)'}:`, newEquipment)

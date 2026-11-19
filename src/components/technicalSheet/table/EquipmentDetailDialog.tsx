@@ -42,7 +42,12 @@ export interface DettaglioRiga {
    */
   onExit: () => void
   onDelete: (() => void) | null
-  append: { label: string; onClick: () => void } | null
+  /**
+   * Apparecchiatura collegata appendibile. `disattivata` la mostra spenta, con il motivo fra
+   * parentesi, invece di toglierla: al generatore di azoto si possono appendere fino a otto
+   * serbatoi interni, e un pulsante che sparisce al nono non dice perché.
+   */
+  append: { label: string; onClick: () => void; disattivata?: string } | null
   /**
    * Composizione del fascicolo dell'apparecchiatura. `null` per le valvole, che non ne hanno
    * uno proprio: il loro certificato entra in quello del recipiente che le porta.
@@ -231,8 +236,9 @@ const Contenuto = ({
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1.25, borderTop: 1, borderColor: 'divider', flexWrap: 'wrap' }}>
         {append && (
           <Button size="small" variant="outlined" color="primary" startIcon={<AddLinkIcon />}
-            onClick={append.onClick} sx={{ borderColor: 'primary.main' }}>
+            onClick={append.onClick} disabled={!!append.disattivata} sx={{ borderColor: append.disattivata ? undefined : 'primary.main' }}>
             Appendi {append.label.toLowerCase()}
+            {append.disattivata && ` (${append.disattivata})`}
           </Button>
         )}
         {onDelete && (
@@ -317,6 +323,7 @@ const etichettaCapacita = (def: EquipmentTypeDef) => {
   switch (def.kind) {
     case 'compressore': return 'FAD (l/min)'
     case 'essiccatore': return 'Portata trattata (l/min)'
+    case 'generatore':  return 'Aria alim. (l/min)'
     case 'valvola':     return 'Qmax (l/min)'
     default:            return 'Volume (l)'
   }

@@ -174,6 +174,8 @@ const completezzaConValvole = (def: EquipmentTypeDef, riga: unknown): Completezz
 const TIPI_IN_TABELLA: EquipmentKind[] = [
   'serbatoio', 'compressore', 'disoleatore', 'essiccatore',
   'scambiatore', 'filtro', 'recipiente', 'separatore',
+  // In coda: una scheda senza generatori (array assente) conta esattamente come prima.
+  'generatore', 'serbatoio_generatore',
 ]
 
 /** Un conteggio per ogni riga della tabella, valvole comprese. */

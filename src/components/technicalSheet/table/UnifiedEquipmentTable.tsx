@@ -30,6 +30,7 @@ import { UpdateCatalogDialog } from '../UpdateCatalogDialog'
 import type { EquipmentCatalogItem } from '@/types'
 import { calculateCategoriaPED } from '@/utils/categoriaPedCalculator'
 import { EQUIPMENT_LIMITS, type EquipmentCatalogType } from '@/types'
+import { MAX_SERBATOI_PER_GENERATORE, puoAggiungereSerbatoioGeneratore } from '@/types/technicalSheet'
 import {
   childCode, collectCodes, compareCodes, figliMax, nextFreeChildCode, nextFreeCode, pruneSchedaRefs,
 } from '@/utils/equipmentCodes'
@@ -117,6 +118,7 @@ const codesOf = (fields: any[], values: any[] | undefined) =>
 const KIND_COLOR: Record<EquipmentKind, string> = {
   serbatoio: '#5aa6d6', compressore: '#d8a900', disoleatore: '#c99a00', essiccatore: '#4fa564',
   scambiatore: '#3f8f55', filtro: '#e07a4a', recipiente: '#c96a3f', separatore: '#b061c4', valvola: '#8892a0',
+  generatore: '#2bb3a8', serbatoio_generatore: '#23948b',
 }
 
 interface OcrRef { equipmentType: EquipmentCatalogType; equipmentIndex: number; componentType?: 'valvola_sicurezza' }
@@ -510,6 +512,8 @@ export const UnifiedEquipmentTable = ({
   const filtri = useFieldArray({ control, name: 'filtri' })
   const recipienti = useFieldArray({ control, name: 'recipienti_filtro' })
   const separatori = useFieldArray({ control, name: 'separatori' })
+  const generatori = useFieldArray({ control, name: 'generatori_azoto' })
+  const serbatoiGen = useFieldArray({ control, name: 'serbatoi_generatore' })
 
   // I codici vengono dai valori del form, non da `fields`: vedi sortedEntries.
   const serbatoiVals = useWatch({ control, name: 'serbatoi' }) as any[] | undefined
@@ -520,10 +524,13 @@ export const UnifiedEquipmentTable = ({
   const filtriVals = useWatch({ control, name: 'filtri' }) as any[] | undefined
   const recipientiVals = useWatch({ control, name: 'recipienti_filtro' }) as any[] | undefined
   const separatoriVals = useWatch({ control, name: 'separatori' }) as any[] | undefined
+  const generatoriVals = useWatch({ control, name: 'generatori_azoto' }) as any[] | undefined
+  const serbatoiGenVals = useWatch({ control, name: 'serbatoi_generatore' }) as any[] | undefined
 
   const fieldArrays: Record<string, { replace: (v: any[]) => void }> = {
     serbatoi, compressori, disoleatori, essiccatori,
     scambiatori, filtri, recipienti_filtro: recipienti, separatori,
+    generatori_azoto: generatori, serbatoi_generatore: serbatoiGen,
   }
 
   /**
@@ -585,6 +592,7 @@ export const UnifiedEquipmentTable = ({
     essiccatore: { count: essiccatori.fields.length, max: EQUIPMENT_LIMITS.essiccatori.max },
     filtro: { count: filtri.fields.length, max: EQUIPMENT_LIMITS.filtri.max },
     separatore: { count: separatori.fields.length, max: EQUIPMENT_LIMITS.separatori.max },
+    generatore: { count: generatori.fields.length, max: EQUIPMENT_LIMITS.generatori_azoto.max },
   }
 
   const addNew = (kind: EquipmentKind) => {
@@ -613,6 +621,11 @@ export const UnifiedEquipmentTable = ({
       case 'separatore': {
         const codice = nextFreeCode(EQUIPMENT_LIMITS.separatori.prefix, codesOf(separatori.fields, separatoriVals), EQUIPMENT_LIMITS.separatori.max)
         if (codice) separatori.append(nuovaRiga(EQUIPMENT_DEFS.separatore, codice))
+        break
+      }
+      case 'generatore': {
+        const codice = nextFreeCode(EQUIPMENT_LIMITS.generatori_azoto.prefix, codesOf(generatori.fields, generatoriVals), EQUIPMENT_LIMITS.generatori_azoto.max)
+        if (codice) generatori.append(nuovaRiga(EQUIPMENT_DEFS.generatore, codice))
         break
       }
     }
@@ -768,7 +781,7 @@ export const UnifiedEquipmentTable = ({
     discendente?: string
     ocr: OcrRef
     onDelete: (() => void) | null
-    append: { label: string; onClick: () => void } | null
+    append: DettaglioRiga['append']
     /** Identità per le scritture asincrone; per le valvole è quella del recipiente. */
     identita: { path: string; value: string }
     /** Assente per le valvole: il loro certificato entra nel fascicolo del recipiente. */
@@ -853,9 +866,10 @@ export const UnifiedEquipmentTable = ({
     })
 
     /**
-     * Le valvole scendono di un livello rispetto al recipiente. L'ultima chiude tutti i
-     * rami in cui si trova — il proprio e quelli degli antenati — perché sotto di lei non
-     * c'è più niente che appartenga a quel gruppo.
+     * Le valvole scendono di un livello rispetto al recipiente. L'ultima chiude il proprio
+     * ramo e quelli degli antenati che si chiudevano già sul recipiente; un ramo antenato che
+     * prosegue oltre (il generatore di azoto, sotto il cui NS1 viene ancora NS2) resta aperto
+     * fino al recipiente successivo.
      */
     for (let j = 0; j <= aggiuntive.length; j++) {
       const prosegue = j < aggiuntive.length
@@ -867,7 +881,7 @@ export const UnifiedEquipmentTable = ({
         code: codiceValvola,
         rowKey: rowKeyOf(VALVOLE_ROW_PREFIX, codiceValvola),
         guide: [
-          ...guide.map((g) => ({ ...g, continua: prosegue })),
+          ...guide.map((g) => ({ ...g, continua: g.continua || prosegue })),
           { color: KIND_COLOR[def.kind], continua: prosegue },
         ],
         ocr: ocrValvola,
@@ -997,6 +1011,70 @@ export const UnifiedEquipmentTable = ({
     }
   })
 
+  // Generatori di azoto: ognuno seguito dai propri serbatoi interni, ognuno seguito dalle
+  // proprie valvole. I serbatoi interni hanno codice proprio (NS1…) e non derivato dal padre:
+  // il legame è `generatore_associato`, e il codice nuovo è il primo NS libero della scheda.
+  sortedEntries(generatori.fields, generatoriVals).forEach(({ f, i, code }) => {
+    const tuttiNs = (serbatoiGenVals ?? serbatoiGen.fields) as any[]
+    const figli = tuttiNs
+      .map((s: any, idx: number) => ({ s, idx }))
+      .filter(({ s }) => s?.generatore_associato === code)
+      .sort((a, b) => compareCodes(a.s?.codice, b.s?.codice))
+    const colore = KIND_COLOR.generatore
+    // Pieno il generatore (8) o la scheda (24): l'azione resta in vista ma spenta, col motivo.
+    const puoAggiungere = puoAggiungereSerbatoioGeneratore({ serbatoi_generatore: tuttiNs }, code)
+    const motivoPieno = figli.length >= MAX_SERBATOI_PER_GENERATORE
+      ? `max ${MAX_SERBATOI_PER_GENERATORE} per generatore`
+      : `max ${EQUIPMENT_LIMITS.serbatoi_generatore.max} in tutto`
+    aggiungiRiga({
+      key: `n-${f.id}`, def: EQUIPMENT_DEFS.generatore, base: `generatori_azoto.${i}`, code,
+      rowKey: rowKeyOf('generatori_azoto', code), guide: [],
+      discendente: figli.length > 0 ? colore : undefined,
+      ocr: { equipmentType: 'Generatori azoto', equipmentIndex: i },
+      identita: { path: `generatori_azoto.${i}.codice`, value: code },
+      // I serbatoi interni si tolgono qui, come gli scambiatori dell'essiccatore; la potatura di
+      // `dopoEliminazione` (`pruneSchedaRefs`, regola `LINKED_ARRAYS`) è la rete di sicurezza.
+      onDelete: () => ask('il generatore', code, () => {
+        if (figli.length > 0) serbatoiGen.remove(figli.map(({ idx }) => idx))
+        generatori.remove(i)
+        dopoEliminazione()
+      }),
+      append: {
+        label: 'Serbatoio interno',
+        disattivata: puoAggiungere ? undefined : motivoPieno,
+        onClick: () => {
+          if (!puoAggiungere) return
+          const codiceNs = nextFreeCode(
+            EQUIPMENT_LIMITS.serbatoi_generatore.prefix,
+            codesOf(serbatoiGen.fields, serbatoiGenVals),
+            EQUIPMENT_LIMITS.serbatoi_generatore.max,
+          )
+          // `nuovaRiga` porta già la valvola principale, vuota (campi a `null`), e l'elenco
+          // delle aggiuntive: è la definizione con `mandatoryValvola`.
+          if (codiceNs) serbatoiGen.append(nuovaRiga(EQUIPMENT_DEFS.serbatoio_generatore, codiceNs, { generatore_associato: code }))
+        },
+      },
+      fascicolo: fascicoloDi({ code }),
+    })
+    figli.forEach(({ s, idx }, k) => {
+      const codiceNs: string = s?.codice ?? ''
+      aggiungiRecipienteConValvole({
+        key: `n-${f.id}-ns-${serbatoiGen.fields[idx]?.id ?? k}`, def: EQUIPMENT_DEFS.serbatoio_generatore,
+        arrayName: 'serbatoi_generatore', base: `serbatoi_generatore.${idx}`, code: codiceNs,
+        valori: s,
+        // Il ramo del generatore scende fino all'ultimo serbatoio interno, valvole comprese.
+        guide: [{ color: colore, continua: k < figli.length - 1 }],
+        ocr: { equipmentType: 'Serbatoi generatore azoto', equipmentIndex: idx },
+        ocrValvola: { equipmentType: 'Serbatoi generatore azoto', equipmentIndex: idx, componentType: 'valvola_sicurezza' },
+        onDelete: () => ask('il serbatoio interno', codiceNs, () => { serbatoiGen.remove(idx); dopoEliminazione() }),
+        posizioni: (n) => codiciValvoleSerbatoio(codiceNs, n),
+        // Contesto del fascicolo: il generatore che lo contiene. Il fascicolo resta però
+        // quello del serbatoio interno (`fascicoloDiRiferimento` non ripiega su N).
+        principale: { codice: code, base: `generatori_azoto.${i}`, def: EQUIPMENT_DEFS.generatore },
+      })
+    })
+  })
+
   sortedEntries(separatori.fields, separatoriVals).forEach(({ f, i, code }) => {
     aggiungiRiga({
       key: `sep-${f.id}`, def: EQUIPMENT_DEFS.separatore, base: `separatori.${i}`, code,
@@ -1009,7 +1087,7 @@ export const UnifiedEquipmentTable = ({
     })
   })
 
-  const total = serbatoi.fields.length + compressori.fields.length + essiccatori.fields.length + filtri.fields.length + separatori.fields.length
+  const total = serbatoi.fields.length + compressori.fields.length + essiccatori.fields.length + filtri.fields.length + separatori.fields.length + generatori.fields.length
 
   /*
    * I chip dei fascicoli in barra titolo aprono queste finestre.
@@ -1033,7 +1111,9 @@ export const UnifiedEquipmentTable = ({
   const dettaglioConChiusura: DettaglioRiga | null = dettaglio && {
     ...dettaglio,
     onDelete: dettaglio.onDelete ? () => { chiudiDettaglio(); dettaglio.onDelete!() } : null,
-    append: dettaglio.append ? { label: dettaglio.append.label, onClick: () => { chiudiDettaglio(); dettaglio.append!.onClick() } } : null,
+    append: dettaglio.append
+      ? { ...dettaglio.append, onClick: () => { chiudiDettaglio(); dettaglio.append!.onClick() } }
+      : null,
   }
 
   return (

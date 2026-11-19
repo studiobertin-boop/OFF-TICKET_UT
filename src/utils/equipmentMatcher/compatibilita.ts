@@ -56,6 +56,18 @@ const CAMPI_CONFRONTABILI: Record<
   ],
   filtro: [],
   separatore: [],
+  // Il serbatoio interno è, per la targhetta, un disoleatore: volume e PS.
+  serbatoio_generatore: [
+    { campo: 'volume', etichetta: 'Volume', da: 'volume', tolleranza: 0 },
+    { campo: 'ps', etichetta: 'PS', da: 'pressione_max', tolleranza: TOLLERANZA_PRESSIONE },
+  ],
+  // Marca e modello li confronta già il matcher, e TS non si legge (vedi sopra): restano PS e
+  // portata d'aria di alimentazione, che `applyOcr` riceve in `volume` come la capacità di
+  // ogni tipo. Se l'estrazione non la restituisce il confronto vale `non_letto`, non esclude.
+  generatore: [
+    { campo: 'ps', etichetta: 'PS', da: 'pressione_max', tolleranza: TOLLERANZA_PRESSIONE },
+    { campo: 'portata', etichetta: 'Aria alim.', da: 'volume', tolleranza: 0 },
+  ],
 }
 
 /**
