@@ -100,6 +100,8 @@ const TYPE_TO_FIELD: Record<EquipmentCatalogType, string> = {
   'Filtri': 'filtri',
   'Separatori': 'separatori',
   'Recipienti filtro': 'recipienti_filtro',
+  'Serbatoi generatore azoto': 'serbatoi_generatore',
+  'Generatori azoto': 'generatori_azoto',
   'Altro': 'altri_apparecchi',
   'Valvole di sicurezza': '', // Non applicabile
 }

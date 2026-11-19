@@ -363,6 +363,8 @@ export type EquipmentCatalogType =
   | 'Separatori'
   | 'Valvole di sicurezza'
   | 'Recipienti filtro'
+  | 'Serbatoi generatore azoto'
+  | 'Generatori azoto'
   | 'Altro'
 
 export interface EquipmentCatalogItem {

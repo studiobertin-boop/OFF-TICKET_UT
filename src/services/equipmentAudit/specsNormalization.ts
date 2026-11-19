@@ -124,6 +124,15 @@ export const CANONICAL_SPECS: Record<EquipmentCatalogType, readonly CanonicalSpe
   Disoleatori: RECIPIENTE_SPECS,
   Scambiatori: RECIPIENTE_SPECS,
   'Recipienti filtro': RECIPIENTE_SPECS,
+  // Il serbatoio interno di un generatore di azoto e' un recipiente a pressione come gli altri.
+  'Serbatoi generatore azoto': RECIPIENTE_SPECS,
+  // Il generatore non ha volume proprio: la grandezza che lo caratterizza e' l'aria di
+  // alimentazione assorbita (l/min), come per l'essiccatore.
+  'Generatori azoto': [
+    PS,
+    TS,
+    { key: 'portata', label: 'Portata aria di alimentazione', unit: 'l/min', kind: 'number', min: 0, max: 1000000 },
+  ],
   Compressori: [
     { key: 'fad', label: 'FAD — aria prodotta', unit: 'l/min', kind: 'number', min: 0, max: 1000000, required: true },
     {
@@ -196,6 +205,8 @@ export const LEGACY_SPEC_MAP: Record<EquipmentCatalogType, Readonly<Record<strin
   Disoleatori: { volume: 'volume', pressione: 'ps', temperatura: 'ts' },
   Scambiatori: { volume: 'volume', pressione: 'ps', temperatura: 'ts' },
   'Recipienti filtro': { volume: 'volume', pressione: 'ps', temperatura: 'ts' },
+  'Serbatoi generatore azoto': { volume: 'volume', pressione: 'ps', temperatura: 'ts' },
+  'Generatori azoto': { volume: 'portata', pressione: 'ps', temperatura: 'ts' },
   Compressori: { volume: 'fad', pressione: 'pressione_max', temperatura: 'ts' },
   Essiccatori: { volume: 'q', pressione: 'ps', temperatura: 'ts' },
   'Valvole di sicurezza': { volume: 'qmax', pressione: 'ptar', temperatura: 'ts' },
@@ -241,6 +252,19 @@ export const FORM_TO_CANONICAL: Record<EquipmentCatalogType, Readonly<Record<str
     ts: 'ts',
     ts_temperatura: 'ts',
     categoria_ped: 'categoria_ped',
+  },
+  'Serbatoi generatore azoto': {
+    volume: 'volume',
+    ps_pressione_max: 'ps',
+    ts: 'ts',
+    ts_temperatura: 'ts',
+    categoria_ped: 'categoria_ped',
+  },
+  'Generatori azoto': {
+    ps_pressione_max: 'ps',
+    ts: 'ts',
+    ts_temperatura: 'ts',
+    portata: 'portata',
   },
   Compressori: {
     volume_aria_prodotto: 'fad',

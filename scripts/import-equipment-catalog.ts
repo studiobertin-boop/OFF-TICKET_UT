@@ -45,7 +45,9 @@ const TIPO_MAPPING: Record<string, string> = {
   'Scambiatore di calore': 'Scambiatori',
   'Filtro': 'Filtri',
   'Separatore di condense': 'Separatori',
-  'Valvola di sicurezza': 'Valvole di sicurezza'
+  'Valvola di sicurezza': 'Valvole di sicurezza',
+  'Serbatoio generatore azoto': 'Serbatoi generatore azoto',
+  'Generatore di azoto': 'Generatori azoto'
 }
 
 interface EquipmentRow {

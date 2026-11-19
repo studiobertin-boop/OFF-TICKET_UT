@@ -24,6 +24,8 @@ const TIPO_LEGACY_MAP: Readonly<Record<string, EquipmentCatalogType>> = {
   separatore: 'Separatori',
   'valvola di sicurezza': 'Valvole di sicurezza',
   'recipiente filtro': 'Recipienti filtro',
+  'serbatoio generatore azoto': 'Serbatoi generatore azoto',
+  'generatore azoto': 'Generatori azoto',
 }
 
 function deduceTipo(row: CatalogRow): EquipmentCatalogType | null {

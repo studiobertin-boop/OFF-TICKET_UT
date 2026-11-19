@@ -24,6 +24,8 @@ export const EQUIPMENT_CATALOG_TYPES: readonly EquipmentCatalogType[] = [
   'Filtri',
   'Separatori',
   'Recipienti filtro',
+  'Serbatoi generatore azoto',
+  'Generatori azoto',
   'Valvole di sicurezza',
   'Altro',
 ]

@@ -141,6 +141,25 @@ describe('schema dei dati tecnici generato dal tipo', () => {
   })
 })
 
+describe('tipi del generatore di azoto', () => {
+  it('Generatori azoto accetta ps, ts e portata in l/min', () => {
+    const r = specsSchemaFor('Generatori azoto').safeParse({ ps: 13, ts: '5 ÷ 50', portata: 1200 })
+    expect(r.success).toBe(true)
+  })
+
+  it('Generatori azoto rifiuta una portata negativa', () => {
+    expect(specsSchemaFor('Generatori azoto').safeParse({ ps: 13, portata: -1 }).success).toBe(false)
+  })
+
+  it('Serbatoi generatore azoto si comporta come i Disoleatori', () => {
+    const casi = [{ ps: 500 }, { ts: '-10 ÷ +120' }, { categoria_ped: 'IV' }, { categoria_ped: 'V' }, { volume: 500 }]
+    for (const c of casi) {
+      expect(specsSchemaFor('Serbatoi generatore azoto').safeParse(c).success)
+        .toBe(specsSchemaFor('Disoleatori').safeParse(c).success)
+    }
+  })
+})
+
 describe('specsFieldsFor', () => {
   it('senza specs restituisce tutti i campi del tipo', () => {
     const chiavi = specsFieldsFor('Compressori').map(d => d.key)
