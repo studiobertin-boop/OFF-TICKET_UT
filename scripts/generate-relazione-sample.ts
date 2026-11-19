@@ -7,10 +7,14 @@
  * storiche coprivano male: un compressore a pistoni, una seconda valvola sul serbatoio,
  * un serbatoio azoto, aria con acidi.
  *
- * Uso:  npx tsx scripts/generate-relazione-sample.ts [percorso-output] [schema.png]
+ * Uso:  npx tsx scripts/generate-relazione-sample.ts [percorso-output] [schema.png] [--generatore]
  *
  * Il secondo argomento è lo schema d'impianto di §2.3, facoltativo: nell'app l'immagine
  * la sceglie il redattore al momento della generazione e non viene salvata.
+ *
+ * Con `--generatore` il documento si genera invece sulla fixture dei test
+ * `schedaConGeneratore` (generatore di azoto N1 con i serbatoi interni NS1 e NS2, due
+ * compressori da 2000 e 1500 l/min), per leggere le righe del generatore nelle tabelle.
  */
 import { readFileSync, writeFileSync } from 'fs'
 import { dirname, resolve } from 'path'
@@ -20,6 +24,18 @@ import { renderRelazioneDocx } from '../src/services/relazione/renderRelazione'
 import type { SchedaDatiCompleta } from '../src/types/technicalSheet'
 import type { Customer } from '../src/types'
 import type { AdditionalInfo, PraticaInfo, SchemaImpianto } from '../src/services/relazione/types'
+import {
+  makeAdditionalInfo,
+  makeCustomer,
+  makePratica,
+  schedaConGeneratore,
+} from '../src/services/relazione/__tests__/fixtures'
+
+// Le opzioni (`--…`) possono stare in qualunque posizione: i due argomenti posizionali restano
+// percorso di uscita e schema, come prima.
+const OPZIONI = process.argv.slice(2).filter((a) => a.startsWith('--'))
+const POSIZIONALI = process.argv.slice(2).filter((a) => !a.startsWith('--'))
+const CON_GENERATORE = OPZIONI.includes('--generatore')
 
 /**
  * Legge un PNG e ne ricava le dimensioni dall'header IHDR (byte 16-23).
@@ -50,8 +66,8 @@ function leggiSchemaPng(percorso: string): SchemaImpianto {
 const RADICE = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 const TEMPLATE = resolve(RADICE, 'public/templates/relazione-dm329.docx')
-const OUT = process.argv[2]
-  ? resolve(process.cwd(), process.argv[2])
+const OUT = POSIZIONALI[0]
+  ? resolve(process.cwd(), POSIZIONALI[0])
   : resolve(RADICE, 'DOCUMENTAZIONE/relazione/ESEMPIO_nuova_struttura.docx')
 
 const customer: Customer = {
@@ -341,9 +357,17 @@ const pratica: PraticaInfo = {
   indirizzoImpianto: null,
 }
 
-const schemaImpianto = process.argv[3] ? leggiSchemaPng(process.argv[3]) : undefined
+const schemaImpianto = POSIZIONALI[1] ? leggiSchemaPng(POSIZIONALI[1]) : undefined
 
-const model = buildRelazioneModel({ scheda, additionalInfo, customer, pratica, schemaImpianto })
+const model = CON_GENERATORE
+  ? buildRelazioneModel({
+      scheda: schedaConGeneratore(),
+      additionalInfo: makeAdditionalInfo({ dataEmissione: additionalInfo.dataEmissione }),
+      customer: makeCustomer(),
+      pratica: makePratica(),
+      schemaImpianto,
+    })
+  : buildRelazioneModel({ scheda, additionalInfo, customer, pratica, schemaImpianto })
 writeFileSync(OUT, Buffer.from(renderRelazioneDocx(readFileSync(TEMPLATE), model)))
 console.log(`Scritto ${OUT}`)
 console.log(

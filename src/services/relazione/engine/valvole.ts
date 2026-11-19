@@ -5,10 +5,13 @@
  * - valvola di disoleatore (Cx.2): portata da elaborare = portata del compressore Cx.
  * - valvola di serbatoio (Sx.1): portata da elaborare = somma delle portate dei
  *   compressori collegati (da additional_info.collegamentiCompressoriSerbatoi).
+ * - valvola di serbatoio interno di un generatore di azoto (NSx.1): portata da elaborare =
+ *   somma delle portate di tutti i compressori dell'impianto.
  *
  * Tabella pressione: "Adeguato" se pressione di taratura ≤ PS del recipiente associato.
  */
 import type { SchedaDatiCompleta } from '@/types/technicalSheet'
+import { serbatoiDelGeneratore } from '@/types/technicalSheet'
 import type {
   AdditionalInfo,
   EngineOptions,
@@ -21,6 +24,7 @@ import {
   codiceValvolaDisoleatore,
   codiceValvolaSerbatoio,
   descrizioneSerbatoio,
+  descrizioneSerbatoioGeneratore,
   etichettaModello,
   formatNumberIT,
 } from '../helpers'
@@ -131,6 +135,53 @@ export function buildValvole(
       pressioneTaratura: formatNumberIT(taratura),
       adeguato: ps > 0 && taratura > 0 && taratura <= ps,
     })
+  }
+
+  // Valvole dei serbatoi interni dei generatori di azoto. Il generatore sta in fondo alla
+  // linea: a monte ci sono tutti i compressori dell'impianto, e la valvola si verifica sulla
+  // somma delle loro portate — non sulla portata del generatore, che è minore dell'aria che
+  // può entrare, e verificare su quella sarebbe a sfavore di sicurezza. Nessun collegamento
+  // da dichiarare in additional_info.
+  const addendiTutti = compressori.map((c) => c.volume_aria_prodotto ?? 0)
+  const portataTutti = addendiTutti.reduce((sum, q) => sum + q, 0)
+  for (const gen of scheda.generatori_azoto ?? []) {
+    for (const s of serbatoiDelGeneratore(scheda, gen.codice)) {
+      const posV = codiceValvolaSerbatoio(s.codice)
+      const v = s.valvola_sicurezza
+      const nFabbricaValvola = v.n_fabbrica ?? ''
+      const scaricato = v.volume_aria_scaricato ?? 0
+
+      // Senza compressori il confronto non esiste, come per i serbatoi non collegati.
+      const applicabile = compressori.length > 0
+      const portataVerificabile = portataTutti > 0 && scaricato > 0
+      portata.push({
+        posValvola: posV,
+        nFabbricaValvola,
+        applicabile,
+        datiCompleti: portataVerificabile,
+        connesse: compressori.map((c) => connessa(c.codice, 'Compressore', c.marca, c.modello)),
+        portataMax: applicabile ? formatNumberIT(portataTutti) : '',
+        portataMaxTesto: !applicabile
+          ? ''
+          : addendiTutti.length > 1
+            ? `${addendiTutti.map(formatNumberIT).join(' + ')} = ${formatNumberIT(portataTutti)}`
+            : formatNumberIT(portataTutti),
+        portataScaricata: formatNumberIT(scaricato),
+        adeguato: applicabile && portataVerificabile && portataTutti <= scaricato,
+      })
+
+      const ps = s.ps_pressione_max ?? 0
+      const taratura = v.pressione_taratura ?? 0
+      pressione.push({
+        posValvola: posV,
+        nFabbricaValvola,
+        datiCompleti: ps > 0 && taratura > 0,
+        connesse: [connessa(s.codice, descrizioneSerbatoioGeneratore(s), s.marca, s.modello)],
+        psRecipiente: formatNumberIT(ps),
+        pressioneTaratura: formatNumberIT(taratura),
+        adeguato: ps > 0 && taratura > 0 && taratura <= ps,
+      })
+    }
   }
 
   return { portata, pressione }

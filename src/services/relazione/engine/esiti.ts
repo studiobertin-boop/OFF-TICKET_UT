@@ -16,6 +16,7 @@
  * Le decisioni giuridiche vengono da `utils/dm329Classification`: qui si formatta soltanto.
  */
 import type { SchedaDatiCompleta, ValvolaSicurezza, CategoriaPED } from '@/types/technicalSheet'
+import { serbatoiDelGeneratore } from '@/types/technicalSheet'
 import type { AdditionalInfo, EngineOptions, EsitoRow } from '../types'
 import type { EsitoDM329 } from '@/utils/dm329Classification'
 import { classificaRecipiente, comportaAdempimento } from '@/utils/dm329Classification'
@@ -25,6 +26,7 @@ import {
   codiciValvoleDisoleatore,
   codiciValvoleSerbatoio,
   descrizioneSerbatoio,
+  descrizioneSerbatoioGeneratore,
   etichettaModello,
   formatNumberIT,
 } from '../helpers'
@@ -403,6 +405,47 @@ export function buildEsiti(
         statoInail: '',
         verificaIntegrita: false,
       },
+    ])
+  }
+
+  // --- Generatori di azoto (+ serbatoi interni + valvole) -------------------
+  // In coda a tutto, come nella scheda. Una scheda senza generatori (`undefined`) non entra
+  // nel ciclo: le righe di prima restano identiche.
+  for (const gen of scheda.generatori_azoto ?? []) {
+    const righe = serbatoiDelGeneratore(scheda, gen.codice).map((s) => {
+      const { row, esito } = rigaRecipiente({
+        pos: s.codice,
+        apparecchiatura: descrizioneSerbatoioGeneratore(s),
+        marca: s.marca,
+        modello: s.modello,
+        volume: s.volume,
+        ps: s.ps_pressione_max,
+        categoriaPed: s.categoria_ped,
+        giaDenunciato: s.gia_denunciato,
+        matricolaInail: s.matricola_inail,
+      })
+      const valvole = valvoleDi(s.valvola_sicurezza, s.valvole_aggiuntive)
+      const righeValvole = codiciValvoleSerbatoio(s.codice, valvole.length).map((pos, i) =>
+        rigaValvola(pos, valvole[i], esito)
+      )
+      return { esito, righe: [row, ...righeValvole] }
+    })
+
+    // Il generatore non è un recipiente: come l'essiccatore dai suoi scambiatori, eredita
+    // l'esito più oneroso dei serbatoi interni. Senza serbatoi interni non contiene
+    // recipienti in pressione, ed è escluso come l'essiccatore che ne è privo.
+    gruppi.push([
+      rigaNonRecipiente({
+        pos: gen.codice,
+        apparecchiatura: 'Generatore di azoto',
+        marca: gen.marca,
+        modello: gen.modello,
+        esito:
+          righe.length > 0
+            ? esitoPiuOneroso(righe.map((r) => r.esito))
+            : 'ESCLUSO_NO_RECIPIENTE',
+      }),
+      ...righe.flatMap((r) => r.righe),
     ])
   }
 

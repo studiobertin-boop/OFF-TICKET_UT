@@ -24,6 +24,9 @@ const PROVENIENZA: Record<string, string> = {
   AZOTO: 'Generazione o stoccaggio in sito',
 }
 
+/** Provenienza dell'azoto quando lo produce un generatore dell'impianto. */
+const PROVENIENZA_AZOTO_GENERATO = 'Produzione in sito'
+
 export function buildFluidi(scheda: SchedaDatiCompleta): FluidiModel {
   const ariaAspirata = scheda.dati_impianto?.aria_aspirata ?? []
   const evidenziaNocive = ariaAspirata.some((q) => QUALITA_NOCIVE.includes(q))
@@ -42,6 +45,10 @@ export function buildFluidi(scheda: SchedaDatiCompleta): FluidiModel {
 
   // Circuiti aggiuntivi dedotti dai serbatoi con fluido diverso dall'aria.
   const altriFluidi = new Map<string, string>()
+  // Un generatore di azoto produce azoto in sito anche senza serbatoi di azoto. La chiave è la
+  // stessa dei serbatoi: se ce ne sono anche di azoto, la riga resta una sola.
+  const haGeneratori = (scheda.generatori_azoto?.length ?? 0) > 0
+  if (haGeneratori) altriFluidi.set('AZOTO', 'Azoto')
   for (const s of scheda.serbatoi ?? []) {
     if (s.fluido === 'AZOTO') {
       altriFluidi.set('AZOTO', 'Azoto')
@@ -58,7 +65,10 @@ export function buildFluidi(scheda: SchedaDatiCompleta): FluidiModel {
       // Per l'azoto il gruppo 2 è pacifico; per un fluido arbitrario no: meglio una
       // cella vuota che un'affermazione normativa non verificata.
       gruppo: chiave === 'AZOTO' ? '2' : '',
-      provenienza: PROVENIENZA[chiave] ?? '',
+      provenienza:
+        chiave === 'AZOTO' && haGeneratori
+          ? PROVENIENZA_AZOTO_GENERATO
+          : (PROVENIENZA[chiave] ?? ''),
     })
   }
 

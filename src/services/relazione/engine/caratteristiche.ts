@@ -6,17 +6,21 @@
  * - compressore: portata = aria producibile (FAD)
  * - essiccatore: portata = aria trattata
  * - valvola: portata = aria scaricata; pressione = pressione di taratura
- * - recipienti (disoleatore/serbatoio/scambiatore/recipiente filtro): capacità = volume;
- *   pressione = PS
+ * - recipienti (disoleatore/serbatoio/scambiatore/recipiente filtro/serbatoio interno del
+ *   generatore di azoto): capacità = volume; pressione = PS
+ * - generatore di azoto: portata = aria di alimentazione (non l'azoto prodotto), etichettata
+ *   nella cella
  * La temperatura viene dal campo `ts` della scheda dati, precompilato dal catalogo e
  * modificabile dal tecnico; vedi formatTemperatura per la resa.
  */
 import type { SchedaDatiCompleta, ValvolaSicurezza } from '@/types/technicalSheet'
+import { serbatoiDelGeneratore } from '@/types/technicalSheet'
 import type { CaratteristicheRow, EngineOptions } from '../types'
 import {
   codiciValvoleDisoleatore,
   codiciValvoleSerbatoio,
   descrizioneSerbatoio,
+  descrizioneSerbatoioGeneratore,
   etichettaModello,
   formatNumberIT,
   formatTemperatura,
@@ -27,6 +31,9 @@ import { compareCodes } from '@/utils/equipmentCodes'
 const TEMP_MIN_RECIPIENTE = -10
 const TEMP_MIN_VALVOLA = -10
 const TEMP_MIN_SCAMBIATORE = -20
+
+/** Sotto la portata del generatore di azoto, nella stessa cella: dice di che portata si tratta. */
+const ETICHETTA_PORTATA_GENERATORE = '(aria di alimentazione)'
 
 export function buildCaratteristiche(
   scheda: SchedaDatiCompleta,
@@ -181,6 +188,43 @@ export function buildCaratteristiche(
       temperatura: '',
       categoria: '',
     })
+  }
+
+  // Generatori di azoto (+ serbatoi interni + valvole), in coda come in scheda
+  for (const gen of scheda.generatori_azoto ?? []) {
+    const portata = formatNumberIT(gen.portata)
+    rows.push({
+      ...base(gen.codice, 'Generatore di azoto', gen.marca, gen.modello, gen.anno, gen.n_fabbrica),
+      capacita: '',
+      // La portata di scheda è l'aria che il generatore assorbe, non l'azoto che produce:
+      // senza l'etichetta la si leggerebbe come azoto prodotto, che è un dato diverso.
+      portata: portata ? `${portata}\n${ETICHETTA_PORTATA_GENERATORE}` : '',
+      pressione: formatNumberIT(gen.ps_pressione_max),
+      temperatura: formatTemperatura(TEMP_MIN_RECIPIENTE, gen.ts, gen.ts_temperatura),
+      categoria: '',
+    })
+    // Serbatoi interni: come i disoleatori, recipiente seguito dalle sue valvole.
+    for (const s of serbatoiDelGeneratore(scheda, gen.codice)) {
+      rows.push({
+        ...base(
+          s.codice,
+          descrizioneSerbatoioGeneratore(s),
+          s.marca,
+          s.modello,
+          s.anno,
+          s.n_fabbrica
+        ),
+        capacita: formatNumberIT(s.volume),
+        portata: '',
+        pressione: formatNumberIT(s.ps_pressione_max),
+        temperatura: formatTemperatura(TEMP_MIN_RECIPIENTE, s.ts, s.ts_temperatura),
+        categoria: s.categoria_ped ?? '',
+      })
+      const valvole = [s.valvola_sicurezza, ...(s.valvole_aggiuntive ?? [])]
+      codiciValvoleSerbatoio(s.codice, valvole.length).forEach((pos, i) => {
+        rows.push(valvolaRow(pos, valvole[i]))
+      })
+    }
   }
 
   return rows

@@ -5,7 +5,8 @@
  * 1. serbatoi — scarico condensa, finitura interna, ancoraggio, manometro sono dati
  *    effettivamente rilevati in scheda;
  * 2. altre apparecchiature soggette al DM329 (disoleatori, scambiatori, recipienti
- *    filtro) — di queste si conoscono solo le valvole che le proteggono e il manometro.
+ *    filtro, serbatoi interni dei generatori di azoto) — di queste si conoscono solo le
+ *    valvole che le proteggono e il manometro.
  *
  * Le apparecchiature escluse dal campo di applicazione non compaiono: l'inclusione
  * deriva dagli esiti di §5.2, così le due sezioni non possono divergere.
@@ -22,7 +23,14 @@ import type {
   ProtezioniModel,
   ValvolaProtezione,
 } from '../types'
-import { codiciValvoleSerbatoio, descrizioneSerbatoio, formatNumberIT, valvoleDi } from '../helpers'
+import { serbatoiDelGeneratore } from '@/types/technicalSheet'
+import {
+  codiciValvoleSerbatoio,
+  descrizioneSerbatoio,
+  descrizioneSerbatoioGeneratore,
+  formatNumberIT,
+  valvoleDi,
+} from '../helpers'
 import { comportaAdempimento } from '@/utils/dm329Classification'
 import { codiciValvoleDisoleatore, risolviValvole } from '@/utils/valvoleImpianto'
 import type { ValvolaImpianto } from '@/utils/valvoleImpianto'
@@ -40,7 +48,7 @@ const FINITURA_LABEL: Record<FinituraInternaOption, string> = {
   ALTRO: 'Altro',
 }
 
-/** Il manometro di disoleatori e scambiatori è integrato nella macchina. */
+/** Il manometro di disoleatori, scambiatori e serbatoi interni è integrato nella macchina. */
 const MANOMETRO_A_BORDO = 'a bordo macchina'
 /** I recipienti filtro non portano manometro. */
 const MANOMETRO_ASSENTE = '-'
@@ -136,6 +144,23 @@ export function buildProtezioni(
       ),
       manometro: MANOMETRO_ASSENTE,
     })
+  }
+
+  // Serbatoi interni dei generatori di azoto: come i disoleatori, portano valvole proprie e
+  // il manometro sta sulla macchina.
+  for (const gen of scheda.generatori_azoto ?? []) {
+    for (const s of serbatoiDelGeneratore(scheda, gen.codice)) {
+      if (!soggette.has(s.codice)) continue
+      const valvole = valvoleDi(s.valvola_sicurezza, s.valvole_aggiuntive)
+      altre.push({
+        pos: s.codice,
+        apparecchiatura: descrizioneSerbatoioGeneratore(s),
+        valvole: codiciValvoleSerbatoio(s.codice, valvole.length).map((pos, i) =>
+          valvolaProtezione(pos, valvole[i])
+        ),
+        manometro: MANOMETRO_A_BORDO,
+      })
+    }
   }
 
   return { serbatoi, altre, haAltre: altre.length > 0 }

@@ -16,6 +16,8 @@ import type {
   RecipienteFiltro,
   Separatore,
   ValvolaSicurezza,
+  GeneratoreAzoto,
+  SerbatoioGeneratore,
 } from '@/types/technicalSheet'
 import type { AdditionalInfo, PraticaInfo } from '../types'
 
@@ -226,6 +228,81 @@ export function makeScheda(overrides: Partial<SchedaDatiCompleta> = {}): SchedaD
     separatori: [],
     ...overrides,
   }
+}
+
+export function makeGeneratore(overrides: Partial<GeneratoreAzoto> = {}): GeneratoreAzoto {
+  return {
+    codice: 'N1',
+    marca: 'PARKER HANNIFIN',
+    modello: 'NITROSOURCE N2-35P',
+    n_fabbrica: 'NS-2024-0815',
+    anno: 2024,
+    ps_pressione_max: 13,
+    ts: '50',
+    // Portata d'ARIA di alimentazione, non azoto prodotto (decisione 13 del progetto).
+    portata: 1200,
+    ...overrides,
+  }
+}
+
+export function makeSerbatoioGeneratore(
+  overrides: Partial<SerbatoioGeneratore> = {}
+): SerbatoioGeneratore {
+  return {
+    codice: 'NS1',
+    generatore_associato: 'N1',
+    marca: 'PARKER HANNIFIN',
+    modello: 'COLONNA CMS',
+    n_fabbrica: 'CMS-001',
+    anno: 2024,
+    volume: 60,
+    ps_pressione_max: 11,
+    ts: '50',
+    categoria_ped: 'II',
+    valvola_sicurezza: makeValvola({
+      modello: 'TA6',
+      n_fabbrica: 'NS1-V1',
+      pressione_taratura: 10.5,
+      volume_aria_scaricato: 4000,
+    }),
+    ...overrides,
+  }
+}
+
+/**
+ * Scheda con un generatore di azoto N1 e i suoi due serbatoi interni: NS1 (60 l a 11 bar,
+ * dichiarazione) e NS2 (40 l a 16 bar, verifica). Due compressori senza disoleatore, da
+ * 2000 e 1500 l/min: tutti a monte del generatore, che sta in fondo alla linea.
+ */
+export function schedaConGeneratore(
+  overrides: Partial<SchedaDatiCompleta> = {}
+): SchedaDatiCompleta {
+  return makeScheda({
+    compressori: [
+      makeCompressore({ codice: 'C1', volume_aria_prodotto: 2000, ha_disoleatore: false }),
+      makeCompressore({ codice: 'C2', volume_aria_prodotto: 1500, ha_disoleatore: false }),
+    ],
+    disoleatori: [],
+    generatori_azoto: [makeGeneratore()],
+    serbatoi_generatore: [
+      makeSerbatoioGeneratore(),
+      makeSerbatoioGeneratore({
+        codice: 'NS2',
+        n_fabbrica: 'CMS-002',
+        volume: 40,
+        ps_pressione_max: 16,
+        categoria_ped: 'III',
+        valvola_sicurezza: makeValvola({
+          modello: 'TA6',
+          n_fabbrica: 'NS2-V1',
+          pressione_taratura: 15,
+          volume_aria_scaricato: 4000,
+        }),
+        valvole_aggiuntive: [makeValvola({ n_fabbrica: 'NS2-V2', pressione_taratura: 15 })],
+      }),
+    ],
+    ...overrides,
+  })
 }
 
 export function makeAdditionalInfo(overrides: Partial<AdditionalInfo> = {}): AdditionalInfo {

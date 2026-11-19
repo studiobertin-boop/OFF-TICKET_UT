@@ -72,6 +72,10 @@ export {
   valvoleDi,
 } from '@/utils/valvoleImpianto'
 
+// Descrizione del serbatoio interno di un generatore di azoto («Serbatoio interno generatore di
+// azoto N1»): la compone solo la scheda dati, qui la si riesporta per i moduli dell'engine.
+export { descrizioneSerbatoioGeneratore } from '@/types/technicalSheet'
+
 /** Codice della valvola principale di un serbatoio: Sx → Sx.1. */
 export function codiceValvolaSerbatoio(serbatoioCodice: string): string {
   return `${serbatoioCodice}.1`

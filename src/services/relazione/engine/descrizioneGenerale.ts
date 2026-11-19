@@ -17,6 +17,7 @@
 import type {
   SchedaDatiCompleta,
   Compressore,
+  GeneratoreAzoto,
   Serbatoio,
   TipoCompressore,
 } from '@/types/technicalSheet'
@@ -186,6 +187,25 @@ function sezioneTrattamento(scheda: SchedaDatiCompleta): string {
 }
 
 // ---------------------------------------------------------------------------
+// Generatori di azoto
+// ---------------------------------------------------------------------------
+
+/**
+ * La frase sui generatori di azoto, approvata nel testo (decisione 14 del progetto): al
+ * singolare con un generatore, al plurale con più. Senza generatori nessuna frase.
+ */
+export function fraseGeneratoriAzoto(generatori: GeneratoreAzoto[]): string {
+  const n = generatori.length
+  if (n === 0) return ''
+  const codici = generatori.map((g) => g.codice).join(', ')
+  return n === 1
+    ? `A valle della linea di trattamento è installato un generatore di azoto (${codici}) ` +
+        "che produce azoto in sito a partire dall'aria compressa."
+    : `A valle della linea di trattamento sono installati ${numeroInLettere(n)} generatori ` +
+        `di azoto (${codici}) che producono azoto in sito a partire dall'aria compressa.`
+}
+
+// ---------------------------------------------------------------------------
 // Assemblaggio
 // ---------------------------------------------------------------------------
 
@@ -226,6 +246,11 @@ export function buildDescrizioneGenerale(
   if ((scheda.essiccatori?.length ?? 0) > 0 || (scheda.filtri?.length ?? 0) > 0) {
     sezioni.push(sezioneTrattamento(scheda))
   }
+
+  // Il generatore sta in fondo alla linea, dopo il trattamento: la frase segue quella sezione,
+  // come voce dello stesso elenco. Senza generatori la stringa è vuota e non entra.
+  const fraseGeneratori = fraseGeneratoriAzoto(scheda.generatori_azoto ?? [])
+  if (fraseGeneratori) sezioni.push(fraseGeneratori)
 
   if ((scheda.separatori?.length ?? 0) > 0) {
     sezioni.push('Raccolta e trattamento delle condense tramite separatore acqua olio')
